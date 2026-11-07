@@ -1,0 +1,19 @@
+
+{
+  "dark": {
+    "main text/surface": 13.8,
+    "muted text/surface": 8.54,
+    "button text/primary": 7.54
+  },
+  "light": {
+    "main text/surface": 14.51,
+    "muted text/surface": 6.53,
+    "button text/primary": 6.3
+  },
+  "midnight": {
+    "main text/surface": 13.63,
+    "muted text/surface": 8.33,
+    "button text/primary": 8.48
+  }
+}
+

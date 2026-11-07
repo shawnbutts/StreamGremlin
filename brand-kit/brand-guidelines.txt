@@ -1,0 +1,44 @@
+# StreamGremlin brand guidelines
+
+## Personality
+An enthusiastic, mischievous but dependable little workshop engineer. Friendly and clever rather than destructive, sinister, or platform-specific.
+
+## Logo
+- **Primary:** `logos/svg/gremlin-mark-color.svg` — vector face, goggles, asymmetric ears and one fang.
+- **On dark/light:** use the color mark on contrasting surfaces, or `gremlin-mark-white.svg` / `gremlin-mark-navy.svg` for monochrome treatment.
+- **Wordmarks:** `wordmark-dark.svg` for navy/dark backgrounds and `wordmark-light.svg` for light backgrounds. Their backing is transparent. `-badge` variants include a solid background.
+- **Small sizes:** prefer the contained `app-icon-*.svg`; test visually at 16px/32px. Use the full mascot only at larger sizes.
+- **Clear space:** leave at least 1/8 of the mark width around the icon. Do not stretch, rotate, or alter color balances.
+- Wordmark letter shapes are vector outlines; no external font required.
+
+## Mascot
+- Standalone transparent illustrations: `mascot/png/workshop-gremlin-{512,1024,2048}.png` (number is height).
+- `mascot/svg/workshop-gremlin.svg` is source art with editable vector geometry. The mascot is intentionally more detailed than the small logo.
+- Preserve friendly visible eyes in the character illustration and the brass goggles as the recurring motif.
+
+## Colors
+| Token | HEX | Purpose |
+| --- | --- | --- |
+| Deep Navy | #0F2A3A | Primary backgrounds / outlines |
+| Steel Blue | #2F4C5E | Secondary surfaces |
+| Muted Teal | #4FA697 | Accents (not always adequate for text) |
+| Gremlin Green | #7FBF6E | Mascot |
+| Antique Brass | #C99A52 | Goggles / illustration accent |
+| Warm Ivory | #ECE7DC | Light wordmark / supporting background |
+| Ocean Blue | #3E6D8C | Secondary supporting accent |
+
+Avoid purple, Twitch styling, YouTube red, and other platform identifiers as the primary brand language. Platform logos may appear only when labeling actual integrations under their own brand rules.
+
+## Backgrounds
+- On near-black/navy: use `wordmark-dark` (warm ivory / brass). On white/light: use `wordmark-light` (navy / deeper brass).
+- Color mascot illustrations use a dark outline so they read on white. On dark backgrounds, maintain space or use a light backing halo if the outline blends into the surface.
+- The small full-color mark may need a light keyline on extremely dark backgrounds. App icons include intentional background panels.
+
+## Typography
+Use Inter or the OS system UI stack for web UI. The SVG wordmark has fixed outlined lettering and is not a web UI font recommendation. Body text: 14–16px; line height ≥1.45; headings 600–750 weight. Avoid all-caps paragraphs.
+
+## Accessibility
+Use functional theme variables, not raw mascot greens/brass, for interface text/buttons. Prefer ≥4.5:1 contrast for normal text, ≥3:1 for large text and relevant UI boundaries. Never communicate status by color alone; include labels/icons. Visible focus, keyboard controls and reduced-motion support are required.
+
+## Usage and provenance
+These are newly authored vector assets created for this kit, inspired by the previously discussed Workshop Gremlin direction. They are not auto-traced from the reference concept boards; fine details differ intentionally. The reference boards are exploration images, not production-ready SVG artwork.

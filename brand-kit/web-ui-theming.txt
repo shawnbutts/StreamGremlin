@@ -1,0 +1,35 @@
+# StreamGremlin web UI theming
+
+Add `<link rel="stylesheet" href="themes/streamgremlin.css">` to your app. Set `<html data-theme="dark">` or `light` or `midnight`. Default is dark when unset. Set `class="sg-app"` on the application root (or use the variables in your existing styles).
+
+## Three themes
+- `dark`: Dark Workshop (recommended default) — near-black canvas, navy panels, luminous teal action accent.
+- `light`: Light Workshop — crisp white cards, muted blue-gray borders, deep teal accessible buttons.
+- `midnight`: Midnight Blue — cool blue-black surfaces, subdued teal emphasis.
+
+## Semantic token contract
+`--sg-background`, `--sg-surface`, `--sg-surface-raised`, `--sg-surface-hover`, `--sg-foreground`, `--sg-muted`, `--sg-border`, `--sg-primary`, `--sg-primary-hover`, `--sg-primary-text`, `--sg-secondary`, `--sg-focus`, `--sg-success`, `--sg-warning`, `--sg-danger`, `--sg-info`.
+
+Map these into your component library or design system. Use `--sg-foreground` for headings, `--sg-muted` for secondary text, `--sg-border` for dividers and inputs, and `--sg-focus` for focus outlines. Do not confuse mascot colors with interactive state colors.
+
+## Example
+```html
+<html data-theme="dark">
+  <link rel="stylesheet" href="/themes/streamgremlin.css">
+  <main class="sg-app">
+    <section class="sg-panel">
+      <button class="sg-button">Run workflow</button>
+    </section>
+  </main>
+</html>
+```
+
+The `previews/ui-theme-preview.html` demo has a theme selector and working controls; open locally in a browser. Themes can be controlled by app settings, OS preference, or a user profile. Store selected preference using your app's normal state mechanism.
+
+## UI styling suggestions
+- 12px panels, 8px buttons; use consistent corners, no excessive glass effects.
+- Information density can be high in automation editors, but use generous spacing around destructive actions.
+- Reserve brass for decorative and mascot accents, not standard primary buttons.
+- Use teal for primary actions and purple/red only if required by external integration brand marks.
+- Status colors require status text and accessible hover/focus styles.
+- Motion: subtle 100–180ms transitions, honor prefers-reduced-motion.

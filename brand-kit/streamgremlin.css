@@ -1,0 +1,80 @@
+/* StreamGremlin UI tokens. Set data-theme="dark" | "light" | "midnight" on html. */
+:root {
+  --sg-brand-deep-navy: #0F2A3A;
+  --sg-brand-steel-blue: #2F4C5E;
+  --sg-brand-muted-teal: #4FA697;
+  --sg-brand-gremlin-green: #7FBF6E;
+  --sg-brand-antique-brass: #C99A52;
+  --sg-brand-warm-ivory: #ECE7DC;
+  --sg-brand-ocean-blue: #3E6D8C;
+}
+
+:root[data-theme="dark"] , :root:not([data-theme]) {
+  --sg-background: #081923;
+  --sg-surface: #0F2A3A;
+  --sg-surface-raised: #183748;
+  --sg-surface-hover: #234558;
+  --sg-foreground: #F4F7F7;
+  --sg-muted: #B6C7CF;
+  --sg-border: #3D5B6A;
+  --sg-primary: #67B9AC;
+  --sg-primary-hover: #85D0C2;
+  --sg-primary-text: #061D24;
+  --sg-secondary: #2F4C5E;
+  --sg-focus: #91D8E7;
+  --sg-success: #71C69A;
+  --sg-warning: #EAC076;
+  --sg-danger: #FF8B87;
+  --sg-info: #7EC8EE;
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --sg-background: #F8FAFB;
+  --sg-surface: #FFFFFF;
+  --sg-surface-raised: #EDF3F5;
+  --sg-surface-hover: #E3EFF2;
+  --sg-foreground: #102C3C;
+  --sg-muted: #49616E;
+  --sg-border: #BCD0D8;
+  --sg-primary: #176B67;
+  --sg-primary-hover: #125751;
+  --sg-primary-text: #FFFFFF;
+  --sg-secondary: #DFEAEE;
+  --sg-focus: #176B8B;
+  --sg-success: #126E4D;
+  --sg-warning: #8C5709;
+  --sg-danger: #AC302F;
+  --sg-info: #125D89;
+  color-scheme: light;
+}
+
+:root[data-theme="midnight"] {
+  --sg-background: #06141E;
+  --sg-surface: #102B3E;
+  --sg-surface-raised: #17394E;
+  --sg-surface-hover: #204A61;
+  --sg-foreground: #F2F8FB;
+  --sg-muted: #B0C7D4;
+  --sg-border: #3C5D71;
+  --sg-primary: #79C9C2;
+  --sg-primary-hover: #A2DDD5;
+  --sg-primary-text: #09232E;
+  --sg-secondary: #31566D;
+  --sg-focus: #9FDFF0;
+  --sg-success: #76C9A6;
+  --sg-warning: #F1C77C;
+  --sg-danger: #FF9390;
+  --sg-info: #89CCF3;
+  color-scheme: dark;
+}
+
+/* Example component primitives */
+.sg-app { background:var(--sg-background); color:var(--sg-foreground); font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.sg-panel { background:var(--sg-surface); border:1px solid var(--sg-border); border-radius:12px; }
+.sg-button { background:var(--sg-primary); color:var(--sg-primary-text); border:1px solid transparent; border-radius:8px; padding:.65rem 1rem; font-weight:650; cursor:pointer; }
+.sg-button:hover { background:var(--sg-primary-hover); }
+.sg-button:focus-visible, .sg-input:focus-visible { outline:3px solid var(--sg-focus); outline-offset:3px; }
+.sg-input { background:var(--sg-surface-raised); color:var(--sg-foreground); border:1px solid var(--sg-border); border-radius:8px; padding:.6rem .75rem; }
+.sg-muted { color:var(--sg-muted); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
