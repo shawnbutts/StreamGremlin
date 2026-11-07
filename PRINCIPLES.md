@@ -1,6 +1,6 @@
 # Product principles
 
-These hold whatever features the project carries. Most come from StreamWisp decisions, noted in brackets. Copy this file into the new repository as the first entries of its decision log.
+These hold whatever features StreamGremlin carries. Most come from StreamWisp decisions, noted in brackets. Copy this file into the new repository as the first entries of its decision log.
 
 ## Fairness and money-like things
 
@@ -8,20 +8,20 @@ These hold whatever features the project carries. Most come from StreamWisp deci
 - Odds and requirements are always shown. Nothing is called fair unless it's verified. A plugin's odds are "stated by the plugin" (D-081).
 - Points use an append-only, double-entry ledger with unique operation IDs. Balances never go negative unless the streamer allows it. History is never changed (D-029).
 - Duplicate delivery never pays twice or repeats an outside action when an idempotency key exists.
-- Viewers never pay to play games. No point wagering by the project itself: bets, duels and double-or-nothing aren't built (D-031, D-043).
+- Viewers never pay to play games. No point wagering by StreamGremlin itself: bets, duels and double-or-nothing aren't built (D-031, D-043). Plugins may hold points in escrow for a round, with their odds shown as "stated by the plugin" (D-004).
 - Games score every correct answer in the window the same, with no speed bonus, because viewers see chat at different delays (D-049).
 - Chat-only viewers get everything they need to play; overlays alone are never enough.
 
 ## Ads
 
-- The project never starts an ad on its own. The streamer starts it or confirms a suggestion (D-035, D-041).
+- StreamGremlin never starts an ad on its own. The streamer starts it or confirms a suggestion (D-035, D-041).
 - Only the broadcaster can ask for an ad (D-037).
 - A refused request is never announced. An unknown answer is never retried, and never shown as confirmed (D-036, D-038).
 - Ad end, per-viewer ad visibility and passive viewer presence aren't offered by Twitch, and are never invented.
 
 ## OBS
 
-- A scene is switched back only while the scene the project switched to is still showing. A manual change always wins (D-039).
+- A scene is switched back only while the scene StreamGremlin switched to is still showing. A manual change always wins (D-039).
 
 ## Platforms and honesty
 
@@ -39,15 +39,16 @@ These hold whatever features the project carries. Most come from StreamWisp deci
 
 ## Won't do
 
-Decided in StreamWisp, so they don't need discussing again unless something changes:
+Decided in StreamWisp or at kickoff, so they don't need discussing again unless something changes:
 
 - Running or converting Streamer.bot C# (D-132).
 - Automatic ads without the streamer (D-035).
-- Point wagering run by the project (D-031).
+- Point wagering run by StreamGremlin (D-031).
 - Undocumented or private platform endpoints.
-- Copying another product's design, wording or paid add-ons. Features are rebuilt from the project's own parts (D-123).
+- Copying another product's design, wording or paid add-ons. Features are rebuilt from StreamGremlin's own parts (D-123).
 - In-process Go plugins.
 - A hosted multi-tenant cloud service.
+- Paid wheel spins, or any other way for viewers to pay to play (D-004).
 
 ## People and data
 

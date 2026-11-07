@@ -1,5 +1,7 @@
 # Features for discussion
 
+> **This was the input to kickoff K-4, and is kept for reference.** The decided cut is in [docs/FEATURES.md](docs/FEATURES.md) (D-004).
+
 Everything StreamWisp built, grouped by area, with a suggestion for each:
 
 - **Carry:** core to the product or cheap to keep. Suggested for the first milestones.

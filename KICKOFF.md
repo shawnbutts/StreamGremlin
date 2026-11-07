@@ -42,7 +42,7 @@ Hold these one at a time, in order, before writing any code. Each one ends with 
 
 **Decide:** who registers what, and when. Start these in week one.
 
-- Twitch app registration under the project's account (built-in Client ID, D-131).
+- Twitch app registration under the StreamGremlinHQ account (built-in Client ID, D-131).
 - Code signing: Apple Developer ID and a Windows certificate, or first-run warnings (D-077)?
 - Website hosting, a security contact address, a support channel.
 - License (StreamWisp was Apache-2.0, D-078) and whether contributors sign anything.

@@ -1,10 +1,10 @@
 # Agent instructions
 
-You are building a local-first streaming automation app for Twitch streamers, many of them coming from Streamer.bot. It is a rebuild of an earlier project, StreamWisp, using its decisions and architecture but none of its code. Until the name is chosen, these documents call it **the project**; replace that with the name once it is decided (kickoff K-2).
+You are building **StreamGremlin**, a local-first streaming automation app for Twitch streamers, with YouTube in a later milestone (D-003). It is for streamers coming from Streamer.bot and for streamers with no bot yet, so onboarding and everyday use must be as simple as possible (D-001). It is a rebuild of an earlier project, StreamWisp, using its decisions and architecture but none of its code.
 
-## Before any code
+## Kickoff
 
-The kickoff discussions in `KICKOFF.md` come first. Until K-1 to K-4 are decided and recorded, don't write code: help the user decide. Lead one discussion at a time: present the options and a recommendation, then wait.
+K-1 to K-4 are decided and recorded in docs/DECISIONS.md (D-001 to D-004), so code may start. K-5 to K-7 in `KICKOFF.md` are still open. Lead them one at a time: present the options and a recommendation, then wait.
 
 ## Reading order
 
@@ -46,7 +46,7 @@ Ask the user only when a decision is irreversible, business-critical, or changes
 
 A slice is done with: a screen, automated tests including an acceptance test, logs, safe retry and recovery, permission checks, docs, migration considerations, and platform capability notes.
 
-A milestone is done when the user has used it on a real stream, on each supported OS, and the result is written down. Mocks passing isn't enough.
+A milestone is done when the user has used it on a real stream on macOS and Windows, and the result is written down. Linux is "lightly tested": it builds, passes CI and gets a smoke test before a release (D-003). Mocks passing isn't enough.
 
 ## Testing invariants
 
@@ -65,5 +65,5 @@ A milestone is done when the user has used it on a real stream, on each supporte
 - After the first public release, never edit an applied migration. Before it, keep one baseline.
 - Use `crypto/rand` for anything a viewer could win; seeded random sources only in tests.
 - In the desktop app, never use `window.confirm` or `<a download>`; use the app's dialog and native save dialog.
-- Don't copy another product's design, wording or paid add-ons. Rebuild the behaviour from the project's own parts.
+- Don't copy another product's design, wording or paid add-ons. Rebuild the behaviour from StreamGremlin's own parts.
 - Keep user exports and real stream data out of the repository unless the user says a file may be committed.
