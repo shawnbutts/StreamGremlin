@@ -1,0 +1,211 @@
+/* Layout for the desktop app. Colours come only from the brand kit's
+   semantic --sg-* tokens; status is never shown by colour alone. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 1.15rem;
+  font-weight: 650;
+  margin: 0 0 0.75rem;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 3px solid var(--sg-focus);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--sg-surface-raised);
+  color: var(--sg-foreground);
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 20px;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.sidebar {
+  padding: 16px 12px;
+  align-self: start;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0 6px 14px;
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.nav-item {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: var(--sg-foreground);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.55rem 0.75rem;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.nav-item:hover {
+  background: var(--sg-surface-hover);
+}
+
+.nav-item[aria-current='page'] {
+  background: var(--sg-surface-raised);
+  border-color: var(--sg-border);
+  font-weight: 650;
+}
+
+main {
+  max-width: 900px;
+}
+
+main:focus {
+  outline: none;
+}
+
+.card {
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+
+.state {
+  font-weight: 650;
+  margin: 0 0 1rem;
+}
+
+.state-ok span {
+  color: var(--sg-success);
+}
+
+.state-unknown span {
+  color: var(--sg-warning);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--sg-muted);
+}
+
+.facts dd {
+  margin: 0;
+}
+
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+legend {
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.choice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  background: var(--sg-surface-raised);
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--sg-surface-hover);
+}
+
+.choice input {
+  margin-top: 4px;
+  accent-color: var(--sg-primary);
+}
+
+.choice-label {
+  display: block;
+  font-weight: 600;
+}
+
+.choice-hint {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.saved {
+  min-height: 1.5em;
+  margin: 12px 0 0;
+  color: var(--sg-muted);
+}
+
+.error {
+  color: var(--sg-danger);
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+}

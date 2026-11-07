@@ -1,0 +1,28 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+  settings:
+    errcheck:
+      exclude-functions:
+        # Writing to the terminal and closing in defers: nothing useful to do on failure.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (io.Closer).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (net.Listener).Close
+    gosec:
+      excludes:
+        # Every path is inside the data folder the streamer chose, never from the network.
+        - G304
+formatters:
+  enable:
+    - gofmt
+    - goimports

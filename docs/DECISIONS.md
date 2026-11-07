@@ -375,3 +375,18 @@ Decided 2026-11-07.
 - **Asking:** the user is asked when a decision is irreversible, business-critical or changes the feature cut. Otherwise the simplest secure, testable design is chosen and recorded here.
 
 The kickoff (K-1 to K-7) is complete. Next: M1, the Spine.
+
+## D-008. Choices made while building M1 slice 1 (skeleton)
+
+Decided 2026-11-07, without asking the user, under D-007 ("otherwise choose the simplest secure, testable design and record it").
+
+- **Storage** follows [ADR-0001](adr/0001-storage.md): one baseline migration until the first public release, no down migrations, and a backup before every schema change.
+- **The local API and the desktop bridge** follow [ADR-0002](adr/0002-local-api.md).
+- **Default API port 7430,** not StreamWisp's 7420, so both can run on one machine. A free port is used if 7430 is taken.
+- **`streamgremlin engine`** runs the engine without a window, for development and acceptance tests. It isn't a supported server and isn't documented for streamers. D-003's "don't build headless" still holds; this only keeps the boundary tested.
+- **Wails v3.0.0,** the first stable v3 release (2026-10-26). It's 12 days old, two days short of the two-week rule for new versions; it was chosen over the beta builds StreamWisp tracked (StreamWisp D-020). v3.1.0 (2026-11-01) is newer still, so it waits.
+- **macOS 13 is the minimum,** because Wails v3's own objects are built for it. The desktop build passes `-mmacosx-version-min=13.0`.
+- **Node 22 or 24** for the desktop UI. `make` uses Homebrew's `node@24` when the default `node` is another version, and the UI's `package.json` refuses Node 26 (the npm trap in ARCHITECTURE.md).
+- **Theme setting:** System (the default, following the OS), Dark workshop, Light workshop or Midnight blue, from the brand kit. It's stored through the API (`/v1/settings/ui`), so slice 1 has a real write path to test.
+- **Opening the app twice** brings the first window forward (Wails single-instance). If anything else holds the data folder, the app explains that instead of starting a second engine.
+- **CI:** none yet. `make verify` runs locally before every push. CI on the private server is decided when the user says what's available there.

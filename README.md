@@ -6,7 +6,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** planning. The kickoff is complete. Next is milestone M1, the Spine. No code yet.
+**Status:** building milestone M1, the Spine ([progress](docs/milestones/M1.md)). Nothing for streamers yet. Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documents
 
@@ -20,6 +20,10 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 | [KICKOFF.md](KICKOFF.md) | The kickoff discussions. All seven are decided (D-001 to D-007). |
 | [LESSONS-LEARNED.md](LESSONS-LEARNED.md) | What went well in StreamWisp, and what's done differently here |
 | [FEATURES.md](FEATURES.md) | StreamWisp's full feature list with the original suggestions, kept as the input to the feature cut |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Developer setup, `make verify`, DCO sign-off |
+| [CHANGELOG.md](CHANGELOG.md) | What changed |
+| [docs/milestones/](docs/milestones/M1.md) | Milestone progress and live-check results |
+| [docs/adr/](docs/adr/) | Architecture decisions for storage, protocols, file formats and security |
 | [brand-kit/](brand-kit/README.md) | Mascot, icons, banner and UI theme |
 
 ## Where the code lives

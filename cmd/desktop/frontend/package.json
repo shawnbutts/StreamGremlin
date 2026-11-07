@@ -1,0 +1,28 @@
+{
+  "name": "streamgremlin-desktop-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "StreamGremlin desktop UI (Svelte 5). Presentation and state only; all logic lives behind the API.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node -e \"require('fs').writeFileSync('dist/.gitkeep','')\"",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=22.12 <26"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tsconfig/svelte": "5.0.8",
+    "@types/node": "24.19.2",
+    "axe-core": "4.14.0",
+    "jsdom": "30.1.3",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.6",
+    "typescript": "6.0.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}
