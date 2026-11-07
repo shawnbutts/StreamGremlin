@@ -4,7 +4,7 @@ You are building **StreamGremlin**, a local-first streaming automation app for T
 
 ## Kickoff
 
-K-1 to K-4 are decided and recorded in docs/DECISIONS.md (D-001 to D-004), so code may start. K-5 to K-7 in `KICKOFF.md` are still open. Lead them one at a time: present the options and a recommendation, then wait.
+The kickoff is complete: K-1 to K-7 are recorded in docs/DECISIONS.md as D-001 to D-007. Milestones are in D-006. Every commit carries a DCO `Signed-off-by` line (D-005).
 
 ## Reading order
 

@@ -6,7 +6,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** planning. The kickoff decisions on audience, name, platforms and feature cut are made. No code yet.
+**Status:** planning. The kickoff is complete. Next is milestone M1, the Spine. No code yet.
 
 ## Documents
 
@@ -17,7 +17,7 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 | [PRINCIPLES.md](PRINCIPLES.md) | Rules that hold for every feature: fairness, ads, security, honesty about platforms, and the won't-do list |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The architecture kept from StreamWisp, the changes made from the start, and known traps |
 | [AGENTS.md](AGENTS.md) | Rules for coding agents working in this repository |
-| [KICKOFF.md](KICKOFF.md) | The kickoff discussions. K-1 to K-4 are decided; K-5 to K-7 are still open. |
+| [KICKOFF.md](KICKOFF.md) | The kickoff discussions. All seven are decided (D-001 to D-007). |
 | [LESSONS-LEARNED.md](LESSONS-LEARNED.md) | What went well in StreamWisp, and what's done differently here |
 | [FEATURES.md](FEATURES.md) | StreamWisp's full feature list with the original suggestions, kept as the input to the feature cut |
 | [brand-kit/](brand-kit/README.md) | Mascot, icons, banner and UI theme |

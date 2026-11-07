@@ -20,7 +20,7 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Spine, then F1 to F4 in that order, is decided. The order of Lua & plugins, Import and YouTube after F4 is decided in K-6.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (then the first outside beta), M5 Lua & plugins, M6 YouTube.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 

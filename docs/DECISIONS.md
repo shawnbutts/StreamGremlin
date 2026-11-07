@@ -316,3 +316,62 @@ Choosing the audio output device on each OS is checked before building.
 | Upgrade and install tests | Carry |
 | Website built from the Help docs, on streamgremlin.com | Carry |
 | Fuzzing, load tests, route guard sweep | Carry |
+
+## D-005. Outside accounts and costs (K-5)
+
+Decided 2026-11-07.
+
+> agree with all, Apache-2.0 and DCO
+
+1. **Twitch app:** registered now in the Twitch developer console, under `StreamGremlinHQ`. Name "StreamGremlin", client type Public (device-code sign-in, no client secret).
+   - The redirect URL the console requires is `http://localhost` for now. It's confirmed against current Twitch docs when sign-in is built.
+   - The Client ID is never committed. Release builds get it from a CI secret; dev builds use paste-your-own.
+2. **Code signing:**
+   - **macOS:** join the Apple Developer Program ($99 a year) for signing and notarization before anyone other than the user installs the app.
+   - **Windows:** unsigned during beta, with instructions for the SmartScreen warning, while the user is the only tester. Signed before outside testers; current eligibility and prices are checked at that point.
+   - **Linux:** signed checksums.
+3. **Trademark:** the user does a free USPTO and EUIPO search for "StreamGremlin" now. No registration yet. No app store name checks, because releases are direct downloads.
+4. **Website:** static hosting on `streamgremlin.com`, built from the Help docs. It also serves the `go-import` page for the `code.streamgremlin.com/streamgremlin` vanity path, needed by beta. Which host to use is still open: the user's own server, or a free static host.
+5. **Security and support:** a `security@streamgremlin.com` address and a `SECURITY.md`. Support goes through the code host's issues (a private server during beta, GitHub after). A Discord or similar only once there are users.
+6. **License and contributions:** Apache-2.0 (`LICENSE`). Contributions use the DCO: every commit carries a `Signed-off-by` line.
+
+**Tasks for the user (outside the code):**
+
+- [ ] Register the Twitch app under `StreamGremlinHQ`, with two-factor authentication on.
+- [ ] USPTO and EUIPO trademark search.
+- [ ] Create the `security@streamgremlin.com` address.
+- [ ] Join the Apple Developer Program before the first outside tester.
+- [ ] Choose the website host.
+
+## D-006. Milestones (K-6)
+
+Decided 2026-11-07.
+
+> i agree with your recommendation
+
+| Milestone | Contents |
+|---|---|
+| **M1. Spine** | Engine, Twitch sign-in and chat, OBS, workflows with the editor, traces, persistent variables, the desktop app on macOS and Windows |
+| **M2. Everyday bot** | F1, chat commands, timers, counters and quotes; then F2, event → OBS / sound / alert automation |
+| **M3. Giveaways and points** | F3, giveaways; then F4, the points ledger, currencies and rewards shop |
+| **M4. Streamer.bot import** | Checked against real exports. Afterwards, the first outside beta, which needs macOS signing (D-005). |
+| **M5. Lua & plugins** | Lua scripts, then Lua plugins with the points API, with plugin ownership designed first |
+| **M6. YouTube** | Needs a named YouTube tester (D-003) |
+
+- Within a milestone, features are built in the D-004 order, as thin slices, each with its screen.
+- A milestone is done when the user has used it on a real stream on macOS and Windows and the result is written down. Linux gets a smoke test before a release (D-003).
+
+## D-007. How we work (K-7)
+
+Decided 2026-11-07.
+
+> i agree
+
+- **Git:** each slice goes on its own branch, is fast-forwarded onto main and pushed, with no merge commits. Push freely while the repo is internal on a private server. Every commit is signed off (DCO, D-005).
+- **Records:** every decision goes in this log with the user's words. ADRs only for storage, protocols, file formats and security.
+- **Live checks:** at the end of each milestone, on macOS and Windows, and whenever a slice first touches a real service.
+- **Findings:** the user reports in the session or as an issue on the private server. Each live check is written up in `docs/milestones/M<n>.md`: what was tried, on which OS, and what broke.
+- **StreamWisp data:** a fresh start. No StreamWisp importer, and StreamWisp's data folder is left alone.
+- **Asking:** the user is asked when a decision is irreversible, business-critical or changes the feature cut. Otherwise the simplest secure, testable design is chosen and recorded here.
+
+The kickoff (K-1 to K-7) is complete. Next: M1, the Spine.
