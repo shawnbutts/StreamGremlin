@@ -32,7 +32,10 @@ type Options struct {
 	DB      *storage.DB
 	Inbox   *events.Inbox
 	Actions *Registry
-	Logger  *slog.Logger
+	// Variables, when set, gives workflows saved variables and the
+	// vars.* actions.
+	Variables VarStore
+	Logger    *slog.Logger
 }
 
 type enabledWF struct {
@@ -51,6 +54,7 @@ type Engine struct {
 	st     store
 	inbox  *events.Inbox
 	reg    *Registry
+	vars   VarStore
 	log    *slog.Logger
 	notify *events.Notifier
 
@@ -73,8 +77,11 @@ func New(opts Options) *Engine {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	ctx, stop := context.WithCancel(context.Background())
+	if opts.Variables != nil {
+		registerVariableActions(opts.Actions)
+	}
 	return &Engine{
-		st: store{db: opts.DB, now: time.Now}, inbox: opts.Inbox, reg: opts.Actions,
+		st: store{db: opts.DB, now: time.Now}, inbox: opts.Inbox, reg: opts.Actions, vars: opts.Variables,
 		log: opts.Logger.With("component", "workflows"), notify: events.NewNotifier(),
 		ctx: ctx, stop: stop, queues: map[string]*wq{},
 	}
@@ -412,8 +419,12 @@ func (e *Engine) execute(ctx context.Context, id string) (status, errText string
 	if err != nil {
 		return JobFailed, "its event couldn't be read: " + err.Error()
 	}
+	rv, err := loadRunVars(bg, e.vars, job.WorkflowID, rec.Actor, job.DryRun)
+	if err != nil {
+		return JobFailed, "its saved variables couldn't be read: " + err.Error()
+	}
 	sc := scope{
-		event: eventMap(rec), vars: map[string]any{}, steps: map[string]any{},
+		event: eventMap(rec), vars: map[string]any{}, steps: map[string]any{}, saved: rv.view,
 		job: map[string]any{"id": job.ID, "workflow_id": job.WorkflowID, "workflow_version": int64(job.Version), "dry_run": job.DryRun},
 	}
 	trace := func(r StepRecord) {
@@ -423,7 +434,7 @@ func (e *Engine) execute(ctx context.Context, id string) (status, errText string
 			e.log.Warn("couldn't record a trace step", "job", id, "err", err)
 		}
 	}
-	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: def.StepBudget(), jobID: id, wfID: job.WorkflowID, now: e.st.now, trace: trace}
+	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: def.StepBudget(), jobID: id, wfID: job.WorkflowID, vars: rv, now: e.st.now, trace: trace}
 	rctx, cancel := context.WithTimeout(ctx, def.TimeoutDuration())
 	runErr := in.run(rctx, "steps", def.Steps)
 	timedOut := errors.Is(rctx.Err(), context.DeadlineExceeded) && ctx.Err() == nil

@@ -26,6 +26,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -112,7 +113,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	reg := workflow.NewRegistry()
 	actions.Register(reg, h.twitch, h.obs)
-	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Logger: log})
+	vars := variables.New(h.db)
+	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -132,6 +134,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Twitch:    h.twitch,
 		OBS:       h.obs,
 		Workflows: h.workflows,
+		Variables: vars,
 		Logger:    log,
 	}))
 

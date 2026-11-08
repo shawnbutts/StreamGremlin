@@ -1,0 +1,17 @@
+{
+  "schema": "streamgremlin.workflow/v1",
+  "id": "chat.deaths",
+  "name": "Death counter",
+  "description": "!death (you or a moderator) adds one to a saved counter and says the total; !deaths says it to anyone. The count survives restarts.",
+  "triggers": [
+    { "type": "chat.command.received", "where": { "command": "death" } },
+    { "type": "chat.command.received", "where": { "command": "deaths" } }
+  ],
+  "steps": [
+    {
+      "if": "event.payload.command == 'death' && (event.payload.chatter.is_broadcaster || event.payload.chatter.is_moderator)",
+      "do": [{ "action": "vars.add", "with": { "scope": "global", "name": "deaths" } }]
+    },
+    { "action": "chat.send", "with": { "message": "💀 Deaths so far: ${saved.global.?deaths.orValue(0)}" } }
+  ]
+}

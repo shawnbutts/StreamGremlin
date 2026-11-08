@@ -349,6 +349,8 @@ export interface ActionParam {
   type: string;
   choices?: string[];
   required: boolean;
+  pattern?: string;
+  pattern_hint?: string;
 }
 
 export interface ActionInfo {
@@ -357,6 +359,8 @@ export interface ActionInfo {
   description: string;
   group: string;
   external: boolean;
+  /** Changes saved variables; a test event changes them for that run only. */
+  saves_state?: boolean;
   params: ActionParam[];
 }
 
@@ -404,3 +408,33 @@ export async function saveWorkflow(text: string): Promise<{ workflow: WorkflowSu
   if (Array.isArray(data?.problems)) throw new ProblemsError(data.problems);
   throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
 }
+
+export type VarScope = 'global' | 'viewer' | 'workflow';
+
+/** A saved variable. owner is '' for global, <platform>:<user id> for a viewer, or a workflow id. */
+export interface Variable {
+  scope: VarScope;
+  owner: string;
+  owner_label?: string;
+  name: string;
+  value: unknown;
+  updated_at: string;
+  updated_by: string;
+}
+
+export interface VarKey {
+  scope: VarScope;
+  owner: string;
+  name: string;
+}
+
+export const getVariables = (opts: { scope?: VarScope; q?: string } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.scope) q.set('scope', opts.scope);
+  if (opts.q) q.set('q', opts.q);
+  return api<{ variables: Variable[] }>('GET', `/v1/variables?${q}`);
+};
+export const putVariable = (k: VarKey, value: unknown) =>
+  api<Variable>('PUT', '/v1/variables', { scope: k.scope, owner: k.owner, name: k.name, value });
+export const deleteVariable = (k: VarKey) =>
+  api<void>('DELETE', `/v1/variables?${new URLSearchParams({ scope: k.scope, owner: k.owner, name: k.name })}`);

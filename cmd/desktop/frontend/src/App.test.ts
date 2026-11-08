@@ -82,6 +82,7 @@ describe('App', () => {
       '/v1/workflows': () => ({ status: 200, body: { workflows: [] } }),
       '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
       '/v1/actions': () => ({ status: 200, body: { actions: [] } }),
+      '/v1/variables': () => ({ status: 200, body: { variables: [] } }),
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();
@@ -101,6 +102,18 @@ describe('App', () => {
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Workflows');
     await noViolations('workflows');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '5', ctrlKey: true }));
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Variables');
+    await noViolations('variables');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '6', metaKey: true }));
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Settings');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true }));
+    flushSync();
+    await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', metaKey: true }));
     flushSync();
     await settle();

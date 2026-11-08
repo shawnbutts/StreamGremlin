@@ -261,7 +261,7 @@ func TestTwitchDownIsUnknownNotSignedOut(t *testing.T) {
 	r := newRig(t)
 	s := r.configured()
 	r.signIn(s, RoleStreamer, "streamer")
-	r.mock.Down = true
+	r.mock.SetDown(true)
 	s.streamer.Validate(context.Background())
 	st := s.streamer.Status()
 	if st.State != StateUnknown || st.Login != "streamer" || !strings.Contains(st.Detail, "Couldn't check") {
@@ -270,7 +270,7 @@ func TestTwitchDownIsUnknownNotSignedOut(t *testing.T) {
 	if _, err := r.sec.Get(context.Background(), "twitch/streamer/oauth"); err != nil {
 		t.Fatal("token dropped while Twitch was down")
 	}
-	r.mock.Down = false
+	r.mock.SetDown(false)
 	s.streamer.Validate(context.Background())
 	if s.streamer.Status().State != StateConnected {
 		t.Fatal(s.streamer.Status())
@@ -364,7 +364,7 @@ func TestSignOutWorksWhileTwitchIsDown(t *testing.T) {
 	r := newRig(t)
 	s := r.configured()
 	r.signIn(s, RoleStreamer, "streamer")
-	r.mock.Down = true
+	r.mock.SetDown(true)
 	if err := s.streamer.SignOut(context.Background()); err != nil {
 		t.Fatal(err)
 	}

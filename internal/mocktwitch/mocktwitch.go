@@ -33,7 +33,7 @@ type Server struct {
 	CodeLifetime   time.Duration   // device code expiry (default 30 minutes)
 	Interval       int             // polling interval answered, in seconds (default 1)
 	AccessLifetime time.Duration   // access token lifetime (default 4 hours)
-	Down           bool            // answer 503 to everything
+	down           bool            // answer 503 to everything; see SetDown
 	// GrantScopes, when set, replaces what each sign-in is granted, to test
 	// a streamer who unticks a permission.
 	GrantScopes []string
@@ -223,10 +223,18 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// SetDown makes the mock answer 503 to everything but /activate and /chat,
+// as if Twitch were down. Safe while requests are being answered.
+func (s *Server) SetDown(down bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.down = down
+}
+
 // ServeHTTP answers the documented OAuth endpoints and the /activate page.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
-	down := s.Down
+	down := s.down
 	s.mu.Unlock()
 	if down && r.URL.Path != "/activate" && r.URL.Path != "/chat" {
 		writeErr(w, http.StatusServiceUnavailable, "Service Unavailable")

@@ -518,3 +518,53 @@ legend {
     grid-template-columns: 1fr;
   }
 }
+
+/* A toggle button that's on: a thicker accent border and a check mark,
+   so "on" never depends on colour alone. */
+.button[aria-pressed='true'] {
+  border-color: var(--sg-primary);
+  box-shadow: inset 0 0 0 1px var(--sg-primary);
+}
+
+.button[aria-pressed='true']::before {
+  content: '✓ ';
+}
+
+.var-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 20px;
+  margin-top: 12px;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.var-search {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.var-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
+}
+
+.var-form {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.var-form .row-actions,
+.var-form .error {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}

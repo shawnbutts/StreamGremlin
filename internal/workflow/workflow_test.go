@@ -13,6 +13,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/variables"
 )
 
 // recorder is a fake outside service: it records every call it gets.
@@ -70,6 +71,7 @@ type rig struct {
 	inbox *events.Inbox
 	rec   *recorder
 	reg   *Registry
+	vars  *variables.Store
 	eng   *Engine
 }
 
@@ -85,7 +87,7 @@ func newRig(t *testing.T) *rig {
 	if _, err := db.Migrate(ctx, dir); err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), rec: &recorder{}}
+	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), rec: &recorder{}, vars: variables.New(db)}
 	r.reg = testRegistry(r.rec)
 	r.start()
 	return r
@@ -93,7 +95,7 @@ func newRig(t *testing.T) *rig {
 
 func (r *rig) start() {
 	r.t.Helper()
-	r.eng = New(Options{DB: r.db, Inbox: r.inbox, Actions: r.reg})
+	r.eng = New(Options{DB: r.db, Inbox: r.inbox, Actions: r.reg, Variables: r.vars})
 	if err := r.eng.Start(context.Background()); err != nil {
 		r.t.Fatal(err)
 	}
@@ -263,7 +265,7 @@ func TestOldEventsDontRunOnTheFirstStart(t *testing.T) {
 	db, _ := storage.Open(ctx, filepath.Join(dir, "w.db"))
 	t.Cleanup(func() { _ = db.Close() })
 	_, _ = db.Migrate(ctx, dir)
-	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), rec: &recorder{}}
+	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), rec: &recorder{}, vars: variables.New(db)}
 	r.reg = testRegistry(r.rec)
 	r.chat("before", "hello", events.Confirmed) // stored before the engine ever ran
 	r.start()

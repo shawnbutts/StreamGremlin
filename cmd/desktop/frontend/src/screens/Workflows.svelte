@@ -105,7 +105,7 @@
     const t = w.triggers.find((t) => testFields(t, kinds.find((k) => k.type === t.type)));
     if (!t) return;
     const fields = testFields(t, kinds.find((k) => k.type === t.type))!;
-    act(() => simulateEvent(t.type, fields, crypto.randomUUID()), `Sent a test event. “${w.name}” runs as a test: nothing reaches Twitch or OBS.`);
+    act(() => simulateEvent(t.type, fields, crypto.randomUUID()), `Sent a test event. “${w.name}” runs as a test: nothing reaches Twitch or OBS, and saved variables don’t change.`);
   }
 
   const testable = (w: WorkflowSummary) => w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));
@@ -207,7 +207,7 @@
           {#each actions.filter((a) => a.group === g) as a (a.name)}
             <dt><code>{a.name}</code></dt>
             <dd>
-              {a.label}{a.external ? '' : ' (runs for test events too)'}.
+              {a.label}{a.external ? '' : a.saves_state ? ' (a test event changes it for that run only, never saved)' : ' (runs for test events too)'}.
               {#if a.params.length}
                 <span class="sg-muted">With: {a.params.map((p) => p.name + (p.required ? '' : '?')).join(', ')}</span>
               {/if}

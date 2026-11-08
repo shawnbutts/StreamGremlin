@@ -40,6 +40,10 @@ Commands:
   obs       OBS: connect, scenes, sources, snapshots (streamgremlin obs help).
   workflows Workflows: list, show, save FILE, on/off (streamgremlin workflows help).
   runs      Workflow runs and their traces: runs, runs show RUN, runs cancel RUN.
+  vars      Saved variables (streamgremlin vars help).
+            vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
+            vars set WHERE NAME VALUE     save one
+            vars delete WHERE NAME        delete one
   chat      Send to your Twitch chat (read it with: events watch -types chat.*).
             chat send [-as bot|streamer] TEXT
   events    Show events as they arrive, and send test events.
@@ -92,6 +96,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return workflowsCmd(dir, rest, stdout, stderr)
 	case "runs":
 		return runsCmd(dir, rest, stdout, stderr)
+	case "vars":
+		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":
 		return chatCmd(dir, rest, stdout, stderr)
 	case "twitch":

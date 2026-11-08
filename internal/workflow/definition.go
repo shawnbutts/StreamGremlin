@@ -329,6 +329,22 @@ func (v *validator) template(path string, raw json.RawMessage) {
 	})
 }
 
+// literal checks a with-value written as plain text, without ${…}, against
+// its parameter's choices and pattern, so the mistake shows when saving
+// rather than mid-stream.
+func (v *validator) literal(path string, p *Param, raw json.RawMessage) {
+	var s string
+	if json.Unmarshal(raw, &s) != nil || strings.Contains(s, "${") {
+		return
+	}
+	switch {
+	case p.Type == "choice" && !contains(p.Choices, s):
+		v.add(path, "one of %s", strings.Join(p.Choices, ", "))
+	case p.Type == "text" && p.Pattern != "" && !regexp.MustCompile(p.Pattern).MatchString(s):
+		v.add(path, "%s", p.PatternHint)
+	}
+}
+
 func (v *validator) step(path string, s Step, depth int) {
 	v.count++
 	kinds := 0
@@ -389,6 +405,7 @@ func (v *validator) step(path string, s Step, depth int) {
 				continue
 			}
 			v.template(path+".with."+name, raw)
+			v.literal(path+".with."+name, a.Param(name), raw)
 		}
 		if s.Timeout != "" {
 			if t, err := time.ParseDuration(s.Timeout); err != nil || t <= 0 || t > MaxTimeout {

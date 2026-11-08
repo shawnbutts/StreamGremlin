@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"sync"
@@ -10,12 +11,16 @@ import (
 
 // Param describes one input of an action.
 type Param struct {
-	Name     string   `json:"name"`
-	Label    string   `json:"label"`
-	Type     string   `json:"type"` // text, number, bool or choice
-	Choices  []string `json:"choices,omitempty"`
-	Required bool     `json:"required"`
-	Default  any      `json:"default,omitempty"`
+	Name    string   `json:"name"`
+	Label   string   `json:"label"`
+	Type    string   `json:"type"` // text, number, bool, choice or any (any JSON value)
+	Choices []string `json:"choices,omitempty"`
+	// Pattern, when set, is a regular expression a text value must match;
+	// PatternHint says it in words.
+	Pattern     string `json:"pattern,omitempty"`
+	PatternHint string `json:"pattern_hint,omitempty"`
+	Required    bool   `json:"required"`
+	Default     any    `json:"default,omitempty"`
 }
 
 // Action is something a step can do.
@@ -27,9 +32,13 @@ type Action struct {
 	// External actions reach Twitch, OBS or anything outside StreamGremlin.
 	// They never run for test events: the step is recorded as skipped with
 	// its evaluated input (a dry run).
-	External bool                                           `json:"external"`
-	Params   []Param                                        `json:"params"`
-	Run      func(ctx context.Context, c Call) (any, error) `json:"-"`
+	External bool `json:"external"`
+	// SavesState actions change StreamGremlin's own saved data (variables).
+	// They run for test events too, but the change is kept only for that
+	// run and never saved.
+	SavesState bool                                           `json:"saves_state,omitempty"`
+	Params     []Param                                        `json:"params"`
+	Run        func(ctx context.Context, c Call) (any, error) `json:"-"`
 }
 
 // Param returns the parameter named name, or nil.
@@ -50,6 +59,9 @@ type Call struct {
 	IdempotencyKey string
 	JobID          string
 	WorkflowID     string
+	DryRun         bool
+
+	run *runVars // the run's saved variables, for the variable actions
 }
 
 // String returns a text argument, or def when absent.
@@ -102,6 +114,11 @@ func (r *Registry) Add(a Action) {
 	}
 	if a.Params == nil {
 		a.Params = []Param{}
+	}
+	for _, p := range a.Params {
+		if p.Pattern != "" {
+			regexp.MustCompile(p.Pattern)
+		}
 	}
 	r.actions[a.Name] = &a
 }
@@ -156,6 +173,10 @@ func checkArgs(a *Action, args map[string]any) error {
 			case int64, float64:
 			default:
 				return fmt.Errorf("%s must be a number", p.Label)
+			}
+		case "text":
+			if s, ok := v.(string); ok && p.Pattern != "" && !regexp.MustCompile(p.Pattern).MatchString(s) {
+				return fmt.Errorf("%s: %q isn't %s", p.Label, s, p.PatternHint)
 			}
 		case "choice":
 			s, _ := v.(string)

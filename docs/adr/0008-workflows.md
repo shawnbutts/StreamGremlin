@@ -42,7 +42,7 @@ Unset `delivery_quality` accepts test events too, which then run as dry runs.
 Any step may have `id` (for `steps.<id>.status|output|error`), `if` and `on_error: continue`. `finally` steps always run, with their own 10-second budget, so a failed or cancelled run can still clean up.
 
 **Expressions** are CEL (`cel.dev/cel-go` v0.32.0).
-- **Variables:** `event` (type, source, actor, payload, delivery_quality…), `vars`, `steps`, `job` and `each`.
+- **Variables:** `event` (type, source, actor, payload, delivery_quality…), `vars`, `steps`, `job`, `each`, and `saved` (variables kept between runs; [ADR-0009](0009-variables.md)).
 - **Extensions:** strings, optional fields (`event.payload.?bits.orValue(0)`), and comparisons across number types.
 - **Limits:** cost-limited (100,000 per evaluation) and interruptible. An `if` that isn't true or false is an error, never "false".
 - **Templates in `with`:**
@@ -60,6 +60,7 @@ Any step may have `id` (for `steps.<id>.status|output|error`), `if` and `on_erro
   - `obs.recording.control`, `obs.replay.save`, `obs.screenshot`;
   - `obs.scene.snapshot_and_switch`, `obs.scene.restore` (answers `none` when nothing is held, not an error), `obs.scene.release`;
   - `obs.scene.current`.
+- **Variables** ([ADR-0009](0009-variables.md)): `vars.set`, `vars.add`, `vars.delete`. They're `SavesState` actions: a test event runs them for that run only, never saving.
 - **External actions,** everything reaching Twitch or OBS, never run for test (`synthetic`) events. The step is recorded as skipped "dry run", with its evaluated input, and the run continues. `note` and `obs.scene.current` aren't External: they change nothing.
 - **Idempotency key:** each action gets `job id/step path`. Nothing is retried automatically: chat can't be deduplicated by Twitch, and OBS toggles aren't safe to repeat.
 

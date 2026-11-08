@@ -37,6 +37,9 @@ const (
 	// Workflows: reading them and their runs, and saving, switching or cancelling.
 	PermWorkflowsRead  Permission = "workflows.read"
 	PermWorkflowsWrite Permission = "workflows.write"
+	// Variables: reading saved variables, and changing or deleting them.
+	PermVariablesRead  Permission = "variables.read"
+	PermVariablesWrite Permission = "variables.write"
 )
 
 // Principal is an authenticated caller.

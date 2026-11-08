@@ -46,9 +46,19 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - A workflow never runs twice for one event. After a crash, runs in progress are marked interrupted and never repeated on their own.
   - `streamgremlin workflows …` and `streamgremlin runs …`; examples in `examples/workflows/`.
 
+- M1 slice 8, saved variables:
+  - Workflows keep values between runs and restarts: for every workflow (global), per viewer (by their Twitch id, so a rename keeps them), or private to one workflow.
+  - New actions: "Save a variable", "Add to a saved number" (counts exactly even when runs overlap) and "Forget a saved variable". Workflows read them as `saved.global.deaths`, `saved.viewer.lurks` and `saved.workflow.last`.
+  - Test events never change saved variables: the change is kept for that test run only, and the trace says so.
+  - A **Variables** screen (Ctrl/⌘+5): see every saved variable, filter by scope, search, and change, add or delete them. Settings moves to Ctrl/⌘+6 (Ctrl/⌘+comma still works).
+  - Mistyped variable names and choices are now caught when a workflow is saved.
+  - `streamgremlin vars`, `vars set` and `vars delete`.
+  - Example workflows: a death counter and a per-viewer lurk count.
+
 ### Changed
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Settings 5 (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Settings 6 (and Ctrl/⌘+comma, which always reaches Settings).
+- Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 
 - Development schema changes are now new numbered files, so data folders keep working between builds. They're squashed into one baseline at the first public release.
 

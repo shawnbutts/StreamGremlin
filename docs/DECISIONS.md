@@ -481,3 +481,24 @@ Decided 2026-11-08, without asking the user, under D-007.
 - **A Workflows screen** (Ctrl/⌘+4): paste and save, turn on and off, test, and traces. The plain-words editor is slice 9.
 - **Settings moves to Ctrl/⌘+5, and is also Ctrl/⌘+comma.** New screens go before it from now on, and comma always reaches it.
 - **Example workflows** in `examples/workflows/`, kept valid by an acceptance test.
+
+## D-015. Saved variables: three scopes (M1 slice 8)
+
+Decided 2026-11-08 by the user. The user asked whether variables should be per workflow, global, or shared by a set of workflows ("maybe that doesn't give enough value for complexity"). The recommendation was global, per viewer and per workflow, with no shared sets, and the user said "perfect. proceed".
+
+- **Saved variables** follow [ADR-0009](adr/0009-variables.md), with three scopes:
+  - **global** (every workflow);
+  - **per viewer**, by platform user id so renames keep values;
+  - **per workflow** (private, so templates and pasted workflows can't collide).
+- **No shared sets of workflows,** and no "per viewer within one workflow". Use a name prefix instead (`giveaway_open`). Sets can be added later if streamers ask.
+- **Deleting a workflow keeps its own variables with it,** for restore (slice 9). It never removes global or viewer ones.
+
+Chosen while building, under D-007:
+- **Workflows read them as `saved.global`, `saved.viewer` and `saved.workflow`,** and change them with `vars.set`, `vars.add` (atomic) and `vars.delete`.
+- **Test events never save variables.** The change is kept for that run only, so the run behaves the same.
+- **Names are lowercase letters, digits and `_`.**
+  - Values are any JSON up to 16 KiB.
+  - Each set holds at most 1,000 names.
+- **A Variables screen** at Ctrl/⌘+5 lists, searches, changes, adds and deletes them. **Settings moves to Ctrl/⌘+6** and stays on Ctrl/⌘+comma.
+- **Action parameters can declare a pattern,** and plain-text values are now checked against choices and patterns when a workflow is saved.
+- **The mocktwitch `Down` switch became `SetDown()`,** fixing a data race in a Twitch test that `make verify` caught during this slice.

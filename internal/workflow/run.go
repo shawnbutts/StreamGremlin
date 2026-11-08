@@ -46,6 +46,7 @@ type interp struct {
 	budget int
 	jobID  string
 	wfID   string
+	vars   *runVars
 	now    func() time.Time
 	trace  func(StepRecord)
 }
@@ -245,7 +246,7 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 		actx, cancel = context.WithTimeout(ctx, d)
 		defer cancel()
 	}
-	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID})
+	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID, DryRun: r.dryRun, run: r.vars})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			err = fmt.Errorf("the step took longer than its %s timeout", s.Timeout)
@@ -254,6 +255,9 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	}
 	out = normalizeOutput(out)
 	rec.Status, rec.Output = StepOK, capSize(out, 8<<10)
+	if r.dryRun && a.SavesState {
+		rec.Reason = "test run: changed for this run only, not saved"
+	}
 	r.record(rec)
 	r.result(s.ID, StepOK, out, "")
 	return nil

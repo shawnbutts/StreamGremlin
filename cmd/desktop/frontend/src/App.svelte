@@ -7,11 +7,12 @@
   import Events from './screens/Events.svelte';
   import Home from './screens/Home.svelte';
   import Settings from './screens/Settings.svelte';
+  import Variables from './screens/Variables.svelte';
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'variables' | 'settings';
   // Screens take Ctrl/⌘+number in order; Settings is always last and also
   // Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
   const screens: { id: Screen; label: string; key: string }[] = [
@@ -19,7 +20,8 @@
     { id: 'connections', label: 'Connections', key: '2' },
     { id: 'events', label: 'Events', key: '3' },
     { id: 'workflows', label: 'Workflows', key: '4' },
-    { id: 'settings', label: 'Settings', key: '5' },
+    { id: 'variables', label: 'Variables', key: '5' },
+    { id: 'settings', label: 'Settings', key: '6' },
   ];
 
   let screen = $state<Screen>('home');
@@ -104,6 +106,8 @@
       <Events />
     {:else if screen === 'workflows'}
       <Workflows />
+    {:else if screen === 'variables'}
+      <Variables />
     {:else}
       <Settings />
     {/if}
