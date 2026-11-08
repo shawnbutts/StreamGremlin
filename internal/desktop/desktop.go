@@ -78,8 +78,9 @@ type Info struct {
 }
 
 // CSP allows only the app's own files. No inline scripts or styles, no
-// remote resources, no frames or forms.
-const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+// remote resources, no frames or forms. Audio comes from the library
+// through the bridge (media-src 'self').
+const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; " +
 	"font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 // Handler serves the UI from assets (the built frontend) and bridges /v1/*.

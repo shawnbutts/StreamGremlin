@@ -56,6 +56,18 @@
       {/if}
     </select>
   </label>
+{:else if param.editor === 'sound'}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose a sound…</option>
+      {#each env.sounds as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
+      {#if typeof current === 'string' && current && !env.sounds.some((s) => s.name === current)}
+        <option value={current}>{current} (not in your library)</option>
+      {/if}
+    </select>
+    {#if !env.sounds.length}<span class="sg-muted field-hint">No sounds yet: add one on the Sounds screen.</span>{/if}
+  </label>
 {:else if param.editor === 'timer'}
   <label class="field">
     <span>{label}</span>

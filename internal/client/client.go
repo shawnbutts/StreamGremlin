@@ -76,7 +76,8 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	return c.DoRaw(ctx, method, path, raw, out)
 }
 
-// DoRaw sends a request whose body is already JSON.
+// DoRaw sends a request whose body is already encoded: JSON, or a
+// sound's audio for POST /v1/sounds/{name}.
 func (c *Client) DoRaw(ctx context.Context, method, path string, body []byte, out any) error {
 	var rd io.Reader
 	if body != nil {

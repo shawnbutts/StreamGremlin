@@ -61,6 +61,8 @@
     </dd>
     <dt>Quotes</dt>
     <dd>Numbered quotes from your streams. Viewers see one with <code>!quote</code>, and mods add them with <code>!quoteadd</code>. Deleting one never renumbers the rest.</dd>
+    <dt>Sounds</dt>
+    <dd>Your sound library, each with its own volume. Workflows play them in the StreamGremlin window, so keep the app open; OBS hears them through Desktop Audio.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Unknown</dt>

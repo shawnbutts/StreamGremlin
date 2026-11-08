@@ -16,8 +16,12 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 )
 
-// maxBody caps request bodies.
-const maxBody = 1 << 20
+// maxBody caps request bodies, unless a route sets its own MaxBody.
+// maxAnyBody caps every request before routing.
+const (
+	maxBody    = 1 << 20
+	maxAnyBody = 8 << 20
+)
 
 // Route is one API endpoint.
 type Route struct {
@@ -30,6 +34,8 @@ type Route struct {
 	// CLIOnly, when set, is the reason the desktop app doesn't call this
 	// route. Every other route must be called by the app (AGENTS.md).
 	CLIOnly string
+	// MaxBody, when set, replaces the 1 MiB body limit (up to 8 MiB).
+	MaxBody int64
 	Handler func(w http.ResponseWriter, r *http.Request)
 }
 
@@ -116,7 +122,7 @@ func (s *Server) guard(next http.Handler) http.Handler {
 			writeError(rec, http.StatusForbidden, CodeForbidden, "origin not allowed")
 			return
 		}
-		r.Body = http.MaxBytesReader(rec, r.Body, maxBody)
+		r.Body = http.MaxBytesReader(rec, r.Body, maxAnyBody)
 		next.ServeHTTP(rec, r)
 	})
 }
@@ -143,6 +149,11 @@ func (s *Server) serveRoute(rt Route, w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	limit := int64(maxBody)
+	if rt.MaxBody > 0 {
+		limit = min(rt.MaxBody, maxAnyBody)
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	rt.Handler(w, r)
 }
 

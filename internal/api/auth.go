@@ -49,6 +49,11 @@ const (
 	// Quotes: reading them, and adding, editing and deleting.
 	PermQuotesRead  Permission = "quotes.read"
 	PermQuotesWrite Permission = "quotes.write"
+	// Sounds: listing and hearing them, and adding, changing, deleting and
+	// playing them. The app's window plays with sounds.read (it asks for
+	// what to play, and reports).
+	PermSoundsRead  Permission = "sounds.read"
+	PermSoundsWrite Permission = "sounds.write"
 )
 
 // Principal is an authenticated caller.

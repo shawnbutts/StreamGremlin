@@ -53,6 +53,10 @@ Commands:
             quotes [-q TEXT]              list, newest first
             quotes add [-by NAME] TEXT    add one
             quotes show|delete N, quotes edit N TEXT
+  sounds    The sound library (streamgremlin sounds help).
+            sounds                        list
+            sounds add [-name N] FILE     add one
+            sounds play|delete NAME, sounds volume NAME V, sounds stop
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -115,6 +119,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return templatesCmd(dir, rest, stdout, stderr)
 	case "commands":
 		return commandsCmd(dir, rest, stdout, stderr)
+	case "sounds":
+		return soundsCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":

@@ -110,6 +110,13 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - "Only while live" timers also count going live on Twitch.
   - mocktwitch sends every new event, from tests or its `/chat` page.
 
+- M2 slice 4, sounds:
+  - **A Sounds screen:** add MP3, WAV, OGG or M4A files (up to 5 MB), set each one's volume, play them, and stop them all.
+  - **Workflow steps:** "Play a sound" (at its own volume or another) and "Stop sounds".
+  - Sounds play in the StreamGremlin window, and a run says whether each actually played. OBS hears them through Desktop Audio.
+  - Backups include the sound library.
+  - `streamgremlin sounds`, `sounds add`, `play`, `volume`, `delete` and `stop`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
@@ -118,7 +125,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Variables 7, Help 8, Settings 9 (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Sounds 7, Variables 8, Help 9; Settings is Ctrl/⌘+comma (and Ctrl/⌘+comma, which always reaches Settings).
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 

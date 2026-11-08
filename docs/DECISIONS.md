@@ -673,3 +673,14 @@ Decided 2026-11-08 under D-007. The user said "proceed" to the F2 order, startin
 - **Going live on Twitch is its own trigger,** not "The stream starts" (which is OBS), so existing workflows don't run twice. Timers' "only while live" listens to both.
 - **Quotes take the channel's category** from Twitch when it's known.
 - **Five templates in a new Twitch events category:** thank followers, subs and resubs, gifted subs and cheers, and welcome raiders.
+
+## D-027. Sounds (M2 slice 4)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to sounds.
+
+- **Sounds follow [ADR-0016](adr/0016-sounds.md):** a sound library, each sound with its own volume, played with the step "Play a sound".
+- **The app's window plays them,** with its built-in audio, not each system's own player as StreamWisp did. This gives a volume and MP3, WAV, OGG and M4A on both macOS and Windows, which Windows' own player couldn't.
+- **The window reports whether each sound started.** A trace says "played" only when it did, and says why when it didn't, including when no window is open.
+- **Sounds are kept in the database,** so backups and restores carry them.
+- **A new Sounds screen at Ctrl/⌘+7.** Variables moves to 8 and Help to 9. Settings is Ctrl/⌘+comma only, now that there are ten screens.
+- **API routes can set their own body limit.** Only sound uploads (5 MB) use it so far.

@@ -80,6 +80,9 @@ func run() error {
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		// The window plays sounds for workflows, with no click first
+		// (docs/adr/0016-sounds.md). macOS's is set on the window below.
+		Windows: application.WindowsOptions{AdditionalBrowserArgs: []string{"--autoplay-policy=no-user-gesture-required"}},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID: "com.streamgremlin.desktop",
 			// Opening the app again brings the running window forward.
@@ -101,6 +104,9 @@ func run() error {
 		MinHeight:        520,
 		URL:              "/",
 		BackgroundColour: application.NewRGB(0x08, 0x19, 0x23),
+		Mac: application.MacWindow{
+			WebviewPreferences: application.MacWebviewPreferences{EnableAutoplayWithoutUserAction: application.Enabled},
+		},
 	})
 
 	go eng.start(dir, state)

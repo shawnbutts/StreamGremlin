@@ -8,6 +8,7 @@
     ProblemsError,
     getCommands,
     getOBSScenes,
+    getSounds,
     getTimers,
     getPalette,
     getSceneItems,
@@ -74,6 +75,7 @@
     // svelte-ignore state_referenced_locally
     workflows,
     timers: [],
+    sounds: [],
     // svelte-ignore state_referenced_locally
     selfId: def.id,
     scenes: [],
@@ -101,6 +103,11 @@
     getTimers()
       .then((r) => {
         env.timers = r.timers;
+      })
+      .catch(() => undefined);
+    getSounds()
+      .then((r) => {
+        env.sounds = r.sounds;
       })
       .catch(() => undefined);
     getVariables()

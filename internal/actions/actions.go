@@ -11,6 +11,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
@@ -29,6 +30,8 @@ type Services struct {
 	OBS    *obs.Service
 	Timers *timers.Service
 	Quotes *quotes.Store
+	Sounds *sounds.Store
+	Player *sounds.Player
 }
 
 // Register adds every action to reg.
@@ -199,4 +202,5 @@ func Register(reg *workflow.Registry, sv Services) {
 		},
 	})
 	registerQuotes(reg, sv.Quotes, sv.Twitch)
+	registerSounds(reg, sv.Sounds, sv.Player)
 }

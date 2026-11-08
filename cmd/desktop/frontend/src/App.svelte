@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import iconUrl from '../../../../brand-kit/streamgremlin-icon-64.png';
   import { engineInfo, getUISettings, type EngineInfo } from './lib/api';
+  import { startPlayer } from './lib/player';
   import { applyTheme } from './lib/theme';
   import Connections from './screens/Connections.svelte';
   import Events from './screens/Events.svelte';
@@ -9,15 +10,16 @@
   import Home from './screens/Home.svelte';
   import Quotes from './screens/Quotes.svelte';
   import Settings from './screens/Settings.svelte';
+  import Sounds from './screens/Sounds.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'variables' | 'help' | 'settings';
-  // Screens take Ctrl/⌘+number in order; Settings is always last and also
-  // Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'variables' | 'help' | 'settings';
+  // Screens take Ctrl/⌘+number in order, up to 9; Settings is always last
+  // and Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
   const screens: { id: Screen; label: string; key: string }[] = [
     { id: 'home', label: 'Home', key: '1' },
     { id: 'connections', label: 'Connections', key: '2' },
@@ -25,9 +27,10 @@
     { id: 'workflows', label: 'Workflows', key: '4' },
     { id: 'timers', label: 'Timers', key: '5' },
     { id: 'quotes', label: 'Quotes', key: '6' },
-    { id: 'variables', label: 'Variables', key: '7' },
-    { id: 'help', label: 'Help', key: '8' },
-    { id: 'settings', label: 'Settings', key: '9' },
+    { id: 'sounds', label: 'Sounds', key: '7' },
+    { id: 'variables', label: 'Variables', key: '8' },
+    { id: 'help', label: 'Help', key: '9' },
+    { id: 'settings', label: 'Settings', key: ',' },
   ];
 
   let screen = $state<Screen>('home');
@@ -35,6 +38,7 @@
 
   onMount(() => {
     let stopped = false;
+    let stopPlayer: (() => void) | undefined;
     applyTheme('system');
     (async () => {
       while (!stopped) {
@@ -47,6 +51,8 @@
         await new Promise((r) => setTimeout(r, pollMs));
       }
       if (!stopped && info.state === 'ready') {
+        // This window plays the workflows' sounds while it's open.
+        stopPlayer = startPlayer();
         try {
           applyTheme((await getUISettings()).theme);
         } catch {
@@ -56,6 +62,7 @@
     })();
     return () => {
       stopped = true;
+      stopPlayer?.();
     };
   });
 
@@ -63,7 +70,7 @@
 
   function onKey(e: KeyboardEvent) {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-    const target = e.key === ',' ? screens.find((s) => s.id === 'settings') : screens.find((s) => s.key === e.key);
+    const target = screens.find((s) => s.key === e.key);
     if (target) {
       e.preventDefault();
       screen = target.id;
@@ -87,7 +94,7 @@
             type="button"
             class="nav-item"
             aria-current={screen === s.id ? 'page' : undefined}
-            aria-keyshortcuts={`Control+${s.key} Meta+${s.key}` + (s.id === 'settings' ? ' Control+, Meta+,' : '')}
+            aria-keyshortcuts={`Control+${s.key} Meta+${s.key}`}
             onclick={() => (screen = s.id)}>{s.label}</button
           >
         </li>
@@ -118,6 +125,8 @@
       <Timers />
     {:else if screen === 'quotes'}
       <Quotes />
+    {:else if screen === 'sounds'}
+      <Sounds />
     {:else if screen === 'variables'}
       <Variables />
     {:else if screen === 'help'}

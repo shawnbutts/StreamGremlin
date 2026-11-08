@@ -21,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
@@ -33,6 +34,9 @@ const testToken = "test-token-not-secret"
 // testMock is the mock Twitch behind the latest newTestServer. Tests using
 // it don't run in parallel.
 var testMock *mocktwitch.Server
+
+// testPlayer is the sound player behind the latest newTestServer.
+var testPlayer *sounds.Player
 
 // testOBS is the mock OBS behind the latest newTestServer, at testOBSURL.
 var (
@@ -83,7 +87,9 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	tm := timers.New(timers.Options{DB: db, Inbox: inbox})
 	reg := workflow.NewRegistry()
 	qs := quotes.NewStore(db)
-	actions.Register(reg, actions.Services{Twitch: tw, OBS: ob, Timers: tm, Quotes: qs})
+	lib, player := sounds.NewStore(db), sounds.NewPlayer(nil)
+	testPlayer = player
+	actions.Register(reg, actions.Services{Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -93,7 +99,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs,
+		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

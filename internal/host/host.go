@@ -28,6 +28,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
@@ -129,9 +130,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	qs := quotes.NewStore(h.db)
+	lib, player := sounds.NewStore(h.db), sounds.NewPlayer(nil)
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs})
+	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
@@ -159,6 +161,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Variables:   vars,
 		Timers:      h.timers,
 		Quotes:      qs,
+		Sounds:      lib,
+		Player:      player,
 		Maintenance: h.maint,
 		Logger:      log,
 	}))

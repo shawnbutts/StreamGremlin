@@ -699,3 +699,54 @@ export const addQuote = (q: QuoteInput, requestId: string) => api<Quote>('POST',
 export const editQuote = (id: number, q: QuoteInput) =>
   api<Quote>('PUT', `/v1/quotes/${id}`, { text: q.text, added_by: q.added_by, category: q.category });
 export const deleteQuote = (id: number) => api<void>('DELETE', `/v1/quotes/${id}`);
+
+/** A sound in the library (docs/adr/0016-sounds.md). */
+export interface Sound {
+  name: string;
+  format: 'mp3' | 'wav' | 'ogg' | 'm4a';
+  size: number;
+  sha256: string;
+  volume: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getSounds = () => api<{ sounds: Sound[]; player: boolean }>('GET', '/v1/sounds');
+/** The audio's URL, for the player and for previews. */
+export const soundURL = (name: string) => `/v1/sounds/${encodeURIComponent(name)}/audio`;
+
+/** Add a sound: the file's bytes go as they are; the engine checks them. */
+export async function addSound(name: string, file: Blob, volume: number): Promise<Sound> {
+  let resp: Response;
+  try {
+    resp = await fetch(`/v1/sounds/${encodeURIComponent(name)}?volume=${volume}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+    });
+  } catch {
+    throw new ApiError(0, 'unreachable', "Couldn't reach the engine.");
+  }
+  const data = await resp.json().catch(() => undefined);
+  if (!resp.ok) throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  return data as Sound;
+}
+
+export const setSoundVolume = (name: string, volume: number) => api<Sound>('PUT', `/v1/sounds/${encodeURIComponent(name)}`, { volume });
+export const deleteSound = (name: string) => api<void>('DELETE', `/v1/sounds/${encodeURIComponent(name)}`);
+export const playSound = (name: string, volume?: number) =>
+  api<{ played: boolean }>('POST', `/v1/sounds/${encodeURIComponent(name)}/play`, volume === undefined ? undefined : { volume });
+export const stopSounds = () => api<void>('POST', '/v1/player/stop');
+
+/** One thing for the window's player to do. */
+export interface PlayerCommand {
+  seq: number;
+  id: string;
+  kind: 'play' | 'stop';
+  sound?: string;
+  volume?: number;
+}
+
+export const playerNext = (after: number, wait: number, signal?: AbortSignal) =>
+  api<{ commands: PlayerCommand[]; head: number }>('GET', `/v1/player/next?after=${after}&wait=${wait}`, undefined, signal);
+export const reportPlay = (r: { id: string; ok: boolean; error?: string }) => api<void>('POST', '/v1/player/reports', r);

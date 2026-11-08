@@ -921,3 +921,7 @@ kbd {
 .feed-list .icon-bad {
   color: var(--sg-danger);
 }
+
+.sound-volume {
+  min-width: 140px;
+}
