@@ -86,7 +86,7 @@ desktop-test: ## Vet and test the desktop module
 desktop: ## Build the desktop app into ./bin/app (run desktop-ui first)
 	cd $(DESKTOP) && $(DESKTOP_ENV) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/app/StreamGremlin .
 
-verify: lint vet test test-acceptance desktop-ui desktop-test desktop ## Everything; run before every push
+verify: lint vet test test-acceptance desktop-ui desktop-test desktop build ## Everything, and builds the app and the CLI; run before every push
 
 clean: ## Remove build output
 	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/mocktwitch $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
