@@ -45,7 +45,7 @@ func info(t *testing.T, h http.Handler) Info {
 
 func TestStartingThenReady(t *testing.T) {
 	st := NewState()
-	h := Handler(assets, st, nil)
+	h := Handler(assets, st, nil, nil)
 	if i := info(t, h); i.State != PhaseStarting || i.Name != "StreamGremlin" {
 		t.Fatalf("%+v", i)
 	}
@@ -74,7 +74,7 @@ func TestStartingThenReady(t *testing.T) {
 func TestFailedStateExplainsWhy(t *testing.T) {
 	st := NewState()
 	st.Failed("StreamGremlin is already running")
-	h := Handler(assets, st, nil)
+	h := Handler(assets, st, nil, nil)
 	if i := info(t, h); i.State != PhaseFailed || i.Message != "StreamGremlin is already running" {
 		t.Fatalf("%+v", i)
 	}
@@ -85,7 +85,7 @@ func TestFailedStateExplainsWhy(t *testing.T) {
 }
 
 func TestAssetsHaveCSPAndScreensFallBackToIndex(t *testing.T) {
-	h := Handler(assets, NewState(), nil)
+	h := Handler(assets, NewState(), nil, nil)
 	for _, p := range []string{"/", "/settings", "/assets/app.js"} {
 		w := get(h, "GET", p, nil)
 		if w.Code != 200 {
@@ -128,7 +128,7 @@ func TestAllowedURL(t *testing.T) {
 
 func TestOpenURLOnlyOpensAllowedPages(t *testing.T) {
 	var opened []string
-	h := Handler(fstest.MapFS{}, NewState(), func(u string) error { opened = append(opened, u); return nil })
+	h := Handler(fstest.MapFS{}, NewState(), func(u string) error { opened = append(opened, u); return nil }, nil)
 	post := func(body string) int {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("POST", "/desktop/open-url", strings.NewReader(body)))
@@ -144,5 +144,32 @@ func TestOpenURLOnlyOpensAllowedPages(t *testing.T) {
 	h.ServeHTTP(w, httptest.NewRequest("GET", "/desktop/open-url?url=https://www.twitch.tv/activate", nil))
 	if w.Code != 405 || len(opened) != 1 {
 		t.Fatalf("GET: %d, opened %v", w.Code, opened)
+	}
+}
+
+func TestRestartEngine(t *testing.T) {
+	restarts := 0
+	st := NewState()
+	st.Ready(&fakeEngine{})
+	h := Handler(fstest.MapFS{}, st, nil, func() error { restarts++; st.Starting(); return nil })
+	get := httptest.NewRecorder()
+	h.ServeHTTP(get, httptest.NewRequest("GET", "/desktop/restart-engine", nil))
+	if get.Code != 405 || restarts != 0 {
+		t.Fatalf("GET: %d", get.Code)
+	}
+	post := httptest.NewRecorder()
+	h.ServeHTTP(post, httptest.NewRequest("POST", "/desktop/restart-engine", nil))
+	if post.Code != 202 || restarts != 1 {
+		t.Fatalf("POST: %d", post.Code)
+	}
+	info := httptest.NewRecorder()
+	h.ServeHTTP(info, httptest.NewRequest("GET", "/desktop/info", nil))
+	if !strings.Contains(info.Body.String(), `"state":"starting"`) {
+		t.Fatal(info.Body.String())
+	}
+	none := httptest.NewRecorder()
+	Handler(fstest.MapFS{}, NewState(), nil, nil).ServeHTTP(none, httptest.NewRequest("POST", "/desktop/restart-engine", nil))
+	if none.Code != 503 {
+		t.Fatal(none.Code)
 	}
 }

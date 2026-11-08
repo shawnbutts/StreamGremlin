@@ -44,6 +44,7 @@ Commands:
   runs      Workflow runs and their traces: runs, runs show RUN, runs cancel RUN.
   commands  Chat commands and the workflow that answers each.
   templates Ready-made workflows: templates, templates show ID.
+  backups   Backups: list, create, verify, restore, delete (streamgremlin backups help).
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -100,6 +101,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return workflowsCmd(dir, rest, stdout, stderr)
 	case "runs":
 		return runsCmd(dir, rest, stdout, stderr)
+	case "backups":
+		return backupsCmd(dir, rest, stdout, stderr)
 	case "templates":
 		return templatesCmd(dir, rest, stdout, stderr)
 	case "commands":

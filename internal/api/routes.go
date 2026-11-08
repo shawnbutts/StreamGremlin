@@ -9,6 +9,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -30,8 +31,10 @@ type Deps struct {
 	OBS       *obs.Service
 	Workflows *workflow.Engine
 	Variables *variables.Store
-	Now       func() time.Time
-	Logger    *slog.Logger
+	// Maintenance runs backups and sweeps; nil in tests that don't need it.
+	Maintenance *maintenance.Service
+	Now         func() time.Time
+	Logger      *slog.Logger
 }
 
 // Status is the body of GET /v1/status.
@@ -113,7 +116,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), backupRoutes(d)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

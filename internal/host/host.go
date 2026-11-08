@@ -18,9 +18,12 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/api"
+	"code.streamgremlin.com/streamgremlin/internal/backup"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -57,6 +60,7 @@ type Host struct {
 	twitch    *twitch.Service
 	obs       *obs.Service
 	workflows *workflow.Engine
+	maint     *maintenance.Service
 	log       *slog.Logger
 	done      chan error
 }
@@ -81,6 +85,16 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 			h.cleanup()
 		}
 	}()
+
+	// A restore chosen in the app is applied now, before anything opens the
+	// database (docs/adr/0012-backups-and-retention.md).
+	if r := backup.ApplyPending(ctx, opts.DataDir, buildinfo.Version, time.Now()); r != nil {
+		if r.OK {
+			log.Info("restored a backup", "from", r.From, "pre_restore", r.PreRestore, "kept_aside", r.KeptAside)
+		} else {
+			log.Error("restoring a backup failed; nothing was changed", "from", r.From, "err", r.Error)
+		}
+	}
 
 	h.db, err = storage.Open(ctx, datadir.DatabasePath(opts.DataDir))
 	if err != nil {
@@ -118,6 +132,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.workflows.Start(ctx); err != nil {
 		return nil, err
 	}
+	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
+	h.maint.Start(context.Background())
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
@@ -125,17 +141,18 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	startedAt := time.Now()
 	h.api = api.NewServer(api.Options{Token: h.token, Logger: log}, api.Routes(api.Deps{
-		DataDir:   opts.DataDir,
-		StartedAt: startedAt,
-		DB:        h.db,
-		Settings:  set,
-		Secrets:   sec,
-		Events:    inbox,
-		Twitch:    h.twitch,
-		OBS:       h.obs,
-		Workflows: h.workflows,
-		Variables: vars,
-		Logger:    log,
+		DataDir:     opts.DataDir,
+		StartedAt:   startedAt,
+		DB:          h.db,
+		Settings:    set,
+		Secrets:     sec,
+		Events:      inbox,
+		Twitch:      h.twitch,
+		OBS:         h.obs,
+		Workflows:   h.workflows,
+		Variables:   vars,
+		Maintenance: h.maint,
+		Logger:      log,
 	}))
 
 	h.ln, err = listen(opts.Addr)
@@ -206,6 +223,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.maint != nil {
+		h.maint.Close() // a backup in progress finishes first
+	}
 	if h.workflows != nil {
 		h.workflows.Close() // first: running jobs still need Twitch and OBS for their finally steps
 	}

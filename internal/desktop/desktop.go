@@ -50,6 +50,13 @@ func (s *State) Ready(e Engine) {
 	s.phase, s.message, s.engine = PhaseReady, "", e
 }
 
+// Starting records that the engine is (re)starting.
+func (s *State) Starting() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.phase, s.message, s.engine = PhaseStarting, "", nil
+}
+
 // Failed records why the engine couldn't start, in words for the streamer.
 func (s *State) Failed(message string) {
 	s.mu.Lock()
@@ -77,8 +84,10 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 's
 
 // Handler serves the UI from assets (the built frontend) and bridges /v1/*.
 // open shows a web page in the system browser; POST /desktop/open-url uses
-// it for allow-listed pages only (AllowedURL).
-func Handler(assets fs.FS, state *State, open func(url string) error) http.Handler {
+// it for allow-listed pages only (AllowedURL). restart stops and starts the
+// engine, for POST /desktop/restart-engine: a staged restore is applied as
+// it starts (docs/adr/0012-backups-and-retention.md).
+func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error) http.Handler {
 	files := http.FileServerFS(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -91,6 +100,8 @@ func Handler(assets fs.FS, state *State, open func(url string) error) http.Handl
 			_ = json.NewEncoder(w).Encode(Info{Name: brand.Name, State: phase, Message: msg})
 		case r.URL.Path == "/desktop/open-url":
 			openURL(w, r, open)
+		case r.URL.Path == "/desktop/restart-engine":
+			restartEngine(w, r, restart)
 		case strings.HasPrefix(r.URL.Path, "/v1/"):
 			bridge(w, r, state)
 		default:
@@ -149,6 +160,24 @@ func AllowedURL(u string) bool {
 		return ip != nil && ip.IsLoopback() && p.Port() != ""
 	}
 	return false
+}
+
+func restartEngine(w http.ResponseWriter, r *http.Request, restart func() error) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	switch {
+	case r.Method != http.MethodPost:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	case restart == nil:
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "unavailable", "message": "can't restart the engine here"}})
+	default:
+		if err := restart(); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": "unavailable", "message": err.Error()}})
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}
 }
 
 func openURL(w http.ResponseWriter, r *http.Request, open func(string) error) {

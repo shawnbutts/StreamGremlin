@@ -76,7 +76,7 @@ func run() error {
 		Icon:        icon,
 		Logger:      log,
 		Assets: application.AssetOptions{
-			Handler:        desktop.Handler(assets, state, openURL),
+			Handler:        desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) }),
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
@@ -135,6 +135,26 @@ func (e *engine) start(dir string, state *desktop.State) {
 	}
 	e.h = h
 	state.Ready(h)
+}
+
+// restart stops the engine and starts it again, for a restore chosen in
+// the app: it's applied as the engine starts.
+func (e *engine) restart(dir string, state *desktop.State) error {
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		return errors.New("StreamGremlin is closing")
+	}
+	h := e.h
+	e.h = nil
+	state.Starting()
+	e.mu.Unlock()
+	if h != nil {
+		e.close(h)
+	}
+	e.log.Info("restarting the engine")
+	go e.start(dir, state)
+	return nil
 }
 
 func (e *engine) stop() {

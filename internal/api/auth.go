@@ -40,6 +40,9 @@ const (
 	// Variables: reading saved variables, and changing or deleting them.
 	PermVariablesRead  Permission = "variables.read"
 	PermVariablesWrite Permission = "variables.write"
+	// Backups: listing them, and making, checking, restoring and deleting.
+	PermBackupsRead  Permission = "backups.read"
+	PermBackupsWrite Permission = "backups.write"
 )
 
 // Principal is an authenticated caller.

@@ -41,7 +41,7 @@ StreamGremlin keeps everything on the streamer's machine (PRINCIPLES.md). It nee
 
 ## Consequences
 
-- Restoring from a backup is the only way back from a migration. The backup is taken automatically, and the Backups feature (M1) will expose it.
+- Restoring from a backup is the only way back from a migration. The backup is taken automatically, and Settings → Backups lists and restores it ([ADR-0012](0012-backups-and-retention.md)).
 - Squashing at the first public release costs every development data folder once. Slice 2 rewrote the baseline before this change, which cost one fresh data folder.
 - Windows file permissions are left to the default ACL on `%LocalAppData%`, which is already private to the user.
 

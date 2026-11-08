@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { ApiError, getUISettings, putUISettings, type Theme } from '../lib/api';
   import { applyTheme } from '../lib/theme';
+  import BackupsCard from './BackupsCard.svelte';
   import SavedSecrets from './SavedSecrets.svelte';
 
   const options: { value: Theme; label: string; hint: string }[] = [
@@ -43,7 +44,7 @@
 </script>
 
 <h1>Settings</h1>
-<p class="sg-muted screen-intro">How StreamGremlin looks, and the passwords and sign-ins it keeps.</p>
+<p class="sg-muted screen-intro">How StreamGremlin looks, the passwords and sign-ins it keeps, backups, and how long it keeps history.</p>
 
 <section class="sg-panel card" aria-labelledby="appearance-heading">
   <h2 id="appearance-heading">Appearance</h2>
@@ -73,3 +74,5 @@
 </section>
 
 <SavedSecrets />
+
+<BackupsCard />

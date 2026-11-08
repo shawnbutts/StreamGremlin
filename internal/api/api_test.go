@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/mockobs"
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
@@ -89,7 +90,8 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars,
-		Now: func() time.Time { return started.Add(90 * time.Second) },
+		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
+		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }
 

@@ -548,3 +548,64 @@ export interface Template {
 }
 
 export const getTemplates = () => api<{ templates: Template[]; categories: string[] }>('GET', '/v1/templates');
+
+export type BackupKind = 'manual' | 'scheduled' | 'pre-restore' | 'pre-migration';
+
+export interface BackupInfo {
+  name: string;
+  kind: BackupKind;
+  created_at: string;
+  size: number;
+  schema_version?: number;
+  app_version?: string;
+  problem?: string;
+}
+
+export interface RestoreResult {
+  at: string;
+  from: string;
+  ok: boolean;
+  error?: string;
+  pre_restore?: string;
+  kept_aside?: string;
+}
+
+export interface MaintenanceSettings {
+  backup_every_hours: number;
+  backup_keep: number;
+  events_days: number;
+  runs_days: number;
+}
+
+export interface SweepResult {
+  at: string;
+  events: number;
+  runs: number;
+  error?: string;
+}
+
+export interface Backups {
+  backups: BackupInfo[];
+  pending?: string;
+  last_restore?: RestoreResult;
+  settings: MaintenanceSettings;
+  status: { last_backup_at?: string; last_backup_error?: string; next_backup_at?: string; last_sweep?: SweepResult };
+}
+
+export const getBackups = () => api<Backups>('GET', '/v1/backups');
+export const createBackup = () => api<BackupInfo>('POST', '/v1/backups');
+export const verifyBackup = (name: string) => api<{ ok: boolean }>('POST', `/v1/backups/${encodeURIComponent(name)}/verify`);
+export const stageRestore = (name: string) => api<{ pending: string }>('POST', `/v1/backups/${encodeURIComponent(name)}/restore`);
+export const cancelRestore = (name: string) => api<void>('DELETE', `/v1/backups/${encodeURIComponent(name)}/restore`);
+export const deleteBackup = (name: string) => api<void>('DELETE', `/v1/backups/${encodeURIComponent(name)}`);
+export const putMaintenance = (s: MaintenanceSettings) => api<MaintenanceSettings>('PUT', '/v1/settings/maintenance', s);
+export const sweepNow = () => api<SweepResult>('POST', '/v1/maintenance/sweep');
+
+/** Restart the app's engine: a staged restore is applied as it starts. */
+export async function restartEngine(): Promise<void> {
+  const resp = await fetch('/desktop/restart-engine', { method: 'POST' });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => undefined);
+    throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  }
+}

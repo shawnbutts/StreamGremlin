@@ -589,3 +589,18 @@ Decided 2026-11-08 under D-007. The user said "proceed" to the plan: a template 
 - **Settings moves to Ctrl/⌘+7,** and keeps Ctrl/⌘+comma (D-014: Settings is always last).
 - **The example workflows stay** in `examples/workflows/` for development and the CLI; the templates are what the app offers.
 
+## D-020. Backups, restore and retention (M1 slice 11c)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to the plan, which follows StreamWisp's ADR-0047.
+
+- **Backups, restore and retention** follow [ADR-0012](adr/0012-backups-and-retention.md).
+- **A backup is a ZIP archive:** the database (a consistent copy) and a manifest with hashes. Sign-ins and passwords are never in one.
+- **Automatic backups run daily by default,** keeping the newest 7. Backups you make, and ones taken before a restore or an update, are kept until you delete them.
+- **Restoring is checked, then applied at the next start,** after backing up what it replaces.
+  - The desktop app restarts its engine at once; the CLI says to restart.
+  - A failed restore changes nothing.
+  - A damaged current database is kept aside as files.
+- **History is kept for 30 days of events and 90 days of finished runs,** both adjustable, or 0 for always. Workflows, versions, saved variables and settings are never swept.
+- **The desktop bridge gains `POST /desktop/restart-engine`,** used after choosing a restore.
+- **A confirm dialog bug was found and fixed:** in the new Delete-backup dialog, the backup was read after the dialog had forgotten it, so nothing was deleted. The handler now takes the backup first. The test caught it.
+

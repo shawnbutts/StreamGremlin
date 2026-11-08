@@ -79,6 +79,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Help** (Ctrl/⌘+6): how StreamGremlin fits together, keyboard shortcuts, and where your data lives. Each screen has a line saying what it's for, and the editor explains values and conditions.
   - `streamgremlin templates` and `templates show ID`.
 
+- M1 slice 11c, backups and history:
+  - **Settings → Backups:** back up now, check a backup, restore one, or delete one. Restoring asks first, backs up what it replaces, and restarts StreamGremlin to do it. A backup that's damaged or from a newer version is refused, and nothing changes. Sign-ins and passwords are never in a backup.
+  - **Automatic backups** every day by default, keeping the newest 7.
+  - **History:** events older than 30 days and finished runs older than 90 days are cleared automatically, both adjustable (0 keeps them forever). Workflows and saved variables are never cleared.
+  - `streamgremlin backups`, `backups create`, `verify`, `restore`, `cancel-restore` and `delete`.
+
 ### Changed
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Help 6, Settings 7 (and Ctrl/⌘+comma, which always reaches Settings).
