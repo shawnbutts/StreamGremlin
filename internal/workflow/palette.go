@@ -51,6 +51,9 @@ var (
 	message = Value{Token: "message", Label: "The whole message", Expr: "event.payload.text"}
 	source  = MatchField{Path: "source_name", Label: "Only for source", Kind: "source", Help: "Leave empty for any source."}
 	srcVal  = Value{Token: "source", Label: "The source", Expr: "event.payload.source_name"}
+	tier    = Value{Token: "tier", Label: "The sub tier (1, 2 or 3)", Expr: "event.payload.tier"}
+	// from names a gifter or cheerer, or says Anonymous.
+	from = Value{Token: "viewer", Label: "Their name (or Anonymous)", Expr: "event.payload.from"}
 )
 
 // Triggers lists the events the editor offers, most used first.
@@ -72,6 +75,47 @@ func Triggers() []TriggerEntry {
 			Match: []MatchField{{Path: "scene_name", Label: "Only for scene", Kind: "scene", Help: "Leave empty for any scene."}},
 			Values: []Value{{Token: "scene", Label: "The new scene", Expr: "event.payload.scene_name"},
 				{Token: "previous_scene", Label: "The scene before", Expr: "event.payload.previous_scene_name"}}},
+		{Type: "audience.follow.created", Label: "Someone follows", Category: "Twitch",
+			Help: "A viewer follows your channel.", Match: []MatchField{}, Values: []Value{viewer, login}},
+		{Type: "monetization.subscription.started", Label: "Someone subscribes", Category: "Twitch",
+			Help:  "A new sub, including someone given a sub as a gift. Resubs are separate.",
+			Match: []MatchField{}, Values: []Value{viewer, login, tier,
+				{Token: "gift", Label: "Whether it was a gift (true or false)", Expr: "event.payload.is_gift"}}},
+		{Type: "monetization.subscription.renewed", Label: "Someone resubscribes", Category: "Twitch",
+			Help:  "A viewer shares their resub in chat, with how many months.",
+			Match: []MatchField{}, Values: []Value{viewer, login, tier,
+				{Token: "months", Label: "Months subscribed in all", Expr: "event.payload.months"},
+				{Token: "sub_message", Label: "Their resub message", Expr: "event.payload.text"}}},
+		{Type: "monetization.subscription.gifted", Label: "Someone gifts subs", Category: "Twitch",
+			Help:  "A viewer, or someone anonymous, gives subs to the community. Each sub also arrives as \"Someone subscribes\".",
+			Match: []MatchField{}, Values: []Value{from, tier,
+				{Token: "count", Label: "How many subs", Expr: "event.payload.total"}}},
+		{Type: "monetization.bits.cheered", Label: "Someone cheers bits", Category: "Twitch",
+			Help:  "A viewer, or someone anonymous, cheers bits.",
+			Match: []MatchField{}, Values: []Value{from,
+				{Token: "bits", Label: "How many bits", Expr: "event.payload.bits"},
+				{Token: "cheer_message", Label: "Their message", Expr: "event.payload.text"}}},
+		{Type: "audience.raid.received", Label: "Someone raids you", Category: "Twitch",
+			Help:  "Another channel raids yours.",
+			Match: []MatchField{}, Values: []Value{{Token: "raider", Label: "The raiding channel", Expr: "event.actor.display_name"},
+				{Token: "raider_login", Label: "The raiding channel's login (for !so)", Expr: "event.actor.login"},
+				{Token: "viewers", Label: "How many viewers came", Expr: "event.payload.viewers"}}},
+		{Type: "rewards.channel_points.redeemed", Label: "Someone redeems channel points", Category: "Twitch",
+			Help:  "A viewer redeems one of your channel point rewards.",
+			Match: []MatchField{{Path: "reward.title", Label: "Only for reward", Kind: "text", Help: "The reward's title, exactly. Leave empty for any reward."}},
+			Values: []Value{viewer, login, {Token: "reward", Label: "The reward's title", Expr: "event.payload.reward.title"},
+				{Token: "cost", Label: "What it cost", Expr: "event.payload.reward.cost"},
+				{Token: "input", Label: "What they typed", Expr: "event.payload.user_input"}}},
+		{Type: "broadcast.channel.online", Label: "You go live on Twitch", Category: "Stream",
+			Help:  "Twitch says your channel is live. (\"The stream starts\" is OBS starting to stream, a little earlier.)",
+			Match: []MatchField{}, Values: []Value{}},
+		{Type: "broadcast.channel.offline", Label: "You go offline on Twitch", Category: "Stream",
+			Help: "Twitch says your channel is offline.", Match: []MatchField{}, Values: []Value{}},
+		{Type: "broadcast.channel.updated", Label: "Your title or category changes", Category: "Stream", More: true,
+			Help:  "Your Twitch title or category changes, from anywhere.",
+			Match: []MatchField{{Path: "category", Label: "Only for category", Kind: "text", Help: "Leave empty for any category."}},
+			Values: []Value{{Token: "title", Label: "The title", Expr: "event.payload.title"},
+				{Token: "category", Label: "The category", Expr: "event.payload.category"}}},
 		{Type: "timers.timer.fired", Label: "A timer goes off", Category: "Timers",
 			Help:  "One of your timers goes off: every so often, on a schedule, or when you click Run now.",
 			Match: []MatchField{{Path: "timer_id", Label: "Timer", Kind: "timer"}},

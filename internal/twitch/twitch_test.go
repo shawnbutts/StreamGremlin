@@ -378,7 +378,7 @@ func TestMissingScopesAreShown(t *testing.T) {
 	r.mock.GrantScopes = []string{"user:read:chat"}
 	s := r.configured()
 	st := r.signIn(s, RoleStreamer, "streamer")
-	if len(st.MissingScopes) != 1 || st.MissingScopes[0] != "user:write:chat" || !strings.Contains(st.Detail, "user:write:chat") {
+	if len(st.MissingScopes) != len(StreamerScopes)-1 || st.MissingScopes[0] != "user:write:chat" || !strings.Contains(st.Detail, "user:write:chat") {
 		t.Fatalf("%+v", st)
 	}
 }

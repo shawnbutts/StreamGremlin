@@ -75,7 +75,13 @@ func TestWhatNeedsTheStreamer(t *testing.T) {
 	o := Build(Input{
 		Twitch: twitch.Status{
 			Streamer: acct(twitch.StateConnected, "me"), Bot: acct(twitch.StateConnected, "gremlinbot"),
-			Chat: twitch.ChatStatus{State: twitch.ChatDisconnected, Detail: "the connection dropped", BotModerator: &no},
+			Chat: twitch.ChatStatus{State: twitch.ChatDisconnected, Detail: "the connection dropped", BotModerator: &no,
+				Feeds: []twitch.FeedStatus{
+					{Label: "Follows", Problem: "Sign in to Twitch again and allow it (moderator:read:followers)."},
+					{Label: "Cheers (bits)", Problem: "Sign in to Twitch again and allow it (bits:read)."},
+					{Label: "Channel point redemptions", Problem: "Twitch refused it: not an affiliate."},
+					{Label: "Raids", OK: true},
+				}},
 		},
 		OBS:       obs.Status{Config: obs.Config{Enabled: true}, State: obs.StateNeedsAction, Detail: "OBS refused the password."},
 		Workflows: workflow.Stats{On: 3, Failed24h: 1},
@@ -85,6 +91,7 @@ func TestWhatNeedsTheStreamer(t *testing.T) {
 	for _, want := range []string{
 		"problem: Chat isn't being read: the connection dropped.",
 		"tip: Make gremlinbot a moderator (type /mod gremlinbot",
+		"tip: Sign in to Twitch again to get follows and cheers (bits) for your workflows.",
 		"problem: OBS needs you: OBS refused the password.",
 		"problem: !so is answered by more than one workflow.",
 		"problem: 1 workflow run failed in the last 24 hours.",
@@ -92,6 +99,9 @@ func TestWhatNeedsTheStreamer(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "redemptions") {
+		t.Error("a refusal that signing in again won't fix was listed")
 	}
 	if strings.Contains(got, "!hello") {
 		t.Error("a command without a conflict was listed")

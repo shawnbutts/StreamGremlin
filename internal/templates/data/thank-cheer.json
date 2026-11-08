@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "thank-cheer",
+    "title": "Thank cheers",
+    "category": "Twitch events",
+    "description": "Says thanks for bits, with how many.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.thank-cheer",
+    "name": "Thank cheers",
+    "triggers": [
+      {
+        "type": "monetization.bits.cheered"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Thanks for the ${event.payload.bits} bits, ${event.payload.from}! ✨"
+        }
+      }
+    ]
+  }
+}

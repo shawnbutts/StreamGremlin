@@ -102,11 +102,21 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Workflow steps:** "Add a quote", "Pick a quote" and "Delete a quote".
   - `streamgremlin quotes`, `quotes add`, `show`, `edit` and `delete`.
 
+- M2 slice 3, Twitch channel events:
+  - **New triggers:** someone follows, subscribes, resubscribes, gifts subs, cheers bits, raids you, or redeems channel points (optionally only one reward); you go live or offline on Twitch; your title or category changes.
+  - **Five templates:** thank followers, subs and resubs, gifted subs and cheers, and welcome raiders.
+  - **Connections** lists which events your channel sends, and why any aren't coming in. Home says when signing in to Twitch again would add some.
+  - Quotes added from chat take your Twitch category.
+  - "Only while live" timers also count going live on Twitch.
+  - mocktwitch sends every new event, from tests or its `/chat` page.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
 
 ### Changed
+
+- The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Variables 7, Help 8, Settings 9 (and Ctrl/⌘+comma, which always reaches Settings).
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.

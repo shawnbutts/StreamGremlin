@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "thank-gift",
+    "title": "Thank gifted subs",
+    "category": "Twitch events",
+    "description": "Says thanks when someone gifts subs to the community, anonymous or not.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.thank-gift",
+    "name": "Thank gifted subs",
+    "triggers": [
+      {
+        "type": "monetization.subscription.gifted"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "${event.payload.from} just gifted ${event.payload.total} subs! Thank you 🎁"
+        }
+      }
+    ]
+  }
+}

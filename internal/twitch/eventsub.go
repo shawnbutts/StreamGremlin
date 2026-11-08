@@ -34,6 +34,8 @@ type ChatStatus struct {
 	// BotModerator: whether the bot moderates the channel, so it may send
 	// faster. Nil while unknown.
 	BotModerator *bool `json:"bot_moderator,omitempty"`
+	// Feeds says which channel events Twitch sends, and why not.
+	Feeds []FeedStatus `json:"feeds"`
 }
 
 const keepaliveSeconds = 30
@@ -104,6 +106,9 @@ func (s *Service) setChat(st ChatState, detail string) {
 		s.log.Info("twitch chat state", "state", string(st), "detail", detail)
 	}
 	s.chat.State, s.chat.Detail = st, detail
+	if st == ChatOff {
+		s.chat.Feeds = nil // nothing is asked for while chat is off
+	}
 	s.chatMu.Unlock()
 	s.changed()
 }
@@ -113,6 +118,10 @@ func (s *Service) ChatStatus() ChatStatus {
 	s.chatMu.Lock()
 	defer s.chatMu.Unlock()
 	c := s.chat
+	c.Feeds = slices.Clone(c.Feeds)
+	if c.Feeds == nil {
+		c.Feeds = []FeedStatus{}
+	}
 	if c.BotModerator != nil {
 		v := *c.BotModerator
 		c.BotModerator = &v
@@ -243,6 +252,8 @@ func (s *Service) chatSession(ctx context.Context, userID string) error {
 	if err != nil {
 		return fmt.Errorf("couldn't subscribe to chat: %w", err)
 	}
+	s.subscribeFeeds(ctx, clientID, tok.Reveal(), welcome.ID, userID, s.streamer.Status().Scopes)
+	s.loadChannel(ctx, clientID, tok.Reveal(), userID)
 	s.setChat(ChatConnected, "")
 	go s.watchBot(ctx, userID)
 
@@ -284,6 +295,8 @@ func (s *Service) chatSession(ctx context.Context, userID string) error {
 			case "notification":
 				if f.msg.Metadata.SubscriptionType == "channel.chat.message" {
 					s.storeChat(ctx, f.msg)
+				} else {
+					s.storeChannelEvent(ctx, f.msg)
 				}
 			case "session_reconnect":
 				if p := f.msg.Payload.Session; p != nil && p.ReconnectURL != "" && next == nil {
@@ -294,9 +307,14 @@ func (s *Service) chatSession(ctx context.Context, userID string) error {
 					}
 				}
 			case "revocation":
-				status := "unknown"
+				status, typ := "unknown", ""
 				if f.msg.Payload.Subscription != nil {
-					status = f.msg.Payload.Subscription.Status
+					status, typ = f.msg.Payload.Subscription.Status, f.msg.Payload.Subscription.Type
+				}
+				if typ != "" && typ != "channel.chat.message" {
+					// Only that kind of event stops; chat goes on.
+					s.setFeed(typ, "Twitch stopped sending it ("+status+"). Sign in again to restart it.")
+					continue
 				}
 				return errRevoked{status: status}
 			}

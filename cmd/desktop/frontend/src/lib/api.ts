@@ -187,6 +187,16 @@ export interface TwitchStatus {
   streamer: AccountStatus;
   bot: AccountStatus;
   chat: ChatStatus;
+  /** The title and category, when Twitch has said. */
+  channel?: { title: string; category: string; known: boolean };
+}
+
+/** Whether Twitch sends one kind of channel event, and why not. */
+export interface FeedStatus {
+  type: string;
+  label: string;
+  ok: boolean;
+  problem?: string;
 }
 
 export interface ChatStatus {
@@ -194,6 +204,7 @@ export interface ChatStatus {
   detail?: string;
   since: string;
   bot_moderator?: boolean;
+  feeds?: FeedStatus[];
 }
 
 export interface SendResult {

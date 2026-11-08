@@ -29,8 +29,10 @@ var ErrInvalid = errors.New("twitch: invalid")
 // Scopes each account asks for. Only what M1 uses (chat, slice 5); later
 // milestones add theirs, and the app asks the streamer to sign in again.
 var (
-	StreamerScopes = []string{"user:read:chat", "user:write:chat"}
-	BotScopes      = []string{"user:write:chat", "user:read:moderated_channels"}
+	StreamerScopes = []string{"user:read:chat", "user:write:chat",
+		// Channel events (docs/adr/0015-twitch-channel-events.md).
+		"moderator:read:followers", "channel:read:subscriptions", "bits:read", "channel:read:redemptions"}
+	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 
 // validateEvery is Twitch's required validation interval.
@@ -76,10 +78,11 @@ type Service struct {
 	limits      limiter
 	own         ownSends // workflows' messages sent as you, to skip their echo
 
-	chatMu sync.Mutex
-	chat   ChatStatus
-	log    *slog.Logger
-	now    func() time.Time
+	chatMu  sync.Mutex
+	chat    ChatStatus
+	channel ChannelInfo // the channel's title and category
+	log     *slog.Logger
+	now     func() time.Time
 
 	ctx    context.Context
 	stop   context.CancelFunc
@@ -239,7 +242,9 @@ type Status struct {
 	Streamer   AccountStatus `json:"streamer"`
 	Bot        AccountStatus `json:"bot"`
 	Chat       ChatStatus    `json:"chat"`
-	Manifest   Manifest      `json:"manifest"`
+	// Channel is the title and category, when Twitch has said.
+	Channel  *ChannelInfo `json:"channel,omitempty"`
+	Manifest Manifest     `json:"manifest"`
 }
 
 // Status returns both accounts' states.
@@ -248,6 +253,9 @@ func (s *Service) Status(ctx context.Context) Status {
 	st := Status{ClientID: id, ClientIDSource: src, HasBuiltIn: BuiltInClientID != "", Streamer: s.streamer.Status(), Bot: s.bot.Status(), Chat: s.ChatStatus(), Manifest: TwitchManifest()}
 	if s.authURL != DefaultAuthURL {
 		st.TestServer = s.authURL
+	}
+	if ch := s.Channel(); ch.Known {
+		st.Channel = &ch
 	}
 	return st
 }

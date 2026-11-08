@@ -46,6 +46,10 @@ func TwitchManifest() Manifest {
 			"https://dev.twitch.tv/docs/api/reference/#send-chat-message",
 			"https://dev.twitch.tv/docs/api/reference/#get-moderated-channels",
 			"https://dev.twitch.tv/docs/chat/",
+			"https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/",
+			"https://dev.twitch.tv/docs/eventsub/eventsub-reference/",
+			"https://dev.twitch.tv/docs/eventsub/manage-subscriptions/",
+			"https://dev.twitch.tv/docs/api/reference/#get-channel-information",
 		},
 		Capabilities: []Capability{
 			{
@@ -92,6 +96,45 @@ func TwitchManifest() Manifest {
 			{
 				Name: "chat.bot_badge", Support: Unsupported,
 				Notes: "The Chat Bot badge needs an app access token, which needs a client secret. A public app can't have one.",
+			},
+			{
+				Name: "events.follow", Support: Supported, Scopes: []string{"moderator:read:followers"},
+				Notes: "channel.follow v2; condition broadcaster_user_id and moderator_user_id, both your account (the docs say " +
+					"to name the broadcaster when the broadcaster authorized). Stored as audience.follow.created.",
+			},
+			{
+				Name: "events.subscriptions", Support: Supported, Scopes: []string{"channel:read:subscriptions"},
+				Notes: "channel.subscribe (new subs, gift recipients with is_gift; resubs aren't included), channel.subscription.message " +
+					"(a resub shared in chat), channel.subscription.gift (anonymous gifts have null user fields). Tiers " +
+					"1000/2000/3000 are stored as 1/2/3; Prime arrives as 1000. The message, gift and redemption payload tables " +
+					"were read from a summary of the docs on 2026-11-08, not verbatim: checked against real events in the live check.",
+			},
+			{
+				Name: "events.cheer", Support: Supported, Scopes: []string{"bits:read"},
+				Notes: "channel.cheer; anonymous cheers have null user fields. The docs found no affiliate rule for subscribing; " +
+					"a refusal is listed per event on Connections and chat goes on.",
+			},
+			{
+				Name: "events.raid", Support: Supported,
+				Notes: "channel.raid with to_broadcaster_user_id; no authorization. Costs 1 of the 10 cost points per WebSocket " +
+					"(with stream.online, stream.offline and channel.update: 4 in all). The raider is the event's actor.",
+			},
+			{
+				Name: "events.redemptions", Support: Supported, Scopes: []string{"channel:read:redemptions", "channel:manage:redemptions"},
+				Notes: "channel.channel_points_custom_reward_redemption.add for every reward. The source event id is the " +
+					"redemption's id, stable across redelivery. Managing rewards and fulfilling redemptions aren't built yet.",
+			},
+			{
+				Name: "events.stream_and_channel", Support: Supported,
+				Notes: "stream.online and stream.offline (broadcast.channel.online/offline), channel.update v2 " +
+					"(broadcast.channel.updated). No authorization. The title and category are also read once per session " +
+					"with Get Channel Information (no scope), so quotes can take the category.",
+			},
+			{
+				Name: "events.limits", Support: Partial,
+				Notes: "One WebSocket session per sign-in, with 11 subscriptions (300 allowed, total cost 4 of 10). The docs don't " +
+					"give the status codes for a missing scope or a duplicate in the pages read; 403 is shown as refused, 409 " +
+					"counts as already subscribed. A revoked event type stops only that type; chat goes on.",
 			},
 		},
 	}

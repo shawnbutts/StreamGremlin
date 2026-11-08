@@ -906,3 +906,18 @@ kbd {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* Twitch channel events on Connections: a mark and words, never colour alone. */
+.feed-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+.feed-list .icon-ok {
+  color: var(--sg-success);
+}
+
+.feed-list .icon-bad {
+  color: var(--sg-danger);
+}

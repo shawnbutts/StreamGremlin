@@ -1,0 +1,47 @@
+{
+  "template": {
+    "id": "thank-sub",
+    "title": "Thank subs and resubs",
+    "category": "Twitch events",
+    "description": "Says thanks for a new sub or a shared resub, with the months for a resub. Subs given as gifts are thanked by \"Thank gifted subs\" instead.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.thank-sub",
+    "name": "Thank subs and resubs",
+    "triggers": [
+      {
+        "type": "monetization.subscription.started",
+        "where": {
+          "is_gift": false
+        }
+      },
+      {
+        "type": "monetization.subscription.renewed"
+      }
+    ],
+    "steps": [
+      {
+        "if": "event.type == \"monetization.subscription.renewed\"",
+        "do": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Thank you for ${event.payload.months} months, ${event.actor.display_name}! 🎉"
+            }
+          }
+        ],
+        "else": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Welcome to the team, ${event.actor.display_name}! Thanks for subscribing 🎉"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

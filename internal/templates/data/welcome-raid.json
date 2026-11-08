@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "welcome-raid",
+    "title": "Welcome raiders",
+    "category": "Twitch events",
+    "description": "Welcomes a raid and tells chat where to find the raiding channel.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.welcome-raid",
+    "name": "Welcome raiders",
+    "triggers": [
+      {
+        "type": "audience.raid.received"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Welcome raiders! ${event.actor.display_name} brought ${event.payload.viewers} friends. Go give them a follow: twitch.tv/${event.actor.login} 💜"
+        }
+      }
+    ]
+  }
+}

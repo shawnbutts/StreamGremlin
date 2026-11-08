@@ -50,6 +50,23 @@
   {#if chat.detail}
     <p>{chat.detail}</p>
   {/if}
+  {#if chat.state === 'connected' && chat.feeds?.length}
+    <h4 id="twitch-events-heading">Events from your channel</h4>
+    <ul class="feed-list" aria-labelledby="twitch-events-heading">
+      {#each chat.feeds as f (f.type)}
+        <li>
+          {#if f.ok}
+            <span class="icon-ok" aria-hidden="true">✓</span> {f.label}
+          {:else}
+            <span class="icon-bad" aria-hidden="true">✗</span> {f.label}: <span class="sg-muted">{f.problem}</span>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+    {#if twitch.channel?.known}
+      <p class="sg-muted">Your channel: “{twitch.channel.title}”, in {twitch.channel.category || 'no category'}.</p>
+    {/if}
+  {/if}
   {#if botIn && chat.bot_moderator === false}
     <p class="sg-muted">
       The bot isn’t a moderator in your channel, so Twitch lets it send only one message a second. To lift that, type

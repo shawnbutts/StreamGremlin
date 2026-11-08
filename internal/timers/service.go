@@ -136,14 +136,16 @@ func (s *Service) next(t Timer, now time.Time) time.Time {
 	return now.Add(d)
 }
 
-// Live reports whether OBS last said it's streaming: the newest real
-// stream started or stopped event. ok is false when OBS never said.
+// Live reports whether you're live: the newest real event of OBS starting
+// or stopping the stream, or of Twitch saying the channel went live or
+// offline. ok is false when neither has said.
 func (s *Service) Live(ctx context.Context) (live, ok bool) {
-	rec, found, err := s.inbox.LatestReal(ctx, "broadcast.stream.started", "broadcast.stream.stopped")
+	rec, found, err := s.inbox.LatestReal(ctx, "broadcast.stream.started", "broadcast.stream.stopped",
+		"broadcast.channel.online", "broadcast.channel.offline")
 	if err != nil || !found {
 		return false, false
 	}
-	return rec.Type == "broadcast.stream.started", true
+	return rec.Type == "broadcast.stream.started" || rec.Type == "broadcast.channel.online", true
 }
 
 // RunDue makes due timers go off. The loop calls it every tick.

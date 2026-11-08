@@ -149,6 +149,19 @@ func printTwitch(w io.Writer, s twitch.Status) {
 		chat += ". " + s.Chat.Detail
 	}
 	fmt.Fprintf(w, "Chat:       %s\n", chat)
+	if len(s.Chat.Feeds) > 0 {
+		fmt.Fprintln(w, "Events:")
+		for _, f := range s.Chat.Feeds {
+			if f.OK {
+				fmt.Fprintf(w, "  ✓ %s\n", f.Label)
+			} else {
+				fmt.Fprintf(w, "  ✗ %s: %s\n", f.Label, f.Problem)
+			}
+		}
+	}
+	if s.Channel != nil && s.Channel.Known {
+		fmt.Fprintf(w, "Channel:    %q, in %s\n", s.Channel.Title, s.Channel.Category)
+	}
 }
 
 func describeAccount(a twitch.AccountStatus) string {

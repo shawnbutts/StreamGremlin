@@ -78,7 +78,7 @@ They are ordinary workflows: editable, checked for one answer per command, and r
 
 - **Built-in quote commands, outside workflows:** Streamer.bot removed its own. Workflows can be changed, and they share command ownership and tests with everything else.
 - **Reusing deleted numbers, or re-indexing:** shared numbers ("remember #12?") would point at a different quote.
-- **The category from Twitch:** StreamGremlin doesn't read the channel's category yet. It arrives with F2's Twitch events (`channel.update`), and the steps can then fill it. Until then it's optional and typed.
+- **The category from Twitch:** since ADR-0015, "Add a quote" fills in the channel's current category when the step doesn't set one and Twitch has said.
 - **A "Quote added" trigger:** nothing uses one yet. It can come with overlays (F2).
 
 ## Consequences

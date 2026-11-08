@@ -88,7 +88,7 @@ StreamWisp built all of this and then brought it in line with Streamer.bot (ADR-
 
   Without this, a timer's own reminder counted towards its next turn. The acceptance test found this. Streamer.bot's docs only say "chat messages", and the point of the setting is not talking into a quiet chat.
 - **No random extra time on cron schedules** (StreamWisp had "plus up to"). Streamer.bot's Cron trigger has none either; it can be added if asked.
-- **"Live" comes from OBS,** the only source StreamGremlin has today. Twitch's `stream.online` arrives with F2's Twitch events.
+- **"Live" comes from OBS, and since ADR-0015 from Twitch too:** the newest of OBS starting or stopping the stream and Twitch saying the channel is online or offline.
 - **No settings-file export yet:** there's no configuration export in StreamGremlin. Backups include timers, since they're in the database.
 
 ## Alternatives considered

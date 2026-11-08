@@ -159,6 +159,60 @@ func Catalog() []Kind {
 		obsKind("broadcast.media.ended", "OBS media ended", "A media source finished playing.",
 			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Intro Video", Max: 256}},
 			func(v map[string]string) map[string]any { return map[string]any{"source_name": v["source_name"]} }),
+		twitchKind("audience.follow.created", "Follow", "Someone followed your channel.", false, nil,
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"followed_at": "2026-11-08T20:00:00Z"}
+			}),
+		twitchKind("monetization.subscription.started", "New sub", "Someone subscribed, or was given a sub.", false,
+			[]Field{tierField, {Name: "is_gift", Label: "Given as a gift", Kind: "choice", Default: "false", Max: 5, Choices: []string{"false", "true"}}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"tier": atoi(v["tier"]), "is_gift": v["is_gift"] == "true"}
+			}),
+		twitchKind("monetization.subscription.renewed", "Resub", "Someone shared their resub, with a message.", true,
+			[]Field{tierField, {Name: "months", Label: "Months in all", Kind: "number", Default: "12", Max: 5},
+				{Name: "text", Label: "Their message", Kind: "text", Default: "A whole year!", Max: 500}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"tier": atoi(v["tier"]), "months": atoi(v["months"]), "text": v["text"], "duration_months": 1}
+			}),
+		twitchKind("monetization.subscription.gifted", "Gifted subs", "Someone gave subs to the community.", false,
+			[]Field{tierField, {Name: "total", Label: "How many", Kind: "number", Default: "5", Max: 4}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"tier": atoi(v["tier"]), "total": atoi(v["total"]), "is_anonymous": false, "from": a.DisplayName}
+			}),
+		twitchKind("monetization.bits.cheered", "Cheer", "Someone cheered bits.", true,
+			[]Field{{Name: "bits", Label: "Bits", Kind: "number", Default: "100", Max: 7},
+				{Name: "text", Label: "Their message", Kind: "text", Default: "Cheer100 nice!", Max: 500}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"bits": atoi(v["bits"]), "text": v["text"], "is_anonymous": false, "from": a.DisplayName}
+			}),
+		twitchKind("audience.raid.received", "Raid", "Another channel raided yours.", false,
+			[]Field{{Name: "viewers", Label: "Viewers", Kind: "number", Default: "25", Max: 7}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"viewers": atoi(v["viewers"])}
+			}),
+		twitchKind("rewards.channel_points.redeemed", "Channel point redemption", "Someone redeemed one of your channel point rewards.", true,
+			[]Field{{Name: "reward", Label: "Reward", Kind: "text", Default: "Hydrate", Max: 45, Path: "reward.title"},
+				{Name: "cost", Label: "Cost", Kind: "number", Default: "100", Max: 7},
+				{Name: "user_input", Label: "What they typed", Kind: "text", Default: "", Max: 500}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"redemption_id": "test", "user_input": v["user_input"], "status": "unfulfilled",
+					"reward": map[string]any{"id": "test", "title": v["reward"], "cost": atoi(v["cost"]), "prompt": ""}}
+			}),
+		{Type: "broadcast.channel.online", Label: "Live on Twitch", Description: "Your channel went live on Twitch.",
+			Sources: []string{"twitch"}, Fields: []Field{},
+			build: func(string, map[string]string) (any, *Actor, error) {
+				return map[string]any{"stream_type": "live", "started_at": "2026-11-08T20:00:00Z"}, nil, nil
+			}},
+		{Type: "broadcast.channel.offline", Label: "Offline on Twitch", Description: "Your channel went offline on Twitch.",
+			Sources: []string{"twitch"}, Fields: []Field{},
+			build: func(string, map[string]string) (any, *Actor, error) { return map[string]any{}, nil, nil }},
+		{Type: "broadcast.channel.updated", Label: "Title or category changed", Description: "Your channel's title or category changed on Twitch.",
+			Sources: []string{"twitch"},
+			Fields: []Field{{Name: "title", Label: "Title", Kind: "text", Default: "Speedrun night", Max: 140},
+				{Name: "category", Label: "Category", Kind: "text", Default: "Celeste", Max: 140, Path: "category"}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"title": v["title"], "category": v["category"], "category_id": "", "language": "en", "labels": []string{}}, nil, nil
+			}},
 		{
 			Type: TimerFired, Label: "Timer went off",
 			Description: "One of your timers went off, on its schedule or by Run now.",
@@ -186,6 +240,21 @@ func Catalog() []Kind {
 			[]Field{{Name: "path", Label: "File", Kind: "text", Default: "/Users/you/Movies/replay.mkv", Max: 1024}},
 			func(v map[string]string) map[string]any { return map[string]any{"path": v["path"]} }),
 	}
+}
+
+var tierField = Field{Name: "tier", Label: "Tier", Kind: "choice", Default: "1", Max: 1, Choices: []string{"1", "2", "3"}}
+
+func atoi(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
+
+// twitchKind is a catalog entry for a Twitch channel event with a viewer
+// (docs/adr/0015-twitch-channel-events.md).
+func twitchKind(typ, label, desc string, sensitive bool, fields []Field, payload func(*Actor, map[string]string) map[string]any) Kind {
+	fields = append([]Field{{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25}}, fields...)
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch"}, Sensitive: sensitive, Fields: fields,
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			a := testViewer(v["user"])
+			return payload(a, v), a, nil
+		}}
 }
 
 // obsKind is a catalog entry for an event OBS reports.

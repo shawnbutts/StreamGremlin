@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "thank-follow",
+    "title": "Thank new followers",
+    "category": "Twitch events",
+    "description": "Says thanks in chat when someone follows.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.thank-follow",
+    "name": "Thank new followers",
+    "triggers": [
+      {
+        "type": "audience.follow.created"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Thanks for the follow, ${event.actor.display_name}! 💜"
+        }
+      }
+    ]
+  }
+}

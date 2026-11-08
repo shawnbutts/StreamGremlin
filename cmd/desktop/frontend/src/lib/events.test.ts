@@ -28,6 +28,22 @@ describe('eventSummary', () => {
   });
 });
 
+describe('Twitch channel events in words', () => {
+  const fan = { platform: 'twitch', id: '1', display_name: 'Fan' };
+  const of = (type: string, payload: Record<string, unknown>, actor?: EventRecord['actor']) => eventSummary({ ...ev(payload, actor), type });
+  it('says who did what', () => {
+    expect(of('audience.follow.created', {}, fan)).toBe('Fan followed');
+    expect(of('monetization.subscription.started', { tier: 2, is_gift: true }, fan)).toBe('Fan subscribed (a gift), tier 2');
+    expect(of('monetization.subscription.renewed', { months: 14, text: 'yay' }, fan)).toBe('Fan resubscribed: 14 months. “yay”');
+    expect(of('monetization.subscription.gifted', { total: 1, from: 'Anonymous' })).toBe('Anonymous gifted 1 sub');
+    expect(of('monetization.bits.cheered', { bits: 500, text: 'Cheer500', from: 'Fan' }, fan)).toBe('Fan cheered 500 bits: Cheer500');
+    expect(of('audience.raid.received', { viewers: 42 }, fan)).toBe('Fan raided with 42 viewers');
+    expect(of('rewards.channel_points.redeemed', { reward: { title: 'Hydrate' }, user_input: '' }, fan)).toBe('Fan redeemed Hydrate');
+    expect(of('broadcast.channel.online', {})).toBe('Live on Twitch');
+    expect(of('broadcast.channel.updated', { title: 'Night', category: 'Celeste' })).toBe('“Night”, in Celeste');
+  });
+});
+
 describe('eventTime', () => {
   it('shows only the time today, and the date otherwise', () => {
     const now = new Date('2026-11-08T21:00:00Z');

@@ -45,6 +45,8 @@ type chatState struct {
 	dropNext      string // when set, the next send answers is_sent false with this code
 	keepaliveFor  time.Duration
 	subscribeWait time.Duration
+	refused       map[string]bool        // subscription types answered 403
+	channels      map[string]channelInfo // channel login -> title and category
 }
 
 func (s *Server) chatInit() {
@@ -52,6 +54,8 @@ func (s *Server) chatInit() {
 		s.chat.sessions = map[string]*session{}
 		s.chat.mods = map[string]map[string]bool{}
 		s.chat.subscribeWait = 10 * time.Second
+		s.chat.refused = map[string]bool{}
+		s.chat.channels = map[string]channelInfo{}
 	}
 }
 
@@ -338,36 +342,9 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 	s.chatInit()
 	switch {
 	case r.Method == "POST" && r.URL.Path == "/helix/eventsub/subscriptions":
-		var in struct {
-			Type      string            `json:"type"`
-			Version   string            `json:"version"`
-			Condition map[string]string `json:"condition"`
-			Transport map[string]string `json:"transport"`
-		}
-		if json.NewDecoder(r.Body).Decode(&in) != nil || in.Transport["method"] != "websocket" {
-			writeErr(w, 400, "bad request")
-			return
-		}
-		g, ok := s.helixAuth(w, r, "user:read:chat")
-		if !ok {
-			return
-		}
-		ss, found := s.chat.sessions[in.Transport["session_id"]]
-		switch {
-		case in.Type != "channel.chat.message" || in.Version != "1":
-			writeErr(w, 400, "mocktwitch only knows channel.chat.message v1")
-		case !found:
-			writeErr(w, 400, "session does not exist or has already disconnected")
-		case in.Condition["user_id"] != g.userID:
-			writeErr(w, 403, "user_id must match the token")
-		case ss.subs[in.Type] != "":
-			writeErr(w, 409, "subscription already exists")
-		default:
-			ss.subs[in.Type] = in.Condition["broadcaster_user_id"]
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusAccepted)
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{"id": random(8), "status": "enabled", "type": in.Type, "version": "1", "cost": 0}}, "total": 1, "total_cost": 0, "max_total_cost": 10})
-		}
+		s.subscribeLocked(w, r)
+	case r.Method == "GET" && r.URL.Path == "/helix/channels":
+		s.channelsLocked(w, r)
 	case r.Method == "POST" && r.URL.Path == "/helix/chat/messages":
 		var in struct {
 			BroadcasterID string `json:"broadcaster_id"`
@@ -438,6 +415,19 @@ var chatPage = template.Must(template.New("c").Parse(`<!doctype html>
 <label>Viewer <input name="viewer" value="{{.Viewer}}"></label></p>
 <p><input name="text" size="50" autofocus> <button>Send</button></p>
 </form>
+<h2>Send an event</h2>
+<form method="post" action="/chat">
+<input type="hidden" name="channel" value="{{.Channel}}">
+<p><select name="event">
+<option value="follow">Follow</option><option value="sub">New sub</option><option value="resub">Resub</option>
+<option value="gift">Gift 5 subs</option><option value="cheer">Cheer</option><option value="raid">Raid</option>
+<option value="redeem">Redeem a reward</option><option value="online">Go live</option><option value="offline">Go offline</option>
+</select>
+<label>From <input name="viewer" value="{{.Viewer}}"></label>
+<label>Amount <input name="amount" value="100" size="5"></label>
+<label>Reward or text <input name="text" value="Hydrate"></label>
+<button>Send event</button></p>
+</form>
 <ol>{{range .Log}}<li><strong>{{.ChatterLogin}}</strong> in {{.Channel}}: {{.Text}}</li>{{end}}</ol>
 </body></html>`))
 
@@ -450,7 +440,9 @@ func (s *Server) chatForm(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		_ = r.ParseForm()
 		data.Channel, data.Viewer = r.PostForm.Get("channel"), r.PostForm.Get("viewer")
-		if t := strings.TrimSpace(r.PostForm.Get("text")); t != "" {
+		if ev := r.PostForm.Get("event"); ev != "" {
+			s.formEvent(data.Channel, data.Viewer, ev, r.PostForm.Get("amount"), r.PostForm.Get("text"))
+		} else if t := strings.TrimSpace(r.PostForm.Get("text")); t != "" {
 			s.Say(data.Channel, data.Viewer, t)
 		}
 	}

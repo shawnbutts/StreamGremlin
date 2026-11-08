@@ -282,6 +282,11 @@ func TestLiveOnlySkipsTurnsWhileNotLive(t *testing.T) {
 	if live, ok := r.svc.Live(context.Background()); live || !ok {
 		t.Fatalf("live %v %v", live, ok)
 	}
+	// Twitch saying the channel is live counts too.
+	r.event("broadcast.channel.online", "twitch", events.Confirmed)
+	if live, ok := r.svc.Live(context.Background()); !live || !ok {
+		t.Fatalf("live on Twitch: %v %v", live, ok)
+	}
 }
 
 func TestRunOnceTurnsItselfOffButRunNowDoesnt(t *testing.T) {

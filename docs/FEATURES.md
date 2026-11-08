@@ -67,7 +67,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Built-in Client ID in release builds, registered under `StreamGremlinHQ` | D-131 | Spine (paste-your-own until registered) |
 | Chat read (EventSub) and send (Helix) | 0012, D-024 | Spine |
 | Separate bot account for chat (optional) | 0057, D-084 | Spine |
-| Follows, subs, bits, channel point redeems, chatters | 0018, D-030 | F2 |
+| Follows, subs, bits, channel point redeems, chatters | 0018, D-030; events built in M2 (ADR-0015, D-026); chatters not yet | F2 |
 | Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087 | F2 |
 | First Words | 0059, D-085 | F2 |
 | Profile pictures for overlays | 0074, D-118 | F2 |

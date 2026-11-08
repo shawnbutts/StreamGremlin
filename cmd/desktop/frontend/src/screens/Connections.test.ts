@@ -187,6 +187,27 @@ describe('Connections', () => {
     void e;
   });
 
+  it('lists which channel events Twitch sends, and why not', async () => {
+    engine({
+      streamer: { state: 'connected', login: 'gremlinstreamer' },
+      chat: {
+        state: 'connected', since: '2026-11-08T10:00:00.000Z',
+        feeds: [
+          { type: 'channel.follow', label: 'Follows', ok: true },
+          { type: 'channel.cheer', label: 'Cheers (bits)', ok: false, problem: 'Sign in to Twitch again and allow it (bits:read).' },
+        ],
+      },
+      channel: { title: 'Speedrun night', category: 'Celeste', known: true },
+    });
+    const el = start();
+    await settle(30);
+    const list = el.querySelector('ul.feed-list')!;
+    expect(list.textContent).toContain('✓ Follows');
+    expect(list.textContent).toContain('✗ Cheers (bits): Sign in to Twitch again and allow it (bits:read).');
+    expect(el.textContent).toContain('Your channel: “Speedrun night”, in Celeste.');
+    await noViolations('feeds');
+  });
+
   it('shows whether chat is read, and sends a message as the bot or as you', async () => {
     const e = engine({
       streamer: { state: 'connected', login: 'gremlinstreamer' },

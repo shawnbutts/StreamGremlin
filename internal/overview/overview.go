@@ -122,6 +122,18 @@ func Build(in Input) Overview {
 		case twitch.ChatOff:
 			add(Problem, ScreenConnections, "Chat isn't being read%s.", detail(tw.Chat.Detail))
 		}
+		// Channel events the sign-in doesn't allow yet. Ones Twitch refuses
+		// (not an affiliate, say) are listed on Connections, not here: signing
+		// in again wouldn't help.
+		var needSignIn []string
+		for _, f := range tw.Chat.Feeds {
+			if !f.OK && strings.Contains(f.Problem, "Sign in") {
+				needSignIn = append(needSignIn, strings.ToLower(f.Label))
+			}
+		}
+		if len(needSignIn) > 0 {
+			add(Tip, ScreenConnections, "Sign in to Twitch again to get %s for your workflows.", list(needSignIn))
+		}
 		if signedIn(tw.Bot) && tw.Chat.BotModerator != nil && !*tw.Chat.BotModerator {
 			add(Tip, ScreenConnections, "Make %s a moderator (type /mod %s in your chat) so it can answer faster and isn't caught by your chat settings.",
 				tw.Bot.Login, tw.Bot.Login)
@@ -150,4 +162,12 @@ func Build(in Input) Overview {
 		add(Problem, ScreenWorkflows, "%d workflow %s failed in the last 24 hours. Their traces say why.", wf.Failed24h, runs)
 	}
 	return o
+}
+
+// list joins words as people write them: "a, b and c".
+func list(words []string) string {
+	if len(words) < 2 {
+		return strings.Join(words, "")
+	}
+	return strings.Join(words[:len(words)-1], ", ") + " and " + words[len(words)-1]
 }

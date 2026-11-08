@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -21,7 +22,7 @@ func quoteOut(q quotes.Quote, count int) map[string]any {
 // registerQuotes adds the quote steps (docs/adr/0014-quotes.md). They change
 // StreamGremlin's own data, so they run for test events too, but then only
 // say what they would do.
-func registerQuotes(reg *workflow.Registry, qs *quotes.Store) {
+func registerQuotes(reg *workflow.Registry, qs *quotes.Store, tw *twitch.Service) {
 	// number reads the number chat typed: given is false when it's empty,
 	// ok is false when it isn't a number (said in chat, not a failure).
 	number := func(c workflow.Call) (n int64, given, ok bool) {
@@ -38,12 +39,17 @@ func registerQuotes(reg *workflow.Registry, qs *quotes.Store) {
 		Params: []workflow.Param{
 			{Name: "text", Label: "The quote", Type: "text", Required: true, Editor: "message"},
 			{Name: "by", Label: "Added by", Type: "text", Editor: "message", DefaultHint: "The viewer who typed the command, or you"},
-			{Name: "category", Label: "Category", Type: "text", Editor: "message", DefaultHint: "None"},
+			{Name: "category", Label: "Category", Type: "text", Editor: "message", DefaultHint: "What you're streaming on Twitch, when known"},
 		},
 		Run: func(ctx context.Context, c workflow.Call) (any, error) {
 			text, _ := c.String("text", "")
 			by, _ := c.String("by", "")
 			category, _ := c.String("category", "")
+			if category == "" && tw != nil {
+				if ch := tw.Channel(); ch.Known {
+					category = ch.Category
+				}
+			}
 			n := quotes.New{Text: text, AddedBy: by, Category: category, Key: "job:" + c.IdempotencyKey}
 			if v := c.Viewer(); v != nil {
 				n.AddedByID, n.Platform = v.Platform+":"+v.ID, v.Platform

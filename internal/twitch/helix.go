@@ -91,16 +91,41 @@ func (h *helix) call(ctx context.Context, method, path, clientID, token string, 
 // subscribeChat creates the channel.chat.message subscription on a
 // WebSocket session. 409 (already exists) counts as success.
 func (h *helix) subscribeChat(ctx context.Context, clientID, token, sessionID, broadcasterID, userID string) error {
+	return h.subscribe(ctx, clientID, token, sessionID, "channel.chat.message", "1",
+		map[string]string{"broadcaster_user_id": broadcasterID, "user_id": userID})
+}
+
+// subscribe creates an EventSub subscription on a WebSocket session. 409
+// (already exists) counts as success.
+func (h *helix) subscribe(ctx context.Context, clientID, token, sessionID, typ, version string, cond map[string]string) error {
 	err := h.call(ctx, "POST", "/eventsub/subscriptions", clientID, token, map[string]any{
-		"type":      "channel.chat.message",
-		"version":   "1",
-		"condition": map[string]string{"broadcaster_user_id": broadcasterID, "user_id": userID},
+		"type":      typ,
+		"version":   version,
+		"condition": cond,
 		"transport": map[string]string{"method": "websocket", "session_id": sessionID},
 	}, nil)
 	if isHelix(err, http.StatusConflict) {
 		return nil
 	}
 	return err
+}
+
+// channelInfo reads Get Channel Information: the title and category. It
+// needs no scope.
+func (h *helix) channelInfo(ctx context.Context, clientID, token, broadcasterID string) (title, category string, err error) {
+	var out struct {
+		Data []struct {
+			Title    string `json:"title"`
+			GameName string `json:"game_name"`
+		} `json:"data"`
+	}
+	if err := h.call(ctx, "GET", "/channels?broadcaster_id="+url.QueryEscape(broadcasterID), clientID, token, nil, &out); err != nil {
+		return "", "", err
+	}
+	if len(out.Data) == 0 {
+		return "", "", fmt.Errorf("%w: no such channel", errUnreachable)
+	}
+	return out.Data[0].Title, out.Data[0].GameName, nil
 }
 
 // sentMessage is Send Chat Message's answer.

@@ -662,3 +662,14 @@ Decided 2026-11-08 under D-007, after D-024.
 - **A new Quotes screen at Ctrl/⌘+6.** Variables moves to 7, Help to 8 and Settings to 9 (still also Ctrl/⌘+comma).
 - **New API permissions:** `quotes.read` and `quotes.write`.
 - **`actions.Register` now takes a `Services` struct,** so each new service doesn't add another argument.
+
+## D-026. Twitch channel events (M2 slice 3, F2 begins)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to the F2 order, starting with Twitch events.
+
+- **Twitch channel events follow [ADR-0015](adr/0015-twitch-channel-events.md):** follows, new subs, resubs, gifted subs, cheers, raids, channel point redemptions, going live and offline on Twitch, and title or category changes. Each is a trigger in the editor.
+- **The streamer's sign-in asks for four more permissions.** Existing sign-ins keep chat and show what's waiting until the streamer signs in again.
+- **Each kind of event is listed on Connections,** as coming in or not, and why. One refused (for example, bits on a channel that isn't an affiliate) never stops chat.
+- **Going live on Twitch is its own trigger,** not "The stream starts" (which is OBS), so existing workflows don't run twice. Timers' "only while live" listens to both.
+- **Quotes take the channel's category** from Twitch when it's known.
+- **Five templates in a new Twitch events category:** thank followers, subs and resubs, gifted subs and cheers, and welcome raiders.

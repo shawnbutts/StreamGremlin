@@ -198,5 +198,5 @@ func Register(reg *workflow.Registry, sv Services) {
 			return map[string]any{"timer": id, "enabled": on, "was_enabled": t.Enabled}, nil
 		},
 	})
-	registerQuotes(reg, sv.Quotes)
+	registerQuotes(reg, sv.Quotes, sv.Twitch)
 }
