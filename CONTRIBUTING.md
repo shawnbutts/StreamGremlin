@@ -49,6 +49,18 @@ Tests never touch your real keyring. To check it on purpose, run the one opt-in 
 STREAMGREMLIN_TEST_OS_KEYRING=1 go test ./internal/secrets -run TestRealKeyring -v
 ```
 
+## Build for Windows from a Mac
+
+The Windows app and CLI cross-compile from macOS (or Linux) with no Windows tools:
+
+```sh
+make windows                         # bin/windows/app/StreamGremlin.exe and bin/windows/streamgremlin.exe
+make windows WINDOWS_ARCH=arm64      # for Windows on ARM
+make windows TWITCH_CLIENT_ID=...    # with the built-in Client ID, as with make desktop
+```
+
+Copy the whole `bin/windows` folder to the Windows computer, and run `app\StreamGremlin.exe`. The app and the CLI stay in separate folders because Windows (and macOS) file names ignore case: `StreamGremlin.exe` and `streamgremlin.exe` would be the same file. The app needs Microsoft's WebView2, which Windows 10 and 11 include. The build isn't code-signed yet, so Windows SmartScreen may warn the first time: choose "More info", then "Run anyway".
+
 ## How work is done
 
 Read [AGENTS.md](AGENTS.md). In short:

@@ -604,3 +604,13 @@ Decided 2026-11-08 under D-007. The user said "proceed" to the plan, which follo
 - **The desktop bridge gains `POST /desktop/restart-engine`,** used after choosing a restore.
 - **A confirm dialog bug was found and fixed:** in the new Delete-backup dialog, the backup was read after the dialog had forgotten it, so nothing was deleted. The handler now takes the backup first. The test caught it.
 
+## D-021. Building for Windows from a Mac
+
+Decided 2026-11-08 under D-007, after the user asked "how do i build for windows on mac?". Until then, Windows builds were made on the Windows computer.
+
+- **`make windows`** cross-compiles the app and CLI from macOS or Linux into `bin/windows/app/StreamGremlin.exe` and `bin/windows/streamgremlin.exe`. Neither needs cgo or Windows tools on Windows.
+  - `WINDOWS_ARCH=arm64` builds for Windows on ARM.
+  - `TWITCH_CLIENT_ID` works as for the Mac build.
+- **The app and CLI go in separate folders,** as on macOS: Windows file names ignore case, so the two `.exe` names are the same file. A first try into one folder showed this, with one build overwriting the other.
+- **Not yet:** code signing and an icon embedded in the `.exe`. Those come with packaging for a release.
+

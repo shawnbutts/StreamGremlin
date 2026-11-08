@@ -34,7 +34,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: windows mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -89,7 +89,16 @@ desktop-test: ## Vet and test the desktop module
 desktop: ## Build the desktop app into ./bin/app (run desktop-ui first)
 	cd $(DESKTOP) && $(DESKTOP_ENV) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/app/StreamGremlin .
 
+# Windows builds cross-compile from macOS or Linux: no cgo, no Windows tools.
+# Like on macOS, the app has its own folder: Windows file names ignore case.
+# The app needs Microsoft's WebView2, which Windows 10 and 11 include.
+WINDOWS_ARCH ?= amd64
+windows: desktop-ui ## Build the Windows app and CLI into ./bin/windows (WINDOWS_ARCH=arm64 for ARM)
+	cd $(DESKTOP) && GOOS=windows GOARCH=$(WINDOWS_ARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS) -H windowsgui" -o $(BIN)/windows/app/StreamGremlin.exe .
+	GOOS=windows GOARCH=$(WINDOWS_ARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/windows/streamgremlin.exe ./cmd/streamgremlin
+	@echo "Copy the bin/windows folder to the Windows computer: app\StreamGremlin.exe is the app, streamgremlin.exe the command line."
+
 verify: lint vet test test-acceptance desktop-ui desktop-test desktop build ## Everything, and builds the app and the CLI; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
