@@ -187,3 +187,6 @@ func (e *Engine) Cancel(ctx context.Context, id string) error {
 
 // TraceErrors counts trace rows that couldn't be written.
 func (e *Engine) TraceErrors() int64 { return e.traceErrors.Load() }
+
+// Stats counts workflows and runs for Home.
+func (e *Engine) Stats(ctx context.Context) (Stats, error) { return e.st.stats(ctx) }

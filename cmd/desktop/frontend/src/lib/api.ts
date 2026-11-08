@@ -503,3 +503,29 @@ export interface CommandEntry {
 }
 
 export const getCommands = () => api<{ commands: CommandEntry[] }>('GET', '/v1/commands');
+
+/** One Get set up step, ticked from real state. */
+export interface SetupStep {
+  id: string;
+  label: string;
+  help: string;
+  done: boolean;
+  optional?: boolean;
+  screen: string;
+}
+
+/** Something that needs the streamer: a problem, an unknown state, or a tip. */
+export interface AttentionItem {
+  level: 'problem' | 'unknown' | 'tip';
+  message: string;
+  screen: string;
+}
+
+export interface Overview {
+  checklist: SetupStep[];
+  set_up: boolean;
+  attention: AttentionItem[];
+  workflows: { total: number; on: number; tested: boolean; answered: boolean; failed_24h: number };
+}
+
+export const getOverview = () => api<Overview>('GET', '/v1/overview');

@@ -714,3 +714,109 @@ legend {
   border-left: 3px solid var(--sg-warning);
   padding-left: 8px;
 }
+
+/* Said to screen readers only. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Home. */
+.attention,
+.checklist,
+.live-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.attention li,
+.checklist li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+}
+
+.attention-text,
+.step-text {
+  flex: 1 1 240px;
+}
+
+.attention-icon,
+.check {
+  font-weight: 700;
+  width: 1.2em;
+  text-align: center;
+}
+
+.attention-problem {
+  border-left: 4px solid var(--sg-danger) !important;
+}
+
+.attention-problem .attention-icon {
+  color: var(--sg-danger);
+}
+
+.attention-unknown {
+  border-left: 4px solid var(--sg-warning) !important;
+}
+
+.attention-unknown .attention-icon {
+  color: var(--sg-warning);
+}
+
+.step-done .check {
+  color: var(--sg-success);
+}
+
+.step-next {
+  border-color: var(--sg-primary) !important;
+  box-shadow: inset 0 0 0 1px var(--sg-primary);
+}
+
+.step-help {
+  display: block;
+  margin-top: 2px;
+}
+
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px 24px;
+}
+
+.live-grid h3 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.live-list li {
+  overflow-wrap: anywhere;
+}
+
+.health span {
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.health-ok span {
+  color: var(--sg-success);
+}
+
+.health-unknown span {
+  color: var(--sg-warning);
+}
+
+.health-problem span {
+  color: var(--sg-danger);
+}

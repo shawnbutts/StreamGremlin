@@ -132,3 +132,22 @@ func TestCommandTakenThroughTheAPI(t *testing.T) {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
 }
+
+func TestOverviewThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	w := do(t, s, req{method: "GET", path: "/v1/overview", token: testToken})
+	var o struct {
+		Checklist []struct {
+			ID   string
+			Done bool
+		}
+		SetUp     bool `json:"set_up"`
+		Attention []any
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &o); err != nil || w.Code != 200 || len(o.Checklist) != 6 || o.SetUp || o.Checklist[0].ID != "twitch" {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "GET", path: "/v1/overview"}); w.Code != 401 {
+		t.Fatal(w.Code)
+	}
+}

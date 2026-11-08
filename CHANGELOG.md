@@ -68,6 +68,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - The editor warns as you type a command that's already taken. "Who can use it" gains "Everyone except mods and you", to pair with "Mods and you".
   - `streamgremlin commands`.
 
+- M1 slice 11a, Home:
+  - **Needs you:** what's wrong (a sign-in Twitch ended, chat not read, OBS needing you, a command answered twice, failed runs), what can't be checked right now, and tips like making the bot a moderator. Each opens the screen that fixes it.
+  - **Get set up:** a checklist from signing in to seeing a workflow answer in chat, ticked from what's really done. It can be hidden.
+  - **Happening now:** the latest events, live, and workflow runs. **Connections:** you, the bot, chat and OBS at a glance, with unknown said as unknown.
+  - `streamgremlin status` also prints what needs you and, until you're set up, the checklist.
+
 ### Changed
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Settings 6 (and Ctrl/⌘+comma, which always reaches Settings).

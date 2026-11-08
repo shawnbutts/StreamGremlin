@@ -22,6 +22,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/host"
 	"code.streamgremlin.com/streamgremlin/internal/logging"
+	"code.streamgremlin.com/streamgremlin/internal/overview"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 )
 
@@ -167,6 +168,34 @@ func status(dir string, args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "  Running for:  %s\n", time.Duration(st.UptimeSeconds)*time.Second)
 	fmt.Fprintf(stdout, "  Data folder:  %s\n", st.DataDir)
 	fmt.Fprintf(stdout, "  Schema:       %d\n", st.SchemaVersion)
+	// What Home shows: anything that needs you, and setup left to do.
+	var ov overview.Overview
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if c.Do(ctx, "GET", "/v1/overview", nil, &ov) != nil {
+		return 0
+	}
+	if len(ov.Attention) > 0 {
+		fmt.Fprintln(stdout, "\nNeeds you:")
+		for _, a := range ov.Attention {
+			mark := map[string]string{overview.Problem: "!", overview.Unknown: "?", overview.Tip: "-"}[a.Level]
+			fmt.Fprintf(stdout, "  %s %s\n", mark, a.Message)
+		}
+	}
+	if !ov.SetUp {
+		fmt.Fprintln(stdout, "\nGet set up (in the app's Home):")
+		for _, s := range ov.Checklist {
+			box := "[ ]"
+			if s.Done {
+				box = "[x]"
+			}
+			opt := ""
+			if s.Optional {
+				opt = " (optional)"
+			}
+			fmt.Fprintf(stdout, "  %s %s%s\n", box, s.Label, opt)
+		}
+	}
 	return 0
 }
 

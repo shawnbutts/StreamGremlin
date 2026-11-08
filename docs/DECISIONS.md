@@ -533,3 +533,33 @@ Decided 2026-11-08, without asking the user, under D-007. The user said "proceed
 - **The workflow switch shows the engine's answer,** not the click, so a refused turn-on doesn't look on.
 - **"Who can use it" gains "Everyone except mods and you".** Every other option includes the streamer, so without it two workflows could never split a command in the editor.
 
+## D-018. Home and the Get set up checklist (M1 slice 11a)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to splitting slice 11 into 11a (Home and setup), 11b (templates and help) and 11c (backups, retention, settings). This follows StreamWisp's D-109: a guided start without a wizard.
+
+- **Home shows, in order:**
+  - **Needs you:** problems, things that can't be checked right now (shown as unknown, never as fine), and tips. Each has a button to the screen that fixes it.
+  - **Get set up**, until every step that isn't optional is done.
+  - **Happening now:** the latest events, live, and the latest workflow runs.
+  - **Connections:** you, the bot, chat and OBS, each in a few words, with unknown shown as unknown.
+  - **Engine.**
+- **The checklist is ticked from real state, never from clicks.** Its steps:
+  1. sign in with your Twitch account (it says to paste a Client ID first when there is none);
+  2. add a bot account (optional);
+  3. connect OBS (optional);
+  4. turn on a workflow;
+  5. try it with a test event;
+  6. see it answer in your chat (a real run that succeeded).
+
+  A sign-in that can't be checked right now still counts as signed in, and Needs you says it can't be checked. The next step is highlighted.
+- **"Hide the checklist" is remembered in browser storage,** like a per-viewer convenience. Losing it only shows the checklist again, and Needs you offers "Show the Get set up checklist".
+- **Needs you lists:**
+  - a sign-in Twitch ended, or one that can't be checked;
+  - chat not being read;
+  - the bot not being a moderator (a tip);
+  - OBS needing you, or not connected while turned on (unknown);
+  - a command answered by more than one workflow;
+  - workflow runs that failed in the last 24 hours.
+- **`GET /v1/overview`** (`health.read`) computes all of it in Go (`internal/overview`, a plain function of the services' states), so the app and `streamgremlin status` say the same. `status` now prints Needs you and, until set up, the checklist.
+- **No wizard and no auto-added workflows:** a wizard blocks a returning streamer and duplicates Connections. Templates are offered in 11b, never added unasked.
+

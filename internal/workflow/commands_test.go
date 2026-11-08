@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"code.streamgremlin.com/streamgremlin/internal/commands"
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 func cmdDef(id, command, extra string) []byte {
@@ -120,5 +121,33 @@ func TestTwoTurnedOnAtOnceCantBothTakeACommand(t *testing.T) {
 	}
 	if ok != 1 || on != 1 {
 		t.Fatalf("%d turned on (%d said ok); want 1", on, ok)
+	}
+}
+
+func TestStatsForHome(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	st, err := r.eng.Stats(ctx)
+	if err != nil || st != (Stats{}) {
+		t.Fatalf("%+v %v", st, err)
+	}
+	r.save(cmdDef("a", "a", ""), true)
+	r.save(def("b", `"triggers":[{"type":"chat.command.received","where":{"command":"b"}}],"steps":[{"action":"test.fail"}]`), true)
+	r.save(cmdDef("c", "c", ""), false)
+	r.chat("t1", "a", events.Synthetic)
+	r.jobs("a", 1)
+	if st, _ := r.eng.Stats(ctx); st.Total != 3 || st.On != 2 || !st.Tested || st.Answered || st.Failed24h != 0 {
+		t.Fatalf("after a test: %+v", st)
+	}
+	r.chat("b1", "b", events.Confirmed) // fails
+	r.jobs("b", 1)
+	if st, _ := r.eng.Stats(ctx); st.Answered || st.Failed24h != 1 {
+		t.Fatalf("a failed real run isn't an answer: %+v", st)
+	}
+	r.chat("a1", "a", events.Confirmed)
+	r.jobs("a", 2)
+	_ = r.eng.Delete(ctx, "c")
+	if st, _ := r.eng.Stats(ctx); !st.Answered || st.Total != 2 {
+		t.Fatalf("%+v", st)
 	}
 }

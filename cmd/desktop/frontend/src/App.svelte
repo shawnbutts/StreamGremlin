@@ -99,7 +99,7 @@
         <p>{info.message}</p>
       </section>
     {:else if screen === 'home'}
-      <Home />
+      <Home ongo={(id) => (screen = screens.find((s) => s.id === id)?.id ?? screen)} />
     {:else if screen === 'connections'}
       <Connections />
     {:else if screen === 'events'}

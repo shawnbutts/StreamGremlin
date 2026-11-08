@@ -121,4 +121,29 @@ describe('App', () => {
     expect(el.querySelector('[aria-current="page"]')?.textContent).toBe('Settings');
     await noViolations('settings');
   });
+
+  it('opens the screen a Home step points to', async () => {
+    mockFetch({
+      '/desktop/info': readyEngine,
+      '/v1/status': runningStatus,
+      '/v1/settings/ui': () => ({ status: 200, body: { theme: 'dark' } }),
+      '/v1/overview': () => ({
+        status: 200,
+        body: {
+          checklist: [{ id: 'twitch', label: 'Sign in with your Twitch account', help: 'h', done: false, screen: 'connections' }],
+          set_up: false,
+          attention: [],
+          workflows: { total: 0, on: 0, tested: false, answered: false, failed_24h: 0 },
+        },
+      }),
+      '/v1/connections': () => twitchStatus(),
+      '/v1/events': noEvents,
+    });
+    const el = start();
+    await settle(40);
+    Array.from(el.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Open Connections')!.click();
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Connections');
+  });
 });

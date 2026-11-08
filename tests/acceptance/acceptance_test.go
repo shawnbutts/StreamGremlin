@@ -158,6 +158,11 @@ func TestStatusThroughTheCLI(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "StreamGremlin is running.") || !strings.Contains(out, "Schema:       ") {
 		t.Fatalf("code %d\nstdout: %s\nstderr: %s", code, out, errOut)
 	}
+	// A fresh install: setup to do, ticked from real state, and nothing wrong.
+	if !strings.Contains(out, "Get set up") || !strings.Contains(out, "[ ] Sign in with your Twitch account") ||
+		!strings.Contains(out, "[ ] Connect OBS (optional)") || strings.Contains(out, "Needs you") {
+		t.Fatalf("status:\n%s", out)
+	}
 	out, _, code = cli(t, dir, "status", "-json")
 	var st map[string]any
 	if code != 0 || json.Unmarshal([]byte(out), &st) != nil || st["status"] != "running" {

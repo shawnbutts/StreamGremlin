@@ -333,3 +333,27 @@ func b2i(b bool) int {
 	}
 	return 0
 }
+
+// Stats counts workflows and runs for Home.
+type Stats struct {
+	Total     int  `json:"total"`
+	On        int  `json:"on"`
+	Tested    bool `json:"tested"`   // a test event has run one
+	Answered  bool `json:"answered"` // a real event has run one to the end
+	Failed24h int  `json:"failed_24h"`
+}
+
+func (s *store) stats(ctx context.Context) (Stats, error) {
+	var st Stats
+	var on sql.NullInt64
+	if err := s.db.QueryRowContext(ctx, "SELECT count(*), sum(enabled) FROM workflows WHERE deleted_at IS NULL").Scan(&st.Total, &on); err != nil {
+		return st, err
+	}
+	st.On = int(on.Int64)
+	since := ts(s.now().Add(-24 * time.Hour))
+	err := s.db.QueryRowContext(ctx, `SELECT
+		EXISTS (SELECT 1 FROM jobs WHERE dry_run = 1 AND status NOT IN ('pending', 'running')),
+		EXISTS (SELECT 1 FROM jobs WHERE dry_run = 0 AND status = 'succeeded'),
+		(SELECT count(*) FROM jobs WHERE status = 'failed' AND created_at >= ?)`, since).Scan(&st.Tested, &st.Answered, &st.Failed24h)
+	return st, err
+}
