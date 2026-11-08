@@ -36,7 +36,7 @@ type Template struct {
 }
 
 // Categories, in the order the gallery shows them.
-var Categories = []string{"Chat commands", "Scenes", "Stream"}
+var Categories = []string{"Chat commands", "Quotes", "Scenes", "Stream"}
 
 // All returns every template, by category then title.
 func All() ([]Template, error) {

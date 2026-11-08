@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/obs"
+	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
@@ -21,8 +22,18 @@ var rareOBS = map[string]bool{
 	"obs.screenshot": true, "obs.scene.release": true,
 }
 
+// Services are what the actions act on. Any may be nil in tests whose
+// workflows never reach it.
+type Services struct {
+	Twitch *twitch.Service
+	OBS    *obs.Service
+	Timers *timers.Service
+	Quotes *quotes.Store
+}
+
 // Register adds every action to reg.
-func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service, tm *timers.Service) {
+func Register(reg *workflow.Registry, sv Services) {
+	tw, ob, tm := sv.Twitch, sv.OBS, sv.Timers
 	text := func(name, label string, required bool) workflow.Param {
 		return workflow.Param{Name: name, Label: label, Type: "text", Required: required}
 	}
@@ -187,4 +198,5 @@ func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service, tm *t
 			return map[string]any{"timer": id, "enabled": on, "was_enabled": t.Enabled}, nil
 		},
 	})
+	registerQuotes(reg, sv.Quotes)
 }

@@ -93,13 +93,22 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Workflows:** the trigger "A timer goes off", with `{timer}` and `{counter}`, and the step "Turn a timer on or off".
   - `streamgremlin timers`, `timers set`, `run`, `on`, `off` and `delete`.
 
+- M2 slice 2, quotes:
+  - **A Quotes screen:**
+    - numbered quotes, with who added them, a category and the date;
+    - search, add, edit and delete;
+    - numbers are never reused, so "#12" always means the same quote.
+  - **Chat commands** from three new templates, which the Quotes screen can add in one step: `!quote` (at random, or `!quote 5`) for anyone, and `!quoteadd` and `!quotedel` for mods and you.
+  - **Workflow steps:** "Add a quote", "Pick a quote" and "Delete a quote".
+  - `streamgremlin quotes`, `quotes add`, `show`, `edit` and `delete`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
 
 ### Changed
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Variables 6, Help 7, Settings 8 (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Variables 7, Help 8, Settings 9 (and Ctrl/⌘+comma, which always reaches Settings).
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 

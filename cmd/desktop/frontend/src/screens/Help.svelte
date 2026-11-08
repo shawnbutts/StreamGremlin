@@ -59,6 +59,8 @@
       Go off every so often, or on a schedule, and start the workflows that use them: a reminder about your socials every 15
       minutes. A timer can wait for viewers to be chatting, run only while you’re live, and run once.
     </dd>
+    <dt>Quotes</dt>
+    <dd>Numbered quotes from your streams. Viewers see one with <code>!quote</code>, and mods add them with <code>!quoteadd</code>. Deleting one never renumbers the rest.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Unknown</dt>

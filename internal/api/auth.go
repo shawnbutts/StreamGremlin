@@ -46,6 +46,9 @@ const (
 	// Timers: reading them, and saving, switching, running now and deleting.
 	PermTimersRead  Permission = "timers.read"
 	PermTimersWrite Permission = "timers.write"
+	// Quotes: reading them, and adding, editing and deleting.
+	PermQuotesRead  Permission = "quotes.read"
+	PermQuotesWrite Permission = "quotes.write"
 )
 
 // Principal is an authenticated caller.

@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "quoteadd",
+    "title": "Add a quote",
+    "category": "Quotes",
+    "description": "!quoteadd followed by the quote (mods and you) saves it with the next number and says the number.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.quoteadd",
+    "name": "Add a quote",
+    "triggers": [
+      { "type": "chat.command.received", "where": { "command": "quoteadd", "chatter.role": ["moderator", "broadcaster"] } }
+    ],
+    "steps": [
+      {
+        "if": "event.payload.args == \"\"",
+        "do": [{ "action": "chat.send", "with": { "message": "Type the quote after the command: !quoteadd I meant to do that" } }],
+        "else": [
+          { "id": "a", "action": "quotes.add", "with": { "text": "${event.payload.args}" } },
+          { "action": "chat.send", "with": { "message": "Added quote #${steps.a.output.id}: ${steps.a.output.text}" } }
+        ]
+      }
+    ]
+  }
+}

@@ -84,6 +84,7 @@ describe('App', () => {
       '/v1/actions': () => ({ status: 200, body: { actions: [] } }),
       '/v1/variables': () => ({ status: 200, body: { variables: [] } }),
       '/v1/timers': () => ({ status: 200, body: { timers: [] } }),
+      '/v1/quotes': () => ({ status: 200, body: { quotes: [], count: 0, next: 1 } }),
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();
@@ -111,15 +112,20 @@ describe('App', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '6', ctrlKey: true }));
     flushSync();
     await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Quotes');
+    await noViolations('quotes');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '7', ctrlKey: true }));
+    flushSync();
+    await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Variables');
     await noViolations('variables');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '7', metaKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '8', metaKey: true }));
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Help');
     expect(el.textContent).toContain('/tmp/sg'); // where your data lives
     await noViolations('help');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '8', metaKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '9', metaKey: true }));
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Settings');

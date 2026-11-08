@@ -637,3 +637,28 @@ Decided 2026-11-08. After timers, the agent reported that workflows could answer
 - **The fix:** the echo of a message a workflow sent as you is dropped, as the bot's own messages always were ([ADR-0006](adr/0006-twitch-chat.md)).
 - **Still your chat:** what you type in Twitch or in the app's chat box. You can still start a workflow from your own chat.
 - **On the Events screen:** a workflow's own message no longer appears there. Its run's trace shows what was sent.
+
+## D-024. No separate counters: saved variables are counters
+
+Decided 2026-11-08 by the user, asked how counters should work.
+
+> Skip; do quotes
+
+- **Streamer.bot has no counters feature.** A death counter there is a persisted global variable with Increment. StreamGremlin's saved variables already do this (`vars.add`), and the Death counter template uses one.
+- **Not built:**
+  - a Counters screen or store;
+  - Streamer.bot's per-command use counts (`%counter%`, `%userCounter%`).
+
+  Either can be decided later if streamers ask.
+- **F1's "counters"** is covered by saved variables, the Variables screen and the Death counter template.
+
+## D-025. Quotes (M2 slice 2)
+
+Decided 2026-11-08 under D-007, after D-024.
+
+- **Quotes follow [ADR-0014](adr/0014-quotes.md):** numbered, never renumbered or reused; added, shown (at random or by number), edited and deleted.
+- **Viewers use quotes through workflows,** from three templates in a new Quotes category: `!quote` for anyone, and `!quoteadd` and `!quotedel` for mods and you. The Quotes screen adds all three in one step. This matches Streamer.bot, which removed its built-in `!quote` in v1.0.0.
+- **A quote added from chat remembers the viewer.** A retried add never adds twice.
+- **A new Quotes screen at Ctrl/⌘+6.** Variables moves to 7, Help to 8 and Settings to 9 (still also Ctrl/⌘+comma).
+- **New API permissions:** `quotes.read` and `quotes.write`.
+- **`actions.Register` now takes a `Services` struct,** so each new service doesn't add another argument.

@@ -90,7 +90,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
 | Viewer records per platform account, with export and delete | 0016 | Spine |
-| Counters and quotes | — | F1 |
+| Counters and quotes | Quotes built in M2 (ADR-0014, D-025); counters are saved variables (D-024) | F1 |
 | Points ledger: append-only, double entry, no negative balances | 0017, D-029 | F4 |
 | Several currencies, rename, retire | 0072, D-102 | F4 |
 | Earning rules: chat, follows, subs, bits, time in chat (not "watch time") | 0018, D-028, D-030 | F4 |

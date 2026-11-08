@@ -1,0 +1,26 @@
+{
+  "template": {
+    "id": "quotedel",
+    "title": "Delete a quote",
+    "category": "Quotes",
+    "description": "!quotedel 5 (mods and you) deletes quote #5. Later quotes keep their numbers.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.quotedel",
+    "name": "Delete a quote",
+    "triggers": [
+      { "type": "chat.command.received", "where": { "command": "quotedel", "chatter.role": ["moderator", "broadcaster"] } }
+    ],
+    "steps": [
+      { "id": "d", "action": "quotes.delete", "with": { "number": "${event.payload.arg_list[?0].orValue(\"\")}" } },
+      {
+        "if": "steps.d.output.deleted",
+        "do": [{ "action": "chat.send", "with": { "message": "Deleted quote #${steps.d.output.id}." } }],
+        "else": [{ "action": "chat.send", "with": { "message": "There's no such quote. Type its number: !quotedel 5" } }]
+      }
+    ]
+  }
+}

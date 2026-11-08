@@ -7,6 +7,7 @@
   import Events from './screens/Events.svelte';
   import Help from './screens/Help.svelte';
   import Home from './screens/Home.svelte';
+  import Quotes from './screens/Quotes.svelte';
   import Settings from './screens/Settings.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
@@ -14,7 +15,7 @@
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'variables' | 'help' | 'settings';
   // Screens take Ctrl/⌘+number in order; Settings is always last and also
   // Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
   const screens: { id: Screen; label: string; key: string }[] = [
@@ -23,9 +24,10 @@
     { id: 'events', label: 'Events', key: '3' },
     { id: 'workflows', label: 'Workflows', key: '4' },
     { id: 'timers', label: 'Timers', key: '5' },
-    { id: 'variables', label: 'Variables', key: '6' },
-    { id: 'help', label: 'Help', key: '7' },
-    { id: 'settings', label: 'Settings', key: '8' },
+    { id: 'quotes', label: 'Quotes', key: '6' },
+    { id: 'variables', label: 'Variables', key: '7' },
+    { id: 'help', label: 'Help', key: '8' },
+    { id: 'settings', label: 'Settings', key: '9' },
   ];
 
   let screen = $state<Screen>('home');
@@ -114,6 +116,8 @@
       <Workflows />
     {:else if screen === 'timers'}
       <Timers />
+    {:else if screen === 'quotes'}
+      <Quotes />
     {:else if screen === 'variables'}
       <Variables />
     {:else if screen === 'help'}

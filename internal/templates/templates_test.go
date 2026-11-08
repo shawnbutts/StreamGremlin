@@ -12,6 +12,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/templates"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
@@ -80,7 +81,9 @@ func TestEveryTemplateWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg := workflow.NewRegistry()
-	actions.Register(reg, nil, nil, nil) // nil services: test events never reach them
+	// Twitch and OBS are nil: test events never reach them. Quotes are
+	// StreamGremlin's own, read even by test runs.
+	actions.Register(reg, actions.Services{Quotes: quotes.NewStore(db)})
 	inbox := events.NewInbox(db, nil)
 	eng := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: variables.New(db)})
 	if err := eng.Start(ctx); err != nil {

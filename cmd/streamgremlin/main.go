@@ -49,6 +49,10 @@ Commands:
             timers [-json]                list, with when each goes off next
             timers run|on|off|delete ID   run now, turn on or off, delete
             timers set ID -name N -every 15m [-lines N] [-live] [-once]
+  quotes    Numbered quotes (streamgremlin quotes help).
+            quotes [-q TEXT]              list, newest first
+            quotes add [-by NAME] TEXT    add one
+            quotes show|delete N, quotes edit N TEXT
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -111,6 +115,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return templatesCmd(dir, rest, stdout, stderr)
 	case "commands":
 		return commandsCmd(dir, rest, stdout, stderr)
+	case "quotes":
+		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":
 		return timersCmd(dir, rest, stdout, stderr)
 	case "vars":

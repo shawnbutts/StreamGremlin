@@ -25,6 +25,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
+	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -127,9 +128,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.obs.Start(ctx); err != nil {
 		return nil, err
 	}
+	qs := quotes.NewStore(h.db)
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, h.twitch, h.obs, h.timers)
+	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
@@ -156,6 +158,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Workflows:   h.workflows,
 		Variables:   vars,
 		Timers:      h.timers,
+		Quotes:      qs,
 		Maintenance: h.maint,
 		Logger:      log,
 	}))

@@ -660,3 +660,31 @@ export function saveTimer(t: TimerInput) {
 }
 export const deleteTimer = (id: string) => api<void>('DELETE', `/v1/timers/${encodeURIComponent(id)}`);
 export const fireTimer = (id: string) => api<{ timer: Timer }>('POST', `/v1/timers/${encodeURIComponent(id)}/fire`);
+
+/** A numbered quote (docs/adr/0014-quotes.md). Numbers are never reused. */
+export interface Quote {
+  id: number;
+  text: string;
+  added_by: string;
+  added_by_id?: string;
+  platform?: string;
+  category?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteInput {
+  text: string;
+  added_by: string;
+  category: string;
+}
+
+export function getQuotes(q?: string) {
+  const query = q ? `?q=${encodeURIComponent(q)}` : '';
+  return api<{ quotes: Quote[]; count: number; next: number }>('GET', `/v1/quotes${query}`);
+}
+/** requestId makes a retried add return the first quote, not add another. */
+export const addQuote = (q: QuoteInput, requestId: string) => api<Quote>('POST', '/v1/quotes', { ...q, request_id: requestId });
+export const editQuote = (id: number, q: QuoteInput) =>
+  api<Quote>('PUT', `/v1/quotes/${id}`, { text: q.text, added_by: q.added_by, category: q.category });
+export const deleteQuote = (id: number) => api<void>('DELETE', `/v1/quotes/${id}`);

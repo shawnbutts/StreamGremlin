@@ -1,0 +1,24 @@
+{
+  "template": {
+    "id": "quote",
+    "title": "Show a quote",
+    "category": "Quotes",
+    "description": "!quote shows a quote at random; !quote 5 shows quote #5. Anyone can use it.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.quote",
+    "name": "Show a quote",
+    "triggers": [{ "type": "chat.command.received", "where": { "command": "quote" } }],
+    "steps": [
+      { "id": "q", "action": "quotes.get", "with": { "number": "${event.payload.arg_list[?0].orValue(\"\")}" } },
+      {
+        "if": "steps.q.output.found",
+        "do": [{ "action": "chat.send", "with": { "message": "#${steps.q.output.id}: ${steps.q.output.text} (${steps.q.output.date})" } }],
+        "else": [{ "action": "chat.send", "with": { "message": "No such quote. There are ${steps.q.output.count} quotes; mods add them with !quoteadd." } }]
+      }
+    ]
+  }
+}

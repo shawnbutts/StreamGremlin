@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 // Param describes one input of an action.
@@ -74,6 +76,14 @@ type Call struct {
 	DryRun         bool
 
 	run *runVars // the run's saved variables, for the variable actions
+}
+
+// Viewer is the viewer behind the run's event, or nil (a timer, OBS).
+func (c Call) Viewer() *events.Actor {
+	if c.run == nil {
+		return nil
+	}
+	return c.run.viewer
 }
 
 // String returns a text argument, or def when absent.
