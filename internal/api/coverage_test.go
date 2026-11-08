@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -40,8 +41,10 @@ func TestEveryRouteHasAScreen(t *testing.T) {
 		}
 		if i := strings.Index(rt.Path, "{"); i >= 0 {
 			// A path with a parameter is built in a template literal:
-			// `/v1/secrets/${key}`.
-			if !strings.Contains(app, "`"+rt.Path[:i]+"${") {
+			// `/v1/secrets/${key}` or `/v1/connections/twitch/${role}/sign-in`.
+			j := strings.Index(rt.Path, "}")
+			call := regexp.MustCompile("`" + regexp.QuoteMeta(rt.Path[:i]) + `\$\{[^}]+\}` + regexp.QuoteMeta(rt.Path[j+1:]) + "`")
+			if !call.MatchString(app) {
 				t.Errorf("%s %s isn't called by the desktop app; build its screen, or mark it CLIOnly with a reason", rt.Method, rt.Path)
 			}
 			continue

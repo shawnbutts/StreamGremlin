@@ -26,6 +26,9 @@ const (
 	// Events: reading the inbox, and storing test events.
 	PermEventsRead     Permission = "events.read"
 	PermEventsSimulate Permission = "events.simulate"
+	// Connections: Twitch's Client ID and sign-ins. No permission returns tokens.
+	PermConnectionsRead  Permission = "connections.read"
+	PermConnectionsWrite Permission = "connections.write"
 )
 
 // Principal is an authenticated caller.

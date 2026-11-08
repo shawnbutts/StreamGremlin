@@ -385,6 +385,55 @@ legend {
   margin: 0;
 }
 
+.account {
+  border-top: 1px solid var(--sg-border);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+
+.account h3 {
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+
+.account .state {
+  margin: 10px 0 4px;
+}
+
+.code-box {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  background: var(--sg-surface-raised);
+}
+
+.code-box p {
+  margin: 0 0 8px;
+}
+
+.user-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 4px;
+}
+
+.warning-card {
+  border-color: var(--sg-warning);
+}
+
+.warning-card p {
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;

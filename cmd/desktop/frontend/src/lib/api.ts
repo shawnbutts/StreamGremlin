@@ -153,3 +153,60 @@ export interface SimulateResult {
 /** Store a test event. The same requestId never makes a second one. */
 export const simulateEvent = (type: string, fields: Record<string, string>, requestId: string) =>
   api<SimulateResult>('POST', '/v1/events/simulate', { type, fields, request_id: requestId });
+
+export type TwitchRole = 'streamer' | 'bot';
+export type AccountState = 'not_configured' | 'signed_out' | 'signing_in' | 'connected' | 'needs_sign_in' | 'unknown';
+
+export interface PendingSignIn {
+  user_code: string;
+  verification_uri: string;
+  expires_at: string;
+}
+
+export interface AccountStatus {
+  role: TwitchRole;
+  state: AccountState;
+  login?: string;
+  user_id?: string;
+  scopes: string[];
+  missing_scopes: string[];
+  detail?: string;
+  since: string;
+  checked_at?: string;
+  sign_in?: PendingSignIn;
+}
+
+export interface TwitchStatus {
+  client_id: string;
+  client_id_source: 'none' | 'built_in' | 'pasted';
+  has_built_in: boolean;
+  test_server?: string;
+  streamer: AccountStatus;
+  bot: AccountStatus;
+}
+
+export const getConnections = (signal?: AbortSignal) =>
+  api<{ twitch: TwitchStatus }>('GET', '/v1/connections', undefined, signal);
+
+export const setTwitchClientId = (clientId: string) =>
+  api<{ twitch: TwitchStatus }>('PUT', '/v1/connections/twitch/client-id', { client_id: clientId });
+
+export const startTwitchSignIn = (role: TwitchRole) =>
+  api<PendingSignIn>('POST', `/v1/connections/twitch/${role}/sign-in`);
+
+export const cancelTwitchSignIn = (role: TwitchRole) => api<void>('DELETE', `/v1/connections/twitch/${role}/sign-in`);
+
+export const twitchSignOut = (role: TwitchRole) => api<void>('POST', `/v1/connections/twitch/${role}/sign-out`);
+
+/** Open an allow-listed page (twitch.tv/activate, dev.twitch.tv) in the system browser. */
+export async function openInBrowser(url: string): Promise<void> {
+  const resp = await fetch('/desktop/open-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => undefined);
+    throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  }
+}

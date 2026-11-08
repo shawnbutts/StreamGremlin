@@ -45,7 +45,7 @@ func info(t *testing.T, h http.Handler) Info {
 
 func TestStartingThenReady(t *testing.T) {
 	st := NewState()
-	h := Handler(assets, st)
+	h := Handler(assets, st, nil)
 	if i := info(t, h); i.State != PhaseStarting || i.Name != "StreamGremlin" {
 		t.Fatalf("%+v", i)
 	}
@@ -74,7 +74,7 @@ func TestStartingThenReady(t *testing.T) {
 func TestFailedStateExplainsWhy(t *testing.T) {
 	st := NewState()
 	st.Failed("StreamGremlin is already running")
-	h := Handler(assets, st)
+	h := Handler(assets, st, nil)
 	if i := info(t, h); i.State != PhaseFailed || i.Message != "StreamGremlin is already running" {
 		t.Fatalf("%+v", i)
 	}
@@ -85,7 +85,7 @@ func TestFailedStateExplainsWhy(t *testing.T) {
 }
 
 func TestAssetsHaveCSPAndScreensFallBackToIndex(t *testing.T) {
-	h := Handler(assets, NewState())
+	h := Handler(assets, NewState(), nil)
 	for _, p := range []string{"/", "/settings", "/assets/app.js"} {
 		w := get(h, "GET", p, nil)
 		if w.Code != 200 {
@@ -100,5 +100,49 @@ func TestAssetsHaveCSPAndScreensFallBackToIndex(t *testing.T) {
 	}
 	if get(h, "GET", "/missing.js", nil).Code != 404 {
 		t.Error("missing file wasn't 404")
+	}
+}
+
+func TestAllowedURL(t *testing.T) {
+	for _, ok := range []string{
+		"https://www.twitch.tv/activate?public=true&device-code=ABCDEFGH",
+		"https://dev.twitch.tv/console",
+		"https://dev.twitch.tv/console/apps/create",
+		"https://dev.twitch.tv/docs/authentication/register-app/",
+		"http://127.0.0.1:7441/activate?device-code=ABC",
+	} {
+		if !AllowedURL(ok) {
+			t.Errorf("%s should be allowed", ok)
+		}
+	}
+	for _, bad := range []string{
+		"https://twitch.tv.evil.example/activate", "http://www.twitch.tv/activate", "https://www.twitch.tv/somebody",
+		"https://user@www.twitch.tv/activate", "javascript:alert(1)", "file:///etc/passwd", "http://192.168.1.2:7441/activate",
+		"http://localhost:7441/activate", "http://127.0.0.1/activate", "https://dev.twitch.tv/consolex", "https://www.twitch.tv/activate#x",
+	} {
+		if AllowedURL(bad) {
+			t.Errorf("%s should be refused", bad)
+		}
+	}
+}
+
+func TestOpenURLOnlyOpensAllowedPages(t *testing.T) {
+	var opened []string
+	h := Handler(fstest.MapFS{}, NewState(), func(u string) error { opened = append(opened, u); return nil })
+	post := func(body string) int {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/desktop/open-url", strings.NewReader(body)))
+		return w.Code
+	}
+	if c := post(`{"url":"https://www.twitch.tv/activate?device-code=X"}`); c != 204 {
+		t.Fatalf("allowed: %d", c)
+	}
+	if c := post(`{"url":"https://evil.example/"}`); c != 400 {
+		t.Fatalf("refused: %d", c)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/desktop/open-url?url=https://www.twitch.tv/activate", nil))
+	if w.Code != 405 || len(opened) != 1 {
+		t.Fatalf("GET: %d, opened %v", w.Code, opened)
 	}
 }

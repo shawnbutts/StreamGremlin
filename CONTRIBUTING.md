@@ -28,6 +28,17 @@ make build && ./bin/streamgremlin status
 
 Set `STREAMGREMLIN_DESKTOP_DEBUG=1` to log every request from the window.
 
+To try Twitch sign-in without a registered Twitch app, run the stand-in:
+
+```sh
+make mocktwitch && ./bin/mocktwitch                      # http://127.0.0.1:7441
+STREAMGREMLIN_TWITCH_AUTH_URL=http://127.0.0.1:7441 ./bin/app/StreamGremlin
+```
+
+Paste any Client ID (ten or more lowercase letters and digits). Sign-in links open the mock's /activate page, where any login can be approved. The Connections screen says "Test mode" the whole time.
+
+To build with a real Client ID, pass it at build time; never commit it: `make desktop TWITCH_CLIENT_ID=…`.
+
 Tests never touch your real keyring. To check it on purpose, run the one opt-in test, which writes, reads and deletes a single item:
 
 ```sh

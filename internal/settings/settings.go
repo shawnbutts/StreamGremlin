@@ -92,3 +92,37 @@ func (s *Store) SetUI(ctx context.Context, ui UI) (UI, error) {
 	}
 	return ui, nil
 }
+
+// Load reads the settings document stored under key into v. It reports
+// false, leaving v alone, when nothing is saved.
+func (s *Store) Load(ctx context.Context, key string, v any) (bool, error) {
+	var raw string
+	err := s.db.QueryRowContext(ctx, "SELECT value FROM settings WHERE key = ?", key).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("settings: read %s: %w", key, err)
+	}
+	if err := json.Unmarshal([]byte(raw), v); err != nil {
+		return false, fmt.Errorf("settings: decode %s: %w", key, err)
+	}
+	return true, nil
+}
+
+// Save stores v as the settings document under key. Never put secrets here:
+// settings go into backups and exports.
+func (s *Store) Save(ctx context.Context, key string, v any) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		key, string(raw), storage.Timestamp(s.now()))
+	if err != nil {
+		return fmt.Errorf("settings: save %s: %w", key, err)
+	}
+	return nil
+}

@@ -66,13 +66,17 @@ func run() error {
 	eng := &engine{log: log}
 
 	var win *application.WebviewWindow
-	app := application.New(application.Options{
+	var app *application.App
+	// The UI asks for allow-listed pages only (desktop.AllowedURL); they open
+	// in the streamer's own browser, never inside the app.
+	openURL := func(u string) error { return app.Browser.OpenURL(u) }
+	app = application.New(application.Options{
 		Name:        brand.Name,
 		Description: "Local-first stream automation",
 		Icon:        icon,
 		Logger:      log,
 		Assets: application.AssetOptions{
-			Handler:        desktop.Handler(assets, state),
+			Handler:        desktop.Handler(assets, state, openURL),
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
@@ -113,7 +117,11 @@ type engine struct {
 }
 
 func (e *engine) start(dir string, state *desktop.State) {
-	h, err := host.Start(context.Background(), host.Options{DataDir: dir, Logger: e.log})
+	// STREAMGREMLIN_TWITCH_AUTH_URL points sign-in at mocktwitch, for trying
+	// the app without a Twitch app; the Connections screen says so.
+	h, err := host.Start(context.Background(), host.Options{
+		DataDir: dir, TwitchAuthURL: os.Getenv(brand.Env("TWITCH_AUTH_URL")), Logger: e.log,
+	})
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err != nil {

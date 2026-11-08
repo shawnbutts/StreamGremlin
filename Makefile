@@ -16,6 +16,11 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 LDFLAGS := -buildid= \
 	-X code.streamgremlin.com/streamgremlin/internal/buildinfo.Version=$(VERSION) \
 	-X code.streamgremlin.com/streamgremlin/internal/buildinfo.Commit=$(COMMIT)
+# StreamGremlin's registered Twitch app, from the environment at build time.
+# Never commit it (AGENTS.md). Without it, the app asks for a pasted one.
+ifneq ($(TWITCH_CLIENT_ID),)
+LDFLAGS += -X code.streamgremlin.com/streamgremlin/internal/twitch.BuiltInClientID=$(TWITCH_CLIENT_ID)
+endif
 
 # Prefer a Homebrew Node 24 or 22 when the default node is another version.
 NODE_BIN ?= $(firstword $(wildcard /opt/homebrew/opt/node@24/bin /opt/homebrew/opt/node@22/bin /usr/local/opt/node@24/bin /usr/local/opt/node@22/bin))
@@ -29,7 +34,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -58,6 +63,9 @@ test: ## Unit tests with the race detector
 test-acceptance: ## Acceptance tests through the real binary
 	$(GO) test -tags acceptance -count=1 ./tests/acceptance
 
+mocktwitch: ## Build the stand-in for Twitch's sign-in server into ./bin
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mocktwitch ./cmd/mocktwitch
+
 build: ## Build the CLI into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/streamgremlin ./cmd/streamgremlin
 
@@ -81,4 +89,4 @@ desktop: ## Build the desktop app into ./bin/app (run desktop-ui first)
 verify: lint vet test test-acceptance desktop-ui desktop-test desktop ## Everything; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/mocktwitch $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

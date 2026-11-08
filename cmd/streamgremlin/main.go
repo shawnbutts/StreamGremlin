@@ -32,6 +32,11 @@ Commands:
   secrets   List saved sign-ins and passwords (never their values).
             secrets [-check] [-json]      list; -check tries reading each
             secrets forget KEY            forget one
+  twitch    Twitch sign-ins.
+            twitch [status] [-json]       your and the bot's sign-in
+            twitch sign-in [-bot]         sign in with a code at twitch.tv/activate
+            twitch sign-out [-bot]        sign out
+            twitch client-id ID           use your own Twitch app ("" for the built-in one)
   events    Show events as they arrive, and send test events.
             events [-limit N] [-types chat.*] [-json]      the newest
             events watch [-after SEQ] [-types ...] [-json] follow live
@@ -76,6 +81,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch cmd {
 	case "status":
 		return status(dir, rest, stdout, stderr)
+	case "twitch":
+		return twitchCmd(dir, rest, stdout, stderr)
 	case "events":
 		return eventsCmd(dir, rest, stdout, stderr)
 	case "secrets":
@@ -145,6 +152,8 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "", "loopback address to listen on (default "+brand.DefaultAPIAddr+", or a free port)")
 	debug := fs.Bool("debug", false, "log every API request")
+	twitchURL := fs.String("twitch-auth-url", os.Getenv(brand.Env("TWITCH_AUTH_URL")),
+		"a loopback stand-in for id.twitch.tv, such as mocktwitch (default $"+brand.Env("TWITCH_AUTH_URL")+")")
 	store := fs.String("secret-store", os.Getenv(brand.Env("SECRET_STORE")),
 		"auto, keyring or file (default auto, or $"+brand.Env("SECRET_STORE")+")")
 	if err := fs.Parse(args); err != nil {
@@ -172,7 +181,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, Logger: log})
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)
 		fmt.Fprintln(stderr, err)

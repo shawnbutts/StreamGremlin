@@ -1,0 +1,228 @@
+package twitch
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"regexp"
+	"sync"
+	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
+	"code.streamgremlin.com/streamgremlin/internal/settings"
+)
+
+// BuiltInClientID is StreamGremlin's registered Twitch app, set at build
+// time (-ldflags -X ...BuiltInClientID=...). It's never committed (D-131 in
+// StreamWisp). Development builds leave it empty and use a pasted one.
+var BuiltInClientID = ""
+
+// ErrNoClientID means neither a built-in nor a pasted Client ID exists.
+var ErrNoClientID = errors.New("twitch: no Client ID; paste one from dev.twitch.tv/console, or use an official build")
+
+// ErrInvalid wraps bad input, so the API can answer 400.
+var ErrInvalid = errors.New("twitch: invalid")
+
+// Scopes each account asks for. Only what M1 uses (chat, slice 5); later
+// milestones add theirs, and the app asks the streamer to sign in again.
+var (
+	StreamerScopes = []string{"user:read:chat", "user:write:chat"}
+	BotScopes      = []string{"user:write:chat", "user:read:moderated_channels"}
+)
+
+// validateEvery is Twitch's required validation interval.
+const validateEvery = time.Hour
+
+const settingsKey = "twitch"
+
+type savedSettings struct {
+	ClientID string `json:"client_id,omitempty"`
+}
+
+// ClientIDSource says where the Client ID in use comes from.
+type ClientIDSource string
+
+const (
+	ClientIDNone    ClientIDSource = "none"
+	ClientIDBuiltIn ClientIDSource = "built_in"
+	ClientIDPasted  ClientIDSource = "pasted"
+)
+
+// Options configure a Service.
+type Options struct {
+	Secrets  *secrets.Store
+	Settings *settings.Store
+	// AuthURL is Twitch's OAuth server; tests and mocktwitch change it.
+	AuthURL string
+	Logger  *slog.Logger
+}
+
+// Service owns the streamer's and the bot's sign-ins.
+type Service struct {
+	secrets  *secrets.Store
+	settings *settings.Store
+	oauth    *oauth
+	authURL  string
+	log      *slog.Logger
+	now      func() time.Time
+
+	ctx    context.Context
+	stop   context.CancelFunc
+	wg     sync.WaitGroup
+	notify *events.Notifier
+
+	streamer, bot *Account
+
+	// pollEvery overrides Twitch's polling interval, for tests.
+	pollEvery time.Duration
+}
+
+// New returns a Service. Call Start to load saved sign-ins.
+func New(opts Options) *Service {
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.DiscardHandler)
+	}
+	if opts.AuthURL == "" {
+		opts.AuthURL = DefaultAuthURL
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	s := &Service{
+		secrets: opts.Secrets, settings: opts.Settings, oauth: newOAuth(opts.AuthURL), authURL: opts.AuthURL,
+		log: opts.Logger.With("component", "twitch"), now: time.Now, ctx: ctx, stop: stop,
+		notify: events.NewNotifier(),
+	}
+	s.streamer = newAccount(s, RoleStreamer, StreamerScopes)
+	s.bot = newAccount(s, RoleBot, BotScopes)
+	return s
+}
+
+// Start loads saved sign-ins and checks them with Twitch in the background,
+// then hourly. It never blocks the engine's start on the network.
+func (s *Service) Start(ctx context.Context) {
+	for _, a := range s.accounts() {
+		a.load(ctx)
+	}
+	if id, _ := s.ClientID(ctx); id == "" {
+		for _, a := range s.accounts() {
+			a.mu.Lock()
+			if a.status.State == StateSignedOut {
+				a.setStatus(StateNotConfigured, "")
+			}
+			a.mu.Unlock()
+		}
+	}
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		for {
+			for _, a := range s.accounts() {
+				a.Validate(s.ctx)
+			}
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-time.After(validateEvery):
+			}
+		}
+	}()
+}
+
+// Close stops background work and pending sign-ins.
+func (s *Service) Close() {
+	s.stop()
+	s.wg.Wait()
+}
+
+func (s *Service) accounts() []*Account { return []*Account{s.streamer, s.bot} }
+
+// Account returns the account for role.
+func (s *Service) Account(role Role) (*Account, bool) {
+	switch role {
+	case RoleStreamer:
+		return s.streamer, true
+	case RoleBot:
+		return s.bot, true
+	}
+	return nil, false
+}
+
+func (s *Service) other(role Role) *Account {
+	if role == RoleBot {
+		return s.streamer
+	}
+	return s.bot
+}
+
+// Changes is closed at the next change of any account's state. Chat
+// (slice 5) uses it to stop when a sign-in ends.
+func (s *Service) Changes() <-chan struct{} { return s.notify.C() }
+
+func (s *Service) changed() { s.notify.Notify() }
+
+// ClientID returns the Client ID in use: a pasted one wins over the
+// built-in one, so a streamer can use their own app.
+func (s *Service) ClientID(ctx context.Context) (string, ClientIDSource) {
+	var saved savedSettings
+	if ok, err := s.settings.Load(ctx, settingsKey, &saved); err == nil && ok && saved.ClientID != "" {
+		return saved.ClientID, ClientIDPasted
+	}
+	if BuiltInClientID != "" {
+		return BuiltInClientID, ClientIDBuiltIn
+	}
+	return "", ClientIDNone
+}
+
+var clientIDPattern = regexp.MustCompile(`^[a-z0-9]{10,64}$`)
+
+// SetClientID saves a pasted Client ID; empty goes back to the built-in
+// one. Sign-ins made with another Client ID end at their next check, which
+// runs now.
+func (s *Service) SetClientID(ctx context.Context, id string) error {
+	if id != "" && !clientIDPattern.MatchString(id) {
+		return fmt.Errorf("%w: a Client ID is 10 to 64 lowercase letters and digits, from dev.twitch.tv/console", ErrInvalid)
+	}
+	if err := s.settings.Save(ctx, settingsKey, savedSettings{ClientID: id}); err != nil {
+		return err
+	}
+	current, _ := s.ClientID(ctx)
+	for _, a := range s.accounts() {
+		a.CancelSignIn()
+		a.mu.Lock()
+		switch {
+		case current == "" && a.tok == nil:
+			a.setStatus(StateNotConfigured, "")
+		case current != "" && a.status.State == StateNotConfigured:
+			a.setStatus(StateSignedOut, "")
+		}
+		a.mu.Unlock()
+		a.Validate(ctx)
+	}
+	s.log.Info("twitch client id changed", "source", string(map[bool]ClientIDSource{true: ClientIDPasted, false: ClientIDBuiltIn}[id != ""]))
+	return nil
+}
+
+// Status is what the app shows on the Connections screen.
+type Status struct {
+	ClientID       string         `json:"client_id"`
+	ClientIDSource ClientIDSource `json:"client_id_source"`
+	// HasBuiltIn says whether this build carries StreamGremlin's own Client ID.
+	HasBuiltIn bool `json:"has_built_in"`
+	// TestServer is set when sign-in goes to a stand-in for Twitch, such as
+	// mocktwitch. The app says so, so a test is never mistaken for Twitch.
+	TestServer string        `json:"test_server,omitempty"`
+	Streamer   AccountStatus `json:"streamer"`
+	Bot        AccountStatus `json:"bot"`
+	Manifest   Manifest      `json:"manifest"`
+}
+
+// Status returns both accounts' states.
+func (s *Service) Status(ctx context.Context) Status {
+	id, src := s.ClientID(ctx)
+	st := Status{ClientID: id, ClientIDSource: src, HasBuiltIn: BuiltInClientID != "", Streamer: s.streamer.Status(), Bot: s.bot.Status(), Manifest: TwitchManifest()}
+	if s.authURL != DefaultAuthURL {
+		st.TestServer = s.authURL
+	}
+	return st
+}

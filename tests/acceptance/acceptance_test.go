@@ -104,7 +104,10 @@ func cleanEnv() []string {
 		}
 	}
 	// Never the real keyring (AGENTS.md); a test asks for another store by flag.
-	return append(env, "STREAMGREMLIN_DATA_DIR=/nonexistent/do-not-use", "STREAMGREMLIN_SECRET_STORE=file")
+	// Nor the real Twitch: port 9 (discard) answers nothing; tests that sign
+	// in pass -twitch-auth-url for their own mocktwitch.
+	return append(env, "STREAMGREMLIN_DATA_DIR=/nonexistent/do-not-use", "STREAMGREMLIN_SECRET_STORE=file",
+		"STREAMGREMLIN_TWITCH_AUTH_URL=http://127.0.0.1:9")
 }
 
 func cli(t *testing.T, dir string, args ...string) (stdout, stderr string, code int) {

@@ -418,3 +418,18 @@ Decided 2026-11-08, without asking the user, under D-007.
 - **A new Events screen** (Ctrl/⌘+2) shows live events, newest first, and a "Send a test event" form. Settings moves to Ctrl/⌘+3.
 - **Migrations change from "rewrite one baseline" to numbered files during development, squashed into one baseline at the first public release** ([ADR-0001](adr/0001-storage.md) updated). Rewriting the baseline every slice would make the user move the data folder aside every time, and from slice 4 that means signing in to Twitch again. Slice 3 adds `0002_events.sql`, and the data folder from slice 2 keeps working.
 - **Event retention** is left to slice 11 (backups), once real streams show the volume.
+
+## D-011. Choices made while building M1 slice 4 (Twitch sign-in)
+
+Decided 2026-11-08, without asking the user, under D-007.
+
+- **Twitch sign-in** follows [ADR-0005](adr/0005-twitch-sign-in.md):
+  - a public app with the device code flow, and no client secret;
+  - one secret per account, refreshed one at a time and saved before use;
+  - validated at start and hourly; a refused refresh ends the sign-in, and an unreachable Twitch is "unknown".
+- **The Client ID** is built in at build time (`make TWITCH_CLIENT_ID=…`, never committed). A pasted Client ID on the Connections screen overrides it. Until the user registers StreamGremlinHQ's app, development builds use a pasted one.
+- **Scopes:** only what M1 uses. The streamer asks for `user:read:chat user:write:chat`; the bot for `user:write:chat user:read:moderated_channels`. Later milestones ask the streamer to sign in again for more.
+- **The bot must be a different Twitch account** from the streamer. A same-account sign-in is refused and its token revoked.
+- **A Connections screen** (Ctrl/⌘+2) holds the Client ID and both sign-ins. Events moves to Ctrl/⌘+3 and Settings to Ctrl/⌘+4. This order is meant to stay.
+- **Pages open in the system browser,** through an allow-list: twitch.tv/activate, dev.twitch.tv's console and docs, and a local test server's /activate.
+- **`mocktwitch`** stands in for id.twitch.tv in tests and standalone. Using it is always shown as "Test mode", and it is accepted only on a loopback address.

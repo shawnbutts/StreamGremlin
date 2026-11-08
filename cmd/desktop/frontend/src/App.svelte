@@ -3,17 +3,19 @@
   import iconUrl from '../../../../brand-kit/streamgremlin-icon-64.png';
   import { engineInfo, getUISettings, type EngineInfo } from './lib/api';
   import { applyTheme } from './lib/theme';
+  import Connections from './screens/Connections.svelte';
   import Events from './screens/Events.svelte';
   import Home from './screens/Home.svelte';
   import Settings from './screens/Settings.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'events' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'settings';
   const screens: { id: Screen; label: string; key: string }[] = [
     { id: 'home', label: 'Home', key: '1' },
-    { id: 'events', label: 'Events', key: '2' },
-    { id: 'settings', label: 'Settings', key: '3' },
+    { id: 'connections', label: 'Connections', key: '2' },
+    { id: 'events', label: 'Events', key: '3' },
+    { id: 'settings', label: 'Settings', key: '4' },
   ];
 
   let screen = $state<Screen>('home');
@@ -92,6 +94,8 @@
       </section>
     {:else if screen === 'home'}
       <Home />
+    {:else if screen === 'connections'}
+      <Connections />
     {:else if screen === 'events'}
       <Events />
     {:else}

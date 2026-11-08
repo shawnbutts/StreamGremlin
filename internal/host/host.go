@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
 
 // Options configure Start.
@@ -32,7 +35,10 @@ type Options struct {
 	// SecretStore is the secret store asked for. Empty means auto: keep the
 	// one this data folder uses, choosing on first start.
 	SecretStore secrets.Kind
-	Logger      *slog.Logger
+	// TwitchAuthURL replaces id.twitch.tv, for mocktwitch. It must be a
+	// loopback http URL; the app says it's a test server.
+	TwitchAuthURL string
+	Logger        *slog.Logger
 }
 
 // Host is a running engine.
@@ -44,6 +50,7 @@ type Host struct {
 	srv     *http.Server
 	ln      net.Listener
 	token   string
+	twitch  *twitch.Service
 	log     *slog.Logger
 	done    chan error
 }
@@ -81,10 +88,18 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		log.Info("database migrated", "from", res.From, "to", res.To, "backup", res.Backup)
 	}
 
+	set := settings.NewStore(h.db)
 	sec, err := secrets.Open(ctx, h.db, secrets.Options{DataDir: opts.DataDir, Want: opts.SecretStore, Logger: log})
 	if err != nil {
 		return nil, err
 	}
+
+	authURL, err := twitchAuthURL(opts.TwitchAuthURL)
+	if err != nil {
+		return nil, err
+	}
+	h.twitch = twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: authURL, Logger: log})
+	h.twitch.Start(ctx)
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
@@ -95,9 +110,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		DataDir:   opts.DataDir,
 		StartedAt: startedAt,
 		DB:        h.db,
-		Settings:  settings.NewStore(h.db),
+		Settings:  set,
 		Secrets:   sec,
 		Events:    events.NewInbox(h.db, log),
+		Twitch:    h.twitch,
 		Logger:    log,
 	}))
 
@@ -169,6 +185,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.twitch != nil {
+		h.twitch.Close()
+	}
 	if h.ln != nil {
 		_ = os.Remove(datadir.AddrPath(h.dataDir))
 		_ = h.ln.Close()
@@ -186,4 +205,20 @@ func writePrivate(path, content string) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// twitchAuthURL checks a replacement for id.twitch.tv: only a loopback
+// http server such as mocktwitch, so nothing can point sign-in elsewhere.
+func twitchAuthURL(raw string) (string, error) {
+	if raw == "" {
+		return twitch.DefaultAuthURL, nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" || u.User != nil || (u.Path != "" && u.Path != "/") {
+		return "", fmt.Errorf("host: the Twitch test server must be like http://127.0.0.1:7441, not %q", raw)
+	}
+	if err := api.RequireLoopback(u.Host); err != nil {
+		return "", fmt.Errorf("host: the Twitch test server must be on this computer: %w", err)
+	}
+	return strings.TrimRight(raw, "/"), nil
 }

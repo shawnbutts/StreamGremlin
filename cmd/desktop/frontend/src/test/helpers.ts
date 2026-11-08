@@ -76,3 +76,30 @@ export const eventCatalog = () => ({
     ],
   },
 });
+
+const account = (role: 'streamer' | 'bot', over: Record<string, unknown> = {}) => ({
+  role,
+  state: 'signed_out',
+  scopes: [],
+  missing_scopes: [],
+  since: '2026-11-08T10:00:00.000Z',
+  ...over,
+});
+
+/** A GET /v1/connections answer; override parts of it per test. */
+export const twitchStatus = (over: { streamer?: Record<string, unknown>; bot?: Record<string, unknown>; [k: string]: unknown } = {}) => {
+  const { streamer, bot, ...rest } = over;
+  return {
+    status: 200,
+    body: {
+      twitch: {
+        client_id: 'abcdefghij0123456789',
+        client_id_source: 'pasted',
+        has_built_in: false,
+        streamer: account('streamer', streamer),
+        bot: account('bot', bot),
+        ...rest,
+      },
+    },
+  };
+};

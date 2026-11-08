@@ -21,10 +21,17 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - The event inbox. Every event is stored once in arrival order, platform redeliveries are recognised, and any reader can resume where it left off.
   - An **Events** screen: live events, newest first, with details, and a form to send test events (chat message, chat command, OBS scene change). Test events are marked "Test".
   - `streamgremlin events`, `events watch`, `events simulate TYPE field=value…` and `events types`.
+- M1 slice 4, Twitch sign-in:
+  - A **Connections** screen. You sign in to Twitch by entering a code at twitch.tv/activate, which the app opens in your browser. An optional bot account sends chat under its own name.
+  - Sign-ins are kept in your system's keyring, refreshed and checked hourly. A sign-in Twitch ends is shown with the reason; an unreachable Twitch is shown as unknown.
+  - Your own Twitch app's Client ID can be pasted in. Release builds will include StreamGremlin's.
+  - `streamgremlin twitch [status|sign-in|sign-out|client-id]`, with `-bot` for the bot account.
+  - `mocktwitch`, a stand-in for Twitch's sign-in server, for tests and for trying the app.
 
 ### Changed
 
-- Settings moved to Ctrl/⌘+3; Events is Ctrl/⌘+2.
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Settings 4.
+
 - Development schema changes are now new numbered files, so data folders keep working between builds. They're squashed into one baseline at the first public release.
 
 - The baseline schema gained the secrets tables. A development data folder from slice 1 has to be moved aside.

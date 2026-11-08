@@ -7,7 +7,9 @@ package desktop
 import (
 	"encoding/json"
 	"io/fs"
+	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -74,7 +76,9 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 's
 	"font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 // Handler serves the UI from assets (the built frontend) and bridges /v1/*.
-func Handler(assets fs.FS, state *State) http.Handler {
+// open shows a web page in the system browser; POST /desktop/open-url uses
+// it for allow-listed pages only (AllowedURL).
+func Handler(assets fs.FS, state *State, open func(url string) error) http.Handler {
 	files := http.FileServerFS(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -85,6 +89,8 @@ func Handler(assets fs.FS, state *State) http.Handler {
 			h.Set("Content-Type", "application/json; charset=utf-8")
 			h.Set("Cache-Control", "no-store")
 			_ = json.NewEncoder(w).Encode(Info{Name: brand.Name, State: phase, Message: msg})
+		case r.URL.Path == "/desktop/open-url":
+			openURL(w, r, open)
 		case strings.HasPrefix(r.URL.Path, "/v1/"):
 			bridge(w, r, state)
 		default:
@@ -121,4 +127,56 @@ func bridge(w http.ResponseWriter, r *http.Request, state *State) {
 	in.Header.Set("Authorization", "Bearer "+engine.Token())
 	in.Header.Set(brand.APIVersionHeader, brand.APIVersion)
 	engine.Handler().ServeHTTP(w, in)
+}
+
+// AllowedURL reports whether the app may open u in the system browser:
+// Twitch's activation page and developer console, or a loopback test
+// server's /activate page (mocktwitch). Nothing else, so a compromised page
+// can't send the streamer anywhere.
+func AllowedURL(u string) bool {
+	p, err := url.Parse(u)
+	if err != nil || p.User != nil || p.Fragment != "" {
+		return false
+	}
+	switch {
+	case p.Scheme == "https" && p.Host == "www.twitch.tv" && p.Path == "/activate":
+		return true
+	case p.Scheme == "https" && p.Host == "dev.twitch.tv" && (p.Path == "/console" || strings.HasPrefix(p.Path, "/console/") ||
+		strings.HasPrefix(p.Path, "/docs/")):
+		return true
+	case p.Scheme == "http" && p.Path == "/activate":
+		ip := net.ParseIP(p.Hostname())
+		return ip != nil && ip.IsLoopback() && p.Port() != ""
+	}
+	return false
+}
+
+func openURL(w http.ResponseWriter, r *http.Request, open func(string) error) {
+	reply := func(status int, code, msg string) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(status)
+		if code != "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": msg}})
+		}
+	}
+	if r.Method != http.MethodPost {
+		reply(http.StatusMethodNotAllowed, "method_not_allowed", "use POST")
+		return
+	}
+	var in struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&in); err != nil || !AllowedURL(in.URL) {
+		reply(http.StatusBadRequest, "invalid_request", "that page can't be opened from the app")
+		return
+	}
+	if open == nil {
+		reply(http.StatusServiceUnavailable, "unavailable", "can't open the browser here")
+		return
+	}
+	if err := open(in.URL); err != nil {
+		reply(http.StatusServiceUnavailable, "unavailable", "couldn't open the browser: "+err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

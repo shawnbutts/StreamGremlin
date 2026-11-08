@@ -13,12 +13,18 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
 
 const testToken = "test-token-not-secret"
+
+// testMock is the mock Twitch behind the latest newTestServer. Tests using
+// it don't run in parallel.
+var testMock *mocktwitch.Server
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
@@ -41,11 +47,20 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	mock := mocktwitch.New()
+	mockSrv := httptest.NewServer(mock)
+	t.Cleanup(mockSrv.Close)
+	mock.SetBase(mockSrv.URL)
+	set := settings.NewStore(db)
+	tw := twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: mockSrv.URL})
+	tw.Start(context.Background())
+	t.Cleanup(tw.Close)
+	testMock = mock
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
-		DataDir: dir, StartedAt: started, DB: db, Settings: settings.NewStore(db), Secrets: sec,
-		Events: events.NewInbox(db, nil),
-		Now:    func() time.Time { return started.Add(90 * time.Second) },
+		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
+		Events: events.NewInbox(db, nil), Twitch: tw,
+		Now: func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }
 
