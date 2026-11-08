@@ -389,4 +389,4 @@ Decided 2026-11-07, without asking the user, under D-007 ("otherwise choose the 
 - **Node 22 or 24** for the desktop UI. `make` uses Homebrew's `node@24` when the default `node` is another version, and the UI's `package.json` refuses Node 26 (the npm trap in ARCHITECTURE.md).
 - **Theme setting:** System (the default, following the OS), Dark workshop, Light workshop or Midnight blue, from the brand kit. It's stored through the API (`/v1/settings/ui`), so slice 1 has a real write path to test.
 - **Opening the app twice** brings the first window forward (Wails single-instance). If anything else holds the data folder, the app explains that instead of starting a second engine.
-- **CI:** none yet. `make verify` runs locally before every push. CI on the private server is decided when the user says what's available there.
+- **CI:** none, until much later. The user, 2026-11-08: "let's leave CI until much later." `make verify` runs locally before every push. Until CI exists, D-003's "Linux builds and passes CI" means the Linux build cross-compiles and `make verify` is run by hand on Linux before a release.
