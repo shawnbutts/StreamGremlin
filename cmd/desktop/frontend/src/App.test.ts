@@ -2,7 +2,7 @@ import axe from 'axe-core';
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
-import { mockFetch, readyEngine, runningStatus, settle } from './test/helpers';
+import { mockFetch, noSecrets, readyEngine, runningStatus, settle } from './test/helpers';
 
 let app: ReturnType<typeof mount> | undefined;
 
@@ -32,6 +32,7 @@ describe('App', () => {
     mockFetch({
       '/desktop/info': readyEngine,
       '/v1/status': runningStatus,
+      '/v1/secrets': noSecrets,
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'system' } }),
     });
     const el = start();
@@ -48,6 +49,7 @@ describe('App', () => {
     mockFetch({
       '/desktop/info': readyEngine,
       '/v1/status': () => ({ status: 503, body: { error: { code: 'engine_failed', message: 'Engine stopped' } } }),
+      '/v1/secrets': noSecrets,
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'dark' } }),
     });
     const el = start();
@@ -73,6 +75,7 @@ describe('App', () => {
     mockFetch({
       '/desktop/info': readyEngine,
       '/v1/status': runningStatus,
+      '/v1/secrets': noSecrets,
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();

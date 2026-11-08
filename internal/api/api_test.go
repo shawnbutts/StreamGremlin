@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
@@ -19,6 +20,12 @@ import (
 const testToken = "test-token-not-secret"
 
 func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	s, _ := newTestServerWithSecrets(t)
+	return s
+}
+
+func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := storage.Open(context.Background(), filepath.Join(dir, "a.db"))
@@ -29,11 +36,15 @@ func newTestServer(t *testing.T) *Server {
 	if _, err := db.Migrate(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
+	sec, err := secrets.Open(context.Background(), db, secrets.Options{DataDir: dir, Want: secrets.KindFile})
+	if err != nil {
+		t.Fatal(err)
+	}
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
-		DataDir: dir, StartedAt: started, DB: db, Settings: settings.NewStore(db),
+		DataDir: dir, StartedAt: started, DB: db, Settings: settings.NewStore(db), Secrets: sec,
 		Now: func() time.Time { return started.Add(90 * time.Second) },
-	}))
+	})), sec
 }
 
 type req struct {

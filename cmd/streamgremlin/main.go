@@ -22,12 +22,16 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/host"
 	"code.streamgremlin.com/streamgremlin/internal/logging"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
 )
 
 const usage = `Usage: streamgremlin [-data-dir DIR] <command> [flags]
 
 Commands:
   status    Show whether StreamGremlin is running, and its version and uptime.
+  secrets   List saved sign-ins and passwords (never their values).
+            secrets [-check] [-json]      list; -check tries reading each
+            secrets forget KEY            forget one
   version   Print this program's version.
   engine    Run the engine without a window. For development and tests only;
             it is not a supported server (D-008).
@@ -67,12 +71,32 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch cmd {
 	case "status":
 		return status(dir, rest, stdout, stderr)
+	case "secrets":
+		return secretsCmd(dir, rest, stdout, stderr)
 	case "engine":
 		return engine(dir, rest, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n\n%s", cmd, usage)
 		return 2
 	}
+}
+
+// connect finds the running engine, or explains that it isn't running.
+func connect(dir string, stderr io.Writer) (*client.Client, bool) {
+	c, err := client.ForDataDir(dir)
+	if err != nil {
+		reportErr(err, stderr)
+		return nil, false
+	}
+	return c, true
+}
+
+func reportErr(err error, stderr io.Writer) {
+	if errors.Is(err, client.ErrNotRunning) {
+		fmt.Fprintf(stderr, "%s isn't running. Start the %s app.\n", brand.Name, brand.Name)
+		return
+	}
+	fmt.Fprintln(stderr, err)
 }
 
 func status(dir string, args []string, stdout, stderr io.Writer) int {
@@ -114,7 +138,14 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "", "loopback address to listen on (default "+brand.DefaultAPIAddr+", or a free port)")
 	debug := fs.Bool("debug", false, "log every API request")
+	store := fs.String("secret-store", os.Getenv(brand.Env("SECRET_STORE")),
+		"auto, keyring or file (default auto, or $"+brand.Env("SECRET_STORE")+")")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	kind, err := secrets.ParseKind(*store)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
 		return 2
 	}
 	if err := datadir.Ensure(dir); err != nil {
@@ -134,9 +165,10 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, Logger: log})
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)
+		fmt.Fprintln(stderr, err)
 		return 1
 	}
 	var runErr error

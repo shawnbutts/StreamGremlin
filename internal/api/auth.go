@@ -20,6 +20,9 @@ const (
 	PermHealthRead    Permission = "health.read"
 	PermSettingsRead  Permission = "settings.read"
 	PermSettingsWrite Permission = "settings.write"
+	// Secrets: listing, checking and forgetting. No permission returns values.
+	PermSecretsRead  Permission = "secrets.read"
+	PermSecretsWrite Permission = "secrets.write"
 )
 
 // Principal is an authenticated caller.

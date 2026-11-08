@@ -1,7 +1,7 @@
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Settings from './Settings.svelte';
-import { mockFetch, settle } from '../test/helpers';
+import { mockFetch, noSecrets, settle } from '../test/helpers';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -26,6 +26,7 @@ describe('Settings', () => {
   it('saves the chosen theme through the API and applies it', async () => {
     let saved = 'system';
     const calls = mockFetch({
+      '/v1/secrets': noSecrets,
       '/v1/settings/ui': (method, body) => {
         if (method === 'PUT') saved = (body as { theme: string }).theme;
         return { status: 200, body: { theme: saved } };
@@ -44,6 +45,7 @@ describe('Settings', () => {
 
   it('puts the old theme back and says so when saving fails', async () => {
     mockFetch({
+      '/v1/secrets': noSecrets,
       '/v1/settings/ui': (method) =>
         method === 'PUT'
           ? { status: 503, body: { error: { code: 'engine_failed', message: 'Engine stopped' } } }

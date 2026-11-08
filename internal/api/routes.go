@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
@@ -18,6 +19,7 @@ type Deps struct {
 	StartedAt time.Time
 	DB        *storage.DB
 	Settings  *settings.Store
+	Secrets   *secrets.Store
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -41,7 +43,7 @@ func Routes(d Deps) []Route {
 	if d.Logger == nil {
 		d.Logger = slog.New(slog.DiscardHandler)
 	}
-	return []Route{
+	return append([]Route{
 		{
 			Method: "GET", Path: "/v1/health", Summary: "Liveness check. Public; says only ok.",
 			CLIOnly: "unauthenticated liveness probe for scripts and tests; the app uses /v1/status",
@@ -101,7 +103,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}
+	}, secretRoutes(d)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

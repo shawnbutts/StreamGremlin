@@ -67,3 +67,28 @@ export interface UISettings {
 
 export const getUISettings = () => api<UISettings>('GET', '/v1/settings/ui');
 export const putUISettings = (s: UISettings) => api<UISettings>('PUT', '/v1/settings/ui', s);
+
+export type SecretStoreKind = 'keyring' | 'file';
+export type SecretState = 'ok' | 'missing' | 'unreadable';
+
+export interface SecretItem {
+  key: string;
+  created_at: string;
+  updated_at: string;
+  state?: SecretState;
+  detail?: string;
+}
+
+export interface SecretList {
+  store: { kind: SecretStoreKind; label: string };
+  checked: boolean;
+  secrets: SecretItem[];
+}
+
+/** Where secrets are kept and which are saved; never their values. */
+export const getSecrets = (check = false) =>
+  api<SecretList>('GET', check ? '/v1/secrets?check=true' : '/v1/secrets');
+
+/** Forget one secret. Keys are lowercase segments joined by '/', safe in a path. */
+export const forgetSecret = (key: string) =>
+  api<void>('DELETE', `/v1/secrets/${key.split('/').map(encodeURIComponent).join('/')}`);

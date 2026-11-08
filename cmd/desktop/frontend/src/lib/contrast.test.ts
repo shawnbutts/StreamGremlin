@@ -39,6 +39,8 @@ const pairs: [string, string, number][] = [
   ['muted', 'surface-raised', 4.5],
   ['primary-text', 'primary', 4.5],
   ['danger', 'surface', 4.5],
+  ['danger', 'surface-raised', 4.5],
+  ['primary-text', 'primary-hover', 4.5],
   ['success', 'surface', 3],
   ['warning', 'surface', 3],
   ['focus', 'background', 3],

@@ -103,7 +103,8 @@ func cleanEnv() []string {
 			env = append(env, kv)
 		}
 	}
-	return append(env, "STREAMGREMLIN_DATA_DIR=/nonexistent/do-not-use")
+	// Never the real keyring (AGENTS.md); a test asks for another store by flag.
+	return append(env, "STREAMGREMLIN_DATA_DIR=/nonexistent/do-not-use", "STREAMGREMLIN_SECRET_STORE=file")
 }
 
 func cli(t *testing.T, dir string, args ...string) (stdout, stderr string, code int) {

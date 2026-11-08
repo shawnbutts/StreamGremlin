@@ -17,6 +17,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/api"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
@@ -26,8 +27,11 @@ type Options struct {
 	DataDir string
 	// Addr is the loopback address to listen on. Empty means
 	// brand.DefaultAPIAddr, falling back to a free port if that is taken.
-	Addr   string
-	Logger *slog.Logger
+	Addr string
+	// SecretStore is the secret store asked for. Empty means auto: keep the
+	// one this data folder uses, choosing on first start.
+	SecretStore secrets.Kind
+	Logger      *slog.Logger
 }
 
 // Host is a running engine.
@@ -76,6 +80,11 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		log.Info("database migrated", "from", res.From, "to", res.To, "backup", res.Backup)
 	}
 
+	sec, err := secrets.Open(ctx, h.db, secrets.Options{DataDir: opts.DataDir, Want: opts.SecretStore, Logger: log})
+	if err != nil {
+		return nil, err
+	}
+
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
 		return nil, err
@@ -86,6 +95,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		StartedAt: startedAt,
 		DB:        h.db,
 		Settings:  settings.NewStore(h.db),
+		Secrets:   sec,
 		Logger:    log,
 	}))
 
@@ -111,7 +121,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		}
 		h.done <- err
 	}()
-	log.Info("engine started", "api", h.URL(), "data_dir", opts.DataDir, "schema", res.To)
+	log.Info("engine started", "api", h.URL(), "data_dir", opts.DataDir, "schema", res.To, "secret_store", string(sec.Kind()))
 	return h, nil
 }
 

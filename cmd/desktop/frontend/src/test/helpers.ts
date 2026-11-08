@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-export type Handler = (method: string, body: unknown) => { status: number; body: unknown };
+export type Handler = (method: string, body: unknown, query: string) => { status: number; body: unknown };
 
 /** Replace fetch with handlers keyed by path, like the desktop bridge would answer. */
 export function mockFetch(routes: Record<string, Handler>) {
@@ -11,8 +11,10 @@ export function mockFetch(routes: Record<string, Handler>) {
       const method = init?.method ?? 'GET';
       const body = init?.body ? JSON.parse(String(init.body)) : undefined;
       calls.push({ method, path, body });
-      const h = routes[path];
-      const res = h ? h(method, body) : { status: 404, body: { error: { code: 'not_found', message: 'no such route' } } };
+      const query = path.includes('?') ? path.slice(path.indexOf('?') + 1) : '';
+      const h = routes[path] ?? routes[path.split('?')[0]];
+      const res = h ? h(method, body, query) : { status: 404, body: { error: { code: 'not_found', message: 'no such route' } } };
+      if (res.status === 204) return new Response(null, { status: 204 });
       return new Response(JSON.stringify(res.body), {
         status: res.status,
         headers: { 'Content-Type': 'application/json' },
@@ -40,3 +42,8 @@ export const runningStatus = () => ({
 export async function settle(ms = 30) {
   await new Promise((r) => setTimeout(r, ms));
 }
+
+export const noSecrets = () => ({
+  status: 200,
+  body: { store: { kind: 'keyring', label: 'macOS Keychain' }, checked: false, secrets: [] },
+});

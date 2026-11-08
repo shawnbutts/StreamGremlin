@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { ApiError, getUISettings, putUISettings, type Theme } from '../lib/api';
   import { applyTheme } from '../lib/theme';
+  import SavedSecrets from './SavedSecrets.svelte';
 
   const options: { value: Theme; label: string; hint: string }[] = [
     { value: 'system', label: 'System', hint: 'Dark or light, following your computer' },
@@ -69,3 +70,5 @@
     <p class="error" role="alert">{error}</p>
   {/if}
 </section>
+
+<SavedSecrets />

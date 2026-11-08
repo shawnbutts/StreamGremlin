@@ -18,10 +18,18 @@ linters:
         - (*database/sql.Rows).Close
         - (*database/sql.DB).Close
         - (net.Listener).Close
+        - (*os.File).Close
     gosec:
       excludes:
         # Every path is inside the data folder the streamer chose, never from the network.
         - G304
+  exclusions:
+    rules:
+      # Tests use fake credentials, loosen file modes and copy files on
+      # purpose, to check that the code refuses or contains them.
+      - path: _test\.go
+        linters: [gosec]
+        text: "G101|G302|G703"
 formatters:
   enable:
     - gofmt

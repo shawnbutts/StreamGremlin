@@ -15,6 +15,7 @@ const (
 	CodePayloadTooLarge       = "payload_too_large"
 	CodeUnsupportedAPIVersion = "unsupported_api_version"
 	CodeConflict              = "conflict"
+	CodeUnavailable           = "unavailable"
 	CodeInternal              = "internal"
 )
 

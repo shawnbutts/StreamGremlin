@@ -28,6 +28,12 @@ make build && ./bin/streamgremlin status
 
 Set `STREAMGREMLIN_DESKTOP_DEBUG=1` to log every request from the window.
 
+Tests never touch your real keyring. To check it on purpose, run the one opt-in test, which writes, reads and deletes a single item:
+
+```sh
+STREAMGREMLIN_TEST_OS_KEYRING=1 go test ./internal/secrets -run TestRealKeyring -v
+```
+
 ## How work is done
 
 Read [AGENTS.md](AGENTS.md). In short:

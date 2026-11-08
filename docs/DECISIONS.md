@@ -390,3 +390,17 @@ Decided 2026-11-07, without asking the user, under D-007 ("otherwise choose the 
 - **Theme setting:** System (the default, following the OS), Dark workshop, Light workshop or Midnight blue, from the brand kit. It's stored through the API (`/v1/settings/ui`), so slice 1 has a real write path to test.
 - **Opening the app twice** brings the first window forward (Wails single-instance). If anything else holds the data folder, the app explains that instead of starting a second engine.
 - **CI:** none, until much later. The user, 2026-11-08: "let's leave CI until much later." `make verify` runs locally before every push. Until CI exists, D-003's "Linux builds and passes CI" means the Linux build cross-compiles and `make verify` is run by hand on Linux before a release.
+
+## D-009. Choices made while building M1 slice 2 (secrets)
+
+Decided 2026-11-08, without asking the user, under D-007.
+
+- **Secrets** follow [ADR-0003](adr/0003-secrets.md):
+  - the OS keyring, or an AES-256-GCM file when the keyring doesn't answer on first start;
+  - the store is chosen once per data folder, then fixed;
+  - the database holds only an index of keys, never values.
+- **`zalando/go-keyring` v0.2.8** (2026-03-23) for the keyring. It's pure Go, so the CLI and a future headless build stay cgo-free.
+- **No API route returns or takes a secret value.** The app and CLI can list, check and forget secrets. Saving happens only inside the engine, in the slices that need it: Twitch sign-in (slice 4) and OBS (slice 6).
+- **The screen is a "Passwords and sign-ins" section in Settings,** not a screen of its own. Until slice 4 it shows where secrets would be kept, and an empty list.
+- **Forgetting asks first,** in the app's own dialog (never `window.confirm`), with focus on Cancel.
+- **The baseline schema was rewritten** to add the `secret_store` and `secrets` tables (ADR-0001). A data folder from slice 1 fails the checksum check and has to be moved aside. It held only the theme setting.

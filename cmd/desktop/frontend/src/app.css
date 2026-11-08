@@ -204,6 +204,114 @@ legend {
   margin: 8px 0 0;
 }
 
+/* Buttons: primary actions use the brand kit's .sg-button; these cover the rest. */
+.button {
+  font: inherit;
+  font-weight: 600;
+  color: var(--sg-foreground);
+  background: var(--sg-surface-raised);
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--sg-surface-hover);
+}
+
+.button:disabled,
+.sg-button:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.button-danger {
+  color: var(--sg-danger);
+  border-color: var(--sg-danger);
+}
+
+/* Danger text on the hover surface is under 4.5:1 in the midnight theme,
+   so hovering a danger button underlines it instead. */
+.button-danger:hover {
+  background: var(--sg-surface-raised);
+  text-decoration: underline;
+}
+
+.secret-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+}
+
+.secret-row .secret-info {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.secret-row .secret-saved {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.secret-check {
+  display: block;
+  margin-top: 2px;
+}
+
+.secret-check .icon-ok {
+  color: var(--sg-success);
+}
+
+.secret-check .icon-bad {
+  color: var(--sg-danger);
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(0 0 0 / 55%);
+  z-index: 20;
+}
+
+.dialog {
+  max-width: 460px;
+  width: 100%;
+  padding: 20px 22px;
+}
+
+.dialog p {
+  margin: 0 0 1rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;
