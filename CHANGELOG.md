@@ -55,6 +55,13 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - `streamgremlin vars`, `vars set` and `vars delete`.
   - Example workflows: a death counter and a per-viewer lurk count.
 
+- M1 slice 9, the workflow editor:
+  - **Build workflows in plain words** (Workflows → New workflow, or Edit). Choose what starts it ("A viewer types a command", "OBS switches scene"…) and what it does, step by step. Messages can include values like {viewer} from an "Insert a value" menu. Conditions are a value, a comparison and a text. "Pick one at random", "If… otherwise…", "Wait" and "Remember a value" are there too. A JSON tab shows and edits everything, and the editor never loses what it can't show.
+  - **Who can use it:** Everyone, Subscribers and up, VIPs and up, Mods and you, or Only you, with no code. Test events can be from a chatter with any role, so these workflows can still be tested.
+  - **Run another workflow,** passing it values, as part of the current run. Loops are refused, and a turned-off workflow isn't run.
+  - **Delete and restore workflows.** Deleting asks first, keeps its runs and saved variables, and it can be restored (turned off) from "Deleted workflows".
+  - `streamgremlin workflows delete`, `deleted` and `restore`.
+
 ### Changed
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Settings 6 (and Ctrl/⌘+comma, which always reaches Settings).

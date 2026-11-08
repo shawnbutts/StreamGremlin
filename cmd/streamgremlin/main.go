@@ -38,7 +38,8 @@ Commands:
             twitch sign-out [-bot]        sign out
             twitch client-id ID           use your own Twitch app ("" for the built-in one)
   obs       OBS: connect, scenes, sources, snapshots (streamgremlin obs help).
-  workflows Workflows: list, show, save FILE, on/off (streamgremlin workflows help).
+  workflows Workflows: list, show, save FILE, on/off, delete, deleted, restore
+            (streamgremlin workflows help).
   runs      Workflow runs and their traces: runs, runs show RUN, runs cancel RUN.
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]

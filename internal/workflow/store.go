@@ -14,15 +14,19 @@ import (
 // ErrNotFound: no workflow or job with that id.
 var ErrNotFound = errors.New("workflow: not found")
 
+// ErrDeleted: the id belongs to a deleted workflow; restore it to use it.
+var ErrDeleted = errors.New("workflow: that id belongs to a deleted workflow; restore it, or use another id")
+
 // Summary describes a workflow for lists.
 type Summary struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Enabled   bool      `json:"enabled"`
-	Version   int       `json:"version"`
-	Triggers  []Trigger `json:"triggers"`
-	UpdatedAt time.Time `json:"updated_at"`
-	LastJob   *Job      `json:"last_job,omitempty"`
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Enabled   bool       `json:"enabled"`
+	Version   int        `json:"version"`
+	Triggers  []Trigger  `json:"triggers"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	LastJob   *Job       `json:"last_job,omitempty"`
 }
 
 // Job is one run of a workflow, or the record of why it didn't run.
@@ -72,10 +76,14 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 	defer func() { _ = tx.Rollback() }()
 	var cur int
 	var curSum string
+	var deleted sql.NullString
 	err = tx.QueryRowContext(ctx, `
-		SELECT w.current_version, v.checksum FROM workflows w
+		SELECT w.current_version, v.checksum, w.deleted_at FROM workflows w
 		JOIN workflow_versions v ON v.workflow_id = w.id AND v.version = w.current_version
-		WHERE w.id = ?`, d.ID).Scan(&cur, &curSum)
+		WHERE w.id = ?`, d.ID).Scan(&cur, &curSum, &deleted)
+	if err == nil && deleted.Valid {
+		return 0, false, ErrDeleted
+	}
 	now := ts(s.now())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -103,7 +111,7 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 }
 
 func (s *store) setEnabled(ctx context.Context, id string, on bool) error {
-	res, err := s.db.ExecContext(ctx, "UPDATE workflows SET enabled = ?, updated_at = ? WHERE id = ?", b2i(on), ts(s.now()), id)
+	res, err := s.db.ExecContext(ctx, "UPDATE workflows SET enabled = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL", b2i(on), ts(s.now()), id)
 	if err != nil {
 		return err
 	}
@@ -133,11 +141,51 @@ func (s *store) definition(ctx context.Context, id string, version int) (*Defini
 	return &d, v, en == 1, nil
 }
 
-func (s *store) list(ctx context.Context) ([]Summary, error) {
+// callable loads a workflow for workflow.run: its current definition and
+// whether it's on. Deleted workflows aren't found.
+func (s *store) callable(ctx context.Context, id string) (*Definition, bool, error) {
+	var deleted sql.NullString
+	if err := s.db.QueryRowContext(ctx, "SELECT deleted_at FROM workflows WHERE id = ?", id).Scan(&deleted); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, false, ErrNotFound
+		}
+		return nil, false, err
+	}
+	if deleted.Valid {
+		return nil, false, ErrNotFound
+	}
+	d, _, on, err := s.definition(ctx, id, 0)
+	return d, on, err
+}
+
+// setDeleted marks a workflow deleted (turning it off) or restores it (off).
+func (s *store) setDeleted(ctx context.Context, id string, deleted bool) error {
+	q := "UPDATE workflows SET enabled = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
+	var at any = ts(s.now())
+	if !deleted {
+		q = "UPDATE workflows SET enabled = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NOT NULL"
+		at = nil
+	}
+	res, err := s.db.ExecContext(ctx, q, at, ts(s.now()), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// list returns the workflows, or (deleted) only the deleted ones.
+func (s *store) list(ctx context.Context, deleted bool) ([]Summary, error) {
+	cond := "w.deleted_at IS NULL"
+	if deleted {
+		cond = "w.deleted_at IS NOT NULL"
+	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT w.id, w.name, w.enabled, w.current_version, w.updated_at, v.definition
+		SELECT w.id, w.name, w.enabled, w.current_version, w.updated_at, w.deleted_at, v.definition
 		FROM workflows w JOIN workflow_versions v ON v.workflow_id = w.id AND v.version = w.current_version
-		ORDER BY w.name, w.id`)
+		WHERE `+cond+` ORDER BY w.name, w.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -147,11 +195,16 @@ func (s *store) list(ctx context.Context) ([]Summary, error) {
 		var sm Summary
 		var en int
 		var updated, raw string
-		if err := rows.Scan(&sm.ID, &sm.Name, &en, &sm.Version, &updated, &raw); err != nil {
+		var del sql.NullString
+		if err := rows.Scan(&sm.ID, &sm.Name, &en, &sm.Version, &updated, &del, &raw); err != nil {
 			return nil, err
 		}
 		sm.Enabled = en == 1
 		sm.UpdatedAt, _ = storage.ParseTimestamp(updated)
+		if del.Valid {
+			t, _ := storage.ParseTimestamp(del.String)
+			sm.DeletedAt = &t
+		}
 		var d Definition
 		_ = json.Unmarshal([]byte(raw), &d)
 		sm.Triggers = d.Triggers

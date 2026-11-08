@@ -129,9 +129,12 @@ export function getEvents(opts: { after?: number; wait?: number; limit?: number 
 export interface EventField {
   name: string;
   label: string;
-  kind: 'text' | 'number';
+  kind: 'text' | 'number' | 'choice';
   default: string;
   max: number;
+  choices?: string[];
+  /** The payload path the field sets, such as chatter.role. */
+  path?: string;
 }
 
 export interface EventKind {
@@ -326,6 +329,7 @@ export interface WorkflowSummary {
   version: number;
   triggers: Trigger[];
   updated_at: string;
+  deleted_at?: string;
   last_job?: Job;
 }
 
@@ -351,6 +355,11 @@ export interface ActionParam {
   required: boolean;
   pattern?: string;
   pattern_hint?: string;
+  default?: unknown;
+  /** Written out, never computed (which workflow to run). */
+  literal?: boolean;
+  /** How the editor shows it: message, scene, source, workflow, variable or value. */
+  editor?: string;
 }
 
 export interface ActionInfo {
@@ -361,8 +370,41 @@ export interface ActionInfo {
   external: boolean;
   /** Changes saved variables; a test event changes them for that run only. */
   saves_state?: boolean;
+  /** Behind "More steps…" in the editor. */
+  more?: boolean;
   params: ActionParam[];
 }
+
+/** Something a message can include: {token} on screen, ${expr} stored. */
+export interface PaletteValue {
+  token: string;
+  label: string;
+  expr: string;
+}
+
+export interface MatchField {
+  path: string;
+  label: string;
+  kind: 'command' | 'who' | 'text' | 'scene' | 'source' | 'on_off';
+  help?: string;
+}
+
+export interface TriggerEntry {
+  type: string;
+  label: string;
+  category: string;
+  help: string;
+  more?: boolean;
+  match: MatchField[];
+  values: PaletteValue[];
+}
+
+export interface Palette {
+  triggers: TriggerEntry[];
+  actions: ActionInfo[];
+}
+
+export const getPalette = () => api<Palette>('GET', '/v1/palette');
 
 export interface Problem {
   path: string;
@@ -377,8 +419,11 @@ export class ProblemsError extends ApiError {
 }
 
 export const getWorkflows = () => api<{ workflows: WorkflowSummary[] }>('GET', '/v1/workflows');
+export const getDeletedWorkflows = () => api<{ workflows: WorkflowSummary[] }>('GET', '/v1/workflows?deleted=true');
 export const getWorkflow = (id: string) =>
-  api<{ workflow: WorkflowSummary; definition: unknown }>('GET', `/v1/workflows/${encodeURIComponent(id)}`);
+  api<{ workflow: WorkflowSummary; definition: Record<string, unknown> }>('GET', `/v1/workflows/${encodeURIComponent(id)}`);
+export const deleteWorkflow = (id: string) => api<void>('DELETE', `/v1/workflows/${encodeURIComponent(id)}`);
+export const restoreWorkflow = (id: string) => api<WorkflowSummary>('POST', `/v1/workflows/${encodeURIComponent(id)}/restore`);
 export const setWorkflowEnabled = (id: string, enabled: boolean) =>
   api<WorkflowSummary>('PUT', `/v1/workflows/${encodeURIComponent(id)}/enabled`, { enabled });
 export const getActions = () => api<{ actions: ActionInfo[] }>('GET', '/v1/actions');

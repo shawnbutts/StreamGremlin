@@ -35,6 +35,7 @@ const (
 	DefaultForeachMax  = 100
 	MaxForeachMax      = 1000
 	FinallyBudget      = 10 * time.Second
+	MaxWhereAny        = 20 // values in one where list
 )
 
 // Definition is one workflow, as saved and exported.
@@ -60,7 +61,9 @@ type Trigger struct {
 	// DeliveryQuality limits to confirmed, estimated or synthetic events.
 	// Unset accepts all; test (synthetic) events then run as dry runs.
 	DeliveryQuality []events.Quality `json:"delivery_quality,omitempty"`
-	// Where compares payload paths ("chatter.role") to exact JSON values.
+	// Where compares payload paths ("chatter.role") to exact JSON values. A
+	// list matches any of its values: {"chatter.role": ["moderator",
+	// "broadcaster"]} is "mods and you".
 	Where map[string]json.RawMessage `json:"where,omitempty"`
 }
 
@@ -262,10 +265,21 @@ func (v *validator) trigger(path string, t Trigger) {
 			v.add(path+".where."+k, "a JSON value")
 			continue
 		}
-		switch val.(type) {
+		switch x := val.(type) {
 		case string, float64, bool, nil:
+		case []any:
+			if len(x) == 0 || len(x) > MaxWhereAny {
+				v.add(path+".where."+k, "a list of 1 to %d values, any of which matches", MaxWhereAny)
+			}
+			for _, e := range x {
+				switch e.(type) {
+				case string, float64, bool, nil:
+				default:
+					v.add(path+".where."+k, "a list of strings, numbers, true, false or null")
+				}
+			}
 		default:
-			v.add(path+".where."+k, "a string, number, true, false or null")
+			v.add(path+".where."+k, "a string, number, true, false or null, or a list of them")
 		}
 	}
 }
@@ -334,6 +348,10 @@ func (v *validator) template(path string, raw json.RawMessage) {
 // rather than mid-stream.
 func (v *validator) literal(path string, p *Param, raw json.RawMessage) {
 	var s string
+	if p.Literal && (json.Unmarshal(raw, &s) != nil || strings.Contains(s, "${")) {
+		v.add(path, "written out, not computed with ${…}")
+		return
+	}
 	if json.Unmarshal(raw, &s) != nil || strings.Contains(s, "${") {
 		return
 	}

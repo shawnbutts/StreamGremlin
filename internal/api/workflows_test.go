@@ -75,3 +75,38 @@ func TestWorkflowsThroughTheAPI(t *testing.T) {
 		}
 	}
 }
+
+func TestDeleteRestoreAndPaletteThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	if w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello", token: testToken, body: helloWorkflow}); w.Code != 200 {
+		t.Fatal(w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "DELETE", path: "/v1/workflows/chat.hello", token: testToken}); w.Code != 204 {
+		t.Fatalf("delete: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "DELETE", path: "/v1/workflows/chat.hello", token: testToken}); w.Code != 404 {
+		t.Fatalf("delete again: %d", w.Code)
+	}
+	if w := do(t, s, req{method: "GET", path: "/v1/workflows", token: testToken}); strings.Contains(w.Body.String(), "chat.hello") {
+		t.Fatalf("still listed: %s", w.Body)
+	}
+	if w := do(t, s, req{method: "GET", path: "/v1/workflows?deleted=true", token: testToken}); !strings.Contains(w.Body.String(), `"deleted_at"`) {
+		t.Fatalf("deleted list: %s", w.Body)
+	}
+	w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello", token: testToken, body: helloWorkflow})
+	if w.Code != 409 || !strings.Contains(w.Body.String(), `"code":"deleted"`) {
+		t.Fatalf("save over deleted: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/workflows/chat.hello/restore", token: testToken}); w.Code != 200 || !strings.Contains(w.Body.String(), `"enabled":false`) {
+		t.Fatalf("restore: %d %s", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/workflows/chat.hello/restore", token: testToken}); w.Code != 404 {
+		t.Fatalf("restore again: %d", w.Code)
+	}
+	w = do(t, s, req{method: "GET", path: "/v1/palette", token: testToken})
+	var p workflow.Palette
+	_ = json.Unmarshal(w.Body.Bytes(), &p)
+	if w.Code != 200 || len(p.Triggers) == 0 || !strings.Contains(w.Body.String(), `"workflow.run"`) || !strings.Contains(w.Body.String(), `"editor":"message"`) {
+		t.Fatalf("palette: %d %.300s", w.Code, w.Body)
+	}
+}

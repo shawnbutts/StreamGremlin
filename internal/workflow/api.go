@@ -27,9 +27,9 @@ func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 	return s, changed, err
 }
 
-// Get returns one workflow's summary.
+// Get returns one workflow's summary. Deleted workflows aren't found.
 func (e *Engine) Get(ctx context.Context, id string) (Summary, error) {
-	list, err := e.st.list(ctx)
+	list, err := e.st.list(ctx, false)
 	if err != nil {
 		return Summary{}, err
 	}
@@ -41,13 +41,55 @@ func (e *Engine) Get(ctx context.Context, id string) (Summary, error) {
 	return Summary{}, ErrNotFound
 }
 
-// List returns every workflow.
-func (e *Engine) List(ctx context.Context) ([]Summary, error) { return e.st.list(ctx) }
+// List returns every workflow, or (deleted) the deleted ones.
+func (e *Engine) List(ctx context.Context, deleted bool) ([]Summary, error) {
+	return e.st.list(ctx, deleted)
+}
 
-// Definition returns a workflow's current definition.
+// Definition returns a workflow's current definition, deleted or not.
 func (e *Engine) Definition(ctx context.Context, id string) (*Definition, int, error) {
 	d, v, _, err := e.st.definition(ctx, id, 0)
 	return d, v, err
+}
+
+var errDeleted = errors.New("the workflow was deleted")
+
+// Delete turns a workflow off and takes it out of the list and every
+// lookup. Its waiting runs are cancelled and running ones stopped (their
+// finally steps run). Versions, runs and its own saved variables are kept,
+// for Restore.
+func (e *Engine) Delete(ctx context.Context, id string) error {
+	if err := e.st.setDeleted(ctx, id, true); err != nil {
+		return err
+	}
+	e.mu.Lock()
+	q := e.queue(id)
+	pending := append([]string(nil), q.pending...)
+	q.pending = nil
+	for _, cancel := range q.running {
+		cancel(errDeleted)
+	}
+	e.mu.Unlock()
+	for _, j := range pending {
+		_, _ = e.st.db.ExecContext(ctx, "UPDATE jobs SET status = 'cancelled', reason = ?, finished_at = ? WHERE id = ? AND status = 'pending'",
+			errDeleted.Error(), ts(e.st.now()), j)
+	}
+	e.log.Info("workflow deleted", "workflow", id)
+	if err := e.reload(ctx); err != nil {
+		return err
+	}
+	e.notify.Notify()
+	return nil
+}
+
+// Restore brings a deleted workflow back, turned off.
+func (e *Engine) Restore(ctx context.Context, id string) error {
+	if err := e.st.setDeleted(ctx, id, false); err != nil {
+		return err
+	}
+	e.log.Info("workflow restored", "workflow", id)
+	e.notify.Notify()
+	return nil
 }
 
 // SetEnabled turns a workflow on or off. Turning it off cancels its runs

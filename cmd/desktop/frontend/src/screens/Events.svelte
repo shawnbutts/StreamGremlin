@@ -181,12 +181,18 @@
         {#each kind.fields as f (f.name)}
           <label class="field">
             <span>{f.label}</span>
-            <input
-              class="sg-input"
-              type={f.kind === 'number' ? 'number' : 'text'}
-              maxlength={f.kind === 'text' ? f.max : undefined}
-              bind:value={values[f.name]}
-            />
+            {#if f.kind === 'choice'}
+              <select class="sg-input" bind:value={values[f.name]}>
+                {#each f.choices ?? [] as c (c)}<option value={c}>{c}</option>{/each}
+              </select>
+            {:else}
+              <input
+                class="sg-input"
+                type={f.kind === 'number' ? 'number' : 'text'}
+                maxlength={f.kind === 'text' ? f.max : undefined}
+                bind:value={values[f.name]}
+              />
+            {/if}
           </label>
         {/each}
       {/if}

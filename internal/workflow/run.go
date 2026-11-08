@@ -43,10 +43,12 @@ type interp struct {
 	reg    *Registry
 	sc     scope
 	dryRun bool
-	budget int
+	budget *int // shared with workflows this run calls
 	jobID  string
 	wfID   string
 	vars   *runVars
+	eng    *Engine  // for workflow.run
+	chain  []string // workflow ids from the job's own down to this one
 	now    func() time.Time
 	trace  func(StepRecord)
 }
@@ -83,8 +85,8 @@ func (r *interp) step(ctx context.Context, path string, s Step) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	r.budget--
-	if r.budget < 0 {
+	*r.budget--
+	if *r.budget < 0 {
 		return errBudget
 	}
 	rec := StepRecord{Path: path, StepID: s.ID, Kind: s.Kind(), Action: s.Action, Started: r.now()}
@@ -231,6 +233,9 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	rec.Input = redact(args)
 	if err := checkArgs(a, args); err != nil {
 		return fail(err)
+	}
+	if a.Name == RunWorkflow {
+		return r.call(ctx, path, s, rec, args, fail)
 	}
 	if r.dryRun && a.External {
 		out := map[string]any{"dry_run": true}

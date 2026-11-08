@@ -13,10 +13,21 @@ import (
 type Field struct {
 	Name    string `json:"name"`
 	Label   string `json:"label"`
-	Kind    string `json:"kind"` // "text" or "number"
+	Kind    string `json:"kind"` // "text", "number" or "choice"
 	Default string `json:"default"`
 	Max     int    `json:"max"` // longest text, in characters
+	// Choices are the values a choice field takes.
+	Choices []string `json:"choices,omitempty"`
+	// Path, when set, is the payload path the field sets (chatter.role), so
+	// a test event can be made to match a trigger's where.
+	Path string `json:"path,omitempty"`
 }
+
+// Roles are chatters' roles, lowest first. A chatter's role is the highest
+// that applies.
+var Roles = []string{"viewer", "subscriber", "vip", "moderator", "broadcaster"}
+
+var roleField = Field{Name: "role", Label: "Role", Kind: "choice", Default: "viewer", Max: 11, Choices: Roles, Path: "chatter.role"}
 
 // Kind is one event type the engine knows: what it means, which sources
 // send it, and how to make a test event of it.
@@ -46,13 +57,18 @@ func Catalog() []Kind {
 			Fields: []Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "text", Label: "Message", Kind: "text", Default: "Hello from a test event!", Max: 500},
+				roleField,
 			},
 			build: func(id string, v map[string]string) (any, *Actor, error) {
 				a := testViewer(v["user"])
+				ch, err := chatter(a, v["role"])
+				if err != nil {
+					return nil, nil, err
+				}
 				return map[string]any{
 					"message_id":   id,
 					"text":         v["text"],
-					"chatter":      chatter(a),
+					"chatter":      ch,
 					"message_type": "text",
 					"color":        "",
 				}, a, nil
@@ -66,6 +82,7 @@ func Catalog() []Kind {
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "command", Label: "Command", Kind: "text", Default: "!hello", Max: 50},
 				{Name: "args", Label: "After the command", Kind: "text", Default: "", Max: 450},
+				roleField,
 			},
 			build: func(id string, v map[string]string) (any, *Actor, error) {
 				cmd := strings.TrimSpace(v["command"])
@@ -73,6 +90,10 @@ func Catalog() []Kind {
 					return nil, nil, invalid("a command starts with ! and has no spaces, like !hello")
 				}
 				a := testViewer(v["user"])
+				ch, err := chatter(a, v["role"])
+				if err != nil {
+					return nil, nil, err
+				}
 				args := strings.TrimSpace(v["args"])
 				text := cmd
 				if args != "" {
@@ -84,7 +105,7 @@ func Catalog() []Kind {
 					"command":      strings.ToLower(cmd[1:]),
 					"args":         args,
 					"arg_list":     strings.Fields(args),
-					"chatter":      chatter(a),
+					"chatter":      ch,
 					"message_type": "text",
 					"color":        "",
 				}, a, nil
@@ -178,12 +199,26 @@ func testViewer(name string) *Actor {
 	return &Actor{Platform: "twitch", ID: "test-" + login, Login: login, DisplayName: name}
 }
 
-func chatter(a *Actor) map[string]any {
-	// The same shape as real Twitch chat (internal/twitch/chatmsg.go).
-	return map[string]any{
-		"id": a.ID, "login": a.Login, "display_name": a.DisplayName, "badges": []any{}, "role": "viewer",
-		"is_broadcaster": false, "is_moderator": false, "is_vip": false, "is_subscriber": false,
+func chatter(a *Actor, role string) (map[string]any, error) {
+	if role == "" {
+		role = "viewer"
 	}
+	rank := -1
+	for i, r := range Roles {
+		if r == role {
+			rank = i
+		}
+	}
+	if rank < 0 {
+		return nil, invalid("the role is viewer, subscriber, vip, moderator or broadcaster")
+	}
+	// The same shape as real Twitch chat (internal/twitch/chatmsg.go). A
+	// test chatter has only the badge of their role.
+	return map[string]any{
+		"id": a.ID, "login": a.Login, "display_name": a.DisplayName, "badges": []any{}, "role": role,
+		"is_broadcaster": role == "broadcaster", "is_moderator": role == "moderator", "is_vip": role == "vip",
+		"is_subscriber": role == "subscriber",
+	}, nil
 }
 
 // Simulation asks for a test event.

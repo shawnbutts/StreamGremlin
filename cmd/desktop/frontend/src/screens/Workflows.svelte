@@ -1,33 +1,34 @@
 <script lang="ts">
   // Workflows: what runs when, switched on or off, tested with a test event,
-  // and every run's trace. New workflows are pasted as JSON for now; the
-  // plain-words editor comes in slice 9.
+  // edited in plain words, deleted and restored, and every run's trace.
   import { onMount } from 'svelte';
   import {
     ApiError,
-    ProblemsError,
-    getActions,
+    deleteWorkflow,
+    getDeletedWorkflows,
     getEventCatalog,
     getJobs,
+    getWorkflow,
     getWorkflows,
-    saveWorkflow,
+    restoreWorkflow,
     setWorkflowEnabled,
     simulateEvent,
-    type ActionInfo,
     type EventKind,
     type Job,
-    type Problem,
     type WorkflowSummary,
   } from '../lib/api';
+  import ConfirmDialog from '../lib/ConfirmDialog.svelte';
+  import type { Def } from '../lib/editor';
   import { eventTime } from '../lib/events';
-  import { describeTrigger, example, jobOk, jobWords, testFields } from '../lib/workflows';
+  import { describeTrigger, jobOk, jobWords, testFields } from '../lib/workflows';
+  import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import RunTrace from './RunTrace.svelte';
 
   let { refreshMs = 2000 }: { refreshMs?: number } = $props();
 
   let workflows = $state<WorkflowSummary[]>([]);
+  let deleted = $state<WorkflowSummary[]>([]);
   let kinds = $state<EventKind[]>([]);
-  let actions = $state<ActionInfo[]>([]);
   let jobs = $state<Job[]>([]);
   let shown = $state(''); // workflow whose runs are listed ('' = all)
   let openJob = $state('');
@@ -36,15 +37,16 @@
   let error = $state('');
   let busy = $state(false);
 
-  let adding = $state(false);
-  let text = $state('');
-  let problems = $state<Problem[]>([]);
+  // The editor: closed, a new workflow, or an existing one's definition.
+  let editing = $state<{ def?: Def } | undefined>();
+  let deleting = $state<WorkflowSummary | undefined>();
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
 
   async function load() {
     try {
       workflows = (await getWorkflows()).workflows;
+      deleted = (await getDeletedWorkflows()).workflows;
       jobs = (await getJobs(shown || undefined)).jobs;
       loadError = '';
     } catch (e) {
@@ -56,9 +58,6 @@
     load();
     getEventCatalog()
       .then((c) => (kinds = c.kinds))
-      .catch(() => undefined);
-    getActions()
-      .then((a) => (actions = a.actions))
       .catch(() => undefined);
     const t = setInterval(load, refreshMs);
     return () => clearInterval(t);
@@ -79,26 +78,27 @@
     }
   }
 
-  async function save(e: SubmitEvent) {
-    e.preventDefault();
-    problems = [];
-    busy = true;
+  function saved(w: WorkflowSummary, changed: boolean) {
+    editing = undefined;
     error = '';
-    notice = '';
+    notice = changed
+      ? `Saved “${w.name}” as version ${w.version}.${w.enabled ? '' : ' It’s off until you turn it on.'}`
+      : `“${w.name}” is unchanged.`;
+    load();
+  }
+
+  async function edit(w: WorkflowSummary) {
+    error = '';
     try {
-      const r = await saveWorkflow(text);
-      notice = r.changed
-        ? `Saved “${r.workflow.name}” as version ${r.workflow.version}.${r.workflow.enabled ? '' : ' It’s off until you turn it on.'}`
-        : `“${r.workflow.name}” is unchanged.`;
-      adding = false;
-      text = '';
-    } catch (err) {
-      if (err instanceof ProblemsError) problems = err.problems;
-      else error = message(err);
-    } finally {
-      busy = false;
-      await load();
+      editing = { def: (await getWorkflow(w.id)).definition };
+    } catch (e) {
+      error = `Couldn’t open “${w.name}”: ${message(e)}`;
     }
+  }
+
+  function remove(w: WorkflowSummary) {
+    deleting = undefined;
+    act(() => deleteWorkflow(w.id), `Deleted “${w.name}”. You can restore it under “Deleted workflows”.`);
   }
 
   function test(w: WorkflowSummary) {
@@ -114,11 +114,14 @@
   const whyNoTest = (w: WorkflowSummary) =>
     !w.enabled ? 'Turn it on to test it.' : !testable(w) ? 'Its trigger can’t be imitated by a test event yet.' : '';
 
-  const groups = $derived([...new Set(actions.map((a) => a.group))]);
+  const taken = $derived([...workflows, ...deleted].map((w) => w.id));
 </script>
 
 <h1>Workflows</h1>
 
+{#if editing}
+  <WorkflowEditor initial={editing.def} {taken} {workflows} onsaved={saved} oncancel={() => (editing = undefined)} />
+{:else}
 <section class="sg-panel card" aria-labelledby="wf-heading" aria-busy={busy}>
   <h2 id="wf-heading">Your workflows</h2>
   {#if loadError}
@@ -155,69 +158,40 @@
           On
         </label>
         <button type="button" class="button" disabled={busy || !canTest(w)} onclick={() => test(w)}>Test</button>
+        <button type="button" class="button" aria-label={`Edit ${w.name}`} onclick={() => edit(w)}>Edit</button>
         <button type="button" class="button" aria-pressed={shown === w.id} onclick={() => { shown = shown === w.id ? '' : w.id; load(); }}
           >Runs</button
         >
+        <button type="button" class="button button-danger" aria-label={`Delete ${w.name}`} disabled={busy} onclick={() => (deleting = w)}>Delete</button>
       </li>
     {/each}
   </ul>
   <div class="row-actions">
-    {#if !adding}
-      <button type="button" class="sg-button" onclick={() => { adding = true; text = text || example; }}>Add a workflow</button>
-    {/if}
+    <button type="button" class="sg-button" onclick={() => { notice = ''; editing = {}; }}>New workflow</button>
   </div>
   <p class="saved" role="status">{notice}</p>
   {#if error}
     <p class="error" role="alert">{error}</p>
   {/if}
-</section>
-
-{#if adding}
-  <section class="sg-panel card" aria-labelledby="add-heading">
-    <h2 id="add-heading">Add or update a workflow</h2>
-    <p class="sg-muted">
-      Paste a workflow (<code>streamgremlin.workflow/v1</code>). Saving one with an existing id makes a new version. New
-      workflows start off. A plain-words editor is coming.
-    </p>
-    <form class="test-form wide" onsubmit={save}>
-      <label class="field">
-        <span>Workflow</span>
-        <textarea class="sg-input code-input" rows="14" bind:value={text} spellcheck="false"></textarea>
-      </label>
-      {#if problems.length}
-        <div role="alert">
-          <p class="error">It has problems:</p>
-          <ul class="problems">
-            {#each problems as p (p.path + p.message)}
-              <li><code>{p.path}</code>: {p.message}</li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-      <div class="row-actions">
-        <button type="submit" class="sg-button" disabled={busy || !text.trim()}>Save</button>
-        <button type="button" class="button" onclick={() => { adding = false; problems = []; }}>Cancel</button>
-      </div>
-    </form>
-    <details>
-      <summary>Actions you can use</summary>
-      {#each groups as g (g)}
-        <h3>{g}</h3>
-        <dl class="facts">
-          {#each actions.filter((a) => a.group === g) as a (a.name)}
-            <dt><code>{a.name}</code></dt>
-            <dd>
-              {a.label}{a.external ? '' : a.saves_state ? ' (a test event changes it for that run only, never saved)' : ' (runs for test events too)'}.
-              {#if a.params.length}
-                <span class="sg-muted">With: {a.params.map((p) => p.name + (p.required ? '' : '?')).join(', ')}</span>
-              {/if}
-            </dd>
-          {/each}
-        </dl>
-      {/each}
+  {#if deleted.length}
+    <details class="deleted">
+      <summary>Deleted workflows ({deleted.length})</summary>
+      <ul class="secret-list" aria-label="Deleted workflows">
+        {#each deleted as w (w.id)}
+          <li class="secret-row">
+            <span class="secret-info">
+              <strong>{w.name}</strong>
+              <span class="sg-muted secret-saved">Deleted {w.deleted_at ? eventTime(w.deleted_at) : ''}. Its runs and its own saved variables are kept.</span>
+            </span>
+            <button type="button" class="button" aria-label={`Restore ${w.name}`} disabled={busy}
+              onclick={() => act(() => restoreWorkflow(w.id), `Restored “${w.name}”. It’s off until you turn it on.`)}>Restore</button
+            >
+          </li>
+        {/each}
+      </ul>
     </details>
-  </section>
-{/if}
+  {/if}
+</section>
 
 <section class="sg-panel card" aria-labelledby="runs-heading">
   <h2 id="runs-heading">{shown ? `Runs of ${workflows.find((w) => w.id === shown)?.name ?? shown}` : 'Recent runs'}</h2>
@@ -246,3 +220,15 @@
     {/each}
   </ul>
 </section>
+{/if}
+
+{#if deleting}
+  {@const w = deleting}
+  <ConfirmDialog
+    title={`Delete “${w.name}”?`}
+    message="It turns off and leaves this list. Waiting runs are cancelled and a running one is stopped. Its runs and its own saved variables are kept, and you can restore it."
+    confirmLabel="Delete"
+    onconfirm={() => remove(w)}
+    oncancel={() => (deleting = undefined)}
+  />
+{/if}

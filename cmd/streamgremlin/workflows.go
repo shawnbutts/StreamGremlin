@@ -21,6 +21,9 @@ const workflowsUsage = `usage:
   streamgremlin workflows show ID         print the definition
   streamgremlin workflows save FILE       add or update one (new ones start off)
   streamgremlin workflows on|off ID       turn one on or off
+  streamgremlin workflows delete ID       delete one (it can be restored)
+  streamgremlin workflows deleted         list deleted ones
+  streamgremlin workflows restore ID      bring one back, turned off
   streamgremlin runs [-workflow ID]       the newest runs
   streamgremlin runs show RUN             one run's trace
   streamgremlin runs cancel RUN           stop a waiting or running run`
@@ -105,6 +108,34 @@ func workflowsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		default:
 			fmt.Fprintf(stdout, "Saved %s as v%d. It's off: turn it on with `streamgremlin workflows on %s`.\n", out.Workflow.ID, out.Workflow.Version, out.Workflow.ID)
 		}
+		return 0
+	case sub == "deleted" && len(args) == 0:
+		var out struct{ Workflows []workflow.Summary }
+		if code := apiExit(c.Do(ctx, "GET", "/v1/workflows?deleted=true", nil, &out), stderr); code != 0 {
+			return code
+		}
+		if len(out.Workflows) == 0 {
+			fmt.Fprintln(stdout, "No deleted workflows.")
+		}
+		for _, w := range out.Workflows {
+			when := ""
+			if w.DeletedAt != nil {
+				when = "  deleted " + w.DeletedAt.Local().Format("2006-01-02 15:04")
+			}
+			fmt.Fprintf(stdout, "%-28s %s (v%d)%s\n", w.ID, w.Name, w.Version, when)
+		}
+		return 0
+	case sub == "delete" && len(args) == 1:
+		if code := apiExit(c.Do(ctx, "DELETE", "/v1/workflows/"+url.PathEscape(args[0]), nil, nil), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Deleted %s. Bring it back with `streamgremlin workflows restore %s`.\n", args[0], args[0])
+		return 0
+	case sub == "restore" && len(args) == 1:
+		if code := apiExit(c.Do(ctx, "POST", "/v1/workflows/"+url.PathEscape(args[0])+"/restore", nil, nil), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Restored %s. It's off: turn it on with `streamgremlin workflows on %s`.\n", args[0], args[0])
 		return 0
 	case (sub == "on" || sub == "off") && len(args) == 1:
 		if code := apiExit(c.Do(ctx, "PUT", "/v1/workflows/"+url.PathEscape(args[0])+"/enabled", map[string]bool{"enabled": sub == "on"}, nil), stderr); code != 0 {

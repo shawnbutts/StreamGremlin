@@ -1,0 +1,28 @@
+// What every part of the workflow editor needs to know, shared through
+// Svelte context so nested step lists don't pass it down by hand.
+import { getContext, setContext } from 'svelte';
+import type { ActionInfo, PaletteValue, Problem, TriggerEntry, WorkflowSummary } from './api';
+
+export interface EditorEnv {
+  triggers: TriggerEntry[];
+  actions: ActionInfo[];
+  /** Values the workflow's triggers offer, as {tokens}. */
+  values: PaletteValue[];
+  /** Saved variables seen so far, offered as {saved.<scope>.<name>}. */
+  saved: PaletteValue[];
+  workflows: WorkflowSummary[];
+  selfId: string;
+  scenes: string[];
+  sources: string[];
+  problems: Problem[];
+  /** Show rarely used triggers and steps. */
+  more: boolean;
+}
+
+const key = Symbol('editor-env');
+
+export const setEditorEnv = (env: EditorEnv) => setContext(key, env);
+export const editorEnv = () => getContext<EditorEnv>(key);
+
+/** Every value a message can include: the trigger's, then saved variables. */
+export const allValues = (env: EditorEnv) => [...env.values, ...env.saved];

@@ -502,3 +502,20 @@ Chosen while building, under D-007:
 - **A Variables screen** at Ctrl/⌘+5 lists, searches, changes, adds and deletes them. **Settings moves to Ctrl/⌘+6** and stays on Ctrl/⌘+comma.
 - **Action parameters can declare a pattern,** and plain-text values are now checked against choices and patterns when a workflow is saved.
 - **The mocktwitch `Down` switch became `SetDown()`,** fixing a data race in a Twitch test that `make verify` caught during this slice.
+
+## D-016. Choices made while building M1 slice 9 (editor, run another workflow, delete and restore)
+
+Decided 2026-11-08, without asking the user, under D-007. The user said "proceed" to the plan: the plain-words editor, running another workflow, and deleting and restoring. They follow StreamWisp's ADR-0062, ADR-0073 and D-103.
+
+- **The editor, workflow.run, and delete and restore** follow [ADR-0010](adr/0010-editor-run-delete.md).
+- **"Who can use it" is a list in `where`** (`chatter.role: [moderator, broadcaster]`), an additive change to `streamgremlin.workflow/v1`. Test events gain a Role field, so such workflows stay testable.
+- **`workflow.run` runs the other workflow inside the current run,** with the same event and `args`. The workflow must be named literally (chat can never choose it) and must be turned on. Loops and chains more than 4 deep are refused when the run reaches them.
+- **Deleting a workflow keeps its versions, runs and own saved variables** (D-015). Restoring brings it back turned off, and its id stays reserved.
+- **The editor edits the definition itself,** so it never loses what it can't show; a JSON tab stays for that.
+  - Loops (`foreach`) aren't in the editor.
+  - Pasting JSON moved into the editor's JSON tab.
+- **The palette** (`GET /v1/palette`) holds the wording. The app no longer calls `GET /v1/actions`, which stays for scripts.
+- **Not in this slice:**
+  - the template gallery, which is in slice 11's cut;
+  - queued calls to another workflow.
+

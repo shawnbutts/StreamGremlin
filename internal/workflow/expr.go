@@ -20,7 +20,8 @@ import (
 
 // Expressions are CEL: no loops, no side effects, and a cost limit, so a
 // workflow can't hang the engine. Variables: event, vars, steps, job, each
-// and saved (saved.global, saved.viewer, saved.workflow).
+// saved (saved.global, saved.viewer, saved.workflow) and args (what a
+// calling workflow passed).
 
 // costLimit caps one evaluation's work.
 const costLimit = 100_000
@@ -44,6 +45,7 @@ func celEnv() (*cel.Env, error) {
 			cel.Variable("job", cel.DynType),
 			cel.Variable("each", cel.DynType),
 			cel.Variable("saved", cel.DynType),
+			cel.Variable("args", cel.DynType),
 			ext.Strings(),
 			cel.OptionalTypes(),
 			cel.CrossTypeNumericComparisons(true),
@@ -87,6 +89,7 @@ type scope struct {
 	event, vars, steps, job map[string]any
 	each                    map[string]any
 	saved                   map[string]any // global, viewer, workflow: name -> value
+	args                    map[string]any // what a calling workflow passed; empty otherwise
 }
 
 func (s scope) activation() map[string]any {
@@ -98,7 +101,11 @@ func (s scope) activation() map[string]any {
 	if saved == nil {
 		saved = map[string]any{"global": map[string]any{}, "viewer": map[string]any{}, "workflow": map[string]any{}}
 	}
-	return map[string]any{"event": s.event, "vars": s.vars, "steps": s.steps, "job": s.job, "each": each, "saved": saved}
+	args := s.args
+	if args == nil {
+		args = map[string]any{}
+	}
+	return map[string]any{"event": s.event, "vars": s.vars, "steps": s.steps, "job": s.job, "each": each, "saved": saved, "args": args}
 }
 
 // eval runs an expression and returns a plain Go value: string, int64,

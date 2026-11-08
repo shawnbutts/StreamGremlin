@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -329,8 +330,28 @@ func TestCatalogIsWellFormed(t *testing.T) {
 		}
 		seen[k.Type] = true
 		for _, f := range k.Fields {
-			if f.Max <= 0 || (f.Kind != "text" && f.Kind != "number") || len([]rune(f.Default)) > f.Max {
+			if f.Max <= 0 || (f.Kind != "text" && f.Kind != "number" && f.Kind != "choice") || len([]rune(f.Default)) > f.Max ||
+				(f.Kind == "choice") != (len(f.Choices) > 0) || (f.Kind == "choice" && !slices.Contains(f.Choices, f.Default)) {
 				t.Errorf("%s: bad field %+v", k.Type, f)
+			}
+			if f.Path == "" {
+				continue
+			}
+			// A field with a path sets that path: each choice lands there.
+			for _, c := range append([]string{f.Default}, f.Choices...) {
+				env, err := (Simulation{Type: k.Type, RequestID: "p", Fields: map[string]string{f.Name: c}}).Build()
+				if err != nil {
+					t.Fatalf("%s %s=%s: %v", k.Type, f.Name, c, err)
+				}
+				var p map[string]any
+				_ = json.Unmarshal(env.Payload, &p)
+				var got any = p
+				for _, part := range strings.Split(f.Path, ".") {
+					got = got.(map[string]any)[part]
+				}
+				if got != c {
+					t.Errorf("%s: %s=%s set %s to %v", k.Type, f.Name, c, f.Path, got)
+				}
 			}
 		}
 		// Every entry can make a test event from its defaults.

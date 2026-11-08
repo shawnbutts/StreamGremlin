@@ -568,3 +568,143 @@ legend {
   grid-column: 1 / -1;
   margin-top: 0;
 }
+
+/* The workflow editor. */
+.editor h3 {
+  margin: 20px 0 8px;
+}
+
+.editor h4 {
+  margin: 4px 0;
+  font-size: 0.95rem;
+}
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.step-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+}
+
+.step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.step-tools {
+  display: flex;
+  gap: 6px;
+}
+
+.trigger-pick {
+  flex: 1 1 260px;
+}
+
+.nested {
+  display: grid;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 3px solid var(--sg-border);
+}
+
+.condition {
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  padding: 8px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.condition-row,
+.set-row,
+.arg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.condition-row > *,
+.set-row > *,
+.arg-row > .field,
+.arg-row > .message-field {
+  flex: 1 1 160px;
+}
+
+.message-field {
+  display: grid;
+  gap: 4px;
+}
+
+.message-field .insert {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.command-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+}
+
+.command-input input {
+  flex: 1;
+}
+
+.weight {
+  width: 6rem;
+}
+
+.args {
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+  padding: 8px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.more-options summary,
+.deleted summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.more-options[open] {
+  display: grid;
+  gap: 10px;
+}
+
+.add-step {
+  margin-top: 10px;
+  max-width: 420px;
+}
+
+.add-step select {
+  width: 100%;
+}
+
+.more-toggle {
+  margin: 16px 0;
+}
+
+.also ul {
+  margin: 4px 0 0;
+  padding-left: 1.2rem;
+}
+
+.deleted {
+  margin-top: 16px;
+}

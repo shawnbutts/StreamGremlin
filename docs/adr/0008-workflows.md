@@ -27,7 +27,7 @@ Workflows are what Streamer.bot users come for: when something happens (a chat c
 - `type`: exact, `*` for one segment, or a final `**` for the rest;
 - `sources`;
 - `delivery_quality`;
-- `where`: exact equality of payload paths (`chatter.role`) to JSON values, with no type conversion.
+- `where`: exact equality of payload paths (`chatter.role`) to JSON values, with no type conversion. A list matches any of its values ([ADR-0010](0010-editor-run-delete.md)).
 
 Unset `delivery_quality` accepts test events too, which then run as dry runs.
 
@@ -42,7 +42,7 @@ Unset `delivery_quality` accepts test events too, which then run as dry runs.
 Any step may have `id` (for `steps.<id>.status|output|error`), `if` and `on_error: continue`. `finally` steps always run, with their own 10-second budget, so a failed or cancelled run can still clean up.
 
 **Expressions** are CEL (`cel.dev/cel-go` v0.32.0).
-- **Variables:** `event` (type, source, actor, payload, delivery_quality…), `vars`, `steps`, `job`, `each`, and `saved` (variables kept between runs; [ADR-0009](0009-variables.md)).
+- **Variables:** `event` (type, source, actor, payload, delivery_quality…), `vars`, `steps`, `job`, `each`, `saved` (variables kept between runs; [ADR-0009](0009-variables.md)) and `args` (what a calling workflow passed; [ADR-0010](0010-editor-run-delete.md)).
 - **Extensions:** strings, optional fields (`event.payload.?bits.orValue(0)`), and comparisons across number types.
 - **Limits:** cost-limited (100,000 per evaluation) and interruptible. An `if` that isn't true or false is an error, never "false".
 - **Templates in `with`:**

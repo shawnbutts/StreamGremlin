@@ -338,7 +338,8 @@ func TestChooseUsesTheWeights(t *testing.T) {
 	sc := scope{event: map[string]any{}, vars: map[string]any{}, steps: map[string]any{}, job: map[string]any{}}
 	counts := map[int64]int{}
 	for i := 0; i < 2000; i++ {
-		in := &interp{reg: NewRegistry(), sc: sc, budget: 10, now: time.Now}
+		budget := 10
+		in := &interp{reg: NewRegistry(), sc: sc, budget: &budget, now: time.Now}
 		_ = in.step(context.Background(), "s", Step{ID: "c", Choose: []Branch{{Weight: 1}, {Weight: 9}}})
 		counts[in.sc.steps["c"].(map[string]any)["output"].(map[string]any)["branch"].(int64)]++
 	}

@@ -116,13 +116,13 @@ func registerVariableActions(reg *Registry) {
 	}
 	scope := Param{Name: "scope", Label: "Kept for", Type: "choice", Required: true,
 		Choices: []string{string(variables.Global), string(variables.Viewer), string(variables.Workflow)}}
-	name := Param{Name: "name", Label: "Name", Type: "text", Required: true,
+	name := Param{Name: "name", Label: "Name", Type: "text", Required: true, Editor: "variable",
 		Pattern: variables.NamePattern.String(), PatternHint: variables.NameHint}
 	const group = "Variables"
 	reg.Add(Action{
 		Name: "vars.set", Label: "Save a variable", Group: group, SavesState: true,
 		Description: "Keeps a value between runs and restarts: for every workflow (global), for the viewer who caused the event (viewer), or for this workflow only (workflow). Read it as saved.global.<name>, saved.viewer.<name> or saved.workflow.<name>.",
-		Params:      []Param{scope, name, {Name: "value", Label: "Value", Type: "any", Required: true}},
+		Params:      []Param{scope, name, {Name: "value", Label: "Value", Type: "any", Required: true, Editor: "value"}},
 		Run: func(ctx context.Context, c Call) (any, error) {
 			rv, err := c.vars()
 			if err != nil {
@@ -174,7 +174,7 @@ func registerVariableActions(reg *Registry) {
 		},
 	})
 	reg.Add(Action{
-		Name: "vars.delete", Label: "Forget a saved variable", Group: group, SavesState: true,
+		Name: "vars.delete", Label: "Forget a saved variable", Group: group, SavesState: true, More: true,
 		Description: "Removes a saved variable. Forgetting one that isn't there is fine.",
 		Params:      []Param{scope, name},
 		Run: func(ctx context.Context, c Call) (any, error) {

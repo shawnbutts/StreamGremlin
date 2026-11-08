@@ -77,6 +77,7 @@ func New(opts Options) *Engine {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
 	ctx, stop := context.WithCancel(context.Background())
+	registerCoreActions(opts.Actions)
 	if opts.Variables != nil {
 		registerVariableActions(opts.Actions)
 	}
@@ -434,7 +435,9 @@ func (e *Engine) execute(ctx context.Context, id string) (status, errText string
 			e.log.Warn("couldn't record a trace step", "job", id, "err", err)
 		}
 	}
-	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: def.StepBudget(), jobID: id, wfID: job.WorkflowID, vars: rv, now: e.st.now, trace: trace}
+	budget := def.StepBudget()
+	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: &budget, jobID: id, wfID: job.WorkflowID, vars: rv, now: e.st.now,
+		trace: trace, eng: e, chain: []string{job.WorkflowID}}
 	rctx, cancel := context.WithTimeout(ctx, def.TimeoutDuration())
 	runErr := in.run(rctx, "steps", def.Steps)
 	timedOut := errors.Is(rctx.Err(), context.DeadlineExceeded) && ctx.Err() == nil
@@ -444,7 +447,8 @@ func (e *Engine) execute(ctx context.Context, id string) (status, errText string
 		// failed run can still clean up (switch a scene back, say).
 		fctx, fcancel := context.WithTimeout(bg, FinallyBudget)
 		fin := *in
-		fin.budget = DefaultMaxSteps
+		finBudget := DefaultMaxSteps
+		fin.budget = &finBudget
 		if ferr := fin.run(fctx, "finally", def.Finally); ferr != nil && runErr == nil {
 			runErr = fmt.Errorf("finally: %w", ferr)
 		}
@@ -516,11 +520,24 @@ func (t Trigger) matches(r events.Record, payload map[string]any) bool {
 			return false
 		}
 		got, ok := lookup(payload, path)
-		if !ok || !reflect.DeepEqual(normalize(want), got) {
+		if !ok || !whereMatches(normalize(want), got) {
 			return false
 		}
 	}
 	return true
+}
+
+// whereMatches compares one where value: exactly, or any value of a list.
+func whereMatches(want, got any) bool {
+	if list, ok := want.([]any); ok {
+		for _, w := range list {
+			if reflect.DeepEqual(w, got) {
+				return true
+			}
+		}
+		return false
+	}
+	return reflect.DeepEqual(want, got)
 }
 
 func typeMatches(pattern, typ string) bool {

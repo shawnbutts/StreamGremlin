@@ -19,8 +19,15 @@ type Param struct {
 	// PatternHint says it in words.
 	Pattern     string `json:"pattern,omitempty"`
 	PatternHint string `json:"pattern_hint,omitempty"`
-	Required    bool   `json:"required"`
-	Default     any    `json:"default,omitempty"`
+	// Literal parameters must be written out, never computed with ${…},
+	// so chat can never choose them (which workflow to run, say).
+	Literal bool `json:"literal,omitempty"`
+	// Editor says how the plain-words editor shows it: message (text with
+	// values), scene, source, workflow, seconds or variable. Empty means
+	// by Type.
+	Editor   string `json:"editor,omitempty"`
+	Required bool   `json:"required"`
+	Default  any    `json:"default,omitempty"`
 }
 
 // Action is something a step can do.
@@ -36,9 +43,11 @@ type Action struct {
 	// SavesState actions change StreamGremlin's own saved data (variables).
 	// They run for test events too, but the change is kept only for that
 	// run and never saved.
-	SavesState bool                                           `json:"saves_state,omitempty"`
-	Params     []Param                                        `json:"params"`
-	Run        func(ctx context.Context, c Call) (any, error) `json:"-"`
+	SavesState bool `json:"saves_state,omitempty"`
+	// More puts the action behind "More steps…" in the editor.
+	More   bool                                           `json:"more,omitempty"`
+	Params []Param                                        `json:"params"`
+	Run    func(ctx context.Context, c Call) (any, error) `json:"-"`
 }
 
 // Param returns the parameter named name, or nil.

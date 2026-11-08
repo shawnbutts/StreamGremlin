@@ -30,6 +30,8 @@ func workflowError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 			"error":    map[string]string{"code": CodeInvalidRequest, "message": "the workflow has problems"},
 			"problems": inv.Problems,
 		})
+	case errors.Is(err, workflow.ErrDeleted):
+		writeError(w, http.StatusConflict, CodeDeleted, err.Error())
 	case errors.Is(err, workflow.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, "no such workflow or run")
 	case errors.Is(err, workflow.ErrFinished):
@@ -42,10 +44,11 @@ func workflowError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 func workflowRoutes(d Deps) []Route {
 	return []Route{
 		{
-			Method: "GET", Path: "/v1/workflows", Summary: "Every workflow, with its triggers, whether it's on, and its last run.",
+			Method: "GET", Path: "/v1/workflows",
+			Summary:    "Every workflow, with its triggers, whether it's on, and its last run. ?deleted=true lists the deleted ones instead, with deleted_at.",
 			Permission: PermWorkflowsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				list, err := d.Workflows.List(r.Context())
+				list, err := d.Workflows.List(r.Context(), r.URL.Query().Get("deleted") == "true")
 				if err != nil {
 					workflowError(w, r, d, err)
 					return
@@ -97,6 +100,34 @@ func workflowRoutes(d Deps) []Route {
 			},
 		},
 		{
+			Method: "DELETE", Path: "/v1/workflows/{id}",
+			Summary:    "Delete a workflow: it turns off, leaves the list, its waiting runs are cancelled and running ones stopped. Versions, runs and its own saved variables are kept for restore. 404 when there's nothing to delete.",
+			Permission: PermWorkflowsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				if err := d.Workflows.Delete(r.Context(), r.PathValue("id")); err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/workflows/{id}/restore", Summary: "Bring a deleted workflow back, turned off. 404 when it isn't deleted.",
+			Permission: PermWorkflowsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				if err := d.Workflows.Restore(r.Context(), r.PathValue("id")); err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				s, err := d.Workflows.Get(r.Context(), r.PathValue("id"))
+				if err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, s)
+			},
+		},
+		{
 			Method: "PUT", Path: "/v1/workflows/{id}/enabled", Summary: "Turn a workflow on or off. Off cancels its waiting runs.",
 			Permission: PermWorkflowsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
@@ -121,8 +152,17 @@ func workflowRoutes(d Deps) []Route {
 		{
 			Method: "GET", Path: "/v1/actions", Summary: "The actions workflows can use, with their parameters.",
 			Permission: PermWorkflowsRead,
+			CLIOnly:    "for scripts; the app reads the actions from /v1/palette",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, map[string]any{"actions": d.Workflows.Actions().List()})
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/palette",
+			Summary:    "What the workflow editor offers, in plain words: triggers with what they can be limited to and the values messages can include, and the actions with their parameters.",
+			Permission: PermWorkflowsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				writeJSON(w, http.StatusOK, d.Workflows.Palette())
 			},
 		},
 		{

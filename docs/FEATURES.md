@@ -30,15 +30,15 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 |---|---|---|
 | Event inbox, with deduplication and replay | 0004, D-004, D-015 | Spine |
 | Workflows: trigger → steps, queues, timeouts | 0006, 0007, D-017, D-018 | Spine |
-| Run another workflow | 0073, D-116 | Spine |
+| Run another workflow | 0073, D-116; ADR-0010, D-016 | Spine |
 | Traces and runs | 0008, D-019 | Spine |
 | Simulate and dry run | 0015, D-027 | Spine |
-| Plain-words When/Then workflow editor | 0062, D-088 | Spine |
+| Plain-words When/Then workflow editor | 0062, D-088; ADR-0010, D-016 | Spine |
 | Secrets, in the OS keyring or an encrypted file | 0009, D-021 | Spine |
 | Local API and CLI | 0008, 0013 | Spine |
 | Persistent variables: global, per-viewer, per-workflow | not built in StreamWisp; ADR-0009, D-015 | Spine (designed early) |
 | Chat command ownership | 0068, D-094, D-111 | Spine |
-| Delete and restore workflows | D-103 | Spine |
+| Delete and restore workflows | D-103; ADR-0010, D-016 | Spine |
 | Backups and restore | 0047, D-072 | Spine |
 | Configuration export/import | 0048, D-073 | Later |
 | Headless server | D-001 | Not built. The engine boundary is kept so it stays possible (D-003). |
