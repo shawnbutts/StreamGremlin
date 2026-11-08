@@ -434,3 +434,16 @@ Decided 2026-11-08, without asking the user, under D-007.
 - **A Connections screen** (Ctrl/⌘+2) holds the Client ID and both sign-ins. Events moves to Ctrl/⌘+3 and Settings to Ctrl/⌘+4. This order is meant to stay.
 - **Pages open in the system browser,** through an allow-list: twitch.tv/activate, dev.twitch.tv's console and docs, and a local test server's /activate.
 - **`mocktwitch`** stands in for id.twitch.tv in tests and standalone. Using it is always shown as "Test mode", and it is accepted only on a loopback address.
+
+## D-012. Choices made while building M1 slice 5 (Twitch chat)
+
+Decided 2026-11-08, without asking the user, under D-007.
+
+- **Chat** follows [ADR-0006](adr/0006-twitch-chat.md):
+  - reading is one EventSub WebSocket session on your account, reconnecting by itself;
+  - sending uses Helix, as the bot when one is signed in, otherwise as you.
+- **Chat messages and `!commands` become events** (`chat.message.received`, `chat.command.received`). Test events have the same payload, so workflows (slice 7) treat them alike. The bot's own messages are dropped, so StreamGremlin never answers itself.
+- **Sending is never retried**, and failures say whether Twitch held the message, the rate limit stopped it, or the outcome is unknown. Local limits stay under Twitch's: 18 per 30 seconds and one a second for an ordinary bot, 90 per 30 seconds for you or a moderator bot.
+- **If Twitch refuses the bot's token**, the message goes out as you, and the answer says so. No other fallback.
+- **The Connections screen gets a Chat section:** whether chat is read, why not, `/mod <bot>` when the bot isn't a moderator, and a send box.
+- **`coder/websocket` v1.8.14** for the WebSocket. Wails already uses this exact version, so the desktop module gains nothing new.

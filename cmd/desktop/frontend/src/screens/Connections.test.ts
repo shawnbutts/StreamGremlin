@@ -56,6 +56,11 @@ function engine(initial: Parameters<typeof twitchStatus>[0] = {}) {
       return { status: 204, body: null };
     },
     '/desktop/open-url': () => ({ status: 204, body: null }),
+    '/v1/chat/messages': (_m, body) => {
+      const b = body as { text: string; as: string };
+      const asBot = b.as !== 'streamer' && state.bot.state === 'connected';
+      return { status: 200, body: { message_id: 'm1', sent_as: asBot ? 'bot' : 'streamer', login: asBot ? state.bot.login : state.streamer.login } };
+    },
   });
   return {
     calls,
@@ -180,5 +185,70 @@ describe('Connections', () => {
     expect(el.textContent).toContain('Unknown');
     expect(el.textContent).not.toContain('Signed in as');
     void e;
+  });
+
+  it('shows whether chat is read, and sends a message as the bot or as you', async () => {
+    const e = engine({
+      streamer: { state: 'connected', login: 'gremlinstreamer' },
+      bot: { state: 'connected', login: 'gremlinbot' },
+      chat: { state: 'connected', since: '2026-11-08T10:00:00.000Z', bot_moderator: false },
+    });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Reading chat.');
+    expect(el.textContent).toContain('/mod gremlinbot');
+    await noViolations('chat');
+    const input = Array.from(el.querySelectorAll<HTMLLabelElement>('label.field')).find((l) => l.textContent?.includes('Send a message'))!.querySelector('input')!;
+    input.value = 'hello chat';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Send to chat')!.click();
+    await settle(40);
+    expect(el.textContent).toContain('Sent as gremlinbot.');
+    const asYou = el.querySelector<HTMLInputElement>('input[name="send-as"][value="streamer"]')!;
+    asYou.click();
+    flushSync();
+    input.value = 'from me';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Send to chat')!.click();
+    await settle(40);
+    const sends = e.calls.filter((c) => c.path === '/v1/chat/messages').map((c) => c.body as { text: string; as: string });
+    expect(sends).toEqual([{ text: 'hello chat', as: '' }, { text: 'from me', as: 'streamer' }]);
+    expect(el.textContent).toContain('Sent as gremlinstreamer.');
+  });
+
+  it('says plainly when chat is lost, and that missed messages are gone', async () => {
+    engine({
+      streamer: { state: 'connected', login: 's' },
+      chat: { state: 'disconnected', detail: "Lost the chat connection. Trying again. Twitch doesn't resend messages missed while disconnected.", since: '2026-11-08T10:00:00.000Z' },
+    });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Not reading chat right now.');
+    expect(el.textContent).toContain("doesn't resend");
+    expect(el.textContent).not.toContain('Reading chat.');
+  });
+
+  it('explains a message that was not sent, without retrying', async () => {
+    const e = engine({ streamer: { state: 'connected', login: 's' }, chat: { state: 'connected', since: '2026-11-08T10:00:00.000Z' } });
+    e.calls.length = 0;
+    vi.stubGlobal('fetch', vi.fn(async (path: string, init?: RequestInit) => {
+      e.calls.push({ method: init?.method ?? 'GET', path, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      if (path === '/v1/chat/messages') {
+        return new Response(JSON.stringify({ error: { code: 'not_sent', message: "Twitch didn't post the message: held by AutoMod" } }), { status: 422 });
+      }
+      return new Response(JSON.stringify({ twitch: twitchStatus({ streamer: { state: 'connected', login: 's' }, chat: { state: 'connected', since: 'x' } }).body.twitch }), { status: 200 });
+    }));
+    const el = start();
+    await settle(30);
+    const input = Array.from(el.querySelectorAll<HTMLLabelElement>('label.field')).find((l) => l.textContent?.includes('Send a message'))!.querySelector('input')!;
+    input.value = 'spicy';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Send to chat')!.click();
+    await settle(40);
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Not sent: Twitch didn');
+    expect(e.calls.filter((c) => c.path === '/v1/chat/messages')).toHaveLength(1);
   });
 });

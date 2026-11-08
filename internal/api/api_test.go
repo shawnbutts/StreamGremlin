@@ -52,14 +52,15 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	t.Cleanup(mockSrv.Close)
 	mock.SetBase(mockSrv.URL)
 	set := settings.NewStore(db)
-	tw := twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: mockSrv.URL})
+	inbox := events.NewInbox(db, nil)
+	tw := twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: mockSrv.URL, Inbox: inbox})
 	tw.Start(context.Background())
 	t.Cleanup(tw.Close)
 	testMock = mock
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: events.NewInbox(db, nil), Twitch: tw,
+		Events: inbox, Twitch: tw,
 		Now: func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }

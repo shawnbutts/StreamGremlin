@@ -98,7 +98,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err != nil {
 		return nil, err
 	}
-	h.twitch = twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: authURL, Logger: log})
+	inbox := events.NewInbox(h.db, log)
+	h.twitch = twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: authURL, Inbox: inbox, Logger: log})
 	h.twitch.Start(ctx)
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
@@ -112,7 +113,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		DB:        h.db,
 		Settings:  set,
 		Secrets:   sec,
-		Events:    events.NewInbox(h.db, log),
+		Events:    inbox,
 		Twitch:    h.twitch,
 		Logger:    log,
 	}))

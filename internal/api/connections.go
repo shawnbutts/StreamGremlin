@@ -17,6 +17,24 @@ type ClientIDRequest struct {
 	ClientID string `json:"client_id"`
 }
 
+func chatError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
+	var drop *twitch.DropError
+	switch {
+	case errors.Is(err, twitch.ErrInvalid):
+		writeError(w, http.StatusBadRequest, CodeInvalidRequest, err.Error())
+	case errors.Is(err, twitch.ErrNotSignedIn):
+		writeError(w, http.StatusConflict, CodeConflict, "Sign in with your Twitch account to send chat.")
+	case errors.Is(err, twitch.ErrRateLimited):
+		writeError(w, http.StatusTooManyRequests, CodeRateLimited, "Too many chat messages just now; nothing was sent.")
+	case errors.As(err, &drop):
+		writeError(w, http.StatusUnprocessableEntity, CodeNotSent, err.Error())
+	default:
+		// Network trouble or a Twitch refusal: the message may or may not
+		// have been posted, so it isn't retried (ADR-0006).
+		writeError(w, http.StatusBadGateway, CodeUnavailable, err.Error())
+	}
+}
+
 func connectionRoutes(d Deps) []Route {
 	account := func(w http.ResponseWriter, r *http.Request) (*twitch.Account, bool) {
 		a, ok := d.Twitch.Account(twitch.Role(r.PathValue("account")))
@@ -26,6 +44,23 @@ func connectionRoutes(d Deps) []Route {
 		return a, ok
 	}
 	return []Route{
+		{
+			Method: "POST", Path: "/v1/chat/messages",
+			Summary:    "Send a chat message to your channel, as the bot when one is signed in (as: bot or streamer). Never retried.",
+			Permission: PermChatSend,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in twitch.SendRequest
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				res, err := d.Twitch.SendChat(r.Context(), in)
+				if err != nil {
+					chatError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, res)
+			},
+		},
 		{
 			Method: "GET", Path: "/v1/connections",
 			Summary:    "Twitch's Client ID and the streamer's and bot's sign-in states. Never returns tokens.",

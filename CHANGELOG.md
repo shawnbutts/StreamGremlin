@@ -27,6 +27,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - Your own Twitch app's Client ID can be pasted in. Release builds will include StreamGremlin's.
   - `streamgremlin twitch [status|sign-in|sign-out|client-id]`, with `-bot` for the bot account.
   - `mocktwitch`, a stand-in for Twitch's sign-in server, for tests and for trying the app.
+- M1 slice 5, Twitch chat:
+  - StreamGremlin reads your channel's chat while you're signed in. Messages and `!commands` show live on Events. It reconnects by itself, and says so when chat is lost (Twitch doesn't resend missed messages).
+  - **Connections → Twitch → Chat:** whether chat is being read, and a box to send a message as the bot or as you. It explains `/mod` when the bot isn't a moderator.
+  - Sending stays under Twitch's rate limits, is never retried, and says exactly why a message wasn't sent.
+  - The bot's own messages are never treated as viewer chat.
+  - `streamgremlin chat send`. mocktwitch gains chat, with a `/chat` page to type as a viewer.
 
 ### Changed
 

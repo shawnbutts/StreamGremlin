@@ -143,6 +143,11 @@ func printTwitch(w io.Writer, s twitch.Status) {
 	}
 	fmt.Fprintf(w, "You:        %s\n", describeAccount(s.Streamer))
 	fmt.Fprintf(w, "Bot:        %s\n", describeAccount(s.Bot))
+	chat := string(s.Chat.State)
+	if s.Chat.Detail != "" {
+		chat += ". " + s.Chat.Detail
+	}
+	fmt.Fprintf(w, "Chat:       %s\n", chat)
 }
 
 func describeAccount(a twitch.AccountStatus) string {

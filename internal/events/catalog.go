@@ -50,9 +50,11 @@ func Catalog() []Kind {
 			build: func(id string, v map[string]string) (any, *Actor, error) {
 				a := testViewer(v["user"])
 				return map[string]any{
-					"message_id": id,
-					"text":       v["text"],
-					"chatter":    chatter(a),
+					"message_id":   id,
+					"text":         v["text"],
+					"chatter":      chatter(a),
+					"message_type": "text",
+					"color":        "",
 				}, a, nil
 			},
 		},
@@ -77,12 +79,14 @@ func Catalog() []Kind {
 					text += " " + args
 				}
 				return map[string]any{
-					"message_id": id,
-					"text":       text,
-					"command":    strings.ToLower(cmd[1:]),
-					"args":       args,
-					"arg_list":   strings.Fields(args),
-					"chatter":    chatter(a),
+					"message_id":   id,
+					"text":         text,
+					"command":      strings.ToLower(cmd[1:]),
+					"args":         args,
+					"arg_list":     strings.Fields(args),
+					"chatter":      chatter(a),
+					"message_type": "text",
+					"color":        "",
 				}, a, nil
 			},
 		},
@@ -128,7 +132,11 @@ func testViewer(name string) *Actor {
 }
 
 func chatter(a *Actor) map[string]any {
-	return map[string]any{"id": a.ID, "login": a.Login, "display_name": a.DisplayName, "role": "viewer"}
+	// The same shape as real Twitch chat (internal/twitch/chatmsg.go).
+	return map[string]any{
+		"id": a.ID, "login": a.Login, "display_name": a.DisplayName, "badges": []any{}, "role": "viewer",
+		"is_broadcaster": false, "is_moderator": false, "is_vip": false, "is_subscriber": false,
+	}
 }
 
 // Simulation asks for a test event.

@@ -37,6 +37,8 @@ STREAMGREMLIN_TWITCH_AUTH_URL=http://127.0.0.1:7441 ./bin/app/StreamGremlin
 
 Paste any Client ID (ten or more lowercase letters and digits). Sign-in links open the mock's /activate page, where any login can be approved. The Connections screen says "Test mode" the whole time.
 
+To type chat as a viewer, open http://127.0.0.1:7441/chat, set the channel to the login you signed in as, and send. Messages the app sends show there too.
+
 To build with a real Client ID, pass it at build time; never commit it: `make desktop TWITCH_CLIENT_ID=…`.
 
 Tests never touch your real keyring. To check it on purpose, run the one opt-in test, which writes, reads and deletes a single item:

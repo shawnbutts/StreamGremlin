@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import { ApiError, getConnections, openInBrowser, setTwitchClientId, type TwitchStatus } from '../lib/api';
   import TwitchAccount from './TwitchAccount.svelte';
+  import TwitchChat from './TwitchChat.svelte';
 
   let { fastMs = 1500, slowMs = 15_000 }: { fastMs?: number; slowMs?: number } = $props();
 
@@ -161,5 +162,6 @@
       intro="A second Twitch account that sends StreamGremlin’s chat messages, so they don’t appear under your name. Twitch signs in whoever is logged in to twitch.tv in your browser: use a private window, or sign out of twitch.tv first."
       onchange={refresh}
     />
+    <TwitchChat {twitch} />
   </section>
 {/if}

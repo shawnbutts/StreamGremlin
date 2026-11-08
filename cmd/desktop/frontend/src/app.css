@@ -434,6 +434,17 @@ legend {
   margin: 0;
 }
 
+.choice-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.choice-inline input {
+  accent-color: var(--sg-primary);
+}
+
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;

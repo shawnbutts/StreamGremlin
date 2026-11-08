@@ -37,6 +37,8 @@ Commands:
             twitch sign-in [-bot]         sign in with a code at twitch.tv/activate
             twitch sign-out [-bot]        sign out
             twitch client-id ID           use your own Twitch app ("" for the built-in one)
+  chat      Send to your Twitch chat (read it with: events watch -types chat.*).
+            chat send [-as bot|streamer] TEXT
   events    Show events as they arrive, and send test events.
             events [-limit N] [-types chat.*] [-json]      the newest
             events watch [-after SEQ] [-types ...] [-json] follow live
@@ -81,6 +83,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch cmd {
 	case "status":
 		return status(dir, rest, stdout, stderr)
+	case "chat":
+		return chatCmd(dir, rest, stdout, stderr)
 	case "twitch":
 		return twitchCmd(dir, rest, stdout, stderr)
 	case "events":

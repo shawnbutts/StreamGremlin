@@ -4,8 +4,11 @@
 // (a denied or expired code) it picks a plausible message, and the adapter
 // must not depend on its exact wording.
 //
+// It also serves the API endpoints chat uses under /helix, and the
+// EventSub WebSocket at /ws.
+//
 // Use it from tests through New, or standalone with cmd/mocktwitch, whose
-// /activate page stands in for twitch.tv/activate.
+// /activate page stands in for twitch.tv/activate and /chat for typing chat.
 package mocktwitch
 
 import (
@@ -43,6 +46,7 @@ type Server struct {
 	users   map[string]string // login -> user id
 	revoked int
 	base    string
+	chat    chatState
 }
 
 type code struct {
@@ -224,7 +228,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	down := s.Down
 	s.mu.Unlock()
-	if down && !strings.HasPrefix(r.URL.Path, "/activate") {
+	if down && r.URL.Path != "/activate" && r.URL.Path != "/chat" {
 		writeErr(w, http.StatusServiceUnavailable, "Service Unavailable")
 		return
 	}
@@ -239,6 +243,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.revoke(w, r)
 	case r.URL.Path == "/activate":
 		s.activate(w, r)
+	case strings.HasPrefix(r.URL.Path, "/helix/"):
+		s.helix(w, r)
+	case r.URL.Path == "/ws":
+		s.ws(w, r)
+	case r.URL.Path == "/chat":
+		s.chatForm(w, r)
 	default:
 		writeErr(w, http.StatusNotFound, "Not Found")
 	}

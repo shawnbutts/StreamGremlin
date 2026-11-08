@@ -29,6 +29,8 @@ const (
 	// Connections: Twitch's Client ID and sign-ins. No permission returns tokens.
 	PermConnectionsRead  Permission = "connections.read"
 	PermConnectionsWrite Permission = "connections.write"
+	// Chat: sending to your channel's chat.
+	PermChatSend Permission = "chat.send"
 )
 
 // Principal is an authenticated caller.

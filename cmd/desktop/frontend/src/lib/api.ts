@@ -183,7 +183,26 @@ export interface TwitchStatus {
   test_server?: string;
   streamer: AccountStatus;
   bot: AccountStatus;
+  chat: ChatStatus;
 }
+
+export interface ChatStatus {
+  state: 'off' | 'connecting' | 'connected' | 'disconnected';
+  detail?: string;
+  since: string;
+  bot_moderator?: boolean;
+}
+
+export interface SendResult {
+  message_id: string;
+  sent_as: TwitchRole;
+  login: string;
+  note?: string;
+}
+
+/** Send to your Twitch chat. Never retried: a repeat could post twice. */
+export const sendChat = (text: string, as: '' | TwitchRole) =>
+  api<SendResult>('POST', '/v1/chat/messages', { text, as });
 
 export const getConnections = (signal?: AbortSignal) =>
   api<{ twitch: TwitchStatus }>('GET', '/v1/connections', undefined, signal);

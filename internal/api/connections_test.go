@@ -78,3 +78,44 @@ func TestTwitchRoutesCheckAccountAndToken(t *testing.T) {
 		}
 	}
 }
+
+func TestChatSendThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	send := func(body string) (int, string) {
+		w := do(t, s, req{method: "POST", path: "/v1/chat/messages", token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	if code, body := send(`{"text":"hi"}`); code != 409 || !strings.Contains(body, "Sign in") {
+		t.Fatalf("signed out: %d %s", code, body)
+	}
+	do(t, s, req{method: "PUT", path: "/v1/connections/twitch/client-id", token: testToken, body: `{"client_id":"abcdefghij0123456789"}`})
+	w := do(t, s, req{method: "POST", path: "/v1/connections/twitch/streamer/sign-in", token: testToken})
+	var p struct {
+		UserCode string `json:"user_code"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &p)
+	_ = testMock.Approve(p.UserCode, "chatstreamer")
+	deadline := time.Now().Add(5 * time.Second)
+	for connections(t, s).Twitch.Chat.State != "connected" {
+		if time.Now().After(deadline) {
+			t.Fatalf("chat never connected: %+v", connections(t, s).Twitch.Chat)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if code, body := send(`{"text":"hello from the api"}`); code != 200 || !strings.Contains(body, `"sent_as":"streamer"`) {
+		t.Fatalf("send: %d %s", code, body)
+	}
+	if log := testMock.ChatLog(); len(log) != 1 || log[0].Text != "hello from the api" {
+		t.Fatalf("%+v", log)
+	}
+	if code, _ := send(`{"text":""}`); code != 400 {
+		t.Fatalf("empty: %d", code)
+	}
+	testMock.DropNext("automod_held")
+	if code, body := send(`{"text":"held"}`); code != 422 || !strings.Contains(body, "not_sent") {
+		t.Fatalf("dropped: %d %s", code, body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/chat/messages", body: `{"text":"x"}`}); w.Code != 401 {
+		t.Fatalf("no token: %d", w.Code)
+	}
+}

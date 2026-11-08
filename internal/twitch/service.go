@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,18 +56,29 @@ type Options struct {
 	Secrets  *secrets.Store
 	Settings *settings.Store
 	// AuthURL is Twitch's OAuth server; tests and mocktwitch change it.
+	// Anything but the default is a test server that also serves /helix and
+	// the EventSub WebSocket at /ws.
 	AuthURL string
-	Logger  *slog.Logger
+	// Inbox receives chat. Nil keeps chat off.
+	Inbox  *events.Inbox
+	Logger *slog.Logger
 }
 
 // Service owns the streamer's and the bot's sign-ins.
 type Service struct {
-	secrets  *secrets.Store
-	settings *settings.Store
-	oauth    *oauth
-	authURL  string
-	log      *slog.Logger
-	now      func() time.Time
+	secrets     *secrets.Store
+	settings    *settings.Store
+	oauth       *oauth
+	helix       *helix
+	authURL     string
+	eventSubURL string
+	inbox       *events.Inbox
+	limits      limiter
+
+	chatMu sync.Mutex
+	chat   ChatStatus
+	log    *slog.Logger
+	now    func() time.Time
 
 	ctx    context.Context
 	stop   context.CancelFunc
@@ -88,11 +100,18 @@ func New(opts Options) *Service {
 		opts.AuthURL = DefaultAuthURL
 	}
 	ctx, stop := context.WithCancel(context.Background())
+	helixURL, eventSubURL := DefaultHelixURL, DefaultEventSubURL
+	if opts.AuthURL != DefaultAuthURL {
+		helixURL = strings.TrimRight(opts.AuthURL, "/") + "/helix"
+		eventSubURL = "ws" + strings.TrimPrefix(strings.TrimRight(opts.AuthURL, "/"), "http") + "/ws"
+	}
 	s := &Service{
 		secrets: opts.Secrets, settings: opts.Settings, oauth: newOAuth(opts.AuthURL), authURL: opts.AuthURL,
+		helix: newHelix(helixURL), eventSubURL: eventSubURL, inbox: opts.Inbox,
 		log: opts.Logger.With("component", "twitch"), now: time.Now, ctx: ctx, stop: stop,
 		notify: events.NewNotifier(),
 	}
+	s.chat = ChatStatus{State: ChatOff, Since: s.now()}
 	s.streamer = newAccount(s, RoleStreamer, StreamerScopes)
 	s.bot = newAccount(s, RoleBot, BotScopes)
 	return s
@@ -112,6 +131,10 @@ func (s *Service) Start(ctx context.Context) {
 			}
 			a.mu.Unlock()
 		}
+	}
+	if s.inbox != nil {
+		s.wg.Add(1)
+		go s.runChat()
 	}
 	s.wg.Add(1)
 	go func() {
@@ -214,13 +237,14 @@ type Status struct {
 	TestServer string        `json:"test_server,omitempty"`
 	Streamer   AccountStatus `json:"streamer"`
 	Bot        AccountStatus `json:"bot"`
+	Chat       ChatStatus    `json:"chat"`
 	Manifest   Manifest      `json:"manifest"`
 }
 
 // Status returns both accounts' states.
 func (s *Service) Status(ctx context.Context) Status {
 	id, src := s.ClientID(ctx)
-	st := Status{ClientID: id, ClientIDSource: src, HasBuiltIn: BuiltInClientID != "", Streamer: s.streamer.Status(), Bot: s.bot.Status(), Manifest: TwitchManifest()}
+	st := Status{ClientID: id, ClientIDSource: src, HasBuiltIn: BuiltInClientID != "", Streamer: s.streamer.Status(), Bot: s.bot.Status(), Chat: s.ChatStatus(), Manifest: TwitchManifest()}
 	if s.authURL != DefaultAuthURL {
 		st.TestServer = s.authURL
 	}

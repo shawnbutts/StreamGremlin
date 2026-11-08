@@ -98,6 +98,7 @@ export const twitchStatus = (over: { streamer?: Record<string, unknown>; bot?: R
         has_built_in: false,
         streamer: account('streamer', streamer),
         bot: account('bot', bot),
+        chat: { state: 'off', detail: 'Sign in with your Twitch account to read chat.', since: '2026-11-08T10:00:00.000Z' },
         ...rest,
       },
     },

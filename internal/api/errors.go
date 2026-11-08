@@ -16,6 +16,8 @@ const (
 	CodeUnsupportedAPIVersion = "unsupported_api_version"
 	CodeConflict              = "conflict"
 	CodeUnavailable           = "unavailable"
+	CodeRateLimited           = "rate_limited"
+	CodeNotSent               = "not_sent" // Twitch accepted the request but didn't post it
 	CodeInternal              = "internal"
 )
 

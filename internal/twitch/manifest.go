@@ -40,6 +40,12 @@ func TwitchManifest() Manifest {
 			"https://dev.twitch.tv/docs/authentication/validate-tokens/",
 			"https://dev.twitch.tv/docs/authentication/revoke-tokens/",
 			"https://dev.twitch.tv/docs/authentication/register-app/",
+			"https://dev.twitch.tv/docs/eventsub/handling-websocket-events/",
+			"https://dev.twitch.tv/docs/eventsub/eventsub-subscription-types/#channelchatmessage",
+			"https://dev.twitch.tv/docs/api/reference/#create-eventsub-subscription",
+			"https://dev.twitch.tv/docs/api/reference/#send-chat-message",
+			"https://dev.twitch.tv/docs/api/reference/#get-moderated-channels",
+			"https://dev.twitch.tv/docs/chat/",
 		},
 		Capabilities: []Capability{
 			{
@@ -63,11 +69,25 @@ func TwitchManifest() Manifest {
 			{Name: "sign_in.revoke", Support: Supported, Notes: "On sign-out and when replacing a sign-in. Best effort."},
 			{
 				Name: "chat.read", Support: PermissionRequired, Scopes: []string{"user:read:chat"},
-				Notes: "Asked for at the streamer's sign-in; used from slice 5.",
+				Notes: "EventSub WebSocket (wss://eventsub.wss.twitch.tv/ws, 30-second keepalive), channel.chat.message v1 " +
+					"with broadcaster_user_id = user_id = you. Subscribed within 10 seconds of the welcome. A missed keepalive " +
+					"or a close reconnects with backoff and subscribes again; session_reconnect hands over without " +
+					"resubscribing. Twitch doesn't replay messages missed while disconnected, and doesn't say whether a " +
+					"message can arrive twice, so the inbox drops repeats by message_id. Limits: 3 WebSocket connections per " +
+					"user token; StreamGremlin uses one.",
 			},
 			{
 				Name: "chat.send", Support: PermissionRequired, Scopes: []string{"user:write:chat"},
-				Notes: "The streamer's or the bot's sign-in; used from slice 5.",
+				Notes: "POST /helix/chat/messages as you or the bot, 500 characters. Never retried (no idempotency key). " +
+					"is_sent false comes back as not sent, with Twitch's drop reason. for_source_only isn't sent: its " +
+					"default changed in 2025 and it needs an app token. Twitch's limits: 20 per 30 s and 1 per second " +
+					"for an ordinary account, 100 per 30 s for the broadcaster, a moderator or a VIP; past them Twitch " +
+					"ignores the account for an hour. StreamGremlin stops at 18 and 90.",
+			},
+			{
+				Name: "chat.bot_moderator", Support: PermissionRequired, Scopes: []string{"user:read:moderated_channels"},
+				Notes: "GET /helix/moderation/channels with the bot's token, when chat connects, when the bot signs in and " +
+					"hourly; also from the badges on the bot's own messages. VIP status is only learnt from badges.",
 			},
 			{
 				Name: "chat.bot_badge", Support: Unsupported,

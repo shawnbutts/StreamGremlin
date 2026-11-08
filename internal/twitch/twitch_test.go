@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -30,6 +31,7 @@ type rig struct {
 	sec    *secrets.Store
 	set    *settings.Store
 	logBuf *syncBuf
+	inbox  *events.Inbox
 }
 
 type syncBuf struct {
@@ -60,13 +62,14 @@ func newRig(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &rig{t: t, mock: m, url: srv.URL, db: db, dir: dir, sec: sec, set: settings.NewStore(db), logBuf: &syncBuf{}}
+	return &rig{t: t, mock: m, url: srv.URL, db: db, dir: dir, sec: sec, set: settings.NewStore(db), logBuf: &syncBuf{},
+		inbox: events.NewInbox(db, nil)}
 }
 
 // service starts a Service against the mock, as the engine would.
 func (r *rig) service() *Service {
 	r.t.Helper()
-	s := New(Options{Secrets: r.sec, Settings: r.set, AuthURL: r.url,
+	s := New(Options{Secrets: r.sec, Settings: r.set, AuthURL: r.url, Inbox: r.inbox,
 		Logger: slog.New(slog.NewTextHandler(r.logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))})
 	s.pollEvery = 10 * time.Millisecond
 	s.Start(context.Background())
