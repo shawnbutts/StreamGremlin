@@ -47,3 +47,32 @@ export const noSecrets = () => ({
   status: 200,
   body: { store: { kind: 'keyring', label: 'macOS Keychain' }, checked: false, secrets: [] },
 });
+
+export const noEvents = () => ({ status: 200, body: { events: [], head: 0 } });
+
+export const eventCatalog = () => ({
+  status: 200,
+  body: {
+    kinds: [
+      {
+        type: 'chat.message.received',
+        label: 'Chat message',
+        description: 'A viewer sent a message in chat.',
+        sources: ['twitch'],
+        sensitive: true,
+        fields: [
+          { name: 'user', label: 'Viewer', kind: 'text', default: 'TestViewer', max: 25 },
+          { name: 'text', label: 'Message', kind: 'text', default: 'Hello from a test event!', max: 500 },
+        ],
+      },
+      {
+        type: 'broadcast.scene.changed',
+        label: 'OBS scene changed',
+        description: 'OBS switched to another scene.',
+        sources: ['obs'],
+        sensitive: false,
+        fields: [{ name: 'scene_name', label: 'New scene', kind: 'text', default: 'Starting Soon', max: 256 }],
+      },
+    ],
+  },
+});

@@ -404,3 +404,17 @@ Decided 2026-11-08, without asking the user, under D-007.
 - **The screen is a "Passwords and sign-ins" section in Settings,** not a screen of its own. Until slice 4 it shows where secrets would be kept, and an empty list.
 - **Forgetting asks first,** in the app's own dialog (never `window.confirm`), with focus on Cancel.
 - **The baseline schema was rewritten** to add the `secret_store` and `secrets` tables (ADR-0001). A data folder from slice 1 fails the checksum check and has to be moved aside. It held only the theme setting.
+
+## D-010. Choices made while building M1 slice 3 (events)
+
+Decided 2026-11-08, without asking the user, under D-007.
+
+- **Events** follow [ADR-0004](adr/0004-events.md):
+  - StreamWisp's envelope and `<domain>.<entity>.<verb>` names;
+  - an append-only inbox that deduplicates by event id and by the platform's id, where the first event wins a conflict;
+  - every reader keeps its own cursor, with no bus that drops slow readers.
+- **Live events reach the app and the CLI by long polling** (`GET /v1/events?after=&wait=`), not a WebSocket. It works through the desktop bridge as is, and never skips an event.
+- **Test events** imitate their platform's `source` and are marked `synthetic`. Retrying one `request_id` makes one event. The engine builds the payload from a small catalog of the types M1 sends: chat message, chat command, OBS scene change.
+- **A new Events screen** (Ctrl/⌘+2) shows live events, newest first, and a "Send a test event" form. Settings moves to Ctrl/⌘+3.
+- **Migrations change from "rewrite one baseline" to numbered files during development, squashed into one baseline at the first public release** ([ADR-0001](adr/0001-storage.md) updated). Rewriting the baseline every slice would make the user move the data folder aside every time, and from slice 4 that means signing in to Twitch again. Slice 3 adds `0002_events.sql`, and the data folder from slice 2 keeps working.
+- **Event retention** is left to slice 11 (backups), once real streams show the volume.

@@ -14,15 +14,17 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'PUT' | 'POST' | 'DELETE';
 
-export async function api<T>(method: Method, path: string, body?: unknown): Promise<T> {
+export async function api<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let resp: Response;
   try {
     resp = await fetch(path, {
       method,
       headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (e) {
+    if (signal?.aborted) throw e;
     throw new ApiError(0, 'unreachable', "Couldn't reach the engine.");
   }
   const data = await resp.json().catch(() => undefined);
@@ -92,3 +94,62 @@ export const getSecrets = (check = false) =>
 /** Forget one secret. Keys are lowercase segments joined by '/', safe in a path. */
 export const forgetSecret = (key: string) =>
   api<void>('DELETE', `/v1/secrets/${key.split('/').map(encodeURIComponent).join('/')}`);
+
+export type DeliveryQuality = 'confirmed' | 'estimated' | 'synthetic';
+
+export interface EventRecord {
+  seq: number;
+  event_id: string;
+  type: string;
+  schema_version: number;
+  source: string;
+  source_event_id?: string;
+  occurred_at: string;
+  received_at: string;
+  actor?: { platform: string; id: string; login?: string; display_name?: string };
+  payload: Record<string, unknown>;
+  delivery_quality: DeliveryQuality;
+}
+
+export interface EventPage {
+  events: EventRecord[];
+  head: number;
+}
+
+/** The newest events, or with `after`, the ones after that cursor, waiting up to `wait` seconds. */
+export function getEvents(opts: { after?: number; wait?: number; limit?: number }, signal?: AbortSignal) {
+  const q = new URLSearchParams();
+  if (opts.after !== undefined) q.set('after', String(opts.after));
+  if (opts.wait) q.set('wait', String(opts.wait));
+  if (opts.limit) q.set('limit', String(opts.limit));
+  const qs = q.toString();
+  return api<EventPage>('GET', '/v1/events' + (qs ? `?${qs}` : ''), undefined, signal);
+}
+
+export interface EventField {
+  name: string;
+  label: string;
+  kind: 'text' | 'number';
+  default: string;
+  max: number;
+}
+
+export interface EventKind {
+  type: string;
+  label: string;
+  description: string;
+  sources: string[];
+  sensitive: boolean;
+  fields: EventField[];
+}
+
+export const getEventCatalog = () => api<{ kinds: EventKind[] }>('GET', '/v1/events/catalog');
+
+export interface SimulateResult {
+  event: EventRecord;
+  duplicate: boolean;
+}
+
+/** Store a test event. The same requestId never makes a second one. */
+export const simulateEvent = (type: string, fields: Record<string, string>, requestId: string) =>
+  api<SimulateResult>('POST', '/v1/events/simulate', { type, fields, request_id: requestId });

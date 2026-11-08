@@ -2,7 +2,7 @@ import axe from 'axe-core';
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
-import { mockFetch, noSecrets, readyEngine, runningStatus, settle } from './test/helpers';
+import { eventCatalog, mockFetch, noEvents, noSecrets, readyEngine, runningStatus, settle } from './test/helpers';
 
 let app: ReturnType<typeof mount> | undefined;
 
@@ -76,11 +76,18 @@ describe('App', () => {
       '/desktop/info': readyEngine,
       '/v1/status': runningStatus,
       '/v1/secrets': noSecrets,
+      '/v1/events': noEvents,
+      '/v1/events/catalog': eventCatalog,
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();
     await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true }));
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Events');
+    await noViolations('events');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', ctrlKey: true }));
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Settings');

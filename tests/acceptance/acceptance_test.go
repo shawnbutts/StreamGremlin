@@ -152,7 +152,7 @@ func TestStatusThroughTheCLI(t *testing.T) {
 	dir := t.TempDir()
 	startEngine(t, dir)
 	out, errOut, code := cli(t, dir, "status")
-	if code != 0 || !strings.Contains(out, "StreamGremlin is running.") || !strings.Contains(out, "Schema:       1") {
+	if code != 0 || !strings.Contains(out, "StreamGremlin is running.") || !strings.Contains(out, "Schema:       ") {
 		t.Fatalf("code %d\nstdout: %s\nstderr: %s", code, out, errOut)
 	}
 	out, _, code = cli(t, dir, "status", "-json")

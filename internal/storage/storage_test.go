@@ -191,8 +191,10 @@ func TestMigrationNumbering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(migs) != 1 {
-		t.Errorf("%d migrations; before the first public release there is one baseline", len(migs))
+	// Development adds numbered files; they're squashed into one baseline at
+	// the first public release (docs/adr/0001-storage.md, D-010).
+	if len(migs) == 0 || migs[0].Name != "baseline" {
+		t.Errorf("the first migration must be 0001_baseline.sql; got %+v", migs)
 	}
 }
 

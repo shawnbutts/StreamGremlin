@@ -17,6 +17,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/api"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -96,6 +97,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		DB:        h.db,
 		Settings:  settings.NewStore(h.db),
 		Secrets:   sec,
+		Events:    events.NewInbox(h.db, log),
 		Logger:    log,
 	}))
 

@@ -312,6 +312,79 @@ legend {
   gap: 8px;
 }
 
+.event-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.event-row {
+  padding: 10px 12px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+}
+
+.event-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.event-summary {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.event-row details {
+  margin-top: 6px;
+}
+
+.event-row summary {
+  cursor: pointer;
+  color: var(--sg-muted);
+}
+
+.payload {
+  margin: 8px 0 0;
+  padding: 10px;
+  background: var(--sg-surface-raised);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.tag {
+  font-size: 0.8rem;
+  font-weight: 650;
+  padding: 1px 8px;
+  border: 1px solid var(--sg-border);
+  border-radius: 999px;
+  background: var(--sg-surface-raised);
+}
+
+.test-form {
+  display: grid;
+  gap: 10px;
+  max-width: 520px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.field > span {
+  font-weight: 600;
+}
+
+.field-hint {
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;

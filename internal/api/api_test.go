@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -43,7 +44,8 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: settings.NewStore(db), Secrets: sec,
-		Now: func() time.Time { return started.Add(90 * time.Second) },
+		Events: events.NewInbox(db, nil),
+		Now:    func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }
 

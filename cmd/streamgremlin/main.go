@@ -32,6 +32,11 @@ Commands:
   secrets   List saved sign-ins and passwords (never their values).
             secrets [-check] [-json]      list; -check tries reading each
             secrets forget KEY            forget one
+  events    Show events as they arrive, and send test events.
+            events [-limit N] [-types chat.*] [-json]      the newest
+            events watch [-after SEQ] [-types ...] [-json] follow live
+            events simulate TYPE [field=value ...]         send a test event
+            events types                                   types and fields
   version   Print this program's version.
   engine    Run the engine without a window. For development and tests only;
             it is not a supported server (D-008).
@@ -71,6 +76,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch cmd {
 	case "status":
 		return status(dir, rest, stdout, stderr)
+	case "events":
+		return eventsCmd(dir, rest, stdout, stderr)
 	case "secrets":
 		return secretsCmd(dir, rest, stdout, stderr)
 	case "engine":

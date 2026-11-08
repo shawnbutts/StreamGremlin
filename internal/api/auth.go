@@ -23,6 +23,9 @@ const (
 	// Secrets: listing, checking and forgetting. No permission returns values.
 	PermSecretsRead  Permission = "secrets.read"
 	PermSecretsWrite Permission = "secrets.write"
+	// Events: reading the inbox, and storing test events.
+	PermEventsRead     Permission = "events.read"
+	PermEventsSimulate Permission = "events.simulate"
 )
 
 // Principal is an authenticated caller.

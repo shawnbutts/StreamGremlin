@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -20,6 +21,7 @@ type Deps struct {
 	DB        *storage.DB
 	Settings  *settings.Store
 	Secrets   *secrets.Store
+	Events    *events.Inbox
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -103,7 +105,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, secretRoutes(d)...)
+	}, append(secretRoutes(d), eventRoutes(d)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

@@ -21,7 +21,7 @@ The desktop app and the CLI must reach the engine through the same authenticated
 4. A request with an `Origin` header is refused unless that origin is allowed. None are allowed yet: the app's bridge sends no Origin.
 5. Bodies are capped at 1 MiB. JSON is decoded strictly: unknown fields and trailing data are errors.
 6. `Authorization: Bearer <token>` is compared in constant time. The token is 32 random bytes, base64url-encoded, in `<data>/api-token` (mode 0600), created on first start. Deleting the file and restarting rotates it.
-7. Every route declares a permission (`health.read`, `settings.read`, `settings.write`, `secrets.read`, `secrets.write`, and more as slices add them). One function checks it. The token holder is the `admin` principal, with every permission. Later roles add principals without touching routes.
+7. Every route declares a permission (`health.read`, `settings.read`, `settings.write`, `secrets.read`, `secrets.write`, `events.read`, `events.simulate`, and more as slices add them). One function checks it. The token holder is the `admin` principal, with every permission. Later roles add principals without touching routes.
 
 `GET /v1/health` is the only public route. It answers `{"status":"ok"}` and nothing else.
 
