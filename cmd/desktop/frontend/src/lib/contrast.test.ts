@@ -55,3 +55,12 @@ describe.each(['dark', 'light', 'midnight'])('%s theme', (theme) => {
     expect(ratio(t[fg], t[bg])).toBeGreaterThanOrEqual(min);
   });
 });
+
+describe('cursors', () => {
+  it('never shows the busy cursor on a merely disabled button', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+    const rule = css.match(/\.button:disabled,\s*\.sg-button:disabled\s*\{([^}]*)\}/);
+    expect(rule?.[1]).toContain('not-allowed');
+    expect(rule?.[1]).not.toContain('progress');
+  });
+});

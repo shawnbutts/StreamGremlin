@@ -108,15 +108,18 @@
     act(() => simulateEvent(t.type, fields, crypto.randomUUID()), `Sent a test event. “${w.name}” runs as a test: nothing reaches Twitch or OBS.`);
   }
 
-  const canTest = (w: WorkflowSummary) =>
-    w.enabled && w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));
+  const testable = (w: WorkflowSummary) => w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));
+  const canTest = (w: WorkflowSummary) => w.enabled && testable(w);
+  /** Why Test can't be used, said on screen rather than in a hover tip. */
+  const whyNoTest = (w: WorkflowSummary) =>
+    !w.enabled ? 'Turn it on to test it.' : !testable(w) ? 'Its trigger can’t be imitated by a test event yet.' : '';
 
   const groups = $derived([...new Set(actions.map((a) => a.group))]);
 </script>
 
 <h1>Workflows</h1>
 
-<section class="sg-panel card" aria-labelledby="wf-heading">
+<section class="sg-panel card" aria-labelledby="wf-heading" aria-busy={busy}>
   <h2 id="wf-heading">Your workflows</h2>
   {#if loadError}
     <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
@@ -131,6 +134,9 @@
           <span class="sg-muted secret-saved">
             When: {w.triggers.map((t) => describeTrigger(t, kinds)).join('; or ')}
           </span>
+          {#if whyNoTest(w)}
+            <span class="sg-muted secret-saved">{whyNoTest(w)}</span>
+          {/if}
           {#if w.last_job}
             <span class="secret-check">
               <span class={jobOk(w.last_job) ? 'icon-ok' : 'icon-bad'} aria-hidden="true">{jobOk(w.last_job) ? '✓' : '✗'}</span>
@@ -148,9 +154,7 @@
           />
           On
         </label>
-        <button type="button" class="button" disabled={busy || !canTest(w)} onclick={() => test(w)}
-          title={w.enabled ? 'Send a test event that starts it' : 'Turn it on to test it'}>Test</button
-        >
+        <button type="button" class="button" disabled={busy || !canTest(w)} onclick={() => test(w)}>Test</button>
         <button type="button" class="button" aria-pressed={shown === w.id} onclick={() => { shown = shown === w.id ? '' : w.id; load(); }}
           >Runs</button
         >

@@ -220,10 +220,18 @@ legend {
   background: var(--sg-surface-hover);
 }
 
+/* A disabled button is just unavailable. Only a section waiting on the
+   engine shows the busy cursor (macOS draws it as a spinning wheel, which
+   looks like a hang). */
 .button:disabled,
 .sg-button:disabled {
-  cursor: progress;
+  cursor: not-allowed;
   opacity: 0.75;
+}
+
+[aria-busy='true'] .button:disabled,
+[aria-busy='true'] .sg-button:disabled {
+  cursor: progress;
 }
 
 .button-danger {

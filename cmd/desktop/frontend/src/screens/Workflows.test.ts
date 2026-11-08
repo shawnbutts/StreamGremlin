@@ -107,10 +107,12 @@ describe('Workflows', () => {
     expect(el.textContent).toContain('It’s off until you turn it on.');
     expect(el.textContent).toContain('When: Chat command !hello');
     expect(button(el, 'Test')!.disabled).toBe(true); // off: can't test yet
+    expect(el.textContent).toContain('Turn it on to test it.');
 
     el.querySelector<HTMLInputElement>('input[role="switch"]')!.click();
     await settle(60);
     expect(e.wfs[0].enabled).toBe(true);
+    expect(el.textContent).not.toContain('Turn it on to test it.');
     button(el, 'Test')!.click();
     await settle(60);
     const sim = e.calls.find((c) => c.path === '/v1/events/simulate')!.body as { type: string; fields: Record<string, string> };
