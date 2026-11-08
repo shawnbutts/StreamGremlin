@@ -43,10 +43,12 @@ func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service) {
 		},
 	})
 
+	sendAs := choice("as", "Send as", false, "bot", "streamer")
+	sendAs.DefaultHint = "The bot if one is signed in, otherwise you"
 	reg.Add(workflow.Action{
 		Name: "chat.send", Label: "Send a chat message", Group: "Twitch", External: true,
 		Description: "Posts in your Twitch chat, as the bot when one is signed in. Never retried: a repeat could post twice.",
-		Params: []workflow.Param{edited(text("message", "Message", true), "message"), choice("as", "Send as", false, "bot", "streamer"),
+		Params: []workflow.Param{edited(text("message", "Message", true), "message"), sendAs,
 			text("reply_to", "Reply to message id", false)},
 		Run: func(ctx context.Context, c workflow.Call) (any, error) {
 			msg, err := c.String("message", "")

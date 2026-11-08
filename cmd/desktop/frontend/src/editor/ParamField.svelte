@@ -60,7 +60,7 @@
   <label class="field">
     <span>{label}</span>
     <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
-      <option value="">{param.required ? 'Choose…' : 'The usual'}</option>
+      <option value="">{param.required ? 'Choose…' : (param.default_hint ?? 'Leave it unset')}</option>
       {#each param.choices ?? [] as c (c)}<option value={c}>{c}</option>{/each}
     </select>
   </label>

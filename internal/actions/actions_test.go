@@ -35,6 +35,11 @@ func TestEveryActionCanBeShownInTheEditor(t *testing.T) {
 				if len(prm.Choices) == 0 {
 					t.Errorf("%s.%s: a choice with no choices", a.Name, prm.Name)
 				}
+				// The editor offers "leave it unset" as an option, so it must
+				// say what that does.
+				if !prm.Required && prm.DefaultHint == "" {
+					t.Errorf("%s.%s: an optional choice needs a DefaultHint", a.Name, prm.Name)
+				}
 			default:
 				t.Errorf("%s.%s: type %q", a.Name, prm.Name, prm.Type)
 			}

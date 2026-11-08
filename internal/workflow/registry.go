@@ -25,9 +25,12 @@ type Param struct {
 	// Editor says how the plain-words editor shows it: message (text with
 	// values), scene, source, workflow, seconds or variable. Empty means
 	// by Type.
-	Editor   string `json:"editor,omitempty"`
-	Required bool   `json:"required"`
-	Default  any    `json:"default,omitempty"`
+	Editor string `json:"editor,omitempty"`
+	// DefaultHint says, in words, what happens when an optional parameter
+	// is left unset ("The bot if one is signed in, otherwise you").
+	DefaultHint string `json:"default_hint,omitempty"`
+	Required    bool   `json:"required"`
+	Default     any    `json:"default,omitempty"`
 }
 
 // Action is something a step can do.

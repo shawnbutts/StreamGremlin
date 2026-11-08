@@ -360,6 +360,8 @@ export interface ActionParam {
   literal?: boolean;
   /** How the editor shows it: message, scene, source, workflow, variable or value. */
   editor?: string;
+  /** What leaving an optional parameter unset does, in words. */
+  default_hint?: string;
 }
 
 export interface ActionInfo {

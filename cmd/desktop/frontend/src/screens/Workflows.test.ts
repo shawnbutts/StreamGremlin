@@ -88,7 +88,7 @@ const palette: Palette = {
       name: 'chat.send', label: 'Send a chat message', description: 'Posts in your chat.', group: 'Twitch', external: true,
       params: [
         { name: 'message', label: 'Message', type: 'text', required: true, editor: 'message' },
-        { name: 'as', label: 'Send as', type: 'choice', choices: ['bot', 'streamer'], required: false },
+        { name: 'as', label: 'Send as', type: 'choice', choices: ['bot', 'streamer'], required: false, default_hint: 'The bot if one is signed in, otherwise you' },
       ],
     },
     {
@@ -208,6 +208,7 @@ describe('Workflows', () => {
     msg.setSelectionRange(3, 3);
     set(byLabel<HTMLSelectElement>(el, 'Insert a value into Message'), 'viewer');
     expect(msg.value).toBe('Hi {viewer}');
+    expect(field<HTMLSelectElement>(el, 'Send as').selectedOptions[0].textContent).toBe('The bot if one is signed in, otherwise you');
     set(msg, 'Hi {viewer}!');
     await noViolations('the editor');
     button(el, 'Save')!.click();
