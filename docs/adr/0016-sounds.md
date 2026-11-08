@@ -66,7 +66,7 @@ F2 needs sounds: a follow plays a chime, a redemption an air horn (D-004; FEATUR
   Both are External: a test event never makes a sound, and the trace shows what would have played. A retried step with the same idempotency key doesn't play again for an hour, including when the window didn't answer (it may have played). A refused play isn't remembered, so a retry tries again.
 - **API**, with new permissions `sounds.read` and `sounds.write`:
   - `GET /v1/sounds` (with `player`: whether a window is playing);
-  - `POST /v1/sounds/{name}?volume=`: the body is the audio. Routes can now set their own body limit; this one is 5 MB, and the rest keep 1 MiB.
+  - `POST /v1/sounds/{name}?volume=`: the body is the audio. The app reads the file and sends its bytes: macOS's webview drops a `File` or `Blob` body on requests to the app's own scheme. Routes can now set their own body limit; this one is 5 MB, and the rest keep 1 MiB.
   - `PUT /v1/sounds/{name} {volume}`;
   - `DELETE /v1/sounds/{name}`;
   - `GET /v1/sounds/{name}/audio`;

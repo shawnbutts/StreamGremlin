@@ -715,14 +715,18 @@ export const getSounds = () => api<{ sounds: Sound[]; player: boolean }>('GET', 
 /** The audio's URL, for the player and for previews. */
 export const soundURL = (name: string) => `/v1/sounds/${encodeURIComponent(name)}/audio`;
 
-/** Add a sound: the file's bytes go as they are; the engine checks them. */
+/** Add a sound: the file's bytes go as they are; the engine checks them.
+ * They're read first and sent as bytes: macOS's webview drops a File or
+ * Blob sent as a request body to the app's own scheme, so the engine got
+ * nothing (found in the slice 4 live check). */
 export async function addSound(name: string, file: Blob, volume: number): Promise<Sound> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
   let resp: Response;
   try {
     resp = await fetch(`/v1/sounds/${encodeURIComponent(name)}?volume=${volume}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
-      body: file,
+      body: bytes,
     });
   } catch {
     throw new ApiError(0, 'unreachable', "Couldn't reach the engine.");

@@ -79,6 +79,10 @@
   async function add(e: SubmitEvent) {
     e.preventDefault();
     if (!file) return;
+    if (file.size === 0) {
+      formError = 'That file is empty.';
+      return;
+    }
     if (file.size > MAX_BYTES) {
       formError = 'A sound is up to 5 MB.';
       return;

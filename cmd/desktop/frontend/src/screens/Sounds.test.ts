@@ -54,7 +54,7 @@ function engine(initial: Sound[], opts: { player?: boolean; refusePlay?: string 
     if (i?.method === 'POST' && p.startsWith('/v1/sounds/') && p.includes('?volume=')) {
       const name = p.split('/')[3].split('?')[0];
       calls.push({ method: 'POST', path: p, body: i.body });
-      const s: Sound = { name, format: 'wav', size: (i.body as Blob).size, sha256: 'y', volume: Number(p.split('volume=')[1]), created_at: now, updated_at: now };
+      const s: Sound = { name, format: 'wav', size: (i.body as Uint8Array).length, sha256: 'y', volume: Number(p.split('volume=')[1]), created_at: now, updated_at: now };
       sounds.push(s);
       return new Response(JSON.stringify(s), { status: 201 });
     }
@@ -101,7 +101,8 @@ describe('Sounds', () => {
     await settle();
     expect(el.textContent).toContain('No sounds yet.');
     const input = el.querySelector<HTMLInputElement>('input[type="file"]')!;
-    const file = new File([new Uint8Array(100)], 'Big Boom!.wav', { type: 'audio/wav' });
+    const data = new Uint8Array(100).map((_, i) => i);
+    const file = new File([data], 'Big Boom!.wav', { type: 'audio/wav' });
     Object.defineProperty(input, 'files', { value: [file] });
     input.dispatchEvent(new Event('change', { bubbles: true }));
     flushSync();
@@ -110,7 +111,9 @@ describe('Sounds', () => {
     await settle();
     const post = calls.find((c) => c.method === 'POST')!;
     expect(post.path).toBe('/v1/sounds/big-boom?volume=80');
-    expect(post.body).toBe(file);
+    // The bytes themselves, never the File: macOS's webview drops a File body.
+    expect(post.body).toBeInstanceOf(Uint8Array);
+    expect(Array.from(post.body as Uint8Array)).toEqual(Array.from(data));
     expect(el.textContent).toContain('Added big-boom.');
   });
 

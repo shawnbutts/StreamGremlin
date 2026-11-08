@@ -153,7 +153,7 @@ func (s *Store) Add(ctx context.Context, name string, data []byte, volume int, n
 		return Sound{}, false, invalid("the volume is 0 to 100")
 	}
 	if len(data) == 0 {
-		return Sound{}, false, invalid("the file is empty")
+		return Sound{}, false, invalid("no audio arrived: the file is empty, or it wasn't sent")
 	}
 	if len(data) > MaxBytes {
 		return Sound{}, false, invalid("a sound is up to %d MB", MaxBytes>>20)
