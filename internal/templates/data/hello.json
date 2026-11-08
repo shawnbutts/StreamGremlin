@@ -1,0 +1,34 @@
+{
+  "template": {
+    "id": "hello",
+    "title": "Say hello back",
+    "category": "Chat commands",
+    "description": "!hello answers the viewer by name.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.hello",
+    "name": "Say hello back",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "hello"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Hi ${event.actor.display_name}! 👋"
+        }
+      }
+    ]
+  }
+}

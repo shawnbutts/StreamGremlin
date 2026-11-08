@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"code.streamgremlin.com/streamgremlin/internal/commands"
+	"code.streamgremlin.com/streamgremlin/internal/templates"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -176,6 +177,19 @@ func workflowRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, map[string]any{"commands": list})
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/templates",
+			Summary:    "Ready-made workflows for the gallery: each with its title, category, the blanks to fill in, and the workflow. Data only; nothing is added until saved.",
+			Permission: PermWorkflowsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				list, err := templates.All()
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"templates": list, "categories": templates.Categories})
 			},
 		},
 		{

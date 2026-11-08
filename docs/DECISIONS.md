@@ -563,3 +563,29 @@ Decided 2026-11-08 under D-007. The user said "proceed" to splitting slice 11 in
 - **`GET /v1/overview`** (`health.read`) computes all of it in Go (`internal/overview`, a plain function of the services' states), so the app and `streamgremlin status` say the same. `status` now prints Needs you and, until set up, the checklist.
 - **No wizard and no auto-added workflows:** a wizard blocks a returning streamer and duplicates Connections. Templates are offered in 11b, never added unasked.
 
+## D-019. Templates and help (M1 slice 11b)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to the plan: a template gallery and help in the app. The gallery follows StreamWisp's ADR-0062 and D-109.
+
+- **New workflow opens a gallery:** "Start from scratch", and templates by category.
+  - **Chat commands:** Lurk, Say hello back, Hug (random replies), Shoutout (mods and you), Death counter (mods and you), Roll a die.
+  - **Scenes:** Be right back (mods and you), Back from the break.
+  - **Stream:** We're live.
+- **A template is never added unasked.** It opens in the editor, turned off, and is saved only when the streamer saves. The gallery says when you already have it, or when its command is already answered.
+- **Blanks:** a template marks the values to fill in, such as Be right back's break scene. The editor lists them, ticks each as it's filled, and refuses to save while one is empty, showing it at its step.
+- **Templates are data in the build** (`internal/templates`, embedded JSON in the ordinary workflow format, with a title, category, description and blanks). They're served at `GET /v1/templates` and printed by `streamgremlin templates [show ID]`.
+- **A test runs every template through the real engine:**
+  - it's valid with its blanks filled;
+  - each blank is an empty string at its path;
+  - no two templates answer one command, so all can be on together;
+  - each runs to the end on a matching test event.
+- **A template keeps its own id** (`chat.brb`) while it's free; otherwise the id follows the name.
+- **Help:**
+  - **a Help screen** (Ctrl/⌘+6): getting started, how the parts fit (connections, events, workflows, Test, runs and traces, one answer per command, variables, "Unknown"), keyboard shortcuts, and where your data lives;
+  - a one-line intro under each screen's title;
+  - "How values and conditions work" in the editor.
+
+  Help for a field stays beside the field.
+- **Settings moves to Ctrl/⌘+7,** and keeps Ctrl/⌘+comma (D-014: Settings is always last).
+- **The example workflows stay** in `examples/workflows/` for development and the CLI; the templates are what the app offers.
+

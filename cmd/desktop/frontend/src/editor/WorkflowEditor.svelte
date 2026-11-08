@@ -12,25 +12,35 @@
     getSceneItems,
     getVariables,
     saveWorkflow,
+    type Blank,
     type PaletteValue,
     type Problem,
     type Trigger,
     type WorkflowSummary,
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
-  import { emptyDefinition, idFromName, problemsAt, validId, type Def } from '../lib/editor';
+  import { emptyDefinition, idFromName, problemsAt, unfilled, validId, type Def } from '../lib/editor';
   import { setEditorEnv, type EditorEnv } from '../lib/editorEnv';
   import StepList from './StepList.svelte';
   import TriggerCard from './TriggerCard.svelte';
 
   let {
     initial,
+    fresh = false,
+    blanks = [],
+    title = '',
     taken = [],
     workflows = [],
     onsaved,
     oncancel,
   }: {
     initial?: Def;
+    /** A new workflow started from a template (initial), not an existing one. */
+    fresh?: boolean;
+    /** The template's values to fill in before saving. */
+    blanks?: Blank[];
+    /** The template's title, for the heading. */
+    title?: string;
     taken?: string[];
     workflows?: WorkflowSummary[];
     onsaved: (w: WorkflowSummary, changed: boolean) => void;
@@ -38,12 +48,14 @@
   } = $props();
 
   // svelte-ignore state_referenced_locally
-  const isNew = !initial;
+  const isNew = !initial || fresh;
   // svelte-ignore state_referenced_locally
   let def = $state<Def>(JSON.parse(JSON.stringify(initial ?? emptyDefinition())));
   // svelte-ignore state_referenced_locally
   let start = JSON.stringify(def); // what it was when opened, to tell if it changed
-  let idTouched = $state(false);
+  // A template keeps its own id unless that's taken; then the id follows the name.
+  // svelte-ignore state_referenced_locally
+  let idTouched = $state(fresh && !!initial?.id && !taken.includes(initial.id as string));
   let tab = $state<'editor' | 'json'>('editor');
   let jsonText = $state('');
   let jsonError = $state('');
@@ -80,7 +92,9 @@
     }
     loading = false;
     getCommands()
-      .then((r) => (env.commands = r.commands))
+      .then((r) => {
+        env.commands = r.commands;
+      })
       .catch(() => undefined);
     getVariables()
       .then((r) => {
@@ -155,9 +169,10 @@
 
   async function save() {
     if (tab === 'json' && !applyJSON()) return;
-    busy = true;
     error = '';
-    env.problems = [];
+    env.problems = unfilled(def, blanks);
+    if (env.problems.length) return; // the template's blanks, shown at their places
+    busy = true;
     try {
       const r = await saveWorkflow(JSON.stringify(def));
       start = JSON.stringify(def);
@@ -180,7 +195,22 @@
 </script>
 
 <section class="sg-panel card editor" aria-labelledby="editor-heading" aria-busy={busy}>
-  <h2 id="editor-heading">{isNew ? 'New workflow' : `Edit “${initial?.name ?? def.name}”`}</h2>
+  <h2 id="editor-heading">{title ? `New workflow from “${title}”` : isNew ? 'New workflow' : `Edit “${initial?.name ?? def.name}”`}</h2>
+  {#if blanks.length}
+    {@const left = unfilled(def, blanks)}
+    <div class={left.length ? 'fill-in' : 'fill-in fill-in-done'} role="status">
+      {#if left.length}
+        <p><strong>Fill in before saving:</strong></p>
+        <ul>
+          {#each blanks as b (b.path)}
+            <li>{left.some((l) => l.path === b.path) ? '○' : '✓'} {b.hint}</li>
+          {/each}
+        </ul>
+      {:else}
+        <p>✓ Everything to fill in is filled in.</p>
+      {/if}
+    </div>
+  {/if}
   <div class="segmented" role="group" aria-label="View">
     <button type="button" class="button" aria-pressed={tab === 'editor'} onclick={showEditor}>Editor</button>
     <button type="button" class="button" aria-pressed={tab === 'json'} onclick={showJSON}>JSON</button>
@@ -224,6 +254,22 @@
         <input type="checkbox" bind:checked={env.more} />
         Show rarely used triggers and steps
       </label>
+
+      <details class="more-options help-box">
+        <summary>How values and conditions work</summary>
+        <p>
+          <strong>Values</strong> in curly braces are filled in when the workflow runs: <code>{'{viewer}'}</code> is the name of the
+          viewer who typed the command. Use <em>Insert a value</em> beside a message to add one. Others you can type:
+          <code>{'{saved.global.deaths}'}</code> (a saved variable), <code>{'{vars.face}'}</code> (remembered earlier in this run),
+          <code>{'{steps.n.output.value}'}</code> (what step <code>n</code> gave back; name a step under its More options) and
+          <code>{'{args.text}'}</code> (a value another workflow passed in).
+        </p>
+        <p>
+          <strong>Conditions</strong> compare a value with a text: “is” and “is not” match exactly, “contains” ignores capitals, and
+          “is more than” and “is less than” compare numbers. Anything fancier can be written as an expression.
+        </p>
+        <p><strong>Test</strong> on the workflow list runs it with a test event: nothing reaches your chat or OBS, and saved variables don’t change.</p>
+      </details>
 
       <details class="more-options">
         <summary>Advanced</summary>

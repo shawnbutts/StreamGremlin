@@ -151,3 +151,11 @@ func TestOverviewThroughTheAPI(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 }
+
+func TestTemplatesThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	w := do(t, s, req{method: "GET", path: "/v1/templates", token: testToken})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"id":"brb"`) || !strings.Contains(w.Body.String(), `"blanks":[{"path":"$.steps[0].with.scene"`) {
+		t.Fatalf("%d %.400s", w.Code, w.Body)
+	}
+}

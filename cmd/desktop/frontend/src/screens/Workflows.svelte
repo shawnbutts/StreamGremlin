@@ -14,6 +14,7 @@
     restoreWorkflow,
     setWorkflowEnabled,
     simulateEvent,
+    type Blank,
     type CommandEntry,
     type EventKind,
     type Job,
@@ -21,6 +22,7 @@
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import type { Def } from '../lib/editor';
+  import TemplateGallery from '../editor/TemplateGallery.svelte';
   import { eventTime } from '../lib/events';
   import { describeTrigger, forWhom, jobOk, jobWords, testFields } from '../lib/workflows';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
@@ -41,7 +43,9 @@
   let busy = $state(false);
 
   // The editor: closed, a new workflow, or an existing one's definition.
-  let editing = $state<{ def?: Def } | undefined>();
+  // The editor: closed, the template gallery, or a definition to edit
+  // (from a template: fresh, with its blanks).
+  let editing = $state<{ gallery?: boolean; def?: Def; fresh?: boolean; blanks?: Blank[]; title?: string } | undefined>();
   let deleting = $state<WorkflowSummary | undefined>();
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
@@ -125,9 +129,25 @@
 </script>
 
 <h1>Workflows</h1>
+<p class="sg-muted screen-intro">A workflow does something when something happens, like answering !hello or switching scenes on !brb. Start from a template or build your own.</p>
 
-{#if editing}
-  <WorkflowEditor initial={editing.def} {taken} {workflows} onsaved={saved} oncancel={() => (editing = undefined)} />
+{#if editing?.gallery}
+  <TemplateGallery
+    {workflows}
+    onpick={(t) => (editing = t ? { def: t.workflow, fresh: true, blanks: t.blanks, title: t.title } : {})}
+    oncancel={() => (editing = undefined)}
+  />
+{:else if editing}
+  <WorkflowEditor
+    initial={editing.def}
+    fresh={editing.fresh}
+    blanks={editing.blanks}
+    title={editing.title}
+    {taken}
+    {workflows}
+    onsaved={saved}
+    oncancel={() => (editing = undefined)}
+  />
 {:else}
 <section class="sg-panel card" aria-labelledby="wf-heading" aria-busy={busy}>
   <h2 id="wf-heading">Your workflows</h2>
@@ -179,7 +199,7 @@
     {/each}
   </ul>
   <div class="row-actions">
-    <button type="button" class="sg-button" onclick={() => { notice = ''; editing = {}; }}>New workflow</button>
+    <button type="button" class="sg-button" onclick={() => { notice = ''; editing = { gallery: true }; }}>New workflow</button>
   </div>
   <p class="saved" role="status">{notice}</p>
   {#if error}

@@ -1,0 +1,39 @@
+{
+  "template": {
+    "id": "shoutout",
+    "title": "Shoutout",
+    "category": "Chat commands",
+    "description": "!so name (mods and you) tells chat to go follow another streamer.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.shoutout",
+    "name": "Shoutout",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "so",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Go show ${event.payload.arg_list[?0].orValue(\"\").replace(\"@\", \"\")} some love at https://twitch.tv/${event.payload.arg_list[?0].orValue(\"\").replace(\"@\", \"\")} 💜"
+        }
+      }
+    ]
+  }
+}

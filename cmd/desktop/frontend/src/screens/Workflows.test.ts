@@ -105,6 +105,25 @@ const palette: Palette = {
   ],
 };
 
+const templates = {
+  categories: ['Chat commands', 'Scenes', 'Stream'],
+  templates: [
+    {
+      id: 'brb', title: 'Be right back', category: 'Scenes', description: '!brb switches to your break scene.', starter: true,
+      blanks: [{ path: '$.steps[0].with.message', hint: 'What to say in chat' }],
+      workflow: {
+        schema: 'streamgremlin.workflow/v1', id: 'chat.brb', name: 'Be right back',
+        triggers: [{ type: 'chat.command.received', where: { command: 'brb', 'chatter.role': ['moderator', 'broadcaster'] } }],
+        steps: [{ action: 'chat.send', with: { message: '', as: 'streamer' } }],
+      },
+    },
+    {
+      id: 'hello', title: 'Say hello back', category: 'Chat commands', description: '!hello answers by name.', starter: true, blanks: [],
+      workflow: { schema: 'streamgremlin.workflow/v1', id: 'chat.hello', name: 'Say hello back', triggers: [{ type: 'chat.command.received', where: { command: 'hello' } }], steps: [{ action: 'chat.send', with: { message: 'Hi ${event.actor.display_name}!' } }] },
+    },
+  ],
+};
+
 const now = () => new Date().toISOString();
 
 function engine(initial: { wfs?: WorkflowSummary[]; defs?: Record<string, unknown>; deleted?: WorkflowSummary[] } = {}) {
@@ -136,6 +155,8 @@ function engine(initial: { wfs?: WorkflowSummary[]; defs?: Record<string, unknow
     '/v1/jobs': () => ({ status: 200, body: { jobs } }),
     '/v1/palette': () => ({ status: 200, body: palette }),
     '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
+    '/v1/templates': () => ({ status: 200, body: templates }),
+    '/v1/workflows/chat.brb': save('chat.brb'),
     '/v1/variables': () => ({
       status: 200,
       body: { variables: [{ scope: 'global', owner: '', name: 'deaths', value: 3, updated_at: now(), updated_by: 'you' }] },
@@ -210,6 +231,7 @@ function engineWithRefusal() {
     '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
     '/v1/commands': () => ({ status: 200, body: { commands } }),
     '/v1/palette': () => ({ status: 200, body: palette }),
+    '/v1/templates': () => ({ status: 200, body: templates }),
     '/v1/variables': () => ({ status: 200, body: { variables: [] } }),
     '/v1/obs/scenes': () => ({ status: 409, body: { error: { code: 'not_connected', message: 'no' } } }),
     '/v1/events/catalog': () => ({ status: 200, body: catalog }),
@@ -230,6 +252,8 @@ describe('Workflows', () => {
     await settle(40);
     expect(el.textContent).toContain('No workflows yet');
     button(el, 'New workflow')!.click();
+    await settle(40);
+    button(el, 'Start from scratch')!.click();
     await settle(40);
     expect(el.querySelector('h2')!.textContent).toBe('New workflow');
 
@@ -280,6 +304,34 @@ describe('Workflows', () => {
     await noViolations('the list');
   });
 
+  it('starts from a template, and won’t save until its blanks are filled in', async () => {
+    const e = engine({ wfs: [{ id: 'chat.hello', name: 'Say hello back', enabled: true, version: 1, updated_at: now(), triggers: [] }] });
+    const el = start();
+    await settle(40);
+    button(el, 'New workflow')!.click();
+    await settle(40);
+    const gallery = el.querySelector('section[aria-labelledby="gallery-heading"]')!;
+    expect(gallery.querySelector('[aria-label="Scenes"]')!.textContent).toContain('1 thing to fill in');
+    expect(gallery.textContent).toContain('You already have “Say hello back”');
+    await noViolations('gallery');
+    button(el, 'Use Be right back')!.click();
+    await settle(60);
+    expect(el.querySelector('h2')!.textContent).toBe('New workflow from “Be right back”');
+    expect(el.textContent).toContain('Fill in before saving:');
+    expect(field(el, 'Name').value).toBe('Be right back');
+    expect(field(el, 'Id').value).toBe('chat.brb'); // the template's own id, while it's free
+    button(el, 'Save')!.click();
+    await settle(40);
+    expect(e.calls.some((c) => c.method === 'PUT')).toBe(false); // refused before asking the engine
+    expect(el.querySelector('.step-card .error')!.textContent).toContain('Fill in: What to say in chat');
+    set(field(el, 'Message'), 'BRB!');
+    expect(el.textContent).toContain('Everything to fill in is filled in.');
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect((lastPut(e.calls) as { id: string; steps: { with: { message: string } }[] }).steps[0].with.message).toBe('BRB!');
+    expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s off until you turn it on.');
+  });
+
   it('edits a workflow and keeps what the editor can’t show', async () => {
     const def = {
       schema: 'streamgremlin.workflow/v1',
@@ -325,6 +377,8 @@ describe('Workflows', () => {
     await settle(40);
     button(el, 'New workflow')!.click();
     await settle(40);
+    button(el, 'Start from scratch')!.click();
+    await settle(40);
     set(field(el, 'Name'), 'Say hello back');
     set(field(el, 'Command'), 'hi');
     set(byLabel<HTMLSelectElement>(el, 'Add a step'), 'flow:if');
@@ -356,6 +410,8 @@ describe('Workflows', () => {
     const el = start();
     await settle(40);
     button(el, 'New workflow')!.click();
+    await settle(40);
+    button(el, 'Start from scratch')!.click();
     await settle(40);
     button(el, 'JSON')!.click();
     flushSync();
@@ -421,6 +477,8 @@ describe('Workflows', () => {
 
     // The editor warns as soon as the command is taken.
     button(el, 'New workflow')!.click();
+    await settle(40);
+    button(el, 'Start from scratch')!.click();
     await settle(40);
     set(field(el, 'Command'), 'Hello');
     expect(el.textContent).toContain('!hello is already answered by “Hello”. You can save this');

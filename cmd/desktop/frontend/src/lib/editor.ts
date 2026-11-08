@@ -288,3 +288,23 @@ export function problemsAt<T extends { path: string }>(problems: T[], path: stri
 export function ownProblems<T extends { path: string }>(problems: T[], path: string): T[] {
   return problemsAt(problems, path).filter((p) => !/\.(do|else|steps)\[/.test(p.path.slice(path.length)));
 }
+
+/** The value at a $.a[0].b path, or undefined. */
+export function valueAt(d: unknown, path: string): unknown {
+  let cur: unknown = d;
+  for (const part of path.replace(/^\$\.?/, '').match(/[^.[\]]+/g) ?? []) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<string, unknown>)[part];
+  }
+  return cur;
+}
+
+/** The blanks still empty, as problems at their paths. */
+export function unfilled<B extends { path: string; hint: string }>(d: unknown, blanks: B[]): { path: string; message: string }[] {
+  return blanks
+    .filter((b) => {
+      const v = valueAt(d, b.path);
+      return v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+    })
+    .map((b) => ({ path: b.path, message: `Fill in: ${b.hint}` }));
+}

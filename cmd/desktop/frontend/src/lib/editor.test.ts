@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCondition,
+  unfilled,
+  valueAt,
   exprToText,
   idFromName,
   parseCondition,
@@ -106,5 +108,18 @@ describe('ids, steps and problems', () => {
   it('finds the problems inside a path, not its neighbours', () => {
     const ps = [{ path: '$.steps[1].with.message' }, { path: '$.steps[10]' }, { path: '$.steps[1]' }];
     expect(problemsAt(ps, '$.steps[1]')).toHaveLength(2);
+  });
+});
+
+describe('template blanks', () => {
+  it('finds values by path and lists the empty blanks', () => {
+    const d = { steps: [{ with: { scene: '' } }, { with: { scene: 'Live' } }] };
+    expect(valueAt(d, '$.steps[1].with.scene')).toBe('Live');
+    expect(valueAt(d, '$.steps[5].with.scene')).toBeUndefined();
+    const blanks = [
+      { path: '$.steps[0].with.scene', hint: 'Your break scene' },
+      { path: '$.steps[1].with.scene', hint: 'Filled' },
+    ];
+    expect(unfilled(d, blanks)).toEqual([{ path: '$.steps[0].with.scene', message: 'Fill in: Your break scene' }]);
   });
 });

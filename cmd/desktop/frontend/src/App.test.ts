@@ -110,6 +110,12 @@ describe('App', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '6', metaKey: true }));
     flushSync();
     await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Help');
+    expect(el.textContent).toContain('/tmp/sg'); // where your data lives
+    await noViolations('help');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '7', metaKey: true }));
+    flushSync();
+    await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Settings');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1', ctrlKey: true }));
     flushSync();

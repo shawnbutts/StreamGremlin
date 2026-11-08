@@ -1,0 +1,43 @@
+{
+  "template": {
+    "id": "lurk",
+    "title": "Lurk",
+    "category": "Chat commands",
+    "description": "!lurk thanks the viewer and counts their lurks, kept per viewer.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.lurk",
+    "name": "Lurk",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "lurk"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 10
+    },
+    "steps": [
+      {
+        "id": "lurks",
+        "action": "vars.add",
+        "with": {
+          "scope": "viewer",
+          "name": "lurks"
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Enjoy the lurk, ${event.actor.display_name}! That's lurk number ${steps.lurks.output.value} 👀"
+        }
+      }
+    ]
+  }
+}

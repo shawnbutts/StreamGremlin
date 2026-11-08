@@ -529,3 +529,22 @@ export interface Overview {
 }
 
 export const getOverview = () => api<Overview>('GET', '/v1/overview');
+
+/** A value to fill in before saving a template, at a JSON path. */
+export interface Blank {
+  path: string;
+  hint: string;
+}
+
+/** A ready-made workflow from the gallery. Nothing is added until it's saved. */
+export interface Template {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  starter: boolean;
+  blanks: Blank[];
+  workflow: Record<string, unknown>;
+}
+
+export const getTemplates = () => api<{ templates: Template[]; categories: string[] }>('GET', '/v1/templates');

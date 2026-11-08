@@ -1,0 +1,44 @@
+{
+  "template": {
+    "id": "back",
+    "title": "Back from the break",
+    "category": "Scenes",
+    "description": "!back (mods and you) switches back to the scene from before !brb, unless you changed scenes yourself meanwhile, and says you're back.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.back",
+    "name": "Back from the break",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "back",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "obs.scene.restore",
+        "with": {
+          "key": "brb"
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "We're back!"
+        }
+      }
+    ]
+  }
+}

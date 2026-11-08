@@ -43,6 +43,7 @@
 </script>
 
 <h1>Settings</h1>
+<p class="sg-muted screen-intro">How StreamGremlin looks, and the passwords and sign-ins it keeps.</p>
 
 <section class="sg-panel card" aria-labelledby="appearance-heading">
   <h2 id="appearance-heading">Appearance</h2>

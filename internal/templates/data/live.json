@@ -1,0 +1,28 @@
+{
+  "template": {
+    "id": "live",
+    "title": "We're live",
+    "category": "Stream",
+    "description": "When the stream starts, says hello in chat.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "stream.live",
+    "name": "We're live",
+    "triggers": [
+      {
+        "type": "broadcast.stream.started"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "We're live! Say hi in chat 👋"
+        }
+      }
+    ]
+  }
+}

@@ -110,6 +110,7 @@
 </script>
 
 <h1>Events</h1>
+<p class="sg-muted screen-intro">Everything StreamGremlin hears, as it happens: chat, commands and OBS changes. Send a test event to try a workflow without going live.</p>
 
 <section class="sg-panel card" aria-labelledby="live-heading">
   <h2 id="live-heading">Live events</h2>

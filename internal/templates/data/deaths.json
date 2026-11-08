@@ -1,0 +1,43 @@
+{
+  "template": {
+    "id": "deaths",
+    "title": "Death counter",
+    "category": "Chat commands",
+    "description": "!death (mods and you) adds one to a saved counter and says the total. The count survives restarts.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.deaths",
+    "name": "Death counter",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "death",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "steps": [
+      {
+        "id": "n",
+        "action": "vars.add",
+        "with": {
+          "scope": "global",
+          "name": "deaths"
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "💀 Deaths so far: ${steps.n.output.value}"
+        }
+      }
+    ]
+  }
+}

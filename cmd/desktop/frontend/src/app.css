@@ -820,3 +820,78 @@ legend {
 .health-problem span {
   color: var(--sg-danger);
 }
+
+.screen-intro {
+  margin: -6px 0 18px;
+  max-width: 70ch;
+}
+
+.help-terms dt {
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.help-terms dd {
+  margin: 2px 0 0;
+}
+
+.help-box p {
+  margin: 0;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 0.9em;
+  padding: 1px 6px;
+  border: 1px solid var(--sg-border);
+  border-radius: 4px;
+  background: var(--sg-surface-raised);
+}
+
+.gallery {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.gallery-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px 14px;
+  border: 1px solid var(--sg-border);
+  border-radius: 8px;
+}
+
+.gallery-card .tag {
+  justify-self: start;
+}
+
+.gallery-card button {
+  justify-self: start;
+}
+
+.fill-in {
+  border-left: 4px solid var(--sg-warning);
+  padding: 8px 12px;
+  margin: 12px 0;
+  background: var(--sg-surface-raised);
+  border-radius: 6px;
+}
+
+.fill-in p,
+.fill-in ul {
+  margin: 0;
+}
+
+.fill-in ul {
+  padding-left: 1rem;
+  list-style: none;
+}
+
+.fill-in-done {
+  border-left-color: var(--sg-success);
+}

@@ -1,0 +1,50 @@
+{
+  "template": {
+    "id": "brb",
+    "title": "Be right back",
+    "category": "Scenes",
+    "description": "!brb (mods and you) switches OBS to your break scene and says so. Pair it with Back from the break.",
+    "starter": true,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.scene",
+        "hint": "Your break scene in OBS, like Be Right Back"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.brb",
+    "name": "Be right back",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "brb",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "obs.scene.snapshot_and_switch",
+        "with": {
+          "key": "brb",
+          "scene": ""
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Be right back! Grab a drink 🥤"
+        }
+      }
+    ]
+  }
+}

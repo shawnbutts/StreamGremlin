@@ -5,6 +5,7 @@
   import { applyTheme } from './lib/theme';
   import Connections from './screens/Connections.svelte';
   import Events from './screens/Events.svelte';
+  import Help from './screens/Help.svelte';
   import Home from './screens/Home.svelte';
   import Settings from './screens/Settings.svelte';
   import Variables from './screens/Variables.svelte';
@@ -12,7 +13,7 @@
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'variables' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'variables' | 'help' | 'settings';
   // Screens take Ctrl/⌘+number in order; Settings is always last and also
   // Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
   const screens: { id: Screen; label: string; key: string }[] = [
@@ -21,7 +22,8 @@
     { id: 'events', label: 'Events', key: '3' },
     { id: 'workflows', label: 'Workflows', key: '4' },
     { id: 'variables', label: 'Variables', key: '5' },
-    { id: 'settings', label: 'Settings', key: '6' },
+    { id: 'help', label: 'Help', key: '6' },
+    { id: 'settings', label: 'Settings', key: '7' },
   ];
 
   let screen = $state<Screen>('home');
@@ -52,6 +54,8 @@
       stopped = true;
     };
   });
+
+  const go = (id: string) => (screen = screens.find((s) => s.id === id)?.id ?? screen);
 
   function onKey(e: KeyboardEvent) {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
@@ -99,7 +103,7 @@
         <p>{info.message}</p>
       </section>
     {:else if screen === 'home'}
-      <Home ongo={(id) => (screen = screens.find((s) => s.id === id)?.id ?? screen)} />
+      <Home ongo={go} />
     {:else if screen === 'connections'}
       <Connections />
     {:else if screen === 'events'}
@@ -108,6 +112,8 @@
       <Workflows />
     {:else if screen === 'variables'}
       <Variables />
+    {:else if screen === 'help'}
+      <Help shortcuts={screens.filter((s) => s.id !== 'settings')} ongo={go} />
     {:else}
       <Settings />
     {/if}

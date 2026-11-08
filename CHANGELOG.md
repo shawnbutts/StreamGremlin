@@ -74,9 +74,14 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Happening now:** the latest events, live, and workflow runs. **Connections:** you, the bot, chat and OBS at a glance, with unknown said as unknown.
   - `streamgremlin status` also prints what needs you and, until you're set up, the checklist.
 
+- M1 slice 11b, templates and help:
+  - **New workflow opens a gallery** of ready-made workflows: Lurk, Say hello back, Hug, Shoutout, Death counter, Roll a die, Be right back, Back from the break, and We're live. One opens in the editor turned off. Anything to fill in, like your break scene, is listed, and saving waits until it's done.
+  - **Help** (Ctrl/⌘+6): how StreamGremlin fits together, keyboard shortcuts, and where your data lives. Each screen has a line saying what it's for, and the editor explains values and conditions.
+  - `streamgremlin templates` and `templates show ID`.
+
 ### Changed
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Settings 6 (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Help 6, Settings 7 (and Ctrl/⌘+comma, which always reaches Settings).
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 

@@ -89,6 +89,7 @@
 </script>
 
 <h1>Connections</h1>
+<p class="sg-muted screen-intro">Where StreamGremlin signs in to Twitch and connects to OBS. Sign-ins and passwords stay in your system’s keyring.</p>
 
 {#if loadError}
   <section class="sg-panel card" role="alert">

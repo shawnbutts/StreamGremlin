@@ -1,0 +1,66 @@
+{
+  "template": {
+    "id": "hug",
+    "title": "Hug",
+    "category": "Chat commands",
+    "description": "!hug someone sends one of three hugs, picked at random.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.hug",
+    "name": "Hug",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "hug"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "choose": [
+          {
+            "weight": 1,
+            "steps": [
+              {
+                "action": "chat.send",
+                "with": {
+                  "message": "${event.actor.display_name} gives ${event.payload.args} a big warm hug 🤗"
+                }
+              }
+            ]
+          },
+          {
+            "weight": 1,
+            "steps": [
+              {
+                "action": "chat.send",
+                "with": {
+                  "message": "${event.actor.display_name} sneaks up and hugs ${event.payload.args} 🫂"
+                }
+              }
+            ]
+          },
+          {
+            "weight": 1,
+            "steps": [
+              {
+                "action": "chat.send",
+                "with": {
+                  "message": "${event.actor.display_name} sends ${event.payload.args} a group hug from all of chat 💜"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
