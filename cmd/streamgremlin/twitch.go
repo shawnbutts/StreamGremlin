@@ -80,7 +80,8 @@ func twitchCmd(dir string, args []string, stdout, stderr io.Writer) int {
 
 func apiExit(err error, stderr io.Writer) int {
 	var apiErr *client.APIError
-	if errors.As(err, &apiErr) && (apiErr.Code == api.CodeInvalidRequest || apiErr.Code == api.CodeConflict) {
+	if errors.As(err, &apiErr) && (apiErr.Code == api.CodeInvalidRequest || apiErr.Code == api.CodeConflict ||
+		apiErr.Code == api.CodeCommandTaken || apiErr.Code == api.CodeDeleted) {
 		fmt.Fprintln(stderr, apiErr.Message)
 		return 2
 	}

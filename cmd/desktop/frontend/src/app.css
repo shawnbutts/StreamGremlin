@@ -708,3 +708,9 @@ legend {
 .deleted {
   margin-top: 16px;
 }
+
+.taken {
+  color: var(--sg-foreground);
+  border-left: 3px solid var(--sg-warning);
+  padding-left: 8px;
+}

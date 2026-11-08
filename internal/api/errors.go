@@ -15,7 +15,8 @@ const (
 	CodePayloadTooLarge       = "payload_too_large"
 	CodeUnsupportedAPIVersion = "unsupported_api_version"
 	CodeConflict              = "conflict"
-	CodeDeleted               = "deleted" // the id belongs to a deleted workflow; restore it first
+	CodeDeleted               = "deleted"       // the id belongs to a deleted workflow; restore it first
+	CodeCommandTaken          = "command_taken" // another workflow already answers that chat command
 	CodeUnavailable           = "unavailable"
 	CodeRateLimited           = "rate_limited"
 	CodeNotSent               = "not_sent" // Twitch accepted the request but didn't post it

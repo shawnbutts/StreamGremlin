@@ -110,3 +110,25 @@ func TestDeleteRestoreAndPaletteThroughTheAPI(t *testing.T) {
 		t.Fatalf("palette: %d %.300s", w.Code, w.Body)
 	}
 }
+
+func TestCommandTakenThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	for _, id := range []string{"chat.hello", "chat.hello2"} {
+		body := strings.Replace(helloWorkflow, `"id":"chat.hello"`, `"id":"`+id+`"`, 1)
+		if w := do(t, s, req{method: "PUT", path: "/v1/workflows/" + id, token: testToken, body: body}); w.Code != 200 {
+			t.Fatal(w.Code, w.Body)
+		}
+	}
+	if w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello/enabled", token: testToken, body: `{"enabled":true}`}); w.Code != 200 {
+		t.Fatal(w.Code, w.Body)
+	}
+	w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello2/enabled", token: testToken, body: `{"enabled":true}`})
+	if w.Code != 409 || !strings.Contains(w.Body.String(), `"code":"command_taken"`) ||
+		!strings.Contains(w.Body.String(), `"conflicts":[{"command":"hello","owner":"chat.hello","name":"Say hello"}]`) {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+	w = do(t, s, req{method: "GET", path: "/v1/commands", token: testToken})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"command":"hello"`) || !strings.Contains(w.Body.String(), `"conflict":false`) {
+		t.Fatalf("%d %s", w.Code, w.Body)
+	}
+}

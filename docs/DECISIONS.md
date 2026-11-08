@@ -519,3 +519,17 @@ Decided 2026-11-08, without asking the user, under D-007. The user said "proceed
   - the template gallery, which is in slice 11's cut;
   - queued calls to another workflow.
 
+## D-017. Choices made while building M1 slice 10 (chat command ownership)
+
+Decided 2026-11-08, without asking the user, under D-007. The user said "proceed" to the plan, which follows StreamWisp's ADR-0068 and D-111.
+
+- **One answer per chat command,** following [ADR-0011](adr/0011-command-ownership.md):
+  - a workflow that's on answers the commands its triggers name;
+  - turning one on, or saving one that's on so that it newly overlaps (a new command, or opened to more chatters or chats), is refused (409 `command_taken`) when another workflow that's on answers it;
+  - the exception is when their chats or "Who can use it" never meet.
+- **Only workflows for now.** Plugins, games and giveaways will add their claims to the same check when they're built.
+- **Overlaps from before stay** until one is turned off or changed, and they're flagged on the Chat commands list.
+- **The editor warns but still saves,** so a workflow can be built while its command is taken and turned on later.
+- **The workflow switch shows the engine's answer,** not the click, so a refused turn-on doesn't look on.
+- **"Who can use it" gains "Everyone except mods and you".** Every other option includes the streamer, so without it two workflows could never split a command in the editor.
+

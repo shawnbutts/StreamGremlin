@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 
+	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -23,7 +24,14 @@ type JobDetail struct {
 
 func workflowError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 	var inv *workflow.InvalidError
+	var taken *commands.TakenError
 	switch {
+	case errors.As(err, &taken):
+		// Which commands, and what answers each now, for the screens.
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":     map[string]string{"code": CodeCommandTaken, "message": taken.Error()},
+			"conflicts": taken.Conflicts,
+		})
 	case errors.As(err, &inv):
 		// The problems, each at its place in the definition, for the editor.
 		writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -75,7 +83,7 @@ func workflowRoutes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/workflows/{id}",
-			Summary:    "Save a definition (streamgremlin.workflow/v1). The same content keeps its version; a new workflow starts off.",
+			Summary:    "Save a definition (streamgremlin.workflow/v1). The same content keeps its version; a new workflow starts off. A change to a workflow that's on is refused (409 command_taken) when it newly overlaps a chat command another workflow that's on answers.",
 			Permission: PermWorkflowsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				raw, err := io.ReadAll(r.Body)
@@ -128,7 +136,7 @@ func workflowRoutes(d Deps) []Route {
 			},
 		},
 		{
-			Method: "PUT", Path: "/v1/workflows/{id}/enabled", Summary: "Turn a workflow on or off. Off cancels its waiting runs.",
+			Method: "PUT", Path: "/v1/workflows/{id}/enabled", Summary: "Turn a workflow on or off. Off cancels its waiting runs. On is refused (409 command_taken) when another workflow that's on answers one of its chat commands, unless their chats or roles never meet.",
 			Permission: PermWorkflowsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				var in struct {
@@ -155,6 +163,19 @@ func workflowRoutes(d Deps) []Route {
 			CLIOnly:    "for scripts; the app reads the actions from /v1/palette",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, map[string]any{"actions": d.Workflows.Actions().List()})
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/commands",
+			Summary:    "Every chat command a workflow answers, with each workflow (on or off, for which chats and roles) and whether two that are on overlap.",
+			Permission: PermWorkflowsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				list, err := d.Workflows.Commands(r.Context())
+				if err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"commands": list})
 			},
 		},
 		{

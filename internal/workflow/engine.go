@@ -62,6 +62,7 @@ type Engine struct {
 	stop context.CancelFunc
 	wg   sync.WaitGroup
 
+	cmdMu   sync.Mutex // one answer per command: checks and the changes they allow
 	mu      sync.Mutex
 	enabled []enabledWF
 	queues  map[string]*wq

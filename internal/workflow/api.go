@@ -13,6 +13,15 @@ func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 	if err != nil {
 		return Summary{}, false, err
 	}
+	// The check and the save happen together, so two changes can't both
+	// take one command.
+	e.cmdMu.Lock()
+	defer e.cmdMu.Unlock()
+	if prev, _, on, err := e.st.definition(ctx, d.ID, 0); err == nil && on {
+		if err := e.checkCommands(d.ID, d, prev); err != nil {
+			return Summary{}, false, err
+		}
+	}
 	version, changed, err := e.st.save(ctx, d)
 	if err != nil {
 		return Summary{}, false, err
@@ -95,6 +104,18 @@ func (e *Engine) Restore(ctx context.Context, id string) error {
 // SetEnabled turns a workflow on or off. Turning it off cancels its runs
 // that are still waiting; ones already running finish.
 func (e *Engine) SetEnabled(ctx context.Context, id string, on bool) error {
+	e.cmdMu.Lock()
+	defer e.cmdMu.Unlock()
+	if on {
+		// Turning on: each command it answers must be free.
+		d, _, _, err := e.st.definition(ctx, id, 0)
+		if err != nil {
+			return err
+		}
+		if err := e.checkCommands(id, d, nil); err != nil {
+			return err
+		}
+	}
 	if err := e.st.setEnabled(ctx, id, on); err != nil {
 		return err
 	}

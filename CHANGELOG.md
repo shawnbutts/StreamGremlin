@@ -62,9 +62,16 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Delete and restore workflows.** Deleting asks first, keeps its runs and saved variables, and it can be restored (turned off) from "Deleted workflows".
   - `streamgremlin workflows delete`, `deleted` and `restore`.
 
+- M1 slice 10, one answer per chat command:
+  - A workflow can't be turned on when another that's on already answers its `!command`, unless "Who can use it" (or the chat) never overlaps: `!so` for mods and `!so` for viewers can be two workflows. The refusal names the workflow that answers it.
+  - **Workflows → Chat commands** lists every command and what answers it, and flags overlaps left from before.
+  - The editor warns as you type a command that's already taken. "Who can use it" gains "Everyone except mods and you", to pair with "Mods and you".
+  - `streamgremlin commands`.
+
 ### Changed
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Settings 6 (and Ctrl/⌘+comma, which always reaches Settings).
+- A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 
 - Development schema changes are now new numbered files, so data folders keep working between builds. They're squashed into one baseline at the first public release.

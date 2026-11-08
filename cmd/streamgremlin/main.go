@@ -41,6 +41,7 @@ Commands:
   workflows Workflows: list, show, save FILE, on/off, delete, deleted, restore
             (streamgremlin workflows help).
   runs      Workflow runs and their traces: runs, runs show RUN, runs cancel RUN.
+  commands  Chat commands and the workflow that answers each.
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -97,6 +98,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return workflowsCmd(dir, rest, stdout, stderr)
 	case "runs":
 		return runsCmd(dir, rest, stdout, stderr)
+	case "commands":
+		return commandsCmd(dir, rest, stdout, stderr)
 	case "vars":
 		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":

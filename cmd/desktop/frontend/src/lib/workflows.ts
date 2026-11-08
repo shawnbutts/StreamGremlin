@@ -1,4 +1,4 @@
-import type { EventKind, Job, Trigger } from './api';
+import type { CommandEntry, EventKind, Job, Trigger } from './api';
 
 /** Who a chatter.role match lets in, in words. */
 export function whoWords(v: unknown): string {
@@ -15,6 +15,9 @@ export const whoPresets: { id: string; label: string; roles: string[] }[] = [
   { id: 'vips', label: 'VIPs, mods and you', roles: ['vip', 'moderator', 'broadcaster'] },
   { id: 'mods', label: 'Mods and you', roles: ['moderator', 'broadcaster'] },
   { id: 'you', label: 'Only you', roles: ['broadcaster'] },
+  // Pairs with "Mods and you": one !command can answer mods one way and
+  // everyone else another, since the two never overlap.
+  { id: 'not-mods', label: 'Everyone except mods and you', roles: ['viewer', 'subscriber', 'vip'] },
 ];
 
 /** The preset a stored role match is, or undefined when it's another set. */
@@ -80,3 +83,19 @@ export const example = JSON.stringify(
   null,
   2,
 );
+
+const meet = (a?: string[], b?: string[]) => !a || !b || a.some((x) => b.includes(x));
+
+/**
+ * The workflows that are on and already answer this command for chatters
+ * and chats that meet these: the engine refuses turning on a second answer
+ * (one answer per command).
+ */
+export function takenBy(command: string, roles: unknown, sources: string[] | undefined, table: CommandEntry[], selfId: string): string[] {
+  const r = roles === undefined ? undefined : (Array.isArray(roles) ? roles : [roles]).map(String);
+  const e = table.find((x) => x.command === command.toLowerCase());
+  return (e?.owners ?? []).filter((o) => o.enabled && o.owner !== selfId && meet(o.roles, r) && meet(o.sources, sources)).map((o) => o.name);
+}
+
+/** "for mods and you", "for vip", or "" for everyone. */
+export const forWhom = (roles?: string[]) => (roles?.length ? ` ${whoWords(roles).replace(/^\(/, 'for ').replace(/\)$/, '')}` : '');

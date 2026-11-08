@@ -5,6 +5,7 @@
   import {
     ApiError,
     deleteWorkflow,
+    getCommands,
     getDeletedWorkflows,
     getEventCatalog,
     getJobs,
@@ -13,6 +14,7 @@
     restoreWorkflow,
     setWorkflowEnabled,
     simulateEvent,
+    type CommandEntry,
     type EventKind,
     type Job,
     type WorkflowSummary,
@@ -20,7 +22,7 @@
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import type { Def } from '../lib/editor';
   import { eventTime } from '../lib/events';
-  import { describeTrigger, jobOk, jobWords, testFields } from '../lib/workflows';
+  import { describeTrigger, forWhom, jobOk, jobWords, testFields } from '../lib/workflows';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import RunTrace from './RunTrace.svelte';
 
@@ -28,6 +30,7 @@
 
   let workflows = $state<WorkflowSummary[]>([]);
   let deleted = $state<WorkflowSummary[]>([]);
+  let commands = $state<CommandEntry[]>([]);
   let kinds = $state<EventKind[]>([]);
   let jobs = $state<Job[]>([]);
   let shown = $state(''); // workflow whose runs are listed ('' = all)
@@ -52,6 +55,10 @@
     } catch (e) {
       loadError = message(e);
     }
+    // The commands list is extra: if it can't load, the rest still shows.
+    getCommands()
+      .then((r) => (commands = r.commands))
+      .catch(() => undefined);
   }
 
   onMount(() => {
@@ -153,7 +160,12 @@
             role="switch"
             checked={w.enabled}
             disabled={busy}
-            onchange={(e) => act(() => setWorkflowEnabled(w.id, e.currentTarget.checked), `“${w.name}” is ${e.currentTarget.checked ? 'on' : 'off'}.`)}
+            onchange={(e) => {
+              // Show what the engine says, not the click: turning on can be refused.
+              const on = e.currentTarget.checked;
+              e.currentTarget.checked = w.enabled;
+              act(() => setWorkflowEnabled(w.id, on), `“${w.name}” is ${on ? 'on' : 'off'}.`);
+            }}
           />
           On
         </label>
@@ -191,6 +203,31 @@
       </ul>
     </details>
   {/if}
+</section>
+
+<section class="sg-panel card" aria-labelledby="cmd-heading">
+  <h2 id="cmd-heading">Chat commands</h2>
+  <p class="sg-muted">One answer per command: a workflow can only be turned on when no other that’s on answers its command for the same chatters.</p>
+  {#if commands.length === 0}
+    <p class="sg-muted">No workflow answers a chat command yet.</p>
+  {/if}
+  <ul class="secret-list" aria-label="Chat commands">
+    {#each commands as c (c.command)}
+      <li class="secret-row">
+        <span class="secret-info">
+          <strong><code>!{c.command}</code></strong>
+          {#each c.owners as o (o.owner)}
+            <span class={o.enabled ? 'secret-saved' : 'sg-muted secret-saved'}>
+              {o.name}{forWhom(o.roles)}{o.sources?.length ? ` on ${o.sources.join(', ')}` : ''}{o.enabled ? '' : ' (off)'}
+            </span>
+          {/each}
+          {#if c.conflict}
+            <span class="secret-check"><span class="icon-bad" aria-hidden="true">✗</span> More than one that’s on answers this. Turn one off.</span>
+          {/if}
+        </span>
+      </li>
+    {/each}
+  </ul>
 </section>
 
 <section class="sg-panel card" aria-labelledby="runs-heading">

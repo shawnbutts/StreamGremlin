@@ -5,7 +5,7 @@
   import type { Trigger } from '../lib/api';
   import { ownProblems } from '../lib/editor';
   import { editorEnv } from '../lib/editorEnv';
-  import { whoPreset, whoPresets } from '../lib/workflows';
+  import { takenBy, whoPreset, whoPresets } from '../lib/workflows';
 
   let {
     trigger = $bindable(),
@@ -75,6 +75,15 @@
             />
           </span>
           {#if m.help}<span class="sg-muted field-hint">{m.help}</span>{/if}
+          {#if typeof v === 'string' && v}
+            {@const by = takenBy(v, trigger.where?.['chatter.role'], trigger.sources, env.commands, env.selfId)}
+            {#if by.length}
+              <span class="field-hint taken" role="status">
+                !{v} is already answered by {by.map((n) => `“${n}”`).join(' and ')}. You can save this, but it can only be turned on
+                once that’s off, or when “Who can use it” never overlaps: one answer per command.
+              </span>
+            {/if}
+          {/if}
         </label>
       {:else if m.kind === 'who'}
         {@const preset = whoPreset(v)}

@@ -485,3 +485,21 @@ export const putVariable = (k: VarKey, value: unknown) =>
   api<Variable>('PUT', '/v1/variables', { scope: k.scope, owner: k.owner, name: k.name, value });
 export const deleteVariable = (k: VarKey) =>
   api<void>('DELETE', `/v1/variables?${new URLSearchParams({ scope: k.scope, owner: k.owner, name: k.name })}`);
+
+/** One workflow that answers a chat command. */
+export interface CommandOwner {
+  owner: string;
+  name: string;
+  enabled: boolean;
+  sources?: string[];
+  roles?: string[];
+}
+
+/** A chat command and what answers it. conflict: two that are on overlap. */
+export interface CommandEntry {
+  command: string;
+  owners: CommandOwner[];
+  conflict: boolean;
+}
+
+export const getCommands = () => api<{ commands: CommandEntry[] }>('GET', '/v1/commands');

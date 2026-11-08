@@ -3,7 +3,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Workflows from './Workflows.svelte';
 import { mockFetch, settle } from '../test/helpers';
-import type { Job, Palette, WorkflowSummary } from '../lib/api';
+import type { CommandEntry, Job, Palette, WorkflowSummary } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -135,6 +135,7 @@ function engine(initial: { wfs?: WorkflowSummary[]; defs?: Record<string, unknow
     '/v1/workflows': (_m, _b, query) => ({ status: 200, body: { workflows: query.includes('deleted=true') ? deleted : wfs } }),
     '/v1/jobs': () => ({ status: 200, body: { jobs } }),
     '/v1/palette': () => ({ status: 200, body: palette }),
+    '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
     '/v1/variables': () => ({
       status: 200,
       body: { variables: [{ scope: 'global', owner: '', name: 'deaths', value: 3, updated_at: now(), updated_by: 'you' }] },
@@ -180,6 +181,47 @@ async function noViolations(label: string) {
 }
 
 const lastPut = (calls: { method: string; path: string; body: unknown }[]) => calls.filter((c) => c.method === 'PUT' && !c.path.endsWith('/enabled')).at(-1)!.body;
+
+function engineWithRefusal() {
+  const wfs: WorkflowSummary[] = [
+    { id: 'chat.hello', name: 'Hello', enabled: true, version: 1, updated_at: now(), triggers: [{ type: 'chat.command.received', where: { command: 'hello' } }] },
+    { id: 'chat.hi', name: 'Hi there', enabled: false, version: 1, updated_at: now(), triggers: [{ type: 'chat.command.received', where: { command: 'hello' } }] },
+  ];
+  const commands: CommandEntry[] = [
+    {
+      command: 'hello',
+      conflict: false,
+      owners: [
+        { owner: 'chat.hello', name: 'Hello', enabled: true, roles: ['moderator', 'broadcaster'] },
+        { owner: 'chat.hi', name: 'Hi there', enabled: false },
+      ],
+    },
+    {
+      command: 'so',
+      conflict: true,
+      owners: [
+        { owner: 'a', name: 'Shout A', enabled: true, roles: ['moderator', 'broadcaster'] },
+        { owner: 'b', name: 'Shout B', enabled: true },
+      ],
+    },
+  ];
+  return mockFetch({
+    '/v1/workflows': (_m, _b, q) => ({ status: 200, body: { workflows: q.includes('deleted') ? [] : wfs } }),
+    '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
+    '/v1/commands': () => ({ status: 200, body: { commands } }),
+    '/v1/palette': () => ({ status: 200, body: palette }),
+    '/v1/variables': () => ({ status: 200, body: { variables: [] } }),
+    '/v1/obs/scenes': () => ({ status: 409, body: { error: { code: 'not_connected', message: 'no' } } }),
+    '/v1/events/catalog': () => ({ status: 200, body: catalog }),
+    '/v1/workflows/chat.hi/enabled': () => ({
+      status: 409,
+      body: {
+        error: { code: 'command_taken', message: '!hello is already answered by “Hello”. Turn that off first, or limit who can use each so they never overlap: one answer per command.' },
+        conflicts: [{ command: 'hello', owner: 'chat.hello', name: 'Hello' }],
+      },
+    }),
+  });
+}
 
 describe('Workflows', () => {
   it('builds a workflow in plain words, then turns it on, tests it and shows the trace', async () => {
@@ -357,6 +399,38 @@ describe('Workflows', () => {
     await settle(60);
     expect(e.calls.some((c) => c.method === 'POST' && c.path === '/v1/workflows/chat.old/restore')).toBe(true);
     expect(el.textContent).toContain('Restored “Old one”. It’s off until you turn it on.');
+  });
+
+  it('shows who answers each command, refuses a second answer, and warns in the editor', async () => {
+    const calls = engineWithRefusal();
+    const el = start();
+    await settle(40);
+    const list = el.querySelector('[aria-label="Chat commands"]')!;
+    expect(list.textContent).toContain('!hello');
+    expect(list.textContent).toContain('Hi there (off)');
+    expect(list.textContent).toContain('Shout A for mods and you');
+    expect(list.textContent).toContain('More than one that’s on answers this. Turn one off.');
+
+    const sw = el.querySelectorAll<HTMLInputElement>('input[role="switch"]')[1];
+    sw.click();
+    await settle(60);
+    expect(calls.some((c) => c.path === '/v1/workflows/chat.hi/enabled')).toBe(true);
+    expect(el.querySelector('[role="alert"]')!.textContent).toContain('!hello is already answered by “Hello”');
+    expect(sw.checked).toBe(false); // the switch shows what the engine says
+    await noViolations('commands');
+
+    // The editor warns as soon as the command is taken.
+    button(el, 'New workflow')!.click();
+    await settle(40);
+    set(field(el, 'Command'), 'Hello');
+    expect(el.textContent).toContain('!hello is already answered by “Hello”. You can save this');
+    set(field<HTMLSelectElement>(el, 'Who can use it'), 'mods');
+    expect(el.textContent).toContain('!hello is already answered by “Hello”'); // both are for mods
+    set(field<HTMLSelectElement>(el, 'Who can use it'), 'not-mods');
+    expect(el.textContent).not.toContain('is already answered by'); // the one answer for mods doesn't meet the rest
+    set(field<HTMLSelectElement>(el, 'Who can use it'), 'everyone');
+    set(field(el, 'Command'), 'unique');
+    expect(el.textContent).not.toContain('is already answered by');
   });
 
   it('says why runs did not run', async () => {

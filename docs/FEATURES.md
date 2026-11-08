@@ -37,7 +37,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Secrets, in the OS keyring or an encrypted file | 0009, D-021 | Spine |
 | Local API and CLI | 0008, 0013 | Spine |
 | Persistent variables: global, per-viewer, per-workflow | not built in StreamWisp; ADR-0009, D-015 | Spine (designed early) |
-| Chat command ownership | 0068, D-094, D-111 | Spine |
+| Chat command ownership | 0068, D-094, D-111; ADR-0011, D-017 | Spine |
 | Delete and restore workflows | D-103; ADR-0010, D-016 | Spine |
 | Backups and restore | 0047, D-072 | Spine |
 | Configuration export/import | 0048, D-073 | Later |

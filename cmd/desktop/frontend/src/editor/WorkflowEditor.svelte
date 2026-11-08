@@ -6,6 +6,7 @@
   import {
     ApiError,
     ProblemsError,
+    getCommands,
     getOBSScenes,
     getPalette,
     getSceneItems,
@@ -64,6 +65,7 @@
     scenes: [],
     sources: [],
     problems: [],
+    commands: [],
     more: false,
   });
   setEditorEnv(env);
@@ -77,6 +79,9 @@
       error = `Couldn’t load the editor’s choices: ${e instanceof ApiError ? e.message : String(e)}`;
     }
     loading = false;
+    getCommands()
+      .then((r) => (env.commands = r.commands))
+      .catch(() => undefined);
     getVariables()
       .then((r) => {
         const seen = new Map<string, PaletteValue>();
