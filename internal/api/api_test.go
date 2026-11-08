@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/mockobs"
@@ -20,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
 const testToken = "test-token-not-secret"
@@ -74,10 +76,17 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(ob.Close)
+	reg := workflow.NewRegistry()
+	actions.Register(reg, tw, ob)
+	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg})
+	if err := wf.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(wf.Close)
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: inbox, Twitch: tw, OBS: ob,
+		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf,
 		Now: func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }

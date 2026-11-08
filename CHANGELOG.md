@@ -39,10 +39,16 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - Switching back never undoes a scene you chose yourself in OBS meanwhile, or while StreamGremlin was closed.
   - Every change in OBS shows on Events: scenes, sources, filters, mute, media, stream, recording, replay.
   - `streamgremlin obs …`, and `mockobs`, a stand-in for OBS, for tests and for trying the app.
+- M1 slice 7, workflows:
+  - When something happens (a chat command, an OBS change…), do things: answer in chat, switch scenes, show or hide sources, mute, set text, and the other OBS controls, with conditions, loops, random choices and waits.
+  - A **Workflows** screen: add a workflow (pasted as JSON for now; the plain-words editor comes later), turn it on, **Test** it with a test event, and read each run's trace: every step, what it was given, what it did, and why a run didn't happen.
+  - Test events never reach Twitch or OBS: those steps are skipped and shown.
+  - A workflow never runs twice for one event. After a crash, runs in progress are marked interrupted and never repeated on their own.
+  - `streamgremlin workflows …` and `streamgremlin runs …`; examples in `examples/workflows/`.
 
 ### Changed
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Settings 4.
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Settings 5 (and Ctrl/⌘+comma, which always reaches Settings).
 
 - Development schema changes are now new numbered files, so data folders keep working between builds. They're squashed into one baseline at the first public release.
 

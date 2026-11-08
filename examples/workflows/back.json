@@ -1,0 +1,20 @@
+{
+  "schema": "streamgremlin.workflow/v1",
+  "id": "chat.back",
+  "name": "Back from the break",
+  "triggers": [{ "type": "chat.command.received", "where": { "command": "back" } }],
+  "queue": { "policy": "drop" },
+  "steps": [
+    {
+      "if": "event.payload.chatter.is_broadcaster || event.payload.chatter.is_moderator",
+      "do": [
+        { "id": "restore", "action": "obs.scene.restore", "with": { "key": "brb" } },
+        {
+          "if": "steps.restore.output.status == 'restored'",
+          "do": [{ "action": "chat.send", "with": { "message": "We're back!" } }],
+          "else": [{ "action": "note", "with": { "text": "Didn't switch back: ${steps.restore.output.?message.orValue(steps.restore.output.status)}" } }]
+        }
+      ]
+    }
+  ]
+}

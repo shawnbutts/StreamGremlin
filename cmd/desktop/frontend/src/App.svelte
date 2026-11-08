@@ -7,15 +7,19 @@
   import Events from './screens/Events.svelte';
   import Home from './screens/Home.svelte';
   import Settings from './screens/Settings.svelte';
+  import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'settings';
+  // Screens take Ctrl/⌘+number in order; Settings is always last and also
+  // Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
   const screens: { id: Screen; label: string; key: string }[] = [
     { id: 'home', label: 'Home', key: '1' },
     { id: 'connections', label: 'Connections', key: '2' },
     { id: 'events', label: 'Events', key: '3' },
-    { id: 'settings', label: 'Settings', key: '4' },
+    { id: 'workflows', label: 'Workflows', key: '4' },
+    { id: 'settings', label: 'Settings', key: '5' },
   ];
 
   let screen = $state<Screen>('home');
@@ -49,7 +53,7 @@
 
   function onKey(e: KeyboardEvent) {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-    const target = screens.find((s) => s.key === e.key);
+    const target = e.key === ',' ? screens.find((s) => s.id === 'settings') : screens.find((s) => s.key === e.key);
     if (target) {
       e.preventDefault();
       screen = target.id;
@@ -73,7 +77,7 @@
             type="button"
             class="nav-item"
             aria-current={screen === s.id ? 'page' : undefined}
-            aria-keyshortcuts={`Control+${s.key} Meta+${s.key}`}
+            aria-keyshortcuts={`Control+${s.key} Meta+${s.key}` + (s.id === 'settings' ? ' Control+, Meta+,' : '')}
             onclick={() => (screen = s.id)}>{s.label}</button
           >
         </li>
@@ -98,6 +102,8 @@
       <Connections />
     {:else if screen === 'events'}
       <Events />
+    {:else if screen === 'workflows'}
+      <Workflows />
     {:else}
       <Settings />
     {/if}

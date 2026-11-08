@@ -34,6 +34,9 @@ const (
 	// OBS: reading scenes and sources, and changing them.
 	PermOBSRead    Permission = "obs.read"
 	PermOBSControl Permission = "obs.control"
+	// Workflows: reading them and their runs, and saving, switching or cancelling.
+	PermWorkflowsRead  Permission = "workflows.read"
+	PermWorkflowsWrite Permission = "workflows.write"
 )
 
 // Principal is an authenticated caller.

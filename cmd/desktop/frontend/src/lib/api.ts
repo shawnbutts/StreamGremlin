@@ -285,3 +285,122 @@ export const restoreSnapshot = (key: string) =>
   api<Snapshot>('POST', `/v1/obs/snapshots/${encodeURIComponent(key)}/restore`);
 export const releaseSnapshot = (key: string) =>
   api<Snapshot>('POST', `/v1/obs/snapshots/${encodeURIComponent(key)}/release`);
+
+export interface Trigger {
+  type: string;
+  sources?: string[];
+  delivery_quality?: DeliveryQuality[];
+  where?: Record<string, unknown>;
+}
+
+export type JobStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'interrupted'
+  | 'rejected'
+  | 'dropped'
+  | 'superseded';
+
+export interface Job {
+  id: string;
+  workflow_id: string;
+  version: number;
+  event_id: string;
+  event_seq: number;
+  status: JobStatus;
+  reason?: string;
+  dry_run: boolean;
+  error?: string;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+}
+
+export interface WorkflowSummary {
+  id: string;
+  name: string;
+  enabled: boolean;
+  version: number;
+  triggers: Trigger[];
+  updated_at: string;
+  last_job?: Job;
+}
+
+export interface StepRecord {
+  path: string;
+  step_id?: string;
+  kind: string;
+  action?: string;
+  status: 'ok' | 'failed' | 'skipped';
+  reason?: string;
+  error?: string;
+  input?: unknown;
+  output?: unknown;
+  started_at: string;
+  finished_at: string;
+}
+
+export interface ActionParam {
+  name: string;
+  label: string;
+  type: string;
+  choices?: string[];
+  required: boolean;
+}
+
+export interface ActionInfo {
+  name: string;
+  label: string;
+  description: string;
+  group: string;
+  external: boolean;
+  params: ActionParam[];
+}
+
+export interface Problem {
+  path: string;
+  message: string;
+}
+
+/** A save refused because of problems in the definition, each at its JSON path. */
+export class ProblemsError extends ApiError {
+  constructor(readonly problems: Problem[]) {
+    super(400, 'invalid_request', 'the workflow has problems');
+  }
+}
+
+export const getWorkflows = () => api<{ workflows: WorkflowSummary[] }>('GET', '/v1/workflows');
+export const getWorkflow = (id: string) =>
+  api<{ workflow: WorkflowSummary; definition: unknown }>('GET', `/v1/workflows/${encodeURIComponent(id)}`);
+export const setWorkflowEnabled = (id: string, enabled: boolean) =>
+  api<WorkflowSummary>('PUT', `/v1/workflows/${encodeURIComponent(id)}/enabled`, { enabled });
+export const getActions = () => api<{ actions: ActionInfo[] }>('GET', '/v1/actions');
+export const getJobs = (workflow?: string) =>
+  api<{ jobs: Job[] }>('GET', '/v1/jobs?limit=50' + (workflow ? '&workflow=' + encodeURIComponent(workflow) : ''));
+export const getJob = (id: string) => api<{ job: Job; steps: StepRecord[] }>('GET', `/v1/jobs/${encodeURIComponent(id)}`);
+export const cancelJob = (id: string) => api<void>('POST', `/v1/jobs/${encodeURIComponent(id)}/cancel`);
+
+/** Save a definition given as JSON text. Problems come back as a ProblemsError. */
+export async function saveWorkflow(text: string): Promise<{ workflow: WorkflowSummary; changed: boolean }> {
+  let id = '';
+  try {
+    id = JSON.parse(text)?.id ?? '';
+  } catch (e) {
+    throw new ProblemsError([{ path: '$', message: `not JSON: ${(e as Error).message}` }]);
+  }
+  if (typeof id !== 'string' || !id) throw new ProblemsError([{ path: '$.id', message: 'the workflow needs an id' }]);
+  const resp = await fetch(`/v1/workflows/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: text,
+  }).catch(() => {
+    throw new ApiError(0, 'unreachable', "Couldn't reach the engine.");
+  });
+  const data = await resp.json().catch(() => undefined);
+  if (resp.ok) return data;
+  if (Array.isArray(data?.problems)) throw new ProblemsError(data.problems);
+  throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+}

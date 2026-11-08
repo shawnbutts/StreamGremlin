@@ -461,3 +461,23 @@ Decided 2026-11-08, without asking the user, under D-007. The user said "proceed
 - **The Connections screen gets an OBS card:** settings, state, and while connected the scenes (Switch, "Switch for now", "Switch back", "Stay here") and their sources (Show or Hide). The other actions get their screen in the workflow editor (slice 9).
 - **Screen order stays:** Home, Connections, Events, Settings.
 - **The route-coverage test now accepts a quoted path followed by a query string,** such as `'/v1/obs/scene-items?scene='`.
+
+## D-014. Choices made while building M1 slice 7 (workflows)
+
+Decided 2026-11-08, without asking the user, under D-007.
+
+- **Workflows** follow [ADR-0008](adr/0008-workflows.md):
+  - versioned JSON definitions, checked when saved;
+  - triggers on events;
+  - steps: action, set, if/else, foreach, weighted choose with `crypto/rand`, wait, and finally;
+  - CEL expressions with a cost limit;
+  - one job per workflow and event, with queue policies;
+  - a redacted trace of every step.
+- **New workflows start off.** Test events run them as dry runs: steps that would reach Twitch or OBS are skipped and recorded with what they would have done.
+- **Runs interrupted by a crash or a quit are never re-run on their own**, and failed actions are never retried. Each could post in chat twice or flip a toggle back.
+- **The first start of the dispatcher begins at the newest event,** so stored test events don't suddenly run.
+- **JSON only** for definitions (no YAML) until something needs it.
+- **`cel.dev/cel-go` v0.32.0** (2026-08-19). The three newer releases are under two weeks old. It brings protobuf and ANTLR as indirect dependencies.
+- **A Workflows screen** (Ctrl/⌘+4): paste and save, turn on and off, test, and traces. The plain-words editor is slice 9.
+- **Settings moves to Ctrl/⌘+5, and is also Ctrl/⌘+comma.** New screens go before it from now on, and comma always reaches it.
+- **Example workflows** in `examples/workflows/`, kept valid by an acceptance test.

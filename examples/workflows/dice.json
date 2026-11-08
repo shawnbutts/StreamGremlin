@@ -1,0 +1,21 @@
+{
+  "schema": "streamgremlin.workflow/v1",
+  "id": "chat.dice",
+  "name": "Roll a die",
+  "description": "!roll answers with a weighted random pick, to show choose.",
+  "triggers": [{ "type": "chat.command.received", "where": { "command": "roll" } }],
+  "queue": { "policy": "serial", "max_pending": 5 },
+  "steps": [
+    {
+      "choose": [
+        { "weight": 1, "steps": [{ "set": { "face": "1" } }] },
+        { "weight": 1, "steps": [{ "set": { "face": "2" } }] },
+        { "weight": 1, "steps": [{ "set": { "face": "3" } }] },
+        { "weight": 1, "steps": [{ "set": { "face": "4" } }] },
+        { "weight": 1, "steps": [{ "set": { "face": "5" } }] },
+        { "weight": 1, "steps": [{ "set": { "face": "6" } }] }
+      ]
+    },
+    { "action": "chat.send", "with": { "message": "🎲 ${event.actor.display_name} rolled a ${vars.face}" } }
+  ]
+}

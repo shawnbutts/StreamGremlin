@@ -79,6 +79,9 @@ describe('App', () => {
       '/v1/events': noEvents,
       '/v1/events/catalog': eventCatalog,
       '/v1/connections': () => twitchStatus(),
+      '/v1/workflows': () => ({ status: 200, body: { workflows: [] } }),
+      '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
+      '/v1/actions': () => ({ status: 200, body: { actions: [] } }),
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();
@@ -94,6 +97,11 @@ describe('App', () => {
     expect(el.querySelector('h1')?.textContent).toBe('Events');
     await noViolations('events');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '4', ctrlKey: true }));
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Workflows');
+    await noViolations('workflows');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: ',', metaKey: true }));
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Settings');

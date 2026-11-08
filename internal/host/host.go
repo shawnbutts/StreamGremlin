@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/api"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
@@ -25,6 +26,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
 // Options configure Start.
@@ -44,17 +46,18 @@ type Options struct {
 
 // Host is a running engine.
 type Host struct {
-	dataDir string
-	lock    *datadir.Lock
-	db      *storage.DB
-	api     *api.Server
-	srv     *http.Server
-	ln      net.Listener
-	token   string
-	twitch  *twitch.Service
-	obs     *obs.Service
-	log     *slog.Logger
-	done    chan error
+	dataDir   string
+	lock      *datadir.Lock
+	db        *storage.DB
+	api       *api.Server
+	srv       *http.Server
+	ln        net.Listener
+	token     string
+	twitch    *twitch.Service
+	obs       *obs.Service
+	workflows *workflow.Engine
+	log       *slog.Logger
+	done      chan error
 }
 
 // Start brings the engine up. If another process holds the data folder the
@@ -107,6 +110,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.obs.Start(ctx); err != nil {
 		return nil, err
 	}
+	reg := workflow.NewRegistry()
+	actions.Register(reg, h.twitch, h.obs)
+	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Logger: log})
+	if err := h.workflows.Start(ctx); err != nil {
+		return nil, err
+	}
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
@@ -122,6 +131,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Events:    inbox,
 		Twitch:    h.twitch,
 		OBS:       h.obs,
+		Workflows: h.workflows,
 		Logger:    log,
 	}))
 
@@ -193,6 +203,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.workflows != nil {
+		h.workflows.Close() // first: running jobs still need Twitch and OBS for their finally steps
+	}
 	if h.obs != nil {
 		h.obs.Close()
 	}

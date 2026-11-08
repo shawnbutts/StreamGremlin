@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
 // Deps are the services the routes use.
@@ -26,6 +27,7 @@ type Deps struct {
 	Events    *events.Inbox
 	Twitch    *twitch.Service
 	OBS       *obs.Service
+	Workflows *workflow.Engine
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -109,7 +111,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), workflowRoutes(d)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

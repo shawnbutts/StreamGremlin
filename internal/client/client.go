@@ -54,19 +54,33 @@ type APIError struct {
 	Status  int
 	Code    string
 	Message string
+	// Problems lists what's wrong with a saved workflow, at JSON paths.
+	Problems []struct {
+		Path    string `json:"path"`
+		Message string `json:"message"`
+	}
 }
 
 func (e *APIError) Error() string { return fmt.Sprintf("%s (%s)", e.Message, e.Code) }
 
 // Do sends a request with an optional JSON body and decodes a JSON answer into out.
 func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
-	var rd io.Reader
+	var raw []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return err
 		}
-		rd = strings.NewReader(string(b))
+		raw = b
+	}
+	return c.DoRaw(ctx, method, path, raw, out)
+}
+
+// DoRaw sends a request whose body is already JSON.
+func (c *Client) DoRaw(ctx context.Context, method, path string, body []byte, out any) error {
+	var rd io.Reader
+	if body != nil {
+		rd = strings.NewReader(string(body))
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.base+path, rd)
 	if err != nil {
@@ -90,9 +104,15 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		var eb api.ErrorBody
+		var eb struct {
+			api.ErrorBody
+			Problems []struct {
+				Path    string `json:"path"`
+				Message string `json:"message"`
+			} `json:"problems"`
+		}
 		if json.NewDecoder(resp.Body).Decode(&eb) == nil && eb.Error.Code != "" {
-			return &APIError{Status: resp.StatusCode, Code: eb.Error.Code, Message: eb.Error.Message}
+			return &APIError{Status: resp.StatusCode, Code: eb.Error.Code, Message: eb.Error.Message, Problems: eb.Problems}
 		}
 		return &APIError{Status: resp.StatusCode, Code: "unknown", Message: resp.Status}
 	}

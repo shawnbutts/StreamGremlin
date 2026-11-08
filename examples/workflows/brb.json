@@ -1,0 +1,20 @@
+{
+  "schema": "streamgremlin.workflow/v1",
+  "id": "chat.brb",
+  "name": "Be right back",
+  "description": "!brb (you or a moderator) switches to Be Right Back and says so; !back switches back, unless you changed the scene yourself meanwhile.",
+  "triggers": [{ "type": "chat.command.received", "where": { "command": "brb" } }],
+  "queue": { "policy": "drop" },
+  "steps": [
+    {
+      "if": "event.payload.chatter.is_broadcaster || event.payload.chatter.is_moderator",
+      "do": [
+        { "action": "obs.scene.snapshot_and_switch", "with": { "key": "brb", "scene": "Be Right Back" } },
+        { "action": "chat.send", "with": { "message": "Be right back! Grab a drink 🥤" } }
+      ],
+      "else": [
+        { "action": "chat.send", "with": { "message": "Sorry ${event.actor.display_name}, only mods can do that." } }
+      ]
+    }
+  ]
+}

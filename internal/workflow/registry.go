@@ -1,0 +1,174 @@
+package workflow
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strconv"
+	"sync"
+)
+
+// Param describes one input of an action.
+type Param struct {
+	Name     string   `json:"name"`
+	Label    string   `json:"label"`
+	Type     string   `json:"type"` // text, number, bool or choice
+	Choices  []string `json:"choices,omitempty"`
+	Required bool     `json:"required"`
+	Default  any      `json:"default,omitempty"`
+}
+
+// Action is something a step can do.
+type Action struct {
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Group       string `json:"group"`
+	// External actions reach Twitch, OBS or anything outside StreamGremlin.
+	// They never run for test events: the step is recorded as skipped with
+	// its evaluated input (a dry run).
+	External bool                                           `json:"external"`
+	Params   []Param                                        `json:"params"`
+	Run      func(ctx context.Context, c Call) (any, error) `json:"-"`
+}
+
+// Param returns the parameter named name, or nil.
+func (a *Action) Param(name string) *Param {
+	for i := range a.Params {
+		if a.Params[i].Name == name {
+			return &a.Params[i]
+		}
+	}
+	return nil
+}
+
+// Call is one run of an action.
+type Call struct {
+	Args map[string]any
+	// IdempotencyKey is the same whenever the same step runs for the same
+	// job and loop iteration: job id / step path.
+	IdempotencyKey string
+	JobID          string
+	WorkflowID     string
+}
+
+// String returns a text argument, or def when absent.
+func (c Call) String(name, def string) (string, error) {
+	v, ok := c.Args[name]
+	if !ok || v == nil {
+		return def, nil
+	}
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case int64, float64, bool:
+		return format(x), nil
+	}
+	return "", fmt.Errorf("%s must be text", name)
+}
+
+// Bool returns a true/false argument, or def when absent.
+func (c Call) Bool(name string, def bool) (bool, error) {
+	v, ok := c.Args[name]
+	if !ok || v == nil {
+		return def, nil
+	}
+	switch x := v.(type) {
+	case bool:
+		return x, nil
+	case string:
+		if b, err := strconv.ParseBool(x); err == nil {
+			return b, nil
+		}
+	}
+	return false, fmt.Errorf("%s must be true or false", name)
+}
+
+// Registry holds the actions available to workflows.
+type Registry struct {
+	mu      sync.RWMutex
+	actions map[string]*Action
+}
+
+// NewRegistry returns an empty registry.
+func NewRegistry() *Registry { return &Registry{actions: map[string]*Action{}} }
+
+// Add registers an action. Names are unique.
+func (r *Registry) Add(a Action) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, dup := r.actions[a.Name]; dup {
+		panic("workflow: action " + a.Name + " registered twice")
+	}
+	if a.Params == nil {
+		a.Params = []Param{}
+	}
+	r.actions[a.Name] = &a
+}
+
+// Get returns the action named name.
+func (r *Registry) Get(name string) (*Action, bool) {
+	if r == nil {
+		return nil, false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	a, ok := r.actions[name]
+	return a, ok
+}
+
+// List returns every action, by group then name.
+func (r *Registry) List() []*Action {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*Action, 0, len(r.actions))
+	for _, a := range r.actions {
+		out = append(out, a)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Group != out[j].Group {
+			return out[i].Group < out[j].Group
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+// checkArgs checks evaluated arguments against the action's parameters.
+func checkArgs(a *Action, args map[string]any) error {
+	for _, p := range a.Params {
+		v, ok := args[p.Name]
+		if !ok || v == nil {
+			if p.Required {
+				return fmt.Errorf("%s is required", p.Label)
+			}
+			continue
+		}
+		switch p.Type {
+		case "bool":
+			if _, ok := v.(bool); !ok {
+				if s, isStr := v.(string); !isStr || (s != "true" && s != "false") {
+					return fmt.Errorf("%s must be true or false", p.Label)
+				}
+			}
+		case "number":
+			switch v.(type) {
+			case int64, float64:
+			default:
+				return fmt.Errorf("%s must be a number", p.Label)
+			}
+		case "choice":
+			s, _ := v.(string)
+			found := false
+			for _, c := range p.Choices {
+				if s == c {
+					found = true
+				}
+			}
+			if !found {
+				return fmt.Errorf("%s must be one of %v", p.Label, p.Choices)
+			}
+		}
+	}
+	return nil
+}
