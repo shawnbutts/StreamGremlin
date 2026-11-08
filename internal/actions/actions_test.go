@@ -12,20 +12,20 @@ import (
 // editor: a label, a group, a description, and parameters it can show.
 func TestEveryActionCanBeShownInTheEditor(t *testing.T) {
 	reg := workflow.NewRegistry()
-	Register(reg, nil, nil)
+	Register(reg, nil, nil, nil)
 	e := workflow.New(workflow.Options{Actions: reg, Variables: variables.New(nil)})
 	p := e.Palette()
 	if len(p.Actions) < 15 || len(p.Triggers) == 0 {
 		t.Fatalf("%d actions, %d triggers", len(p.Actions), len(p.Triggers))
 	}
-	groups := map[string]bool{"General": true, "Twitch": true, "OBS": true, "Variables": true, "Workflows": true}
+	groups := map[string]bool{"General": true, "Twitch": true, "OBS": true, "Variables": true, "Workflows": true, "Timers": true}
 	for _, a := range p.Actions {
 		if a.Label == "" || a.Description == "" || !groups[a.Group] {
 			t.Errorf("%s: label %q, group %q, description %q", a.Name, a.Label, a.Group, a.Description)
 		}
 		for _, prm := range a.Params {
 			switch prm.Editor {
-			case "", "message", "scene", "source", "workflow", "variable", "value":
+			case "", "message", "scene", "source", "workflow", "variable", "value", "timer":
 			default:
 				t.Errorf("%s.%s: editor %q", a.Name, prm.Name, prm.Editor)
 			}

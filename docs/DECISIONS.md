@@ -615,3 +615,16 @@ Decided 2026-11-08 under D-007, after the user asked "how do i build for windows
 - **Not yet:** code signing and an icon embedded in the `.exe`. Those come with packaging for a release.
 - **Checked 2026-11-08, the user:** a build from `make windows`, copied to the Windows computer, ran ("the windows version worked well").
 
+
+## D-022. Timers (M2 slice 1)
+
+Decided 2026-11-08 under D-007. The user said "proceed" to starting M2 with timers. They work as StreamWisp's after its D-096, which the user asked for there: "can we make changes to be more inline with how streamer.bot handles those?"
+
+- **Timers follow [ADR-0013](adr/0013-timers.md):** every so often (optionally at random between two times) or on a cron schedule; wait for chat lines; only while live; run once; a count of how many times each has gone off; Run now.
+- **A workflow starts from a timer** with "A timer goes off", and can turn one on, off or the other way with the step "Turn a timer on or off".
+- **Chat lines count viewers' messages only:** not yours, not the bot's, not test events.
+  - Without this, StreamGremlin's own reminder, sent as you when no bot is signed in, counted towards the timer's next turn.
+  - The acceptance test found this.
+- **"Live" is what OBS last said.** When OBS never said, "only while live" timers skip their turns.
+- **A new Timers screen at Ctrl/⌘+5.** Variables moves to 6, Help to 7 and Settings to 8 (still also Ctrl/⌘+comma).
+- **New API permissions:** `timers.read` and `timers.write`.

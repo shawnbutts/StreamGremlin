@@ -103,6 +103,16 @@
             {#if !preset}<option value="custom">Only: {(Array.isArray(v) ? v : [v]).join(', ')}</option>{/if}
           </select>
         </label>
+      {:else if m.kind === 'timer'}
+        <label class="field">
+          <span>{m.label}</span>
+          <select class="sg-input" value={typeof v === 'string' ? v : ''} onchange={(e) => setWhere(m.path, e.currentTarget.value || undefined)}>
+            <option value="">Any timer</option>
+            {#each env.timers as t (t.id)}<option value={t.id}>{t.name}{t.enabled ? '' : ' (off)'}</option>{/each}
+            {#if typeof v === 'string' && v && !env.timers.some((t) => t.id === v)}<option value={v}>{v} (not found)</option>{/if}
+          </select>
+          {#if !env.timers.length}<span class="sg-muted field-hint">No timers yet: make one on the Timers screen.</span>{/if}
+        </label>
       {:else if m.kind === 'on_off'}
         <label class="field">
           <span>{m.label}</span>

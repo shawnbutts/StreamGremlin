@@ -6,7 +6,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** milestone M1, the Spine, is done ([results](docs/milestones/M1.md)); M2, the everyday bot, is next. Nothing for streamers yet. Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Status:** milestone M1, the Spine, is done ([results](docs/milestones/M1.md)). Building M2, the everyday bot ([progress](docs/milestones/M2.md)). Nothing for streamers yet. Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documents
 

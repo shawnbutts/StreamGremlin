@@ -21,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
@@ -78,8 +79,9 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(ob.Close)
+	tm := timers.New(timers.Options{DB: db, Inbox: inbox})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, tw, ob)
+	actions.Register(reg, tw, ob, tm)
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -89,7 +91,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars,
+		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm,
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

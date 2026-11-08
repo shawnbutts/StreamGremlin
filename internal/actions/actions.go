@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/obs"
+	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -20,7 +22,7 @@ var rareOBS = map[string]bool{
 }
 
 // Register adds every action to reg.
-func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service) {
+func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service, tm *timers.Service) {
 	text := func(name, label string, required bool) workflow.Param {
 		return workflow.Param{Name: name, Label: label, Type: "text", Required: required}
 	}
@@ -151,6 +153,38 @@ func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service) {
 				return nil, fmt.Errorf("couldn't read OBS's scene: %w", err)
 			}
 			return map[string]any{"scene": cur}, nil
+		},
+	})
+
+	// Timers are StreamGremlin's own: the step runs for test events too,
+	// but then only says what it would do (docs/adr/0013-timers.md).
+	reg.Add(workflow.Action{
+		Name: "timers.set_state", Label: "Turn a timer on or off", Group: "Timers", SavesState: true,
+		Description: "Turns one of your timers on, off, or the other way. Turning one on starts its count again. Toggle isn't safe to repeat.",
+		Params: []workflow.Param{
+			{Name: "timer", Label: "Timer", Type: "text", Required: true, Literal: true, Editor: "timer",
+				Pattern: timers.IDPattern, PatternHint: "a timer's id, like socials"},
+			choice("state", "On, off or toggle", true, "on", "off", "toggle"),
+		},
+		Run: func(ctx context.Context, c workflow.Call) (any, error) {
+			id, st := str(c, "timer"), timers.State(str(c, "state"))
+			t, err := tm.Get(ctx, id)
+			if errors.Is(err, timers.ErrNotFound) {
+				return nil, fmt.Errorf("there's no timer %q", id)
+			}
+			if err != nil {
+				return nil, err
+			}
+			if c.DryRun {
+				on := st == timers.On || (st == timers.Toggle && !t.Enabled)
+				return map[string]any{"timer": id, "enabled": on, "was_enabled": t.Enabled, "test": true}, nil
+			}
+			on, err := tm.SetState(ctx, id, st, time.Now())
+			if err != nil {
+				return nil, err
+			}
+			tm.Changed()
+			return map[string]any{"timer": id, "enabled": on, "was_enabled": t.Enabled}, nil
 		},
 	})
 }

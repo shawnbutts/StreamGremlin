@@ -102,7 +102,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
-| Timers: timed actions, cron schedules | 0060, 0070, D-096 | F1 |
+| Timers: timed actions, cron schedules | 0060, 0070, D-096; built in M2 (ADR-0013, D-022) | F1 |
 | Alert overlays with slide or pop | 0020, D-124 | F2 |
 | Sounds, played by the desktop app, with volume per sound | 0042, D-057, D-066 | F2 |
 | Giveaways: equal entries, fingerprinted entry lists, checkable draws | 0045, D-069 | F3 |

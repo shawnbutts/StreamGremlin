@@ -54,6 +54,11 @@
     <dd>Every run is listed with whether it worked, and its trace shows each step: what it was given and what it gave back. A run that didn’t happen says why.</dd>
     <dt>One answer per command</dt>
     <dd>Each <code>!command</code> is answered by one workflow, so chat never gets two replies. Two can share a command when “Who can use it” never overlaps, like one for mods and one for everyone else.</dd>
+    <dt>Timers</dt>
+    <dd>
+      Go off every so often, or on a schedule, and start the workflows that use them: a reminder about your socials every 15
+      minutes. A timer can wait for viewers to be chatting, run only while you’re live, and run once.
+    </dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Unknown</dt>

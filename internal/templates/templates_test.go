@@ -80,7 +80,7 @@ func TestEveryTemplateWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 	reg := workflow.NewRegistry()
-	actions.Register(reg, nil, nil) // nil services: test events never reach them
+	actions.Register(reg, nil, nil, nil) // nil services: test events never reach them
 	inbox := events.NewInbox(db, nil)
 	eng := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: variables.New(db)})
 	if err := eng.Start(ctx); err != nil {

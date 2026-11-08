@@ -387,7 +387,7 @@ export interface PaletteValue {
 export interface MatchField {
   path: string;
   label: string;
-  kind: 'command' | 'who' | 'text' | 'scene' | 'source' | 'on_off';
+  kind: 'command' | 'who' | 'text' | 'scene' | 'source' | 'on_off' | 'timer';
   help?: string;
 }
 
@@ -609,3 +609,54 @@ export async function restartEngine(): Promise<void> {
     throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
   }
 }
+
+/** What a timer is set to do (docs/adr/0013-timers.md). */
+export interface TimerInput {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Every so often; with up_to_seconds, at random between the two. */
+  every_seconds?: number;
+  up_to_seconds?: number;
+  /** Or a five-field cron schedule, in the computer's local time. */
+  cron?: string;
+  /** Chat lines from viewers to wait for since it last went off. */
+  chat_lines: number;
+  live_only: boolean;
+  once: boolean;
+}
+
+export interface Timer extends TimerInput {
+  counter: number;
+  last_fired_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TimerStatus extends Timer {
+  next_at?: string;
+  /** off; chat: its time came and it waits for chat lines; never: the schedule matches no date. */
+  waiting?: 'off' | 'chat' | 'never';
+  lines?: number;
+}
+
+export const getTimers = () => api<{ timers: TimerStatus[]; live?: boolean }>('GET', '/v1/timers');
+export function saveTimer(t: TimerInput) {
+  // Only what can be set: never the count or the times.
+  const body: TimerInput = {
+    id: t.id,
+    name: t.name,
+    enabled: t.enabled,
+    chat_lines: t.chat_lines,
+    live_only: t.live_only,
+    once: t.once,
+  };
+  if (t.cron) body.cron = t.cron;
+  else {
+    body.every_seconds = t.every_seconds;
+    if (t.up_to_seconds) body.up_to_seconds = t.up_to_seconds;
+  }
+  return api<TimerStatus>('PUT', `/v1/timers/${encodeURIComponent(t.id)}`, body);
+}
+export const deleteTimer = (id: string) => api<void>('DELETE', `/v1/timers/${encodeURIComponent(id)}`);
+export const fireTimer = (id: string) => api<{ timer: Timer }>('POST', `/v1/timers/${encodeURIComponent(id)}/fire`);

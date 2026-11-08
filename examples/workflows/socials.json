@@ -1,0 +1,10 @@
+{
+  "schema": "streamgremlin.workflow/v1",
+  "id": "timer.socials",
+  "name": "Socials reminder",
+  "description": "When the Socials timer goes off, says where to follow you. Make the timer on the Timers screen (id socials).",
+  "triggers": [{ "type": "timers.timer.fired", "where": { "timer_id": "socials" } }],
+  "steps": [
+    { "action": "chat.send", "with": { "message": "📣 Follow along between streams: add your links here! (reminder #${event.payload.counter})" } }
+  ]
+}

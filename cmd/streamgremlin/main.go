@@ -45,6 +45,10 @@ Commands:
   commands  Chat commands and the workflow that answers each.
   templates Ready-made workflows: templates, templates show ID.
   backups   Backups: list, create, verify, restore, delete (streamgremlin backups help).
+  timers    Timers that start workflows every so often (streamgremlin timers help).
+            timers [-json]                list, with when each goes off next
+            timers run|on|off|delete ID   run now, turn on or off, delete
+            timers set ID -name N -every 15m [-lines N] [-live] [-once]
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -107,6 +111,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return templatesCmd(dir, rest, stdout, stderr)
 	case "commands":
 		return commandsCmd(dir, rest, stdout, stderr)
+	case "timers":
+		return timersCmd(dir, rest, stdout, stderr)
 	case "vars":
 		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":

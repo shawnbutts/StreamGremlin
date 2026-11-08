@@ -56,6 +56,17 @@
       {/if}
     </select>
   </label>
+{:else if param.editor === 'timer'}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose a timer…</option>
+      {#each env.timers as t (t.id)}<option value={t.id}>{t.name}{t.enabled ? '' : ' (off)'}</option>{/each}
+      {#if typeof current === 'string' && current && !env.timers.some((t) => t.id === current)}
+        <option value={current}>{current} (not found)</option>
+      {/if}
+    </select>
+  </label>
 {:else if param.type === 'choice'}
   <label class="field">
     <span>{label}</span>

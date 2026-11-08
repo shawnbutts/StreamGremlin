@@ -28,6 +28,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
@@ -60,6 +61,7 @@ type Host struct {
 	twitch    *twitch.Service
 	obs       *obs.Service
 	workflows *workflow.Engine
+	timers    *timers.Service
 	maint     *maintenance.Service
 	log       *slog.Logger
 	done      chan error
@@ -125,13 +127,15 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.obs.Start(ctx); err != nil {
 		return nil, err
 	}
+	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, h.twitch, h.obs)
+	actions.Register(reg, h.twitch, h.obs, h.timers)
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
 		return nil, err
 	}
+	h.timers.Start(context.Background())
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
 	h.maint.Start(context.Background())
 
@@ -151,6 +155,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		OBS:         h.obs,
 		Workflows:   h.workflows,
 		Variables:   vars,
+		Timers:      h.timers,
 		Maintenance: h.maint,
 		Logger:      log,
 	}))
@@ -225,6 +230,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.timers != nil {
+		h.timers.Close() // before workflows: no new turns while runs finish
 	}
 	if h.workflows != nil {
 		h.workflows.Close() // first: running jobs still need Twitch and OBS for their finally steps

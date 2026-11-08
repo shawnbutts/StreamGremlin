@@ -10,7 +10,7 @@ type MatchField struct {
 	Path  string `json:"path"`
 	Label string `json:"label"`
 	// Kind: command (a chat command, without "!"), who (a chatter.role
-	// list), text, scene, source or on_off.
+	// list), text, scene, source, on_off or timer (a timer's id).
 	Kind string `json:"kind"`
 	Help string `json:"help,omitempty"`
 }
@@ -72,6 +72,11 @@ func Triggers() []TriggerEntry {
 			Match: []MatchField{{Path: "scene_name", Label: "Only for scene", Kind: "scene", Help: "Leave empty for any scene."}},
 			Values: []Value{{Token: "scene", Label: "The new scene", Expr: "event.payload.scene_name"},
 				{Token: "previous_scene", Label: "The scene before", Expr: "event.payload.previous_scene_name"}}},
+		{Type: "timers.timer.fired", Label: "A timer goes off", Category: "Timers",
+			Help:  "One of your timers goes off: every so often, on a schedule, or when you click Run now.",
+			Match: []MatchField{{Path: "timer_id", Label: "Timer", Kind: "timer"}},
+			Values: []Value{{Token: "timer", Label: "The timer's name", Expr: "event.payload.name"},
+				{Token: "counter", Label: "How many times it has gone off", Expr: "event.payload.counter"}}},
 		{Type: "broadcast.stream.started", Label: "The stream starts", Category: "Stream", Help: "OBS starts streaming.",
 			Match: []MatchField{}, Values: []Value{}},
 		{Type: "broadcast.stream.stopped", Label: "The stream stops", Category: "Stream", Help: "OBS stops streaming.",

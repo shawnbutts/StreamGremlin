@@ -209,6 +209,34 @@ func (in *Inbox) Head(ctx context.Context) (int64, error) {
 	return head, nil
 }
 
+// CountViewerChat counts real chat messages after seq from viewers: not
+// test events, and not the streamer's account, whose messages include what
+// StreamGremlin itself sends as the streamer. (The bot's are never stored.)
+func (in *Inbox) CountViewerChat(ctx context.Context, after int64) (int, error) {
+	var n int
+	err := in.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE type = 'chat.message.received' AND seq > ?
+		AND delivery_quality != 'synthetic'
+		AND COALESCE(json_extract(payload, '$.chatter.role'), '') != 'broadcaster'`, after).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("events: count: %w", err)
+	}
+	return n, nil
+}
+
+// LatestReal returns the newest event of any of the types, test events
+// left out; ok is false when there's none.
+func (in *Inbox) LatestReal(ctx context.Context, types ...string) (rec Record, ok bool, err error) {
+	if len(types) == 0 {
+		return Record{}, false, nil
+	}
+	cond, args := Filter(types).where()
+	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic'"+cond+" ORDER BY seq DESC LIMIT 1", append(args, 1)...)
+	if err != nil || len(recs) == 0 {
+		return Record{}, false, err
+	}
+	return recs[0], true, nil
+}
+
 // Filter limits which types a reader sees. Empty means every type. Each
 // pattern is a type ("chat.message.received") or a prefix ending in ".*"
 // ("chat.*" matches chat.message.received and chat.command.received).

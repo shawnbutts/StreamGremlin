@@ -43,6 +43,9 @@ const (
 	// Backups: listing them, and making, checking, restoring and deleting.
 	PermBackupsRead  Permission = "backups.read"
 	PermBackupsWrite Permission = "backups.write"
+	// Timers: reading them, and saving, switching, running now and deleting.
+	PermTimersRead  Permission = "timers.read"
+	PermTimersWrite Permission = "timers.write"
 )
 
 // Principal is an authenticated caller.

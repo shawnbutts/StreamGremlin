@@ -45,6 +45,9 @@ type Kind struct {
 	build func(id string, v map[string]string) (payload any, actor *Actor, err error)
 }
 
+// TimerFired is the event a timer records each time it goes off.
+const TimerFired = "timers.timer.fired"
+
 // Catalog lists the types the engine knows in this build. Slices add their
 // types here as they add the adapters that send them (docs/adr/0004-events.md).
 // Payload shapes aren't frozen until the slice that sends the real event.
@@ -156,6 +159,20 @@ func Catalog() []Kind {
 		obsKind("broadcast.media.ended", "OBS media ended", "A media source finished playing.",
 			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Intro Video", Max: 256}},
 			func(v map[string]string) map[string]any { return map[string]any{"source_name": v["source_name"]} }),
+		{
+			Type: TimerFired, Label: "Timer went off",
+			Description: "One of your timers went off, on its schedule or by Run now.",
+			Sources:     []string{"timers"},
+			Fields: []Field{
+				{Name: "timer_id", Label: "Timer", Kind: "text", Default: "socials", Max: 64, Path: "timer_id"},
+				{Name: "name", Label: "Timer's name", Kind: "text", Default: "Socials", Max: 100},
+				{Name: "counter", Label: "Times it has gone off", Kind: "number", Default: "1", Max: 10},
+			},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				n, _ := strconv.ParseInt(v["counter"], 10, 64)
+				return map[string]any{"timer_id": v["timer_id"], "name": v["name"], "counter": n, "manual": false}, nil, nil
+			},
+		},
 		obsKind("broadcast.stream.started", "Stream started", "OBS started streaming.", nil,
 			func(map[string]string) map[string]any { return map[string]any{} }),
 		obsKind("broadcast.stream.stopped", "Stream stopped", "OBS stopped streaming.", nil,

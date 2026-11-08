@@ -85,9 +85,17 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **History:** events older than 30 days and finished runs older than 90 days are cleared automatically, both adjustable (0 keeps them forever). Workflows and saved variables are never cleared.
   - `streamgremlin backups`, `backups create`, `verify`, `restore`, `cancel-restore` and `delete`.
 
+- M2 slice 1, timers:
+  - **A Timers screen:** timers go off every so often (or at random between two times) or on a schedule, and start the workflows that use them.
+    - A timer can wait for viewers to send so many chat messages, run only while OBS is streaming, and run once.
+    - Each counts how many times it has gone off. **Run now** tries one out.
+    - **Make a workflow** starts one for a timer.
+  - **Workflows:** the trigger "A timer goes off", with `{timer}` and `{counter}`, and the step "Turn a timer on or off".
+  - `streamgremlin timers`, `timers set`, `run`, `on`, `off` and `delete`.
+
 ### Changed
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Variables 5, Help 6, Settings 7 (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Variables 6, Help 7, Settings 8 (and Ctrl/⌘+comma, which always reaches Settings).
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 
