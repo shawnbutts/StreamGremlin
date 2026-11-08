@@ -59,7 +59,7 @@ func Register(reg *workflow.Registry, tw *twitch.Service, ob *obs.Service, tm *t
 			}
 			as, _ := c.String("as", "")
 			reply, _ := c.String("reply_to", "")
-			return tw.SendChat(ctx, twitch.SendRequest{Text: msg, As: twitch.Sender(as), ReplyTo: reply})
+			return tw.SendChat(ctx, twitch.SendRequest{Text: msg, As: twitch.Sender(as), ReplyTo: reply, Workflow: c.WorkflowID})
 		},
 	})
 

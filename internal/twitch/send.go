@@ -35,6 +35,10 @@ type SendRequest struct {
 	Text    string `json:"text"`
 	As      Sender `json:"as,omitempty"`
 	ReplyTo string `json:"reply_to,omitempty"`
+	// Workflow is the workflow sending it, if any. Its echo is never
+	// stored as you chatting, so no workflow answers it (never set by
+	// the API: what you type in the app is you chatting).
+	Workflow string `json:"-"`
 }
 
 // SendResult says what Twitch did with it.
@@ -87,7 +91,14 @@ func (s *Service) SendChat(ctx context.Context, req SendRequest) (SendResult, er
 			res.Note = "No bot account is signed in, so it was sent as you."
 		}
 	}
+	if req.Workflow != "" {
+		s.own.expect(text, s.now())
+	}
 	out, err := s.sendAs(ctx, acct, streamer.UserID, text, req.ReplyTo)
+	if req.Workflow != "" {
+		// Settled after any fallback below.
+		defer func() { s.own.settle(text, out.MessageID, s.now()) }()
+	}
 	if acct == s.bot && isHelix(err, 401) {
 		// Twitch refused the bot's sign-in, so nothing was posted: send as
 		// you instead, and check the bot's sign-in.

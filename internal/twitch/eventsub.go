@@ -382,7 +382,8 @@ func closeReason(err error) string {
 
 // storeChat stores a chat message (and its command) in the inbox. The bot's
 // own messages aren't viewer chat: they're read for its badges, then dropped,
-// so StreamGremlin never answers itself.
+// so StreamGremlin never answers itself. Neither are workflows' messages sent
+// as you (ownSends).
 func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 	var ev chatEvent
 	if err := json.Unmarshal(m.Payload.Event, &ev); err != nil || ev.MessageID == "" {
@@ -394,6 +395,10 @@ func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 			mod := hasBadge(ev.Badges, "moderator") || hasBadge(ev.Badges, "vip")
 			s.setBotModerator(&mod)
 		}
+		return
+	}
+	if st := s.streamer.Status(); st.UserID != "" && ev.ChatterUserID == st.UserID && s.own.claim(ev.MessageID, ev.Message.Text, s.now()) {
+		s.log.Debug("twitch chat: a workflow's own message, not stored")
 		return
 	}
 	if s.inbox == nil {

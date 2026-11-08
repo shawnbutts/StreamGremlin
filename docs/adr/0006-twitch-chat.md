@@ -29,6 +29,7 @@ Chat is the first real stream of events, and the place StreamGremlin answers vie
   - `source_event_id` is `cmd:<message_id>`, and the causation is the message event.
   - Messages from another channel in a shared chat never make commands.
 - **The bot's own messages aren't viewer chat:** they're read for the bot's moderator or VIP badge, then dropped. StreamGremlin never answers itself, pays it points or enters it in giveaways. Your own messages are real chat.
+- **A workflow's messages sent as you aren't your chat either** (added 2026-11-08, D-023). With no bot signed in, a workflow's `chat.send` goes out as you, and Twitch echoes it back as your message. That echo is dropped like the bot's, so a workflow can't start itself again. A send is remembered by its text until Twitch gives its message id, then by the id, since the echo can arrive before Twitch answers the send. It's forgotten after 30 seconds. Messages you send from the app's chat box, or type in Twitch, are still your chat.
 
 **Sending** (Helix Send Chat Message)
 - **Who sends:** `POST /v1/chat/messages {text, as?, reply_to?}`. `as` is `bot` by default when a bot is signed in, otherwise you; `streamer` always sends as you. The answer says who sent it, with a note when it fell back.

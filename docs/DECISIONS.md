@@ -628,3 +628,12 @@ Decided 2026-11-08 under D-007. The user said "proceed" to starting M2 with time
 - **"Live" is what OBS last said.** When OBS never said, "only while live" timers skip their turns.
 - **A new Timers screen at Ctrl/⌘+5.** Variables moves to 6, Help to 7 and Settings to 8 (still also Ctrl/⌘+comma).
 - **New API permissions:** `timers.read` and `timers.write`.
+
+## D-023. Workflows never answer their own messages
+
+Decided 2026-11-08. After timers, the agent reported that workflows could answer their own chat, and the user said: "do the fix. then counters".
+
+- **The problem:** with no bot signed in, a workflow's chat message goes out as you, and Twitch echoes it back as your chat. A workflow that answers chat therefore answered itself. Through mock Twitch, one viewer message got 55 replies in 2 seconds.
+- **The fix:** the echo of a message a workflow sent as you is dropped, as the bot's own messages always were ([ADR-0006](adr/0006-twitch-chat.md)).
+- **Still your chat:** what you type in Twitch or in the app's chat box. You can still start a workflow from your own chat.
+- **On the Events screen:** a workflow's own message no longer appears there. Its run's trace shows what was sent.

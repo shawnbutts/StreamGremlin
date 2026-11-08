@@ -93,6 +93,10 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Workflows:** the trigger "A timer goes off", with `{timer}` and `{counter}`, and the step "Turn a timer on or off".
   - `streamgremlin timers`, `timers set`, `run`, `on`, `off` and `delete`.
 
+### Fixed
+
+- With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
+
 ### Changed
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Variables 6, Help 7, Settings 8 (and Ctrl/⌘+comma, which always reaches Settings).
