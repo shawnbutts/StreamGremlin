@@ -21,8 +21,8 @@ make verify        # lint, unit tests, acceptance tests, desktop UI checks, desk
 
 ```sh
 make desktop-ui desktop
-./bin/StreamGremlin                    # the app, using your real data folder
-STREAMGREMLIN_DATA_DIR=/tmp/sg ./bin/StreamGremlin   # or a throwaway one
+./bin/app/StreamGremlin                    # the app, using your real data folder
+STREAMGREMLIN_DATA_DIR=/tmp/sg ./bin/app/StreamGremlin   # or a throwaway one
 make build && ./bin/streamgremlin status
 ```
 

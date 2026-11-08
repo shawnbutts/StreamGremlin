@@ -73,10 +73,12 @@ desktop-ui: node-check ## Install, check, test and build the desktop UI
 desktop-test: ## Vet and test the desktop module
 	cd $(DESKTOP) && $(DESKTOP_ENV) $(GO) vet ./... && $(DESKTOP_ENV) $(GO) test ./...
 
-desktop: ## Build the desktop app into ./bin (run desktop-ui first)
-	cd $(DESKTOP) && $(DESKTOP_ENV) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/StreamGremlin .
+# The app goes in its own folder: macOS and Windows file names ignore case,
+# so bin/StreamGremlin would be the same file as the CLI's bin/streamgremlin.
+desktop: ## Build the desktop app into ./bin/app (run desktop-ui first)
+	cd $(DESKTOP) && $(DESKTOP_ENV) $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/app/StreamGremlin .
 
 verify: lint vet test test-acceptance desktop-ui desktop-test desktop ## Everything; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/StreamGremlin $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
