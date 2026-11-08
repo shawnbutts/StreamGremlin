@@ -325,6 +325,7 @@ Decided 2026-11-07.
 
 1. **Twitch app:** registered now in the Twitch developer console, under `StreamGremlinHQ`. Name "StreamGremlin", client type Public (device-code sign-in, no client secret).
    - The redirect URL the console requires is `http://localhost` for now. It's confirmed against current Twitch docs when sign-in is built.
+     **Update 2026-11-08:** the console refuses it: "Redirect URIs must use HTTPS protocol." Use `https://localhost`. The device code flow never uses it. Client type: **Public** (ADR-0005).
    - The Client ID is never committed. Release builds get it from a CI secret; dev builds use paste-your-own.
 2. **Code signing:**
    - **macOS:** join the Apple Developer Program ($99 a year) for signing and notarization before anyone other than the user installs the app.

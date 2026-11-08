@@ -104,7 +104,7 @@
         <ol class="steps">
           <li>
             Open the Twitch developer console and register an application. Set <strong>Client Type</strong> to
-            <strong>Public</strong>, and add an OAuth Redirect URL such as <code>http://localhost</code> (StreamGremlin doesn't use it).
+            <strong>Public</strong>, and add <code>https://localhost</code> as the OAuth Redirect URL. Twitch requires one, but StreamGremlin never uses it.
           </li>
           <li>Copy its Client ID and paste it here. It isn't a secret.</li>
         </ol>

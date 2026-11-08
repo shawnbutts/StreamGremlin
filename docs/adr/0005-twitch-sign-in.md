@@ -69,6 +69,10 @@ Chat (slice 5), and later every Twitch feature, needs a user access token for th
 - A crash between receiving a refreshed pair and saving it loses the sign-in. That's unavoidable with single-use refresh tokens; the window is one local write.
 - The bot's own messages and its moderator status matter from slice 5 (chat).
 
+**Registering the app** (dev.twitch.tv/console, as found by the user on 2026-11-08):
+- Client type: **Public**.
+- OAuth Redirect URL: `https://localhost`. The console refuses `http://` URLs ("Redirect URIs must use HTTPS protocol."). The device code flow never redirects, so the value is never used.
+
 ## Open questions
 
-- The registered app's exact console settings (client type, redirect URL) are checked when the user registers it, then recorded here.
+- Whether the console lets the client type be changed after the app is created.
