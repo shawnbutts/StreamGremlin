@@ -20,6 +20,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -51,6 +52,7 @@ type Host struct {
 	ln      net.Listener
 	token   string
 	twitch  *twitch.Service
+	obs     *obs.Service
 	log     *slog.Logger
 	done    chan error
 }
@@ -101,6 +103,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	inbox := events.NewInbox(h.db, log)
 	h.twitch = twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: authURL, Inbox: inbox, Logger: log})
 	h.twitch.Start(ctx)
+	h.obs = obs.New(obs.Options{DB: h.db, Settings: set, Secrets: sec, Inbox: inbox, Logger: log})
+	if err := h.obs.Start(ctx); err != nil {
+		return nil, err
+	}
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
@@ -115,6 +121,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Secrets:   sec,
 		Events:    inbox,
 		Twitch:    h.twitch,
+		OBS:       h.obs,
 		Logger:    log,
 	}))
 
@@ -186,6 +193,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.obs != nil {
+		h.obs.Close()
+	}
 	if h.twitch != nil {
 		h.twitch.Close()
 	}

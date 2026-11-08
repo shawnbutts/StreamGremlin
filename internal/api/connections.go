@@ -4,12 +4,14 @@ import (
 	"errors"
 	"net/http"
 
+	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
 
 // Connections is the body of GET /v1/connections. Tokens never appear in it.
 type Connections struct {
 	Twitch twitch.Status `json:"twitch"`
+	OBS    obs.Status    `json:"obs"`
 }
 
 // ClientIDRequest is the body of PUT /v1/connections/twitch/client-id.
@@ -63,10 +65,10 @@ func connectionRoutes(d Deps) []Route {
 		},
 		{
 			Method: "GET", Path: "/v1/connections",
-			Summary:    "Twitch's Client ID and the streamer's and bot's sign-in states. Never returns tokens.",
+			Summary:    "Twitch (Client ID, sign-ins, chat) and OBS. Never returns tokens or passwords.",
 			Permission: PermConnectionsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				writeJSON(w, http.StatusOK, Connections{Twitch: d.Twitch.Status(r.Context())})
+				writeJSON(w, http.StatusOK, Connections{Twitch: d.Twitch.Status(r.Context()), OBS: d.OBS.Status()})
 			},
 		},
 		{
@@ -87,7 +89,7 @@ func connectionRoutes(d Deps) []Route {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, Connections{Twitch: d.Twitch.Status(r.Context())})
+				writeJSON(w, http.StatusOK, Connections{Twitch: d.Twitch.Status(r.Context()), OBS: d.OBS.Status()})
 			},
 		},
 		{

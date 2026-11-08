@@ -447,3 +447,17 @@ Decided 2026-11-08, without asking the user, under D-007.
 - **If Twitch refuses the bot's token**, the message goes out as you, and the answer says so. No other fallback.
 - **The Connections screen gets a Chat section:** whether chat is read, why not, `/mod <bot>` when the bot isn't a moderator, and a send box.
 - **`coder/websocket` v1.8.14** for the WebSocket. Wails already uses this exact version, so the desktop module gains nothing new.
+
+## D-013. Choices made while building M1 slice 6 (OBS)
+
+Decided 2026-11-08, without asking the user, under D-007. The user said "proceed" without naming an OBS version, so obs-websocket 5 (OBS 28 and newer) is assumed.
+
+- **OBS** follows [ADR-0007](adr/0007-obs.md):
+  - obs-websocket 5, with the password as a write-only secret;
+  - reconnects by itself, except after a wrong password, a too-old OBS, or the streamer pressing Kick in OBS, which the protocol says not to undo.
+- **Every OBS change becomes an event,** whoever made it: scene, source visibility, filters, mute, media, stream, recording, replay. Changes made while StreamGremlin couldn't see OBS are reported on reconnect.
+- **Scene snapshots switch back only while StreamGremlin still owns the scene.** Any manual change since, even away and back, defeats restoration, and so does a restart. This is the AGENTS.md invariant.
+- **Actions** cover scenes, sources, filters, mute, text, media, recording, replay buffer and screenshots. They need a live connection and are never queued. Starting or stopping the stream isn't built.
+- **The Connections screen gets an OBS card:** settings, state, and while connected the scenes (Switch, "Switch for now", "Switch back", "Stay here") and their sources (Show or Hide). The other actions get their screen in the workflow editor (slice 9).
+- **Screen order stays:** Home, Connections, Events, Settings.
+- **The route-coverage test now accepts a quoted path followed by a query string,** such as `'/v1/obs/scene-items?scene='`.

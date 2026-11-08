@@ -3,13 +3,22 @@
   // while a sign-in is pending; when the engine stops answering it shows
   // Unknown, never the last answer as if it were current.
   import { onMount } from 'svelte';
-  import { ApiError, getConnections, openInBrowser, setTwitchClientId, type TwitchStatus } from '../lib/api';
+  import {
+    ApiError,
+    getConnections,
+    openInBrowser,
+    setTwitchClientId,
+    type OBSStatus,
+    type TwitchStatus,
+  } from '../lib/api';
+  import OBSCard from './OBSCard.svelte';
   import TwitchAccount from './TwitchAccount.svelte';
   import TwitchChat from './TwitchChat.svelte';
 
   let { fastMs = 1500, slowMs = 15_000 }: { fastMs?: number; slowMs?: number } = $props();
 
   let twitch = $state<TwitchStatus | undefined>();
+  let obs = $state<OBSStatus | undefined>();
   let loadError = $state('');
   let clientId = $state('');
   let showOwnApp = $state(false);
@@ -22,11 +31,14 @@
 
   async function load(signal?: AbortSignal) {
     try {
-      twitch = (await getConnections(signal)).twitch;
+      const c = await getConnections(signal);
+      twitch = c.twitch;
+      obs = c.obs;
       loadError = '';
     } catch (e) {
       if (signal?.aborted) return;
       twitch = undefined;
+      obs = undefined;
       loadError = message(e);
     }
   }
@@ -36,7 +48,10 @@
     (async () => {
       while (!abort.signal.aborted) {
         await load(abort.signal);
-        const pending = twitch && [twitch.streamer, twitch.bot].some((a) => a.state === 'signing_in' || a.state === 'unknown');
+        // Faster while something is changing, or OBS is connected (its scene can change any time).
+        const pending =
+          (twitch && [twitch.streamer, twitch.bot].some((a) => a.state === 'signing_in' || a.state === 'unknown')) ||
+          (obs && obs.state !== 'off' && obs.state !== 'needs_action');
         await new Promise<void>((r) => {
           const t = setTimeout(r, pending || !twitch ? fastMs : slowMs);
           wake = () => {
@@ -164,4 +179,8 @@
     />
     <TwitchChat {twitch} />
   </section>
+
+  {#if obs}
+    <OBSCard status={obs} onchange={refresh} />
+  {/if}
 {/if}

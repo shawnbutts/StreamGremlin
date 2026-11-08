@@ -13,7 +13,9 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/mockobs"
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
+	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -25,6 +27,12 @@ const testToken = "test-token-not-secret"
 // testMock is the mock Twitch behind the latest newTestServer. Tests using
 // it don't run in parallel.
 var testMock *mocktwitch.Server
+
+// testOBS is the mock OBS behind the latest newTestServer, at testOBSURL.
+var (
+	testOBS    *mockobs.Server
+	testOBSURL string
+)
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
@@ -57,10 +65,19 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	tw.Start(context.Background())
 	t.Cleanup(tw.Close)
 	testMock = mock
+	obsMock := mockobs.New()
+	obsSrv := httptest.NewServer(obsMock)
+	t.Cleanup(obsSrv.Close)
+	testOBS, testOBSURL = obsMock, "ws"+strings.TrimPrefix(obsSrv.URL, "http")
+	ob := obs.New(obs.Options{DB: db, Settings: set, Secrets: sec, Inbox: inbox})
+	if err := ob.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(ob.Close)
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: inbox, Twitch: tw,
+		Events: inbox, Twitch: tw, OBS: ob,
 		Now: func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }

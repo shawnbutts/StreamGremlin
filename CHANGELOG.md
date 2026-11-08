@@ -33,6 +33,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - Sending stays under Twitch's rate limits, is never retried, and says exactly why a message wasn't sent.
   - The bot's own messages are never treated as viewer chat.
   - `streamgremlin chat send`. mocktwitch gains chat, with a `/chat` page to type as a viewer.
+- M1 slice 6, OBS:
+  - **Connections → OBS:** connect to OBS's WebSocket server (OBS 28 or newer), with the password kept in your keyring. It reconnects by itself, and says plainly when it needs you (wrong password, a Kick from OBS, an old OBS).
+  - While connected: switch scenes, "Switch for now" and come back, and show or hide sources.
+  - Switching back never undoes a scene you chose yourself in OBS meanwhile, or while StreamGremlin was closed.
+  - Every change in OBS shows on Events: scenes, sources, filters, mute, media, stream, recording, replay.
+  - `streamgremlin obs …`, and `mockobs`, a stand-in for OBS, for tests and for trying the app.
 
 ### Changed
 

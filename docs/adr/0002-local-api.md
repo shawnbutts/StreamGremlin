@@ -21,11 +21,11 @@ The desktop app and the CLI must reach the engine through the same authenticated
 4. A request with an `Origin` header is refused unless that origin is allowed. None are allowed yet: the app's bridge sends no Origin.
 5. Bodies are capped at 1 MiB. JSON is decoded strictly: unknown fields and trailing data are errors.
 6. `Authorization: Bearer <token>` is compared in constant time. The token is 32 random bytes, base64url-encoded, in `<data>/api-token` (mode 0600), created on first start. Deleting the file and restarting rotates it.
-7. Every route declares a permission (`health.read`, `settings.read`, `settings.write`, `secrets.read`, `secrets.write`, `events.read`, `events.simulate`, `connections.read`, `connections.write`, `chat.send`, and more as slices add them). One function checks it. The token holder is the `admin` principal, with every permission. Later roles add principals without touching routes.
+7. Every route declares a permission (`health.read`, `settings.read`, `settings.write`, `secrets.read`, `secrets.write`, `events.read`, `events.simulate`, `connections.read`, `connections.write`, `chat.send`, `obs.read`, `obs.control`, and more as slices add them). One function checks it. The token holder is the `admin` principal, with every permission. Later roles add principals without touching routes.
 
 `GET /v1/health` is the only public route. It answers `{"status":"ok"}` and nothing else.
 
-**Errors** always look like `{"error":{"code":"…","message":"…"}}`. The stable codes are `unauthorized`, `forbidden`, `not_found`, `method_not_allowed` (with an `Allow` header), `invalid_request`, `payload_too_large`, `unsupported_api_version`, `conflict`, `unavailable` (an outside service such as the keyring or Twitch didn't answer), `rate_limited`, `not_sent` (Twitch accepted a chat message but didn't post it) and `internal`. Internal errors are logged with detail and answered generically.
+**Errors** always look like `{"error":{"code":"…","message":"…"}}`. The stable codes are `unauthorized`, `forbidden`, `not_found`, `method_not_allowed` (with an `Allow` header), `invalid_request`, `payload_too_large`, `unsupported_api_version`, `conflict`, `unavailable` (an outside service such as the keyring or Twitch didn't answer), `rate_limited`, `not_sent` (Twitch accepted a chat message but didn't post it), `not_connected`, `unknown_outcome` (the connection dropped before an answer, so the request may or may not have happened) and `internal`. Internal errors are logged with detail and answered generically.
 
 **Logging.** The API logs method, path, status and duration at debug level, and never headers or bodies. An acceptance test checks that the token appears in neither the log file nor stderr.
 

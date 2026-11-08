@@ -9,6 +9,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -24,6 +25,7 @@ type Deps struct {
 	Secrets   *secrets.Store
 	Events    *events.Inbox
 	Twitch    *twitch.Service
+	OBS       *obs.Service
 	Now       func() time.Time
 	Logger    *slog.Logger
 }
@@ -107,7 +109,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...)...)
+	}, append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

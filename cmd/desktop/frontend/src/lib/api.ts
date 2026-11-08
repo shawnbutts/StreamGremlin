@@ -205,7 +205,7 @@ export const sendChat = (text: string, as: '' | TwitchRole) =>
   api<SendResult>('POST', '/v1/chat/messages', { text, as });
 
 export const getConnections = (signal?: AbortSignal) =>
-  api<{ twitch: TwitchStatus }>('GET', '/v1/connections', undefined, signal);
+  api<{ twitch: TwitchStatus; obs: OBSStatus }>('GET', '/v1/connections', undefined, signal);
 
 export const setTwitchClientId = (clientId: string) =>
   api<{ twitch: TwitchStatus }>('PUT', '/v1/connections/twitch/client-id', { client_id: clientId });
@@ -229,3 +229,59 @@ export async function openInBrowser(url: string): Promise<void> {
     throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
   }
 }
+
+export type OBSState = 'off' | 'connecting' | 'connected' | 'disconnected' | 'needs_action';
+
+export interface OBSStatus {
+  url: string;
+  enabled: boolean;
+  has_password: boolean;
+  state: OBSState;
+  detail?: string;
+  since: string;
+  obs_version?: string;
+  websocket_version?: string;
+  scene?: string;
+  scene_set_by?: string;
+}
+
+export interface SceneItem {
+  id: number;
+  source: string;
+  visible: boolean;
+  is_group: boolean;
+}
+
+export interface Snapshot {
+  id: string;
+  key: string;
+  previous_scene: string;
+  target_scene: string;
+  switched: boolean;
+  status: 'open' | 'restored' | 'skipped' | 'failed' | 'released';
+  reason?: string;
+  message?: string;
+  would_restore?: boolean;
+}
+
+/** Save OBS's settings. The password is write-only: omit it to keep the saved one. */
+export const configureOBS = (url: string, enabled: boolean, password?: string, clearPassword = false) =>
+  api<OBSStatus>('PUT', '/v1/connections/obs', {
+    url,
+    enabled,
+    ...(password ? { password } : {}),
+    ...(clearPassword ? { clear_password: true } : {}),
+  });
+
+export const getOBSScenes = () => api<{ current: string; scenes: string[] }>('GET', '/v1/obs/scenes');
+export const getSceneItems = (scene: string) =>
+  api<{ items: SceneItem[] }>('GET', '/v1/obs/scene-items?scene=' + encodeURIComponent(scene));
+export const switchScene = (scene: string) => api<{ scene: string }>('POST', '/v1/obs/scene', { scene });
+export const setSourceVisible = (scene: string, source: string, visible: boolean) =>
+  api<{ visible: boolean }>('PUT', '/v1/obs/scene-items/visibility', { scene, source, visible });
+export const getSnapshots = () => api<{ snapshots: Snapshot[] }>('GET', '/v1/obs/snapshots');
+export const takeSnapshot = (key: string, scene: string) => api<Snapshot>('POST', '/v1/obs/snapshots', { key, scene });
+export const restoreSnapshot = (key: string) =>
+  api<Snapshot>('POST', `/v1/obs/snapshots/${encodeURIComponent(key)}/restore`);
+export const releaseSnapshot = (key: string) =>
+  api<Snapshot>('POST', `/v1/obs/snapshots/${encodeURIComponent(key)}/release`);

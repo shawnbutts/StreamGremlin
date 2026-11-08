@@ -37,6 +37,7 @@ Commands:
             twitch sign-in [-bot]         sign in with a code at twitch.tv/activate
             twitch sign-out [-bot]        sign out
             twitch client-id ID           use your own Twitch app ("" for the built-in one)
+  obs       OBS: connect, scenes, sources, snapshots (streamgremlin obs help).
   chat      Send to your Twitch chat (read it with: events watch -types chat.*).
             chat send [-as bot|streamer] TEXT
   events    Show events as they arrive, and send test events.
@@ -83,6 +84,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch cmd {
 	case "status":
 		return status(dir, rest, stdout, stderr)
+	case "obs":
+		return obsCmd(dir, rest, os.Stdin, stdout, stderr)
 	case "chat":
 		return chatCmd(dir, rest, stdout, stderr)
 	case "twitch":

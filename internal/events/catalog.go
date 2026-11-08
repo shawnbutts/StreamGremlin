@@ -109,7 +109,54 @@ func Catalog() []Kind {
 				}, nil, nil
 			},
 		},
+		obsKind("broadcast.scene_item.visibility_changed", "OBS source shown or hidden", "A source in a scene was shown or hidden, by anyone.",
+			[]Field{{Name: "scene_name", Label: "Scene", Kind: "text", Default: "Just Chatting", Max: 256},
+				{Name: "source_name", Label: "Source", Kind: "text", Default: "Webcam", Max: 256},
+				{Name: "visible", Label: "Visible (true or false)", Kind: "text", Default: "true", Max: 5}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"scene_name": v["scene_name"], "source_name": v["source_name"], "visible": v["visible"] == "true"}
+			}),
+		obsKind("broadcast.filter.enabled_changed", "OBS filter turned on or off", "A filter on a source or scene was turned on or off, by anyone.",
+			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Webcam", Max: 256},
+				{Name: "filter_name", Label: "Filter", Kind: "text", Default: "Blur", Max: 256},
+				{Name: "enabled", Label: "On (true or false)", Kind: "text", Default: "true", Max: 5}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"source_name": v["source_name"], "filter_name": v["filter_name"], "enabled": v["enabled"] == "true"}
+			}),
+		obsKind("broadcast.audio.mute_changed", "OBS audio muted or unmuted", "An audio source was muted or unmuted, by anyone.",
+			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Mic/Aux", Max: 256},
+				{Name: "muted", Label: "Muted (true or false)", Kind: "text", Default: "true", Max: 5}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"source_name": v["source_name"], "muted": v["muted"] == "true"}
+			}),
+		obsKind("broadcast.media.started", "OBS media started", "A media source started playing.",
+			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Intro Video", Max: 256}},
+			func(v map[string]string) map[string]any { return map[string]any{"source_name": v["source_name"]} }),
+		obsKind("broadcast.media.ended", "OBS media ended", "A media source finished playing.",
+			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Intro Video", Max: 256}},
+			func(v map[string]string) map[string]any { return map[string]any{"source_name": v["source_name"]} }),
+		obsKind("broadcast.stream.started", "Stream started", "OBS started streaming.", nil,
+			func(map[string]string) map[string]any { return map[string]any{} }),
+		obsKind("broadcast.stream.stopped", "Stream stopped", "OBS stopped streaming.", nil,
+			func(map[string]string) map[string]any { return map[string]any{} }),
+		obsKind("broadcast.recording.started", "Recording started", "OBS started recording.", nil,
+			func(map[string]string) map[string]any { return map[string]any{} }),
+		obsKind("broadcast.recording.stopped", "Recording stopped", "OBS stopped recording and saved the file.",
+			[]Field{{Name: "output_path", Label: "File", Kind: "text", Default: "/Users/you/Movies/recording.mkv", Max: 1024}},
+			func(v map[string]string) map[string]any { return map[string]any{"output_path": v["output_path"]} }),
+		obsKind("broadcast.replay.saved", "Replay saved", "OBS saved the replay buffer to a file.",
+			[]Field{{Name: "path", Label: "File", Kind: "text", Default: "/Users/you/Movies/replay.mkv", Max: 1024}},
+			func(v map[string]string) map[string]any { return map[string]any{"path": v["path"]} }),
 	}
+}
+
+// obsKind is a catalog entry for an event OBS reports.
+func obsKind(typ, label, desc string, fields []Field, payload func(map[string]string) map[string]any) Kind {
+	if fields == nil {
+		fields = []Field{}
+	}
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"obs"}, Fields: fields,
+		build: func(_ string, v map[string]string) (any, *Actor, error) { return payload(v), nil, nil }}
 }
 
 // KindOf returns the catalog entry for typ.

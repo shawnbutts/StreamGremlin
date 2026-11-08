@@ -31,6 +31,9 @@ const (
 	PermConnectionsWrite Permission = "connections.write"
 	// Chat: sending to your channel's chat.
 	PermChatSend Permission = "chat.send"
+	// OBS: reading scenes and sources, and changing them.
+	PermOBSRead    Permission = "obs.read"
+	PermOBSControl Permission = "obs.control"
 )
 
 // Principal is an authenticated caller.

@@ -39,6 +39,8 @@ Paste any Client ID (ten or more lowercase letters and digits). Sign-in links op
 
 To type chat as a viewer, open http://127.0.0.1:7441/chat, set the channel to the login you signed in as, and send. Messages the app sends show there too.
 
+To try OBS without OBS, run `make mockobs && ./bin/mockobs` (ws://127.0.0.1:4456, add `-password x` to need one), and connect to it on the Connections screen. http://127.0.0.1:4456/panel switches scenes by hand, as you would in OBS.
+
 To build with a real Client ID, pass it at build time; never commit it: `make desktop TWITCH_CLIENT_ID=…`.
 
 Tests never touch your real keyring. To check it on purpose, run the one opt-in test, which writes, reads and deletes a single item:

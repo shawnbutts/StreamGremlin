@@ -101,6 +101,16 @@ export const twitchStatus = (over: { streamer?: Record<string, unknown>; bot?: R
         chat: { state: 'off', detail: 'Sign in with your Twitch account to read chat.', since: '2026-11-08T10:00:00.000Z' },
         ...rest,
       },
+      obs: obsOff(),
     },
   };
 };
+
+export const obsOff = (over: Record<string, unknown> = {}) => ({
+  url: 'ws://127.0.0.1:4455',
+  enabled: false,
+  has_password: false,
+  state: 'off',
+  since: '2026-11-08T10:00:00.000Z',
+  ...over,
+});

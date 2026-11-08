@@ -445,6 +445,25 @@ legend {
   accent-color: var(--sg-primary);
 }
 
+.source-list {
+  list-style: none;
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  padding: 0 0 0 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.source-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.source-list li span:first-child {
+  flex: 1;
+}
+
 @media (max-width: 640px) {
   .shell {
     grid-template-columns: 1fr;

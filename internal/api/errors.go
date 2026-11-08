@@ -18,6 +18,8 @@ const (
 	CodeUnavailable           = "unavailable"
 	CodeRateLimited           = "rate_limited"
 	CodeNotSent               = "not_sent" // Twitch accepted the request but didn't post it
+	CodeNotConnected          = "not_connected"
+	CodeUnknownOutcome        = "unknown_outcome" // the connection dropped before an answer: it may or may not have happened
 	CodeInternal              = "internal"
 )
 

@@ -49,7 +49,13 @@ func TestEveryRouteHasAScreen(t *testing.T) {
 			}
 			continue
 		}
-		if !strings.Contains(app, `"`+rt.Path+`"`) && !strings.Contains(app, `'`+rt.Path+`'`) {
+		called := false
+		for _, q := range []string{`"`, `'`, "`"} { // the path alone, or with a query string
+			if strings.Contains(app, q+rt.Path+q) || strings.Contains(app, q+rt.Path+"?") {
+				called = true
+			}
+		}
+		if !called {
 			t.Errorf("%s %s isn't called by the desktop app; build its screen, or mark it CLIOnly with a reason", rt.Method, rt.Path)
 		}
 	}

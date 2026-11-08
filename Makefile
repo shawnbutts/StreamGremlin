@@ -34,7 +34,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -63,6 +63,9 @@ test: ## Unit tests with the race detector
 test-acceptance: ## Acceptance tests through the real binary
 	$(GO) test -tags acceptance -count=1 ./tests/acceptance
 
+mockobs: ## Build the stand-in for OBS's WebSocket server into ./bin
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockobs ./cmd/mockobs
+
 mocktwitch: ## Build the stand-in for Twitch's sign-in server into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mocktwitch ./cmd/mocktwitch
 
@@ -89,4 +92,4 @@ desktop: ## Build the desktop app into ./bin/app (run desktop-ui first)
 verify: lint vet test test-acceptance desktop-ui desktop-test desktop build ## Everything, and builds the app and the CLI; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/mocktwitch $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
