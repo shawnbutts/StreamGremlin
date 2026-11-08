@@ -613,4 +613,5 @@ Decided 2026-11-08 under D-007, after the user asked "how do i build for windows
   - `TWITCH_CLIENT_ID` works as for the Mac build.
 - **The app and CLI go in separate folders,** as on macOS: Windows file names ignore case, so the two `.exe` names are the same file. A first try into one folder showed this, with one build overwriting the other.
 - **Not yet:** code signing and an icon embedded in the `.exe`. Those come with packaging for a release.
+- **Checked 2026-11-08, the user:** a build from `make windows`, copied to the Windows computer, ran ("the windows version worked well").
 
