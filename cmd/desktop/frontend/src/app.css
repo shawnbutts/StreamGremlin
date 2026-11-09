@@ -1109,3 +1109,27 @@ html[data-density='compact'] .row-actions {
   gap: 8px;
   margin-bottom: 8px;
 }
+
+.group-toggle {
+  font: inherit;
+  font-weight: 650;
+  color: var(--sg-foreground);
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.group-toggle:hover:not(:disabled) {
+  background: var(--sg-surface-hover);
+}
+
+.group-toggle:disabled {
+  cursor: default;
+}
+
+.group-fold {
+  margin: 0 0 10px;
+}

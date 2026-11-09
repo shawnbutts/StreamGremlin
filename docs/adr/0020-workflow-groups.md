@@ -4,6 +4,8 @@
 - **Date:** 2026-11-09
 - **Based on:** D-032, the user's design. Streamer.bot groups its actions too. StreamWisp had no groups.
 
+> **Amended 2026-11-09 (after the live check; the user: "we need a way to collapse items in a group rather than show all workflows"):** on the Workflows screen, groups fold. Each group's name is a button. Groups start folded, while "No group" stays open. Open all and Fold all sit above the list. A folded group still shows its count and switch. The groups opened are remembered in the window's browser storage, a per-viewer convenience that falls back to folded if it's cleared. A search opens every group with a match.
+
 ## Context
 
 As streamers add workflows, they want to switch related ones together. "Alerts" go off for a quiet stream, "Thanks" while testing. The user: "They could allow enable/disable all of them at the group level. We should also have the templates create groups where it makes sense."

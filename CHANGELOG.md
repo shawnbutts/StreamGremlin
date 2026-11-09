@@ -137,6 +137,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - M2 slice 8, workflow groups:
   - **Groups on the Workflows screen:** each with a switch that turns its workflows off and back on without losing which ones were on, and Rename. The editor has a Group field; a group comes and goes with its workflows.
+  - **Groups fold:** click a group's name to show or hide its workflows, or Open all and Fold all. Groups start folded, the app remembers which you opened, and a search opens the groups it finds something in.
   - **Templates go into groups:** Alerts, Thanks, Commands, Quotes and Scenes.
   - A group can't come on if it would make two workflows answer one chat command.
   - `streamgremlin workflows groups`, `workflows group NAME on|off` and `workflows group NAME rename NEW`.

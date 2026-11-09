@@ -198,6 +198,31 @@
     return out;
   });
 
+  // Folding groups: groups start folded; the ones opened are remembered in
+  // this window's storage (a convenience: if it's cleared, they start
+  // folded again). A search opens every group with a match.
+  const OPEN_KEY = 'streamgremlin.workflows.open-groups';
+  let openGroups = $state<string[]>(readOpen());
+  function readOpen(): string[] {
+    try {
+      const v = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]');
+      return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  function saveOpen(list: string[]) {
+    openGroups = list;
+    try {
+      localStorage.setItem(OPEN_KEY, JSON.stringify(list));
+    } catch {
+      // Not kept; it still works for now.
+    }
+  }
+  const isOpen = (name: string) => !name || !!query.trim() || openGroups.some((g) => g.toLowerCase() === name.toLowerCase());
+  const toggleGroup = (name: string) =>
+    saveOpen(isOpen(name) ? openGroups.filter((g) => g.toLowerCase() !== name.toLowerCase()) : [...openGroups, name]);
+
   async function saveRename(e: SubmitEvent) {
     e.preventDefault();
     const r = renaming;
@@ -314,10 +339,30 @@
       {/each}
     </ul>
   {:else}
-    {#each sections as sec (sec.name)}
+    {#if sections.some((x) => x.name) && !query.trim()}
+      <div class="row-actions group-fold">
+        <button type="button" class="button" onclick={() => saveOpen(sections.filter((x) => x.name).map((x) => x.name))}>Open all</button>
+        <button type="button" class="button" onclick={() => saveOpen([])}>Fold all</button>
+      </div>
+    {/if}
+    {#each sections as sec, i (sec.name)}
       <div class="wf-group" role="group" aria-label={sec.name ? `Group ${sec.name}` : 'No group'}>
         <div class="wf-group-head">
-          <h3>{sec.name || 'No group'}</h3>
+          {#if sec.name}
+            <h3>
+              <button
+                type="button"
+                class="group-toggle"
+                aria-expanded={isOpen(sec.name)}
+                aria-controls={`wf-group-${i}`}
+                disabled={!!query.trim()}
+                onclick={() => toggleGroup(sec.name)}
+                ><span aria-hidden="true">{isOpen(sec.name) ? '▾' : '▸'}</span> {sec.name}</button
+              >
+            </h3>
+          {:else}
+            <h3>No group</h3>
+          {/if}
           {#if sec.group}
             {@const g = sec.group}
             <span class="sg-muted">{g.workflows} {g.workflows === 1 ? 'workflow' : 'workflows'}, {g.on} switched on</span>
@@ -356,11 +401,13 @@
         {#if sec.group && !sec.group.enabled}
           <p class="state state-unknown"><span aria-hidden="true">!</span> This group is off: none of its workflows run. Each keeps its own switch.</p>
         {/if}
-        <ul class="secret-list" aria-label={sec.name ? `Workflows in ${sec.name}` : 'Workflows in no group'}>
-          {#each sec.list as w (w.id)}
-            {@render row(w)}
-          {/each}
-        </ul>
+        {#if isOpen(sec.name)}
+          <ul id={`wf-group-${i}`} class="secret-list" aria-label={sec.name ? `Workflows in ${sec.name}` : 'Workflows in no group'}>
+            {#each sec.list as w (w.id)}
+              {@render row(w)}
+            {/each}
+          </ul>
+        {/if}
       </div>
     {/each}
   {/if}

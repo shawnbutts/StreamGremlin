@@ -745,3 +745,4 @@ Built in slice 8 as [ADR-0020](adr/0020-workflow-groups.md). Choices made while 
 - a group exists while a workflow is in it;
 - renaming to another group's name is refused, not merged;
 - "Say hi when the stream starts" stays without a group (a group of one).
+- Groups fold on the Workflows screen (the user, after the live check: "i think we need a way to collapse items in a group rather than show all workflows"). Groups start folded and "No group" stays open. The open ones are remembered in the window's storage, and a search opens groups with matches.

@@ -8,6 +8,7 @@ import type { CommandEntry, Job, Palette, WorkflowSummary } from '../lib/api';
 let comp: ReturnType<typeof mount> | undefined;
 
 afterEach(() => {
+  localStorage.clear();
   if (comp) unmount(comp);
   comp = undefined;
   document.body.innerHTML = '';
@@ -316,9 +317,20 @@ describe('Workflow groups', () => {
     const { calls, refuse } = groupEngine();
     const el = start();
     await settle(60);
-    const heads = Array.from(el.querySelectorAll('.wf-group h3')).map((h) => h.textContent);
+    const heads = Array.from(el.querySelectorAll('.wf-group h3')).map((h) => h.textContent?.replace(/[▸▾]/g, '').trim());
     expect(heads).toEqual(['Alerts', 'No group']);
     expect(el.textContent).toContain('2 workflows, 1 switched on');
+    // Groups start folded; "No group" is open.
+    const toggle = () => el.querySelector<HTMLButtonElement>('.group-toggle')!;
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(el.textContent).not.toContain('Follow alert');
+    expect(el.textContent).toContain('Hi');
+    await noViolations('folded');
+    toggle().click();
+    flushSync();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(el.textContent).toContain('Follow alert');
+    expect(localStorage.getItem('streamgremlin.workflows.open-groups')).toBe('["Alerts"]');
     await noViolations('groups');
     const groupSwitch = el.querySelector<HTMLInputElement>('input[aria-label="Group Alerts on"]')!;
     groupSwitch.click();
@@ -335,6 +347,32 @@ describe('Workflow groups', () => {
     await settle(60);
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('already answered');
     expect(el.querySelector<HTMLInputElement>('input[aria-label="Group Alerts on"]')!.checked).toBe(false);
+  });
+
+  it('remembers open groups, opens all and folds all, and opens groups with search matches', async () => {
+    groupEngine();
+    localStorage.setItem('streamgremlin.workflows.open-groups', '["alerts"]'); // any case
+    let el = start();
+    await settle(60);
+    expect(el.textContent).toContain('Sub alert');
+    button(el, 'Fold all')!.click();
+    flushSync();
+    expect(el.textContent).not.toContain('Sub alert');
+    set(el.querySelector<HTMLInputElement>('input[type="search"]')!, 'sub');
+    flushSync();
+    expect(el.textContent).toContain('Sub alert');
+    expect(button(el, 'Fold all')).toBeUndefined();
+    set(el.querySelector<HTMLInputElement>('input[type="search"]')!, '');
+    flushSync();
+    expect(el.textContent).not.toContain('Sub alert');
+    button(el, 'Open all')!.click();
+    flushSync();
+    unmount(comp!);
+    document.body.innerHTML = '';
+    el = start();
+    await settle(60);
+    expect(el.textContent).toContain('Sub alert');
+    localStorage.clear();
   });
 
   it('renames a group', async () => {
