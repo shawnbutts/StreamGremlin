@@ -104,6 +104,8 @@ export function start(win, opts = {}) {
   let stopped = false;
   let retry = 1000;
   let animation = 'slide';
+  let pageVersion = ''; // the engine's page this one is, from the first hello
+  const reload = opts.reload || (() => win.location.reload());
   let pace = 1; // how long animations take, times the usual
 
   function setStatus(text) {
@@ -232,6 +234,15 @@ export function start(win, opts = {}) {
       return;
     }
     if (msg.type === 'hello') {
+      // The engine was updated since this page loaded: load the new page.
+      const version = msg.body && msg.body.page_version;
+      if (version && pageVersion && version !== pageVersion) {
+        stopped = true;
+        if (ws) ws.close();
+        reload();
+        return;
+      }
+      if (version) pageVersion = version;
       applyLook(msg.body && msg.body.overlay && msg.body.overlay.look);
     } else if (msg.type === 'alert') {
       const alert = msg.body && msg.body.alert;

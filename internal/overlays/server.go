@@ -3,7 +3,9 @@ package overlays
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -20,6 +22,17 @@ import (
 
 //go:embed page
 var page embed.FS
+
+// PageVersion identifies the page files this build serves (a hash of
+// them), so a page loaded from an older build can tell and reload.
+var PageVersion = func() string {
+	h := sha256.New()
+	for _, name := range []string{"page/index.html", "page/overlay.js", "page/overlay.css"} {
+		b, _ := page.ReadFile(name)
+		h.Write(b)
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16]
+}()
 
 // Subprotocol is the overlay pages' WebSocket protocol.
 const Subprotocol = "streamgremlin.overlay.v1"

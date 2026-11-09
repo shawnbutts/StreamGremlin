@@ -157,6 +157,12 @@ func (h *Hub) countLocked(name string) (pages, previews int) {
 	return pages, previews
 }
 
+// hello tells a page its overlay and look, and which version of the page
+// this engine serves: a page left over from before an update reloads.
+func hello(o Overlay, preview bool) []byte {
+	return message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": preview, "page_version": PageVersion})
+}
+
 func message(kind string, body any) []byte {
 	b, _ := json.Marshal(map[string]any{"type": kind, "body": body})
 	return b
@@ -188,7 +194,7 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 		h.conns[o.Name] = map[*conn]bool{}
 	}
 	h.conns[o.Name][c] = true
-	h.sendLocked(c, message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": preview}))
+	h.sendLocked(c, hello(o, preview))
 	// An alert still on screen is sent with the time it has left. Pages
 	// skip alerts they've already played.
 	now := h.now()
@@ -266,7 +272,7 @@ func (h *Hub) Changed(o Overlay) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for c := range h.conns[o.Name] {
-		h.sendLocked(c, message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": c.preview}))
+		h.sendLocked(c, hello(o, c.preview))
 	}
 }
 
@@ -279,7 +285,7 @@ func (h *Hub) PreviewLook(o Overlay) int {
 	for c := range h.conns[o.Name] {
 		if c.preview {
 			n++
-			h.sendLocked(c, message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": true}))
+			h.sendLocked(c, hello(o, true))
 		}
 	}
 	return n

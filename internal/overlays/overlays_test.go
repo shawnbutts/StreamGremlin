@@ -463,7 +463,8 @@ func TestAPageConnects(t *testing.T) {
 		return m
 	}
 	hello := read()
-	if hello["type"] != "hello" || !strings.Contains(mustJSON(hello), `"position":"top"`) {
+	if hello["type"] != "hello" || !strings.Contains(mustJSON(hello), `"position":"top"`) ||
+		len(PageVersion) != 16 || !strings.Contains(mustJSON(hello), `"page_version":"`+PageVersion+`"`) {
 		t.Fatal(hello)
 	}
 	shown := make(chan Result, 1)

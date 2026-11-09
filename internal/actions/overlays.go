@@ -149,7 +149,8 @@ func alertError(name string, err error) error {
 	case errors.Is(err, overlays.ErrNoAnswer):
 		return fmt.Errorf("the overlay %q was sent the alert but didn't say whether it showed it (%w)", name, err)
 	case errors.Is(err, overlays.ErrSoundFailed), errors.Is(err, overlays.ErrSoundNoAnswer):
-		return fmt.Errorf("%q: %w. In OBS, the browser source plays it: make sure it isn't muted", name, err)
+		return fmt.Errorf("%q: %w. If the overlay was open in OBS before StreamGremlin was updated, refresh the browser source "+
+			"once (Properties, Refresh cache of current page)", name, err)
 	case errors.Is(err, overlays.ErrBusy), errors.Is(err, overlays.ErrWaitedTooLong):
 		return fmt.Errorf("%q: %w", name, err)
 	}

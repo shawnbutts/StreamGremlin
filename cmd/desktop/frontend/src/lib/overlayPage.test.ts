@@ -219,6 +219,28 @@ describe('overlay page', () => {
     expect(stage.querySelector('.sg-avatar')).toBeNull();
   });
 
+  it('reloads itself when the engine was updated, and only then', () => {
+    document.body.innerHTML = '<div id="status" hidden></div><div id="stage" class="pos-top anim-slide"></div>';
+    let reloads = 0;
+    const c = clock();
+    start(
+      { document, location: { search: '', pathname: '/o/tok123/', protocol: 'http:', host: '127.0.0.1:7431' } },
+      { WebSocket: FakeSocket, setTimeout: c.setTimeout, Audio: (src: string) => new FakeAudio(src), reload: () => reloads++ },
+    );
+    const ws = FakeSocket.all.at(-1)!;
+    ws.fire('open');
+    ws.fire('message', { type: 'hello', body: { page_version: 'v1', overlay: { look: {} } } });
+    ws.fire('message', { type: 'hello', body: { page_version: 'v1', overlay: { look: { position: 'bottom' } } } }); // a new look
+    expect(reloads).toBe(0);
+    // The engine restarted on an update: the page reconnects and is told.
+    ws.fire('close');
+    c.advance(1000);
+    const again = FakeSocket.all.at(-1)!;
+    again.fire('open');
+    again.fire('message', { type: 'hello', body: { page_version: 'v2', overlay: { look: {} } } });
+    expect(reloads).toBe(1);
+  });
+
   it('plays the alert sound in the page, says whether it started, and never in a preview', async () => {
     const { ws, c } = page();
     ws.fire('message', alert('s1', { sound: { name: 'chime', volume: 70 } }));
