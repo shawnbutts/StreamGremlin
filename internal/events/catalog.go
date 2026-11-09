@@ -218,6 +218,9 @@ func Catalog() []Kind {
 				return map[string]any{"redemption_id": "test", "user_input": v["user_input"], "status": "unfulfilled",
 					"reward": map[string]any{"id": "test", "title": v["reward"], "cost": atoi(v["cost"]), "prompt": ""}}
 			}),
+		hypeKind("monetization.hype_train.started", "Hype Train starts", "A Hype Train started on your channel.", false),
+		hypeKind("monetization.hype_train.updated", "Hype Train progress", "Your Hype Train got more contributions, or went up a level.", false),
+		hypeKind("monetization.hype_train.ended", "Hype Train ends", "Your Hype Train ended.", true),
 		{Type: "broadcast.channel.online", Label: "Live on Twitch", Description: "Your channel went live on Twitch.",
 			Sources: []string{"twitch"}, Fields: []Field{},
 			build: func(string, map[string]string) (any, *Actor, error) {
@@ -404,4 +407,25 @@ func (in *Inbox) Simulate(ctx context.Context, s Simulation) (Result, error) {
 		}
 	}
 	return res, err
+}
+
+// hypeKind is a Hype Train event (docs/adr/0022-hype-trains.md): no one
+// viewer; the top contributor is a test viewer.
+func hypeKind(typ, label, desc string, ended bool) Kind {
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch"},
+		Fields: []Field{{Name: "level", Label: "Level", Kind: "number", Default: "2", Max: 3},
+			{Name: "total", Label: "Total points", Kind: "number", Default: "2100", Max: 9},
+			{Name: "user", Label: "Top contributor", Kind: "text", Default: "TestViewer", Max: 25}},
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			a := testViewer(v["user"])
+			top := map[string]any{"user_id": a.ID, "login": a.Login, "name": a.DisplayName, "type": "bits", "total": atoi(v["total"]) / 2}
+			p := map[string]any{"hype_train_id": "test", "level": atoi(v["level"]), "total": atoi(v["total"]), "train_type": "regular",
+				"is_shared": false, "started_at": "2026-11-08T20:00:00Z", "top_contributions": []any{top}, "top_contributor": top}
+			if ended {
+				p["ended_at"], p["cooldown_ends_at"] = "2026-11-08T20:05:00Z", "2026-11-08T21:05:00Z"
+			} else {
+				p["progress"], p["goal"], p["expires_at"] = 300, 2000, "2026-11-08T20:10:00Z"
+			}
+			return p, nil, nil
+		}}
 }

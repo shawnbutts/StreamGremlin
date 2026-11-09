@@ -34,7 +34,9 @@ var (
 		"moderator:read:followers", "channel:read:subscriptions", "bits:read", "channel:read:redemptions",
 		// Making and changing rewards, and completing or refunding their
 		// redemptions (docs/adr/0018-channel-point-rewards.md).
-		ManageScope}
+		ManageScope,
+		// Hype Trains (docs/adr/0022-hype-trains.md).
+		"channel:read:hype_train"}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

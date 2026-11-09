@@ -24,6 +24,14 @@ export function eventSummary(ev: EventRecord): string {
       const r = (p.reward ?? {}) as { title?: string };
       return `${who} redeemed ${r.title ?? 'a reward'}${typeof p.user_input === 'string' && p.user_input ? `: ${p.user_input}` : ''}`;
     }
+    case 'monetization.hype_train.started':
+      return `Hype Train started: level ${num('level')}`;
+    case 'monetization.hype_train.updated':
+      return `Hype Train level ${num('level')}: ${num('progress')} of ${num('goal')} to the next`;
+    case 'monetization.hype_train.ended': {
+      const top = (p.top_contributor ?? {}) as { name?: string };
+      return `Hype Train ended at level ${num('level')}${top.name ? `; top contributor ${top.name}` : ''}`;
+    }
     case 'chat.first_words.received':
       return `${who}’s first words this stream${typeof p.text === 'string' && p.text ? `: ${p.text}` : ''}`;
     case 'broadcast.channel.online':

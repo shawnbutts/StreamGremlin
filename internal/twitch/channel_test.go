@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 )
 
 func TestChannelEventsReachTheInbox(t *testing.T) {
@@ -187,5 +188,33 @@ func TestProfilePictures(t *testing.T) {
 		if GoodPicture(bad) {
 			t.Error(bad)
 		}
+	}
+}
+
+// Hype Trains: started, updated and ended, with the level, the total, the
+// progress toward the next level, and the top contributor; no one viewer.
+func TestHypeTrainsReachTheInbox(t *testing.T) {
+	r, _ := chatRig(t, false)
+	top := []mocktwitch.HypeContribution{{Login: "BitsFan", Type: "bits", Total: 900}, {Login: "SubFan", Type: "subscription", Total: 500}}
+	r.mock.HypeTrain("streamer", "begin", "ht1", 1, 900, 900, 1800, top...)
+	r.mock.HypeTrain("streamer", "progress", "ht1", 2, 2100, 300, 2000, top...)
+	r.mock.HypeTrain("streamer", "end", "ht1", 2, 2400, 0, 0, top...)
+	recs := waitEvents(t, r.inbox, 3)
+	for i, typ := range []string{"monetization.hype_train.started", "monetization.hype_train.updated", "monetization.hype_train.ended"} {
+		if recs[i].Type != typ || recs[i].Actor != nil {
+			t.Fatalf("%d: %+v", i, recs[i])
+		}
+	}
+	p := payload(t, recs[1])
+	if p["hype_train_id"] != "ht1" || p["level"] != float64(2) || p["progress"] != float64(300) || p["goal"] != float64(2000) ||
+		p["train_type"] != "regular" || p["top_contributor"].(map[string]any)["name"] != "BitsFan" {
+		t.Fatalf("%v", p)
+	}
+	end := payload(t, recs[2])
+	if end["total"] != float64(2400) || end["ended_at"] == "" || end["progress"] != nil || len(end["top_contributions"].([]any)) != 2 {
+		t.Fatalf("%v", end)
+	}
+	if b := payload(t, recs[0]); b["all_time_high_level"] != float64(4) {
+		t.Fatalf("%v", b)
 	}
 }

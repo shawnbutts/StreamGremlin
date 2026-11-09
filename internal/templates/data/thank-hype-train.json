@@ -1,0 +1,34 @@
+{
+  "template": {
+    "id": "thank-hype-train",
+    "title": "Thank the Hype Train",
+    "category": "Twitch events",
+    "description": "When a Hype Train ends, thanks chat with the level it reached and the top contributor. Hype Trains need an Affiliate or Partner channel.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.thank-hype-train",
+    "name": "Thank the Hype Train",
+    "group": "Thanks",
+    "triggers": [
+      {
+        "type": "monetization.hype_train.ended"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": {
+            "one_of": [
+              "Hype Train level ${event.payload.level}! Thank you all, and especially ${event.payload.?top_contributor.name.orValue(\"everyone\")} 🚂💜",
+              "What a ride: level ${event.payload.level}! Thanks for the hype, chat 🚂"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

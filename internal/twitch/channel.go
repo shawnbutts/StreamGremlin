@@ -36,6 +36,10 @@ var Feeds = []Feed{
 	{Type: "stream.online", Label: "Going live", Version: "1"},
 	{Type: "stream.offline", Label: "Going offline", Version: "1"},
 	{Type: "channel.update", Label: "Title and category changes", Version: "2"},
+	// Hype Trains (docs/adr/0022-hype-trains.md): Affiliate or Partner.
+	{Type: "channel.hype_train.begin", Label: "Hype Train starts", Version: "2", Scopes: []string{"channel:read:hype_train"}},
+	{Type: "channel.hype_train.progress", Label: "Hype Train progress", Version: "2", Scopes: []string{"channel:read:hype_train"}},
+	{Type: "channel.hype_train.end", Label: "Hype Train ends", Version: "2", Scopes: []string{"channel:read:hype_train"}},
 }
 
 // FeedStatus says whether Twitch sends one kind of event.
@@ -323,11 +327,73 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 		}
 		env.Type, payload = "broadcast.channel.updated", map[string]any{"title": e.Title, "language": e.Language,
 			"category_id": e.CategoryID, "category": e.CategoryName, "labels": e.Labels}
+	case "channel.hype_train.begin", "channel.hype_train.progress", "channel.hype_train.end":
+		var e hypeTrainEvent
+		if json.Unmarshal(raw, &e) != nil {
+			return events.Envelope{}, false
+		}
+		env.Type = map[string]string{"channel.hype_train.begin": "monetization.hype_train.started",
+			"channel.hype_train.progress": "monetization.hype_train.updated", "channel.hype_train.end": "monetization.hype_train.ended"}[typ]
+		env.Actor = nil // the channel's own train: no one viewer
+		payload = e.payload(typ == "channel.hype_train.end")
 	default:
 		return events.Envelope{}, false
 	}
 	env.Payload, _ = json.Marshal(payload)
 	return env, true
+}
+
+// hypeTrainEvent is channel.hype_train.* v2, as Twitch's reference shows it.
+type hypeTrainEvent struct {
+	ID               string `json:"id"`
+	Level            int    `json:"level"`
+	Total            int    `json:"total"`
+	Progress         int    `json:"progress"`
+	Goal             int    `json:"goal"`
+	Type             string `json:"type"` // regular, treasure, golden_kappa
+	IsShared         bool   `json:"is_shared_train"`
+	StartedAt        string `json:"started_at"`
+	ExpiresAt        string `json:"expires_at"`
+	EndedAt          string `json:"ended_at"`
+	CooldownEndsAt   string `json:"cooldown_ends_at"`
+	AllTimeHighLevel int    `json:"all_time_high_level"`
+	AllTimeHighTotal int    `json:"all_time_high_total"`
+	Top              []struct {
+		UserID    string `json:"user_id"`
+		UserLogin string `json:"user_login"`
+		UserName  string `json:"user_name"`
+		Type      string `json:"type"` // bits, subscription, other
+		Total     int    `json:"total"`
+	} `json:"top_contributions"`
+}
+
+// payload is the train in StreamGremlin's words. top is the biggest
+// contributor (by Twitch's own total), or none.
+func (e hypeTrainEvent) payload(ended bool) map[string]any {
+	tops := []map[string]any{}
+	var top map[string]any
+	best := -1
+	for _, c := range e.Top {
+		x := map[string]any{"user_id": c.UserID, "login": c.UserLogin, "name": c.UserName, "type": c.Type, "total": c.Total}
+		tops = append(tops, x)
+		if c.Total > best {
+			best, top = c.Total, x
+		}
+	}
+	p := map[string]any{"hype_train_id": e.ID, "level": e.Level, "total": e.Total, "train_type": e.Type,
+		"is_shared": e.IsShared, "started_at": e.StartedAt, "top_contributions": tops}
+	if top != nil {
+		p["top_contributor"] = top
+	}
+	if ended {
+		p["ended_at"], p["cooldown_ends_at"] = e.EndedAt, e.CooldownEndsAt
+	} else {
+		p["progress"], p["goal"], p["expires_at"] = e.Progress, e.Goal, e.ExpiresAt
+	}
+	if e.AllTimeHighLevel > 0 {
+		p["all_time_high_level"], p["all_time_high_total"] = e.AllTimeHighLevel, e.AllTimeHighTotal
+	}
+	return p
 }
 
 // storeChannelEvent stores one channel event. A redelivery (the same

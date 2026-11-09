@@ -155,6 +155,11 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - **Alert sounds play in the overlay** (D-038): OBS hears them through the browser source, so they reach the mixer, the stream and recordings (tick "Control audio via OBS" on the source). The run says whether the sound started.
 
+- M2 slice 10, Hype Trains (Affiliate or Partner; checked against mocktwitch only):
+  - **Triggers:** a Hype Train starts, moves (under More) and ends, with its level, total, progress and top contributor.
+  - **A template,** "Thank the Hype Train".
+  - The sign-in asks to read Hype Trains: sign in to Twitch again once.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

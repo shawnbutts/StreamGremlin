@@ -806,3 +806,11 @@ Decided 2026-11-09 by the user, asked whether the real-stream check covered both
 - **Hype Trains, polls and predictions, and ads are built now** as M2 slices 10 to 12, against mocktwitch, which follows Twitch's documented rules.
 - **M2 closes when they're in.** M2.md records that these were checked against the stand-in only. Their live checks confirm only that a non-Affiliate channel is told plainly. A real check waits for an Affiliate channel, and is written down then.
 - **This is an exception** to "mocks passing isn't enough" (AGENTS.md), made by the user for this milestone only.
+
+## D-040. Hype Trains (M2 slice 10)
+
+Decided 2026-11-09 under D-007, building on D-039.
+
+- **Hype Trains follow [ADR-0022](adr/0022-hype-trains.md):** started, updated and ended events, with level, total, progress and the top contributor; three triggers; test events; and a "Thank the Hype Train" template.
+- **The sign-in asks for `channel:read:hype_train`.**
+- **Built and checked against mocktwitch only** (D-039).

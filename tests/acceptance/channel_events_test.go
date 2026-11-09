@@ -5,6 +5,8 @@ package acceptance
 import (
 	"strings"
 	"testing"
+
+	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 )
 
 // Twitch channel events through the real engine with mock Twitch: each kind
@@ -92,5 +94,45 @@ func TestTwitchChannelEvents(t *testing.T) {
 	eventually(t, "the quote", said("Added quote #1"))
 	if out, _, _ := cli(t, dir, "quotes"); !strings.Contains(out, "#1 that jump was easy (added by streamer, Celeste,") {
 		t.Fatalf("quotes:\n%s", out)
+	}
+}
+
+// Hype Trains through the real engine and mocktwitch: started, moving
+// and ended reach Events in words, and the template thanks chat at the end.
+func TestHypeTrainsThroughTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "the Hype Train feed", func() string {
+		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "✓ Hype Train ends") {
+			return out
+		}
+		return ""
+	})
+	out, _, _ := cli(t, dir, "templates", "show", "thank-hype-train")
+	f := writeFile(t, t.TempDir(), "hype.json", out)
+	if out, errOut, code := cli(t, dir, "workflows", "save", f); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	cli(t, dir, "workflows", "on", "twitch.thank-hype-train")
+	top := mocktwitch.HypeContribution{Login: "BitsFan", Type: "bits", Total: 900}
+	tw.HypeTrain("streamer", "begin", "ht1", 1, 900, 900, 1800, top)
+	tw.HypeTrain("streamer", "progress", "ht1", 2, 2100, 300, 2000, top)
+	tw.HypeTrain("streamer", "end", "ht1", 2, 2400, 0, 0, top)
+	eventually(t, "the thanks", func() string {
+		for _, m := range tw.ChatLog() {
+			if strings.Contains(m.Text, "level 2") {
+				return ""
+			}
+		}
+		return "no thanks yet"
+	})
+	if out, _, _ := cli(t, dir, "events", "-types", "monetization.hype_train.*"); !strings.Contains(out, "monetization.hype_train.started") ||
+		!strings.Contains(out, "monetization.hype_train.updated") || !strings.Contains(out, "monetization.hype_train.ended") {
+		t.Fatalf("events:\n%s", out)
 	}
 }

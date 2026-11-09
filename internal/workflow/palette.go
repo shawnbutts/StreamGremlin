@@ -75,6 +75,13 @@ func Triggers() []TriggerEntry {
 				"Your own messages never count.",
 			Match:  []MatchField{who},
 			Values: []Value{viewer, login, message, role}},
+		{Type: "monetization.hype_train.started", Label: "A Hype Train starts", Category: "Twitch",
+			Help: "A Hype Train starts on your channel (Affiliates and Partners).", Match: []MatchField{}, Values: hypeValues(false)},
+		{Type: "monetization.hype_train.updated", Label: "The Hype Train moves", Category: "Twitch", More: true,
+			Help:  "More contributions to the Hype Train, including going up a level. Often many times a train.",
+			Match: []MatchField{}, Values: hypeValues(false)},
+		{Type: "monetization.hype_train.ended", Label: "A Hype Train ends", Category: "Twitch",
+			Help: "The Hype Train ended, with the level it reached.", Match: []MatchField{}, Values: hypeValues(true)},
 		{Type: "broadcast.scene.changed", Label: "OBS switches scene", Category: "OBS",
 			Help:  "OBS's live scene changes, whoever changed it.",
 			Match: []MatchField{{Path: "scene_name", Label: "Only for scene", Kind: "scene", Help: "Leave empty for any scene."}},
@@ -157,4 +164,18 @@ func Triggers() []TriggerEntry {
 			Help: "OBS saves the replay buffer to a file.", Match: []MatchField{},
 			Values: []Value{{Token: "file", Label: "The replay's file", Expr: "event.payload.path"}}},
 	}
+}
+
+// hypeValues are a Hype Train's values (docs/adr/0022-hype-trains.md).
+func hypeValues(ended bool) []Value {
+	v := []Value{
+		{Token: "level", Label: "The level", Expr: "event.payload.level"},
+		{Token: "total", Label: "Total points", Expr: "event.payload.total"},
+		{Token: "top_contributor", Label: "The top contributor's name", Expr: `event.payload.?top_contributor.name.orValue("")`},
+	}
+	if !ended {
+		v = append(v, Value{Token: "goal", Label: "Points for the next level", Expr: "event.payload.goal"},
+			Value{Token: "progress", Label: "Points toward the next level so far", Expr: "event.payload.progress"})
+	}
+	return v
 }

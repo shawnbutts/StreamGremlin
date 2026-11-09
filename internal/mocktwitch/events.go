@@ -26,9 +26,12 @@ var subTypes = map[string]subType{
 	"channel.raid":                 {"1", nil, "to_broadcaster_user_id"},
 	"channel.channel_points_custom_reward_redemption.add": {"1",
 		[]string{"channel:read:redemptions", "channel:manage:redemptions"}, "broadcaster_user_id"},
-	"stream.online":  {"1", nil, "broadcaster_user_id"},
-	"stream.offline": {"1", nil, "broadcaster_user_id"},
-	"channel.update": {"2", nil, "broadcaster_user_id"},
+	"stream.online":               {"1", nil, "broadcaster_user_id"},
+	"stream.offline":              {"1", nil, "broadcaster_user_id"},
+	"channel.update":              {"2", nil, "broadcaster_user_id"},
+	"channel.hype_train.begin":    {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.hype_train.progress": {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.hype_train.end":      {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
 }
 
 // RefuseType makes Twitch refuse new subscriptions of typ with 403, as for
@@ -207,6 +210,40 @@ func (s *Server) Redeem(channel, viewer, reward string, cost int, input string) 
 		"id": id, "user_input": input, "status": status, "redeemed_at": s.now().UTC().Format(time.RFC3339Nano),
 		"reward": map[string]any{"id": rewardID, "title": reward, "cost": rewardCost, "prompt": ""}}), "")
 	return id
+}
+
+// HypeTrain sends a Hype Train event, v2, as Twitch's reference shows it:
+// phase is begin, progress or end. A contributor is a viewer's login,
+// with what they gave (bits or subscription) and how much. Returns the
+// message id.
+func (s *Server) HypeTrain(channel, phase, trainID string, level, total, progress, goal int, top ...HypeContribution) string {
+	now := s.now().UTC()
+	tops := []map[string]any{}
+	for _, c := range top {
+		u := s.user(c.Login)
+		tops = append(tops, map[string]any{"user_id": u["user_id"], "user_login": u["user_login"], "user_name": u["user_name"],
+			"type": c.Type, "total": c.Total})
+	}
+	e := map[string]any{"id": trainID, "total": total, "level": level, "top_contributions": tops, "shared_train_participants": nil,
+		"started_at": now.Add(-time.Minute).Format(time.RFC3339Nano), "is_shared_train": false, "type": "regular"}
+	if phase == "end" {
+		e["ended_at"] = now.Format(time.RFC3339Nano)
+		e["cooldown_ends_at"] = now.Add(time.Hour).Format(time.RFC3339Nano)
+	} else {
+		e["progress"], e["goal"] = progress, goal
+		e["expires_at"] = now.Add(5 * time.Minute).Format(time.RFC3339Nano)
+	}
+	if phase == "begin" {
+		e["all_time_high_level"], e["all_time_high_total"] = 4, 2500
+	}
+	return s.Notify(channel, "channel.hype_train."+phase, e, "")
+}
+
+// HypeContribution is one top contribution to a Hype Train.
+type HypeContribution struct {
+	Login string
+	Type  string // bits, subscription or other
+	Total int
 }
 
 // GoLive and GoOffline: the channel's stream starts or ends.

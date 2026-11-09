@@ -40,6 +40,9 @@ describe('Twitch channel events in words', () => {
     expect(of('audience.raid.received', { viewers: 42 }, fan)).toBe('Fan raided with 42 viewers');
     expect(of('rewards.channel_points.redeemed', { reward: { title: 'Hydrate' }, user_input: '' }, fan)).toBe('Fan redeemed Hydrate');
     expect(of('broadcast.channel.online', {})).toBe('Live on Twitch');
+    expect(of('monetization.hype_train.started', { level: 1 })).toBe('Hype Train started: level 1');
+    expect(of('monetization.hype_train.updated', { level: 2, progress: 300, goal: 2000 })).toBe('Hype Train level 2: 300 of 2000 to the next');
+    expect(of('monetization.hype_train.ended', { level: 3, top_contributor: { name: 'BitsFan' } })).toBe('Hype Train ended at level 3; top contributor BitsFan');
     expect(of('chat.first_words.received', { text: 'hi all' }, fan)).toBe('Fan’s first words this stream: hi all');
     expect(of('broadcast.channel.updated', { title: 'Night', category: 'Celeste' })).toBe('“Night”, in Celeste');
   });

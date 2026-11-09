@@ -137,6 +137,13 @@ func TwitchManifest() Manifest {
 					"counts as already subscribed. A revoked event type stops only that type; chat goes on.",
 			},
 			{
+				Name: "events.hype_train", Support: PermissionRequired, Scopes: []string{"channel:read:hype_train"},
+				Notes: "channel.hype_train.begin, progress and end, v2 (the only version the subscription types list), as " +
+					"monetization.hype_train.started, updated and ended, with no actor. Progress comes once per contribution that " +
+					"started the train and in no guaranteed order. Built against mocktwitch only: the user's channel isn't an Affiliate " +
+					"(D-039). Not stated in the pages read: whether a non-Affiliate gets a 403, and v1's status.",
+			},
+			{
 				Name: "rewards.manage", Support: PermissionRequired, Scopes: []string{ManageScope},
 				Notes: "Create, Get, Update and Delete Custom Reward; Get Custom Reward Redemption; Update Redemption Status. Affiliate or " +
 					"Partner only (403 otherwise, shown as such). Only the Client ID that made a reward may change, delete or handle its " +
