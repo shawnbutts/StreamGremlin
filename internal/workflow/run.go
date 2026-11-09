@@ -227,7 +227,12 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		v, err := render(ctx, s.With[n], r.sc)
+		raw := s.With[n]
+		if versions, ok := oneOf(raw); ok {
+			// Several ways to say it: one, at random (docs/adr/0008-workflows.md).
+			raw = versions[pickIndex(len(versions))]
+		}
+		v, err := render(ctx, raw, r.sc)
 		if err != nil {
 			return fail(fmt.Errorf("%s: %w", n, err))
 		}
@@ -342,4 +347,38 @@ func capSize(v any, limit int) any {
 		return v
 	}
 	return map[string]any{"truncated": true, "bytes": len(b)}
+}
+
+// MaxVersions is how many ways a message can be said.
+const MaxVersions = 50
+
+// oneOf reads a message given as several versions, {"one_of": [...]}, each
+// as its raw JSON string.
+func oneOf(raw json.RawMessage) ([]json.RawMessage, bool) {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil || len(m) != 1 {
+		return nil, false
+	}
+	list, ok := m["one_of"]
+	if !ok {
+		return nil, false
+	}
+	var versions []json.RawMessage
+	if json.Unmarshal(list, &versions) != nil || len(versions) == 0 {
+		return nil, false
+	}
+	return versions, true
+}
+
+// pickIndex picks 0 to n-1 with a secure random source. It's for variety,
+// not prizes: nothing is recorded but the version in the trace.
+func pickIndex(n int) int {
+	if n <= 1 {
+		return 0
+	}
+	i, err := rand.Int(rand.Reader, big.NewInt(int64(n)))
+	if err != nil {
+		return 0
+	}
+	return int(i.Int64())
 }

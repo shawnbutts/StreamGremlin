@@ -544,6 +544,48 @@ describe('Workflows', () => {
     expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s off until you turn it on.');
   });
 
+  it('gives a message several ways to say it, and back to one', async () => {
+    const def = {
+      schema: 'streamgremlin.workflow/v1', id: 'chat.hello', name: 'Hello',
+      triggers: [{ type: 'chat.command.received', where: { command: 'hi' } }],
+      steps: [{ action: 'chat.send', with: { message: 'Hi ${event.actor.display_name}!' } }],
+    };
+    const e = engine({
+      wfs: [{ id: 'chat.hello', name: 'Hello', enabled: true, version: 1, updated_at: now(), triggers: def.triggers as WorkflowSummary['triggers'] }],
+      defs: { 'chat.hello': def },
+    });
+    const el = start();
+    await settle(40);
+    button(el, 'Edit Hello')!.click();
+    await settle(60);
+    button(el, '+ Another way to say it')!.click();
+    flushSync();
+    expect(field(el, 'Way 1').value).toBe('Hi {viewer}!');
+    set(field(el, 'Way 2'), 'Welcome in, {viewer}!');
+    button(el, '+ Another way to say it')!.click();
+    flushSync();
+    set(field(el, 'Way 3'), 'Good day to you!');
+    await noViolations('versions');
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual({
+      ...def,
+      steps: [{ action: 'chat.send', with: { message: { one_of: ['Hi ${event.actor.display_name}!', 'Welcome in, ${event.actor.display_name}!', 'Good day to you!'] } } }],
+    });
+    // Removing down to one makes it a plain message again.
+    button(el, 'Edit Hello')!.click();
+    await settle(60);
+    expect(field(el, 'Way 2').value).toBe('Welcome in, {viewer}!');
+    button(el, 'Remove way 1')!.click();
+    flushSync();
+    expect(field(el, 'Way 1').value).toBe('Welcome in, {viewer}!');
+    button(el, 'Remove way 2')!.click();
+    flushSync();
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual({ ...def, steps: [{ action: 'chat.send', with: { message: 'Welcome in, ${event.actor.display_name}!' } }] });
+  });
+
   it('puts a workflow in a group from the editor, and takes it out', async () => {
     const def = {
       schema: 'streamgremlin.workflow/v1', id: 'chat.hello', name: 'Hello',

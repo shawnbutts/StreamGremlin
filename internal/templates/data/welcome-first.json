@@ -3,7 +3,7 @@
     "id": "welcome-first",
     "title": "Welcome first-time chatters",
     "category": "Welcome",
-    "description": "Says welcome in chat to each viewer's first message of the stream. Your own messages never count.",
+    "description": "Says welcome in chat to each viewer's first message of the stream, one of three ways at random. Your own messages never count.",
     "starter": true,
     "blanks": []
   },
@@ -21,7 +21,13 @@
       {
         "action": "chat.send",
         "with": {
-          "message": "Welcome to the stream, ${event.actor.display_name}! 👋"
+          "message": {
+            "one_of": [
+              "Welcome to the stream, ${event.actor.display_name}! 👋",
+              "Hi there, ${event.actor.display_name}, glad you're here!",
+              "Welcome in, ${event.actor.display_name}!"
+            ]
+          }
         }
       }
     ]

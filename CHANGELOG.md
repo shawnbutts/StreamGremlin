@@ -149,6 +149,8 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Two templates** in a new Welcome group: welcome first-time chatters in chat, or on screen with their name and profile picture.
   - **A First words card on Events:** since when it counts, how many viewers have spoken, and Start over. Also the step "Start First Words over" and `streamgremlin first-words [reset]`.
 
+- **Several ways to say a message** (D-036): any message in a workflow (chat, alert title and text, notes) can have more than one version with "+ Another way to say it"; one is picked at random each time. The "Welcome first-time chatters" template uses three.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

@@ -31,10 +31,12 @@ func TestFirstWordsThroughTheCLI(t *testing.T) {
 		t.Fatal(out, errOut)
 	}
 	cli(t, dir, "workflows", "on", "chat.welcome-first")
+	// The template says it one of three ways, at random.
 	welcomes := func(name string) int {
 		n := 0
 		for _, m := range tw.ChatLog() {
-			if strings.HasPrefix(m.Text, "Welcome to the stream, "+name+"!") {
+			switch m.Text {
+			case "Welcome to the stream, " + name + "! 👋", "Hi there, " + name + ", glad you're here!", "Welcome in, " + name + "!":
 				n++
 			}
 		}

@@ -352,6 +352,45 @@ func (v *validator) template(path string, raw json.RawMessage) {
 	})
 }
 
+// versions checks a message given as several ways to say it,
+// {"one_of": ["…", "…"]}: only for message parameters, 1 to MaxVersions
+// texts, none empty. It returns raw to check further as one value, or nil
+// when it checked the versions itself.
+func (v *validator) versions(path string, p *Param, raw json.RawMessage) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil {
+		return raw // not an object: an ordinary value
+	}
+	list, has := m["one_of"]
+	if !has || p.Editor != "message" {
+		if has {
+			v.add(path, "only messages can have several ways to say it")
+			return nil
+		}
+		return raw
+	}
+	if len(m) != 1 {
+		v.add(path, "one_of and nothing else")
+		return nil
+	}
+	var texts []string
+	if json.Unmarshal(list, &texts) != nil || len(texts) == 0 || len(texts) > MaxVersions {
+		v.add(path+".one_of", "1 to %d ways to say it, each as text", MaxVersions)
+		return nil
+	}
+	for i, t := range texts {
+		vp := fmt.Sprintf("%s.one_of[%d]", path, i)
+		if strings.TrimSpace(t) == "" {
+			v.add(vp, "this way to say it is empty: write it, or remove it")
+			continue
+		}
+		b, _ := json.Marshal(t)
+		v.template(vp, b)
+		v.literal(vp, p, b)
+	}
+	return nil
+}
+
 // literal checks a with-value written as plain text, without ${…}, against
 // its parameter's choices and pattern, so the mistake shows when saving
 // rather than mid-stream.
@@ -429,6 +468,9 @@ func (v *validator) step(path string, s Step, depth int) {
 		for name, raw := range s.With {
 			if a.Param(name) == nil {
 				v.add(path+".with."+name, "%s has no parameter %q", s.Action, name)
+				continue
+			}
+			if raw = v.versions(path+".with."+name, a.Param(name), raw); raw == nil {
 				continue
 			}
 			v.template(path+".with."+name, raw)

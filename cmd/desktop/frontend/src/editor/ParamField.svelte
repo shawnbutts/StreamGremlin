@@ -38,11 +38,56 @@
     delete next[name];
     set(Object.keys(next).length ? next : undefined);
   }
+  // A message can be several ways to say it, {one_of: [...]}: one is
+  // picked at random each run.
+  const versions = $derived(
+    current && typeof current === 'object' && Array.isArray((current as { one_of?: unknown }).one_of)
+      ? ((current as { one_of: unknown[] }).one_of.map((x) => (typeof x === 'string' ? x : String(x))) as string[])
+      : undefined,
+  );
+  // Rows are rebuilt when one is added or removed, so each shows its own text.
+  let versionsKey = $state(0);
+
+  function addVersion() {
+    const list = versions ?? [typeof current === 'string' ? current : ''];
+    set({ one_of: [...list, ''] });
+    versionsKey++;
+  }
+
+  function removeVersion(i: number) {
+    const list = (versions ?? []).filter((_, j) => j !== i);
+    // Down to one: a plain message again.
+    set(list.length === 1 ? list[0] : { one_of: list });
+    versionsKey++;
+  }
+
+  function setVersion(i: number, v: string) {
+    const list = [...(versions ?? [])];
+    list[i] = v;
+    set({ one_of: list });
+  }
+
   const textOf = (v: unknown) => (typeof v === 'string' ? toDisplay(v, named) : v === undefined ? '' : String(v));
 </script>
 
 {#if param.editor === 'message'}
-  <MessageInput {label} multiline={param.name === 'message'} bind:value={() => current as string | undefined, (v) => set(v)} />
+  {#if versions}
+    <div class="versions" role="group" aria-label={`${param.label}: one of these, picked at random`}>
+      <span class="versions-title">{param.label}: one of these, picked at random each time</span>
+      {#key versionsKey}
+        {#each versions as v, i (i)}
+          <div class="version-row">
+            <MessageInput label={`Way ${i + 1}`} multiline={param.name === 'message'} bind:value={() => v, (nv) => setVersion(i, nv ?? '')} />
+            <button type="button" class="button" aria-label={`Remove way ${i + 1}`} onclick={() => removeVersion(i)}>Remove</button>
+          </div>
+        {/each}
+      {/key}
+      <button type="button" class="button" disabled={versions.length >= 50} onclick={addVersion}>+ Another way to say it</button>
+    </div>
+  {:else}
+    <MessageInput {label} multiline={param.name === 'message'} bind:value={() => current as string | undefined, (v) => set(v)} />
+    <button type="button" class="button add-version" onclick={addVersion}>+ Another way to say it</button>
+  {/if}
 {:else if param.editor === 'workflow'}
   <label class="field">
     <span>{label}</span>

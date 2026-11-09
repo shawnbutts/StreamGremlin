@@ -772,3 +772,12 @@ Decided 2026-11-09 under D-007. The user, about "Picture, then words": "can we m
 
 - **Each overlay's look has an Animation speed:** from twice as fast to three times as slow (`pace`, 50 to 300 percent of the usual time). It applies to every animation, coming in and leaving.
 - **Existing overlays keep the usual speed** ([ADR-0017](adr/0017-alert-overlays.md), amended).
+
+## D-036. Several ways to say a message
+
+Decided 2026-11-09 under D-007. The user asked: "can we add a workflow 'text' option to randomly pick from a list of strings? e.g. change '{viewer} is here' to one of 'Hi there!', 'Good day to you sir and/or madam!', 'Welcome in!'. Ideally, this would be more user friendly than a CSV text box."
+
+- **Any message field can have several versions:** "+ Another way to say it" adds a row, and each row can use values like `{viewer}`. One version is picked at random each time the step runs, and the trace shows which.
+- **Stored as `{"one_of": [...]}`** on message parameters only ([ADR-0008](adr/0008-workflows.md), amended). Removing rows down to one makes it a plain message again.
+- **Chosen over a separate "pick a random line" step:** it's where the message is written, with no step id to refer to.
+- **The "Welcome first-time chatters" template** now says it one of three ways.

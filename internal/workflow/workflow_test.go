@@ -38,7 +38,7 @@ func (r *recorder) got() []map[string]any {
 func testRegistry(rec *recorder) *Registry {
 	reg := NewRegistry()
 	reg.Add(Action{Name: "test.send", Label: "Send", Group: "test", External: true,
-		Params: []Param{{Name: "message", Label: "Message", Type: "text", Required: true}, {Name: "password", Label: "Password", Type: "text"}},
+		Params: []Param{{Name: "message", Label: "Message", Type: "text", Required: true, Editor: "message"}, {Name: "password", Label: "Password", Type: "text"}},
 		Run: func(ctx context.Context, c Call) (any, error) {
 			rec.add(c.Args)
 			return map[string]any{"sent": c.Args["message"], "key": c.IdempotencyKey}, nil
@@ -328,6 +328,61 @@ func TestPreviewStepsRunInTestsAsDryRuns(t *testing.T) {
 	r.jobs("alerts", 2)
 	if got := r.rec.got(); len(got) != 2 || got[1]["dry_run"] != false || got[1]["actor"] != "fan" {
 		t.Fatalf("%v", got)
+	}
+}
+
+// A message with several ways to say it sends one of them, picked at
+// random each run, with values filled in; the trace shows which.
+func TestOneOfSeveralVersions(t *testing.T) {
+	r := newRig(t)
+	r.save(def("chat.hi", `"triggers":[{"type":"chat.command.received"}],
+		"steps":[{"action":"test.send","with":{"message":{"one_of":["Hi there, ${event.actor.login}!","Welcome in!","Good day to you sir and/or madam!"]}}}]`), true)
+	for i := range 40 {
+		r.chat(fmt.Sprint("v", i), "hi", events.Confirmed)
+	}
+	r.jobs("chat.hi", 40)
+	seen := map[string]bool{}
+	for _, c := range r.rec.got() {
+		seen[c["message"].(string)] = true
+	}
+	for m := range seen {
+		if m != "Hi there, fan!" && m != "Welcome in!" && m != "Good day to you sir and/or madam!" {
+			t.Fatalf("not one of the versions: %q", m)
+		}
+	}
+	if len(seen) < 2 {
+		t.Fatalf("always the same: %v", seen)
+	}
+	js := r.jobs("chat.hi", 40)
+	_, steps, _ := r.eng.Trace(context.Background(), js[0].ID)
+	if m, _ := steps[0].Input.(map[string]any)["message"].(string); !seen[m] {
+		t.Fatalf("the trace doesn't show the version sent: %+v", steps[0].Input)
+	}
+}
+
+func TestVersionsAreChecked(t *testing.T) {
+	r := newRig(t)
+	for body, want := range map[string]string{
+		`{"message":{"one_of":["ok",""]}}`:                "$.steps[0].with.message.one_of[1]",
+		`{"message":{"one_of":[]}}`:                       "$.steps[0].with.message.one_of",
+		`{"message":{"one_of":["a"],"extra":1}}`:          "$.steps[0].with.message",
+		`{"message":"x","password":{"one_of":["a","b"]}}`: "$.steps[0].with.password",
+		`{"message":{"one_of":["${nope("]}}`:              "$.steps[0].with.message.one_of[0]",
+	} {
+		_, _, err := r.eng.Save(context.Background(), def("chat.bad", `"triggers":[{"type":"chat.command.received"}],
+			"steps":[{"action":"test.send","with":`+body+`}]`))
+		var inv *InvalidError
+		if !errors.As(err, &inv) || !strings.Contains(fmt.Sprint(inv.Problems), want) {
+			t.Errorf("%s: %v", body, err)
+		}
+	}
+	many := make([]string, MaxVersions+1)
+	for i := range many {
+		many[i] = fmt.Sprintf("%q", fmt.Sprint("v", i))
+	}
+	if _, _, err := r.eng.Save(context.Background(), def("chat.bad", `"triggers":[{"type":"chat.command.received"}],
+		"steps":[{"action":"test.send","with":{"message":{"one_of":[`+strings.Join(many, ",")+`]}}}]`)); err == nil {
+		t.Error("51 versions accepted")
 	}
 }
 

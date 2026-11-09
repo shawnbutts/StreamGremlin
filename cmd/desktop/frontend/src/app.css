@@ -1133,3 +1133,28 @@ html[data-density='compact'] .row-actions {
 .group-fold {
   margin: 0 0 10px;
 }
+
+/* A message with several ways to say it. */
+.versions {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed var(--sg-border);
+  border-radius: 8px;
+}
+
+.versions-title {
+  font-weight: 600;
+}
+
+.version-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.add-version {
+  justify-self: start;
+  margin-top: 4px;
+}

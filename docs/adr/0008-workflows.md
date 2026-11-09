@@ -4,6 +4,8 @@
 - **Date:** 2026-11-08
 - **Based on:** StreamWisp ADR-0006 (definitions and queues), ADR-0007 (expressions and the interpreter), ADR-0008 (traces) and ADR-0015 (dry runs).
 
+> **Amended by D-036 (2026-11-09):** a message parameter (`Editor: "message"`) may be given as several ways to say it, `{"one_of": ["…", "…"]}`: 1 to 50 texts, none empty, each checked as a template. When the step runs, one is picked with a secure random source and then filled in as usual. The trace's input shows the version used. Only message parameters take it. A plain string is unchanged.
+
 ## Context
 
 Workflows are what Streamer.bot users come for: when something happens (a chat command, an OBS scene change), do things (answer, switch scenes, show a source). They run unattended during a live stream, so they must never:
