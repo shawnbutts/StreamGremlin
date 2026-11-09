@@ -103,6 +103,13 @@ func TestWhatNeedsTheStreamer(t *testing.T) {
 	if strings.Contains(got, "redemptions") {
 		t.Error("a refusal that signing in again won't fix was listed")
 	}
+	if last := o.Attention[len(o.Attention)-1]; last.Action != ActionMarkFailuresSeen || last.Screen != ScreenWorkflows {
+		t.Errorf("the failed runs can't be marked as seen: %+v", last)
+	}
+	seen := Build(Input{Workflows: workflow.Stats{Failed24h: 2, FailedSinceSeen: true}})
+	if got := messages(seen); !strings.Contains(got, "problem: 2 workflow runs failed since you marked them as seen.") {
+		t.Errorf("%s", got)
+	}
 	if strings.Contains(got, "!hello") {
 		t.Error("a command without a conflict was listed")
 	}

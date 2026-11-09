@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -197,5 +198,56 @@ func TestWorkflowGroupsThroughTheAPI(t *testing.T) {
 	}
 	if code, _ := call("PUT", "/v1/workflow-groups/Chat", `{"name":"bad/name"}`); code != 400 {
 		t.Fatal(code)
+	}
+}
+
+// Failed runs can be marked as seen: Home's notice then counts only
+// failures after that, and says so. The runs are kept.
+func TestMarkingFailuresSeen(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	broken := `{"schema":"streamgremlin.workflow/v1","id":"chat.broken","name":"Broken",
+		"triggers":[{"type":"chat.command.received","where":{"command":"oops"}}],"steps":[{"set":{"x":"1 / 0"}}]}`
+	if code, out := call("PUT", "/v1/workflows/chat.broken", broken); code != 200 {
+		t.Fatal(code, out)
+	}
+	call("PUT", "/v1/workflows/chat.broken/enabled", `{"enabled":true}`)
+	fail := func(id string) {
+		t.Helper()
+		call("POST", "/v1/events/simulate", `{"type":"chat.command.received","request_id":"`+id+`","fields":{"command":"!oops"}}`)
+	}
+	failed := func(want int) string {
+		t.Helper()
+		var out string
+		for range 100 {
+			_, out = call("GET", "/v1/overview", "")
+			if strings.Contains(out, fmt.Sprintf(`"failed_24h":%d`, want)) {
+				return out
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatalf("want %d failed: %s", want, out)
+		return ""
+	}
+	fail("o1")
+	if out := failed(1); !strings.Contains(out, `"action":"mark_failures_seen"`) || !strings.Contains(out, "in the last 24 hours") {
+		t.Fatal(out)
+	}
+	if code, out := call("POST", "/v1/overview/failures-seen", ""); code != 200 || !strings.Contains(out, "seen_at") {
+		t.Fatal(code, out)
+	}
+	if out := failed(0); strings.Contains(out, "failed in") {
+		t.Fatal("the notice stayed:", out)
+	}
+	if _, out := call("GET", "/v1/jobs?workflow=chat.broken", ""); !strings.Contains(out, `"status":"failed"`) {
+		t.Fatal("the failed run wasn't kept:", out)
+	}
+	time.Sleep(10 * time.Millisecond)
+	fail("o2")
+	if out := failed(1); !strings.Contains(out, "since you marked them as seen") {
+		t.Fatal(out)
 	}
 }

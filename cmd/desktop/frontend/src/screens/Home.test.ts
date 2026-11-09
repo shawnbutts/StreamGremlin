@@ -137,6 +137,31 @@ describe('Home', () => {
     await noViolations('attention');
   });
 
+  it('marks failed runs as seen, and the notice goes', async () => {
+    let seen = false;
+    const failed = { level: 'problem' as const, message: '3 workflow runs failed in the last 24 hours. Their traces say why.', screen: 'workflows', action: 'mark_failures_seen' as const };
+    const calls = engine(overview({ set_up: true, attention: [failed] }));
+    const inner = (globalThis.fetch as unknown as { getMockImplementation: () => (p: string, i?: RequestInit) => Promise<Response> }).getMockImplementation();
+    vi.stubGlobal('fetch', vi.fn(async (p: string, i?: RequestInit) => {
+      if (p === '/v1/overview/failures-seen') {
+        seen = true;
+        calls.push({ method: 'POST', path: p, body: undefined });
+        return new Response(JSON.stringify({ seen_at: new Date().toISOString() }), { status: 200 });
+      }
+      if (p === '/v1/overview') return new Response(JSON.stringify(overview({ set_up: true, attention: seen ? [] : [failed] })), { status: 200 });
+      return inner(p, i);
+    }));
+    const el = start();
+    await settle(80);
+    const att = el.querySelector('.attention')!;
+    expect(att.textContent).toContain('3 workflow runs failed');
+    await noViolations('failures');
+    button(att, 'Mark as seen')!.click();
+    await settle(80);
+    expect(calls.some((c) => c.path === '/v1/overview/failures-seen')).toBe(true);
+    expect(el.textContent).not.toContain('3 workflow runs failed');
+  });
+
   it('shows everything as unknown when the engine stops answering', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('down'); }));
     const el = start();

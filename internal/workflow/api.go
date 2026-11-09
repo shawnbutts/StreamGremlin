@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // Save parses and stores a definition. Unchanged content keeps its version.
@@ -194,4 +195,10 @@ func (e *Engine) Cancel(ctx context.Context, id string) error {
 func (e *Engine) TraceErrors() int64 { return e.traceErrors.Load() }
 
 // Stats counts workflows and runs for Home.
-func (e *Engine) Stats(ctx context.Context) (Stats, error) { return e.st.stats(ctx) }
+func (e *Engine) Stats(ctx context.Context) (Stats, error) { return e.st.stats(ctx, time.Time{}) }
+
+// StatsSince is Stats, counting failed runs only since seen (when the
+// streamer marked them as seen) if that's within the last 24 hours.
+func (e *Engine) StatsSince(ctx context.Context, seen time.Time) (Stats, error) {
+	return e.st.stats(ctx, seen)
+}

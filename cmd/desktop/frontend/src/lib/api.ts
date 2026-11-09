@@ -545,6 +545,8 @@ export interface AttentionItem {
   level: 'problem' | 'unknown' | 'tip';
   message: string;
   screen: string;
+  /** Something Home can do about it in place. */
+  action?: 'mark_failures_seen';
 }
 
 export interface Overview {
@@ -555,6 +557,8 @@ export interface Overview {
 }
 
 export const getOverview = () => api<Overview>('GET', '/v1/overview');
+/** Mark the failed runs so far as seen; the runs and traces are kept. */
+export const markFailuresSeen = () => api<{ seen_at: string }>('POST', '/v1/overview/failures-seen');
 
 /** A value to fill in before saving a template, at a JSON path. */
 export interface Blank {

@@ -782,3 +782,10 @@ Decided 2026-11-09 under D-007. The user asked: "can we add a workflow 'text' op
 - **Chosen over a separate "pick a random line" step:** it's where the message is written, with no step id to refer to.
 - **The "Welcome first-time chatters" template** now says it one of three ways.
 - **Sounds too** (the user: "what would it take to do the same for playing a random audio file?", then "proceed"): "Play a sound" and an alert's sound can be several sounds, with "+ Another sound", and one plays at random. A sound deleted from the library later fails the run that picks it and says which; no other is picked in its place, so a run reports what actually happened.
+
+## D-037. Marking failed runs as seen
+
+Decided 2026-11-09 under D-007. The user asked how to clear "3 workflow runs failed in the last 24 hours" on Home, then: "a 'mark as seen' option would be good".
+
+- **Home's failed-runs notice has Mark as seen.** It then counts only failures after that moment, and says "since you marked them as seen" until 24 hours have passed. The runs and their traces are kept.
+- **Saved in settings** (key `home`), so a restart keeps it. `POST /v1/overview/failures-seen` (settings.write). The time is the engine's real clock, the same one run times use.

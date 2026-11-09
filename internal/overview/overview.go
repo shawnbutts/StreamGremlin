@@ -43,7 +43,13 @@ type Item struct {
 	Level   string `json:"level"`
 	Message string `json:"message"`
 	Screen  string `json:"screen"`
+	// Action is something Home can do about it in place:
+	// "mark_failures_seen".
+	Action string `json:"action,omitempty"`
 }
+
+// ActionMarkFailuresSeen marks the failed runs counted so far as seen.
+const ActionMarkFailuresSeen = "mark_failures_seen"
 
 // Overview is the body of GET /v1/overview.
 type Overview struct {
@@ -159,7 +165,12 @@ func Build(in Input) Overview {
 		if wf.Failed24h == 1 {
 			runs = "run"
 		}
-		add(Problem, ScreenWorkflows, "%d workflow %s failed in the last 24 hours. Their traces say why.", wf.Failed24h, runs)
+		when := "in the last 24 hours"
+		if wf.FailedSinceSeen {
+			when = "since you marked them as seen"
+		}
+		add(Problem, ScreenWorkflows, "%d workflow %s failed %s. Their traces say why.", wf.Failed24h, runs, when)
+		o.Attention[len(o.Attention)-1].Action = ActionMarkFailuresSeen
 	}
 	return o
 }

@@ -9,6 +9,7 @@
     getEvents,
     getJobs,
     getOverview,
+    markFailuresSeen,
     getStatus,
     getWorkflows,
     type EventRecord,
@@ -55,6 +56,18 @@
   const screens: Record<string, string> = { connections: 'Connections', workflows: 'Workflows' };
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  // The failed runs counted so far are seen; later ones count again.
+  let seenError = $state('');
+  async function markSeen() {
+    seenError = '';
+    try {
+      await markFailuresSeen();
+      await load();
+    } catch (e) {
+      seenError = `Couldn’t mark them as seen: ${message(e)}`;
+    }
+  }
 
   async function load() {
     try {
@@ -150,6 +163,10 @@
             <span class="visually-hidden">{a.level === 'problem' ? 'Problem:' : a.level === 'unknown' ? 'Unknown:' : 'Tip:'}</span>
             <span class="attention-text">{a.message}</span>
             <button type="button" class="button" onclick={() => ongo(a.screen)}>Open {screens[a.screen] ?? a.screen}</button>
+            {#if a.action === 'mark_failures_seen'}
+              <button type="button" class="button" onclick={markSeen}>Mark as seen</button>
+              {#if seenError}<span class="error" role="alert">{seenError}</span>{/if}
+            {/if}
           </li>
         {/each}
       </ul>

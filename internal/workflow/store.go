@@ -450,9 +450,12 @@ type Stats struct {
 	Tested    bool `json:"tested"`   // a test event has run one
 	Answered  bool `json:"answered"` // a real event has run one to the end
 	Failed24h int  `json:"failed_24h"`
+	// FailedSinceSeen: Failed24h counts only since the streamer marked
+	// failures as seen, less than 24 hours ago.
+	FailedSinceSeen bool `json:"failed_since_seen,omitempty"`
 }
 
-func (s *store) stats(ctx context.Context) (Stats, error) {
+func (s *store) stats(ctx context.Context, failedSince time.Time) (Stats, error) {
 	var st Stats
 	var on sql.NullInt64
 	// On counts the ones that run: switched on, with their group on.
@@ -461,7 +464,12 @@ func (s *store) stats(ctx context.Context) (Stats, error) {
 		return st, err
 	}
 	st.On = int(on.Int64)
-	since := ts(s.now().Add(-24 * time.Hour))
+	from := s.now().Add(-24 * time.Hour)
+	if failedSince.After(from) {
+		from = failedSince
+		st.FailedSinceSeen = true
+	}
+	since := ts(from)
 	err := s.db.QueryRowContext(ctx, `SELECT
 		EXISTS (SELECT 1 FROM jobs WHERE dry_run = 1 AND status NOT IN ('pending', 'running')),
 		EXISTS (SELECT 1 FROM jobs WHERE dry_run = 0 AND status = 'succeeded'),
