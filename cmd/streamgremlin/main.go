@@ -61,6 +61,10 @@ Commands:
             overlays                      list
             overlays add NAME             add one, and print its link
             overlays link|new-link|test|delete NAME, overlays look NAME [flags]
+  rewards   Channel point rewards (streamgremlin rewards help).
+            rewards                       list
+            rewards add -cost N TITLE     make one
+            rewards set|queue|delete TITLE, rewards done|refund TITLE ID
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -127,6 +131,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return soundsCmd(dir, rest, stdout, stderr)
 	case "overlays":
 		return overlaysCmd(dir, rest, stdout, stderr)
+	case "rewards":
+		return rewardsCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":

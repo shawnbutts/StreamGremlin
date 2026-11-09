@@ -80,6 +80,9 @@ type Call struct {
 	DryRun         bool
 	// Actor is who the event is about (a follower, a chatter), or nil.
 	Actor *events.Actor
+	// Event is the event that started the run, as expressions see it
+	// (type, payload, actor…). Read it; never change it.
+	Event map[string]any
 
 	run *runVars // the run's saved variables, for the variable actions
 }

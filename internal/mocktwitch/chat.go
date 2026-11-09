@@ -347,6 +347,10 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.channelsLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/users":
 		s.usersLocked(w, r)
+	case r.URL.Path == "/helix/channel_points/custom_rewards":
+		s.customRewards(w, r)
+	case r.URL.Path == "/helix/channel_points/custom_rewards/redemptions":
+		s.customRedemptions(w, r)
 	case r.Method == "POST" && r.URL.Path == "/helix/chat/messages":
 		var in struct {
 			BroadcasterID string `json:"broadcaster_id"`

@@ -58,6 +58,10 @@ const (
 	// deleting, replacing links and showing a sample alert.
 	PermOverlaysRead  Permission = "overlays.read"
 	PermOverlaysWrite Permission = "overlays.write"
+	// Channel point rewards: listing them and their queues; making,
+	// changing and deleting them, and completing or refunding redemptions.
+	PermRewardsRead  Permission = "rewards.read"
+	PermRewardsWrite Permission = "rewards.write"
 )
 
 // Principal is an authenticated caller.

@@ -39,11 +39,17 @@ func TestEveryRouteHasAScreen(t *testing.T) {
 		if rt.CLIOnly != "" {
 			continue
 		}
-		if i := strings.Index(rt.Path, "{"); i >= 0 {
-			// A path with a parameter is built in a template literal:
-			// `/v1/secrets/${key}` or `/v1/connections/twitch/${role}/sign-in`.
-			j := strings.Index(rt.Path, "}")
-			call := regexp.MustCompile("`" + regexp.QuoteMeta(rt.Path[:i]) + `\$\{[^}]+\}` + regexp.QuoteMeta(rt.Path[j+1:]) + "`")
+		if strings.Contains(rt.Path, "{") {
+			// A path with parameters is built in a template literal:
+			// `/v1/secrets/${key}` or `/v1/rewards/${id}/redemptions/${rid}`.
+			var pat strings.Builder
+			for i, part := range regexp.MustCompile(`\{[^}]+\}`).Split(rt.Path, -1) {
+				if i > 0 {
+					pat.WriteString(`\$\{[^}]+\}`)
+				}
+				pat.WriteString(regexp.QuoteMeta(part))
+			}
+			call := regexp.MustCompile("`" + pat.String() + "`")
 			if !call.MatchString(app) {
 				t.Errorf("%s %s isn't called by the desktop app; build its screen, or mark it CLIOnly with a reason", rt.Method, rt.Path)
 			}

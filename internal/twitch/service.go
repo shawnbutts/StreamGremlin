@@ -31,7 +31,10 @@ var ErrInvalid = errors.New("twitch: invalid")
 var (
 	StreamerScopes = []string{"user:read:chat", "user:write:chat",
 		// Channel events (docs/adr/0015-twitch-channel-events.md).
-		"moderator:read:followers", "channel:read:subscriptions", "bits:read", "channel:read:redemptions"}
+		"moderator:read:followers", "channel:read:subscriptions", "bits:read", "channel:read:redemptions",
+		// Making and changing rewards, and completing or refunding their
+		// redemptions (docs/adr/0018-channel-point-rewards.md).
+		ManageScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

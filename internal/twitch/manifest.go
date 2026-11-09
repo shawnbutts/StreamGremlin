@@ -137,6 +137,15 @@ func TwitchManifest() Manifest {
 					"counts as already subscribed. A revoked event type stops only that type; chat goes on.",
 			},
 			{
+				Name: "rewards.manage", Support: PermissionRequired, Scopes: []string{ManageScope},
+				Notes: "Create, Get, Update and Delete Custom Reward; Get Custom Reward Redemption; Update Redemption Status. Affiliate or " +
+					"Partner only (403 otherwise, shown as such). Only the Client ID that made a reward may change, delete or handle its " +
+					"redemptions; rewards made on Twitch are listed as trigger only (only_manageable_rewards). Up to 50 rewards; titles 1-45 " +
+					"characters and unique; prompts up to 200; cost at least 1; cooldown up to 604800 seconds (stated on Update only). A " +
+					"redemption moves only from UNFULFILLED, to FULFILLED or CANCELED; CANCELED refunds the points. Not stated in the " +
+					"reference: rate limits for these endpoints, a maximum cost or per-stream limit, and how several ids answer in one update.",
+			},
+			{
 				Name: "users.profile_picture", Support: Supported,
 				Notes: "Get Users by id (no scope) for profile_image_url, for alert overlays. Used only when it's https on " +
 					"static-cdn.jtvnw.net. Kept 30 minutes per viewer. Anonymous gifts and cheers have no viewer, so no picture.",

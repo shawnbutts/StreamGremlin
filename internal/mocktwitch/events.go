@@ -196,11 +196,16 @@ func (s *Server) Raid(channel, fromChannel string, viewers int) string {
 }
 
 // Redeem: a viewer redeems a channel point reward. Returns the redemption id.
+// A reward by that title on the channel (made through the API or with
+// AddDashboardReward) gets a redemption its app can complete or refund.
 func (s *Server) Redeem(channel, viewer, reward string, cost int, input string) string {
 	id := random(12)
+	s.mu.Lock()
+	rewardID, rewardCost, status := s.redeemLocked(channel, viewer, reward, id, input, cost)
+	s.mu.Unlock()
 	s.Notify(channel, "channel.channel_points_custom_reward_redemption.add", merge(s.user(viewer), map[string]any{
-		"id": id, "user_input": input, "status": "unfulfilled", "redeemed_at": s.now().UTC().Format(time.RFC3339Nano),
-		"reward": map[string]any{"id": "reward-" + strings.ToLower(strings.ReplaceAll(reward, " ", "-")), "title": reward, "cost": cost, "prompt": ""}}), "")
+		"id": id, "user_input": input, "status": status, "redeemed_at": s.now().UTC().Format(time.RFC3339Nano),
+		"reward": map[string]any{"id": rewardID, "title": reward, "cost": rewardCost, "prompt": ""}}), "")
 	return id
 }
 

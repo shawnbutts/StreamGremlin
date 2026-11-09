@@ -706,3 +706,14 @@ Decided 2026-11-09 under D-007. During the slice 5 live check the user asked: "c
 - **Fonts come from the computer, never downloaded:** six choices that look alike on macOS and Windows, or any installed font by name. The overlay page keeps loading nothing from outside. Bundling web fonts was left out: it adds files and licences to track, for what installed fonts already give.
 - **Try before saving:** "Preview an alert" shows the unsaved look in the app's preview only; OBS changes on Save.
 - **Saved looks keep their appearance** ([ADR-0017](adr/0017-alert-overlays.md), amended).
+
+## D-030. Channel point rewards (M2 slice 6)
+
+Decided 2026-11-09 under D-007. The user: "my account is too new for affiliate or partner. proceed".
+
+- **Rewards follow [ADR-0018](adr/0018-channel-point-rewards.md):** make, change, pause, delete, and complete or refund redemptions, only for rewards StreamGremlin made. Rewards made on Twitch are trigger only, with "Make a copy" filling the form in.
+- **Twitch is the only record:** StreamGremlin stores no rewards.
+- **Retries are safe:** making again finds the reward already made; completing or refunding again is a repeat; the other way after it's handled is refused.
+- **Two steps:** "Complete or refund the redemption" (the one that started the run) and "Change a reward" (on, off, pause, resume, cost).
+- **A Rewards screen,** with no shortcut number (all nine are taken). The sign-in asks for `channel:manage:redemptions`.
+- **Built against mocktwitch,** because the user's channel isn't an Affiliate yet. The live check confirms the refusal is shown plainly; the rest waits for an Affiliate channel.

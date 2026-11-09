@@ -125,6 +125,11 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - Links can be replaced (the old one stops at once) and are never logged or kept in backups.
   - `streamgremlin overlays`, `overlays add`, `link`, `new-link`, `look`, `test` and `delete`.
 
+- M2 slice 6, channel point rewards:
+  - **A Rewards screen:** your rewards from Twitch, each marked made in StreamGremlin or made on Twitch. For StreamGremlin's: make, edit, pause, turn on or off, delete, and a queue to mark redemptions done or refund them. For Twitch's: "Make a copy". It says plainly when your channel can't have channel points yet (not Affiliate or Partner).
+  - **Workflow steps:** "Complete or refund the redemption" and "Change a reward".
+  - `streamgremlin rewards`, `rewards add`, `set`, `queue`, `done`, `refund` and `delete`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
@@ -132,6 +137,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 ### Changed
 
 - The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
+- The Twitch sign-in also asks to manage channel point rewards. Sign in again once to make and change rewards.
 
 - Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Sounds 7, Overlays 8, Variables 9, Help Ctrl/⌘+/; Settings is Ctrl/⌘+comma.
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.

@@ -254,7 +254,7 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 		actx, cancel = context.WithTimeout(ctx, d)
 		defer cancel()
 	}
-	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID, DryRun: r.dryRun, Actor: r.actor, run: r.vars})
+	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID, DryRun: r.dryRun, Actor: r.actor, Event: r.sc.event, run: r.vars})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			err = fmt.Errorf("the step took longer than its %s timeout", s.Timeout)

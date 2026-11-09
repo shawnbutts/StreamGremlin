@@ -25,7 +25,7 @@ func TestEveryActionCanBeShownInTheEditor(t *testing.T) {
 		}
 		for _, prm := range a.Params {
 			switch prm.Editor {
-			case "", "message", "scene", "source", "workflow", "variable", "value", "timer", "sound", "overlay":
+			case "", "message", "scene", "source", "workflow", "variable", "value", "timer", "sound", "overlay", "reward":
 			default:
 				t.Errorf("%s.%s: editor %q", a.Name, prm.Name, prm.Editor)
 			}

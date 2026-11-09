@@ -10,6 +10,7 @@
     getOBSScenes,
     getSounds,
     getOverlays,
+    getRewards,
     getTimers,
     getPalette,
     getSceneItems,
@@ -78,6 +79,7 @@
     timers: [],
     sounds: [],
     overlays: [],
+    rewards: [],
     // svelte-ignore state_referenced_locally
     selfId: def.id,
     scenes: [],
@@ -115,6 +117,11 @@
     getOverlays()
       .then((r) => {
         env.overlays = r.overlays;
+      })
+      .catch(() => undefined);
+    getRewards()
+      .then((r) => {
+        env.rewards = r.rewards;
       })
       .catch(() => undefined);
     getVariables()

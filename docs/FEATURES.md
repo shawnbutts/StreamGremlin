@@ -71,7 +71,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087 | F2 |
 | First Words | 0059, D-085 | F2 |
 | Profile pictures for overlays | 0074, D-118; built in M2 for alerts (ADR-0017, D-028) | F2 |
-| Channel point reward management: create, pause, change cost, fulfil or refund. Only for rewards StreamGremlin created; others are "trigger only", with an offer to create a managed copy. | new | F2 |
+| Channel point reward management: create, pause, change cost, fulfil or refund. Only for rewards StreamGremlin created; others are "trigger only", with an offer to create a managed copy. | new; built in M2 (ADR-0018, D-030) | F2 |
 | Ad break begins trigger; get ad schedule, snooze next ad and start commercial steps; "next ad / snooze" card on Home | 0022, D-036 | F2 |
 | Ad requests and confirmed breaks recorded separately | 0023, D-038 | F2 |
 | Stream category for matching content packs | 0033, D-051 | Later, with packs |

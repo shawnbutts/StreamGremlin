@@ -47,6 +47,7 @@ type Server struct {
 	revoked int
 	base    string
 	chat    chatState
+	rw      rewardState
 }
 
 type code struct {

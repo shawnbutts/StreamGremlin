@@ -65,6 +65,8 @@
     <dd>Your sound library, each with its own volume. Workflows play them in the StreamGremlin window, so keep the app open; OBS hears them through Desktop Audio.</dd>
     <dt>Overlays</dt>
     <dd>Alerts in OBS. Each overlay is one browser source: copy its private link into OBS as a browser source, 1920 by 1080, and workflows show alerts on it with “Show an alert”, one at a time, with the viewer’s profile picture and a sound if you like. A Test shows the alert in the app’s preview, never in OBS.</dd>
+    <dt>Rewards</dt>
+    <dd>Your Twitch channel point rewards (Affiliates and Partners have them). Make rewards here, pause them, and mark redemptions done or refund them, by hand or with “Complete or refund the redemption” in a workflow. Rewards made on Twitch can start workflows, but only ones made here can be changed.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Unknown</dt>

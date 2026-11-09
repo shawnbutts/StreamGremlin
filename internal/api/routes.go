@@ -129,7 +129,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(soundRoutes(d), overlayRoutes(d)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

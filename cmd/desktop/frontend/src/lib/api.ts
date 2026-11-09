@@ -834,3 +834,61 @@ export const testOverlay = (name: string, preview = false, look?: OverlayLook) =
     preview ? `/v1/overlays/${encodeURIComponent(name)}/test?preview=1` : `/v1/overlays/${encodeURIComponent(name)}/test`,
     preview && look ? { look } : undefined,
   );
+
+// Channel point rewards (docs/adr/0018-channel-point-rewards.md). Twitch is
+// the only record; StreamGremlin can change only the rewards it made.
+
+export interface Reward {
+  id: string;
+  title: string;
+  prompt: string;
+  cost: number;
+  background_color: string;
+  enabled: boolean;
+  paused: boolean;
+  in_stock: boolean;
+  input_required: boolean;
+  skip_queue: boolean;
+  max_per_stream: number;
+  max_per_user_per_stream: number;
+  cooldown_seconds: number;
+  /** Made in StreamGremlin: it can be changed, and its redemptions handled. */
+  managed: boolean;
+}
+
+/** What to set; fields left out stay as they are. */
+export type RewardChange = Partial<Omit<Reward, 'id' | 'managed' | 'in_stock'>>;
+
+export interface RewardList {
+  /** ok, or why there's no list. */
+  state: 'ok' | 'not_signed_in' | 'needs_permission' | 'no_channel_points' | 'unknown';
+  detail?: string;
+  rewards: Reward[];
+  can_manage: boolean;
+  max: number;
+}
+
+export interface Redemption {
+  id: string;
+  reward_id: string;
+  reward: string;
+  cost: number;
+  user_login: string;
+  user_name: string;
+  input: string;
+  status: string;
+  redeemed_at: string;
+}
+
+export const getRewards = () => api<RewardList>('GET', '/v1/rewards');
+export const addReward = (r: RewardChange) => api<Reward>('POST', '/v1/rewards', r);
+export const changeReward = (id: string, r: RewardChange) => api<Reward>('PUT', `/v1/rewards/${encodeURIComponent(id)}`, r);
+export const deleteReward = (id: string) => api<{ deleted: boolean }>('DELETE', `/v1/rewards/${encodeURIComponent(id)}`);
+export const getRedemptions = (id: string) =>
+  api<{ redemptions: Redemption[] }>('GET', `/v1/rewards/${encodeURIComponent(id)}/redemptions`);
+export const setRedemption = (rewardID: string, id: string, action: 'done' | 'refund') =>
+  api<{ redemption: Redemption; repeated: boolean }>(
+    'POST',
+    `/v1/rewards/${encodeURIComponent(rewardID)}/redemptions/${encodeURIComponent(id)}`,
+    { action },
+  );

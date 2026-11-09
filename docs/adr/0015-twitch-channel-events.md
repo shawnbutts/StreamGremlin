@@ -103,6 +103,6 @@ F2 starts with what happens on the channel: follows, subs, bits, raids and chann
 
 - **Sign in again once:** streamers sign in to Twitch again to get follows, subs, bits and redemptions. Home says so.
 - **Not built yet:**
-  - fulfilling or refunding redemptions, and managing rewards (F2, a later slice);
+  - fulfilling or refunding redemptions, and managing rewards: built in M2 slice 6 (ADR-0018);
   - Hype Trains, polls, predictions, First Words and ads (later F2 slices).
 - **Profile pictures:** the events carry ids, so profile pictures for overlays can come with alerts.

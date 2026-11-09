@@ -12,16 +12,18 @@
   import Settings from './screens/Settings.svelte';
   import Sounds from './screens/Sounds.svelte';
   import Overlays from './screens/Overlays.svelte';
+  import Rewards from './screens/Rewards.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'rewards' | 'variables' | 'help' | 'settings';
   // Screens take Ctrl/⌘+number in order, up to 9; Settings is always last
   // and Ctrl/⌘+comma, as in most apps, so adding a screen never moves it.
-  const screens: { id: Screen; label: string; key: string }[] = [
+  // key is the Ctrl/⌘ shortcut; screens past the first nine have none yet.
+  const screens: { id: Screen; label: string; key?: string }[] = [
     { id: 'home', label: 'Home', key: '1' },
     { id: 'connections', label: 'Connections', key: '2' },
     { id: 'events', label: 'Events', key: '3' },
@@ -30,6 +32,7 @@
     { id: 'quotes', label: 'Quotes', key: '6' },
     { id: 'sounds', label: 'Sounds', key: '7' },
     { id: 'overlays', label: 'Overlays', key: '8' },
+    { id: 'rewards', label: 'Rewards' },
     { id: 'variables', label: 'Variables', key: '9' },
     { id: 'help', label: 'Help', key: '/' },
     { id: 'settings', label: 'Settings', key: ',' },
@@ -72,7 +75,7 @@
 
   function onKey(e: KeyboardEvent) {
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-    const target = screens.find((s) => s.key === e.key);
+    const target = screens.find((s) => s.key && s.key === e.key);
     if (target) {
       e.preventDefault();
       screen = target.id;
@@ -96,7 +99,7 @@
             type="button"
             class="nav-item"
             aria-current={screen === s.id ? 'page' : undefined}
-            aria-keyshortcuts={`Control+${s.key} Meta+${s.key}`}
+            aria-keyshortcuts={s.key ? `Control+${s.key} Meta+${s.key}` : undefined}
             onclick={() => (screen = s.id)}>{s.label}</button
           >
         </li>
@@ -131,10 +134,12 @@
       <Sounds />
     {:else if screen === 'overlays'}
       <Overlays />
+    {:else if screen === 'rewards'}
+      <Rewards />
     {:else if screen === 'variables'}
       <Variables />
     {:else if screen === 'help'}
-      <Help shortcuts={screens.filter((s) => s.id !== 'settings')} ongo={go} />
+      <Help shortcuts={screens.filter((s) => s.id !== 'settings' && s.key).map((s) => ({ label: s.label, key: s.key! }))} ongo={go} />
     {:else}
       <Settings />
     {/if}

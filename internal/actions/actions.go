@@ -208,4 +208,5 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerQuotes(reg, sv.Quotes, sv.Twitch)
 	registerSounds(reg, sv.Sounds, sv.Player)
 	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds, sv.Player)
+	registerRewards(reg, sv.Twitch)
 }

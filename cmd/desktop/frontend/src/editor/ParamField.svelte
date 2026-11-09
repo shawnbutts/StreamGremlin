@@ -80,6 +80,20 @@
     </select>
     {#if !env.overlays.length}<span class="sg-muted field-hint">No overlays yet: add one on the Overlays screen.</span>{/if}
   </label>
+{:else if param.editor === 'reward'}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose a reward…</option>
+      {#each env.rewards.filter((r) => r.managed) as r (r.id)}<option value={r.title}>{r.title}</option>{/each}
+      {#if typeof current === 'string' && current && !env.rewards.some((r) => r.managed && r.title === current)}
+        <option value={current}>{current} (not made in StreamGremlin)</option>
+      {/if}
+    </select>
+    {#if !env.rewards.some((r) => r.managed)}
+      <span class="sg-muted field-hint">Only rewards made on the Rewards screen can be changed by a workflow.</span>
+    {/if}
+  </label>
 {:else if param.editor === 'timer'}
   <label class="field">
     <span>{label}</span>
