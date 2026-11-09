@@ -98,8 +98,5 @@ F2 needs sounds: a follow plays a chime, a redemption an air horn (D-004; FEATUR
 - **Sounds play only while the app is open.** The headless `engine` command, used for development and tests, has no window: plays fail and say why. A remote or headless player is for later (D-057 in StreamWisp; not decided here).
 - **OBS hears sounds through Desktop Audio,** as with any app. A separate output device isn't offered.
 - **Backups grow with the library:** up to 100 MB in each.
-- **Not yet confirmed on real systems:**
-  - OGG in WKWebView on older macOS;
-  - autoplay without a click on both systems.
-
-  The live check confirms them. If a sound doesn't play, its trace and the Sounds screen show the browser's reason.
+- **Confirmed on real systems** (the live check, 2026-11-09, macOS and Windows): adding, playing at a volume, workflows playing sounds, Stop, and autoplay without a click.
+- **Still not confirmed:** OGG in WKWebView on older macOS. If a sound doesn't play, its trace and the Sounds screen show the browser's reason.
