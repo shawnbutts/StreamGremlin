@@ -279,6 +279,79 @@ function alertEngine(connectAfter: number) {
   return calls;
 }
 
+describe('Workflow groups', () => {
+  function groupEngine() {
+    const mk = (id: string, name: string, group: string, enabled: boolean, groupOn: boolean): WorkflowSummary => ({
+      id, name, enabled, group, group_enabled: groupOn, running: enabled && groupOn, version: 1, updated_at: now(),
+      triggers: [{ type: 'chat.command.received', where: { command: id.split('.')[1] } }],
+    });
+    let alertsOn = true;
+    const list = () => [
+      mk('chat.follow', 'Follow alert', 'Alerts', true, alertsOn),
+      mk('chat.sub', 'Sub alert', 'Alerts', false, alertsOn),
+      mk('chat.hi', 'Hi', '', true, true),
+    ];
+    const groups = () => [{ name: 'Alerts', enabled: alertsOn, workflows: 2, on: 1 }];
+    const calls = mockFetch({
+      '/v1/workflows': (_m, _b, q) => ({ status: 200, body: { workflows: q.includes('deleted') ? [] : list() } }),
+      '/v1/workflow-groups': () => ({ status: 200, body: { groups: groups() } }),
+      '/v1/workflow-groups/Alerts/enabled': (_m, body) => {
+        const on = (body as { enabled: boolean }).enabled;
+        if (on && refuseOn) {
+          return { status: 409, body: { error: { code: 'command_taken', message: '!follow is already answered by “Other”.' }, conflicts: [] } };
+        }
+        alertsOn = on;
+        return { status: 200, body: { groups: groups() } };
+      },
+      '/v1/workflow-groups/Alerts': () => ({ status: 200, body: { name: 'On screen' } }),
+      '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
+      '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
+      '/v1/events/catalog': () => ({ status: 200, body: catalog }),
+    });
+    let refuseOn = false;
+    return { calls, refuse: () => (refuseOn = true) };
+  }
+
+  it('lists workflows by group, with each group switch, accessibly', async () => {
+    const { calls, refuse } = groupEngine();
+    const el = start();
+    await settle(60);
+    const heads = Array.from(el.querySelectorAll('.wf-group h3')).map((h) => h.textContent);
+    expect(heads).toEqual(['Alerts', 'No group']);
+    expect(el.textContent).toContain('2 workflows, 1 switched on');
+    await noViolations('groups');
+    const groupSwitch = el.querySelector<HTMLInputElement>('input[aria-label="Group Alerts on"]')!;
+    groupSwitch.click();
+    await settle(60);
+    expect(calls.find((c) => c.path === '/v1/workflow-groups/Alerts/enabled')!.body).toEqual({ enabled: false });
+    expect(el.textContent).toContain('This group is off: none of its workflows run. Each keeps its own switch.');
+    expect(el.textContent).toContain('It’s on, but its group (Alerts) is off, so it doesn’t run.');
+    // Its workflows can't be tested while the group is off.
+    const followRow = Array.from(el.querySelectorAll('li')).find((li) => li.querySelector('strong')?.textContent === 'Follow alert')!;
+    expect(button(followRow, 'Test')!.disabled).toBe(true);
+    // Coming back on can be refused: one answer per command.
+    refuse();
+    el.querySelector<HTMLInputElement>('input[aria-label="Group Alerts on"]')!.click();
+    await settle(60);
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('already answered');
+    expect(el.querySelector<HTMLInputElement>('input[aria-label="Group Alerts on"]')!.checked).toBe(false);
+  });
+
+  it('renames a group', async () => {
+    const { calls } = groupEngine();
+    const el = start();
+    await settle(60);
+    button(el, 'Rename Alerts')!.click();
+    flushSync();
+    set(field(el, 'New name for'), 'On screen');
+    flushSync();
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(calls.find((c) => c.path === '/v1/workflow-groups/Alerts' && c.method === 'PUT')!.body).toEqual({ name: 'On screen' });
+    expect(el.textContent).toContain('Renamed “Alerts” to “On screen”.');
+  });
+});
+
 describe('Workflows', () => {
   it('searches workflows by name, command or trigger, and says when nothing matches', async () => {
     const mk = (id: string, name: string, command: string): WorkflowSummary => ({
@@ -431,6 +504,33 @@ describe('Workflows', () => {
     await settle(60);
     expect((lastPut(e.calls) as { id: string; steps: { with: { message: string } }[] }).steps[0].with.message).toBe('BRB!');
     expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s off until you turn it on.');
+  });
+
+  it('puts a workflow in a group from the editor, and takes it out', async () => {
+    const def = {
+      schema: 'streamgremlin.workflow/v1', id: 'chat.hello', name: 'Hello',
+      triggers: [{ type: 'chat.command.received', where: { command: 'hi' } }],
+      steps: [{ action: 'chat.send', with: { message: 'hi' } }],
+    };
+    const e = engine({
+      wfs: [{ id: 'chat.hello', name: 'Hello', enabled: true, version: 1, updated_at: now(), triggers: def.triggers as WorkflowSummary['triggers'] }],
+      defs: { 'chat.hello': def },
+    });
+    const el = start();
+    await settle(40);
+    button(el, 'Edit Hello')!.click();
+    await settle(60);
+    set(field(el, 'Group'), '  Alerts ');
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual({ ...def, group: 'Alerts' });
+    button(el, 'Edit Hello')!.click();
+    await settle(60);
+    expect(field(el, 'Group').value).toBe('Alerts');
+    set(field(el, 'Group'), '');
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual(def);
   });
 
   it('edits a workflow and keeps what the editor can’t show', async () => {

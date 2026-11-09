@@ -16,6 +16,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "twitch.alert-follow",
     "name": "Show an alert for new followers",
+    "group": "Alerts",
     "triggers": [
       {
         "type": "audience.follow.created"

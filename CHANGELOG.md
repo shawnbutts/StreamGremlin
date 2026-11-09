@@ -135,6 +135,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Text size** (Small, Standard, Large, Larger; also Ctrl/⌘ with + − 0) and **spacing** (Comfortable or Compact) in Settings.
   - **Search** on Workflows and Events (Events searches all stored history), and Ctrl/⌘+F to jump to a screen's search.
 
+- M2 slice 8, workflow groups:
+  - **Groups on the Workflows screen:** each with a switch that turns its workflows off and back on without losing which ones were on, and Rename. The editor has a Group field; a group comes and goes with its workflows.
+  - **Templates go into groups:** Alerts, Thanks, Commands, Quotes and Scenes.
+  - A group can't come on if it would make two workflows answer one chat command.
+  - `streamgremlin workflows groups`, `workflows group NAME on|off` and `workflows group NAME rename NEW`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

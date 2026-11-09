@@ -732,7 +732,7 @@ When asked, they agreed that Settings and Help sit at the bottom and that Connec
 - **Text size** (Small to Larger, and Ctrl/⌘ with + − 0) and **spacing** (Comfortable or Compact) in Settings.
 - **Search on Workflows and Events** (Quotes and Variables had it), with Ctrl/⌘+F.
 
-## D-032. Workflow groups (M2 slice 8, to build)
+## D-032. Workflow groups (M2 slice 8)
 
 Decided 2026-11-09 by the user: "I do think workflow groups are a good idea. They could allow enable/disable all of them at the group level. We should also have the templates create groups where it makes sense. e.g. all the alert templates can go in the Alerts group so all of them could be enabled/disabled quickly". To the proposal below: "1) good idea. 2) good idea as well. also, i agree with the 'one answer per chat command' rule."
 
@@ -740,3 +740,8 @@ Decided 2026-11-09 by the user: "I do think workflow groups are a good idea. The
 2. **A workflow is in at most one group, like a folder.** The group is saved in the workflow, so exports and templates carry it. Others are under "No group".
 - **Templates name their group,** created when needed: Alerts, Thanks, Commands, Quotes, Scenes.
 - **One answer per chat command still holds:** turning a group on that would make two workflows answer one command is refused, naming them.
+
+Built in slice 8 as [ADR-0020](adr/0020-workflow-groups.md). Choices made while building it (D-007):
+- a group exists while a workflow is in it;
+- renaming to another group's name is refused, not merged;
+- "Say hi when the stream starts" stays without a group (a group of one).

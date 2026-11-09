@@ -11,6 +11,7 @@
     getSounds,
     getOverlays,
     getRewards,
+    getWorkflowGroups,
     getTimers,
     getPalette,
     getSceneItems,
@@ -89,6 +90,7 @@
     more: false,
   });
   setEditorEnv(env);
+  let groupNames = $state<string[]>([]);
 
   onMount(async () => {
     try {
@@ -122,6 +124,11 @@
     getRewards()
       .then((r) => {
         env.rewards = r.rewards;
+      })
+      .catch(() => undefined);
+    getWorkflowGroups()
+      .then((r) => {
+        groupNames = r.groups.map((g) => g.name);
       })
       .catch(() => undefined);
     getVariables()
@@ -197,6 +204,10 @@
 
   async function save() {
     if (tab === 'json' && !applyJSON()) return;
+    if (typeof def.group === 'string') {
+      def.group = def.group.trim();
+      if (!def.group) delete def.group;
+    }
     error = '';
     env.problems = unfilled(def, blanks);
     if (env.problems.length) return; // the template's blanks, shown at their places
@@ -259,6 +270,26 @@
         <input class="sg-input" bind:value={def.name} placeholder="Say hello back" />
       </label>
       {#each problemsAt(env.problems, '$.name') as pr (pr.message)}<p class="error">{pr.message}</p>{/each}
+      <label class="field">
+        <span>Group (optional)</span>
+        <input
+          class="sg-input"
+          list="workflow-groups"
+          maxlength="40"
+          placeholder="Alerts"
+          value={def.group ?? ''}
+          oninput={(e) => {
+            const v = e.currentTarget.value;
+            if (v.trim()) def.group = v;
+            else delete def.group;
+          }}
+        />
+        <datalist id="workflow-groups">
+          {#each groupNames as g (g)}<option value={g}></option>{/each}
+        </datalist>
+        <span class="sg-muted field-hint">Like a folder. A group can be switched off and on as a whole; each workflow keeps its own switch.</span>
+      </label>
+      {#each problemsAt(env.problems, '$.group') as pr (pr.message)}<p class="error">{pr.message}</p>{/each}
 
       <h3>When</h3>
       <ol class="step-list">

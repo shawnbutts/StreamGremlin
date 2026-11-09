@@ -17,7 +17,15 @@ func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 	// take one command.
 	e.cmdMu.Lock()
 	defer e.cmdMu.Unlock()
-	if prev, _, on, err := e.st.definition(ctx, d.ID, 0); err == nil && on {
+	if err := e.canonicalGroup(ctx, d); err != nil {
+		return Summary{}, false, err
+	}
+	// Only a workflow that will run must keep its commands free: on, and
+	// in a group that's on (a move into another group counts).
+	if prev, _, on, err := e.st.definition(ctx, d.ID, 0); err == nil && on && e.groupOn(ctx, d.Group) {
+		if !e.groupOn(ctx, prev.Group) {
+			prev = nil // it wasn't running: everything it answers is new
+		}
 		if err := e.checkCommands(d.ID, d, prev); err != nil {
 			return Summary{}, false, err
 		}
@@ -107,27 +115,24 @@ func (e *Engine) SetEnabled(ctx context.Context, id string, on bool) error {
 	e.cmdMu.Lock()
 	defer e.cmdMu.Unlock()
 	if on {
-		// Turning on: each command it answers must be free.
+		// Turning on: each command it answers must be free, if it will
+		// run. In a group that's off it won't, until the group comes on,
+		// and that's checked then.
 		d, _, _, err := e.st.definition(ctx, id, 0)
 		if err != nil {
 			return err
 		}
-		if err := e.checkCommands(id, d, nil); err != nil {
-			return err
+		if e.groupOn(ctx, d.Group) {
+			if err := e.checkCommands(id, d, nil); err != nil {
+				return err
+			}
 		}
 	}
 	if err := e.st.setEnabled(ctx, id, on); err != nil {
 		return err
 	}
 	if !on {
-		e.mu.Lock()
-		pending := append([]string(nil), e.queue(id).pending...)
-		e.queue(id).pending = nil
-		e.mu.Unlock()
-		for _, j := range pending {
-			_, _ = e.st.db.ExecContext(ctx, "UPDATE jobs SET status = 'cancelled', reason = ?, finished_at = ? WHERE id = ? AND status = 'pending'",
-				errTurnedOff.Error(), ts(e.st.now()), j)
-		}
+		e.cancelWaiting(ctx, id)
 	}
 	e.log.Info("workflow turned "+map[bool]string{true: "on", false: "off"}[on], "workflow", id)
 	if err := e.reload(ctx); err != nil {

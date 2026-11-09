@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "chat.shoutout",
     "name": "Shoutout",
+    "group": "Commands",
     "triggers": [
       {
         "type": "chat.command.received",

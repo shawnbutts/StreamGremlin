@@ -345,7 +345,13 @@ export interface Job {
 export interface WorkflowSummary {
   id: string;
   name: string;
+  /** Its own switch. */
   enabled: boolean;
+  /** Its group ("" for none), and that group's switch. */
+  group?: string;
+  group_enabled?: boolean;
+  /** It runs: on, with its group on. */
+  running?: boolean;
   version: number;
   triggers: Trigger[];
   updated_at: string;
@@ -901,3 +907,19 @@ export const setRedemption = (rewardID: string, id: string, action: 'done' | 're
     `/v1/rewards/${encodeURIComponent(rewardID)}/redemptions/${encodeURIComponent(id)}`,
     { action },
   );
+
+// Workflow groups (docs/adr/0020-workflow-groups.md).
+
+export interface WorkflowGroup {
+  name: string;
+  enabled: boolean;
+  workflows: number;
+  on: number;
+}
+
+export const getWorkflowGroups = () => api<{ groups: WorkflowGroup[] }>('GET', '/v1/workflow-groups');
+/** Switch a group; each workflow keeps its own switch. */
+export const setWorkflowGroupEnabled = (name: string, enabled: boolean) =>
+  api<{ groups: WorkflowGroup[] }>('PUT', `/v1/workflow-groups/${encodeURIComponent(name)}/enabled`, { enabled });
+export const renameWorkflowGroup = (name: string, to: string) =>
+  api<{ name: string }>('PUT', `/v1/workflow-groups/${encodeURIComponent(name)}`, { name: to });

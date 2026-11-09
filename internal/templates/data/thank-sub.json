@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "twitch.thank-sub",
     "name": "Thank subs and resubs",
+    "group": "Thanks",
     "triggers": [
       {
         "type": "monetization.subscription.started",

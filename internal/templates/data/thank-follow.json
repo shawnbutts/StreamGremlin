@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "twitch.thank-follow",
     "name": "Thank new followers",
+    "group": "Thanks",
     "triggers": [
       {
         "type": "audience.follow.created"

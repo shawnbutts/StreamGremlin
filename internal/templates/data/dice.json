@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "chat.dice",
     "name": "Roll a die",
+    "group": "Commands",
     "triggers": [
       {
         "type": "chat.command.received",

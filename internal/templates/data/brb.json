@@ -16,6 +16,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "chat.brb",
     "name": "Be right back",
+    "group": "Scenes",
     "triggers": [
       {
         "type": "chat.command.received",

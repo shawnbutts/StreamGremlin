@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "chat.deaths",
     "name": "Death counter",
+    "group": "Commands",
     "triggers": [
       {
         "type": "chat.command.received",

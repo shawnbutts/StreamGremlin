@@ -162,9 +162,12 @@ func (e *Engine) queue(id string) *wq {
 	return q
 }
 
-// reload reads the enabled workflows' current definitions.
+// reload reads the current definitions of the workflows that run: on,
+// with their group on (docs/adr/0020-workflow-groups.md). This is the one
+// place that decides; command checks use the same set.
 func (e *Engine) reload(ctx context.Context) error {
-	rows, err := e.st.db.QueryContext(ctx, "SELECT id FROM workflows WHERE enabled = 1 ORDER BY id")
+	rows, err := e.st.db.QueryContext(ctx, `SELECT w.id FROM workflows w LEFT JOIN workflow_groups g ON g.name = w.grp
+		WHERE w.enabled = 1 AND w.deleted_at IS NULL AND coalesce(g.enabled, 1) = 1 ORDER BY w.id`)
 	if err != nil {
 		return err
 	}

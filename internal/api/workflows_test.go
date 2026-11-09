@@ -159,3 +159,43 @@ func TestTemplatesThroughTheAPI(t *testing.T) {
 		t.Fatalf("%d %.400s", w.Code, w.Body)
 	}
 }
+
+func TestWorkflowGroupsThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	for _, id := range []string{"chat.hello", "chat.hello2"} {
+		body := strings.Replace(helloWorkflow, `"id":"chat.hello"`, `"id":"`+id+`","group":"Commands"`, 1)
+		if code, out := call("PUT", "/v1/workflows/"+id, body); code != 200 || !strings.Contains(out, `"group":"Commands"`) {
+			t.Fatal(code, out)
+		}
+	}
+	call("PUT", "/v1/workflows/chat.hello/enabled", `{"enabled":true}`)
+	if code, out := call("GET", "/v1/workflow-groups", ""); code != 200 ||
+		!strings.Contains(out, `{"name":"Commands","enabled":true,"workflows":2,"on":1}`) {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/workflow-groups/commands/enabled", `{"enabled":false}`); code != 200 || !strings.Contains(out, `"enabled":false`) {
+		t.Fatal(code, out)
+	}
+	if _, out := call("GET", "/v1/workflows", ""); !strings.Contains(out, `"enabled":true,"group":"Commands","group_enabled":false,"running":false`) {
+		t.Fatal(out)
+	}
+	// While the group is off, chat.hello2 can be switched on; the group
+	// then can't come on: both would answer !hello.
+	call("PUT", "/v1/workflows/chat.hello2/enabled", `{"enabled":true}`)
+	if code, out := call("PUT", "/v1/workflow-groups/Commands/enabled", `{"enabled":true}`); code != 409 || !strings.Contains(out, "command_taken") {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/workflow-groups/Commands", `{"name":"Chat"}`); code != 200 || !strings.Contains(out, `"name":"Chat"`) {
+		t.Fatal(code, out)
+	}
+	if code, _ := call("PUT", "/v1/workflow-groups/Nope/enabled", `{"enabled":true}`); code != 404 {
+		t.Fatal(code)
+	}
+	if code, _ := call("PUT", "/v1/workflow-groups/Chat", `{"name":"bad/name"}`); code != 400 {
+		t.Fatal(code)
+	}
+}

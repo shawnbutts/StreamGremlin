@@ -30,6 +30,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 |---|---|---|
 | Event inbox, with deduplication and replay | 0004, D-004, D-015 | Spine |
 | Workflows: trigger → steps, queues, timeouts | 0006, 0007, D-017, D-018 | Spine |
+| Workflow groups: a switch per group that keeps each workflow's own; templates in groups | new (D-032); built in M2 (ADR-0020) | M2 |
 | Run another workflow | 0073, D-116; ADR-0010, D-016 | Spine |
 | Traces and runs | 0008, D-019 | Spine |
 | Simulate and dry run | 0015, D-027 | Spine |

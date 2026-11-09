@@ -40,16 +40,19 @@ const (
 
 // Definition is one workflow, as saved and exported.
 type Definition struct {
-	Schema      string    `json:"schema"`
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Triggers    []Trigger `json:"triggers"`
-	Queue       Queue     `json:"queue,omitzero"`
-	Timeout     string    `json:"timeout,omitempty"`
-	MaxSteps    int       `json:"max_steps,omitempty"`
-	Steps       []Step    `json:"steps"`
-	Finally     []Step    `json:"finally,omitempty"`
+	Schema      string `json:"schema"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	// Group is the workflow's group, like a folder; "" is none
+	// (docs/adr/0020-workflow-groups.md).
+	Group    string    `json:"group,omitempty"`
+	Triggers []Trigger `json:"triggers"`
+	Queue    Queue     `json:"queue,omitzero"`
+	Timeout  string    `json:"timeout,omitempty"`
+	MaxSteps int       `json:"max_steps,omitempty"`
+	Steps    []Step    `json:"steps"`
+	Finally  []Step    `json:"finally,omitempty"`
 }
 
 // Trigger says which events start the workflow. All set fields must match.
@@ -160,6 +163,9 @@ var (
 
 // Parse reads a definition strictly (unknown fields are errors), checks it
 // against the actions available, and compiles every expression.
+// GroupPattern is what a group's name looks like.
+var GroupPattern = regexp.MustCompile(`^[\p{L}\p{N}]([\p{L}\p{N} _&'-]{0,38}[\p{L}\p{N}_&'-])?$`)
+
 func Parse(raw []byte, actions *Registry) (*Definition, error) {
 	if len(raw) > MaxDefinitionBytes {
 		return nil, &InvalidError{[]Problem{{"$", "the definition is over 256 KiB"}}}
@@ -224,6 +230,9 @@ func (v *validator) definition(d *Definition) {
 	}
 	if strings.TrimSpace(d.Name) == "" || len(d.Name) > 100 {
 		v.add("$.name", "a name of 1 to 100 characters")
+	}
+	if d.Group != "" && !GroupPattern.MatchString(d.Group) {
+		v.add("$.group", "a group's name is up to 40 letters, digits, spaces and - _ & ', like Alerts")
 	}
 	if len(d.Triggers) == 0 {
 		v.add("$.triggers", "at least one trigger")

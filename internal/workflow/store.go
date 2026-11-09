@@ -14,19 +14,30 @@ import (
 // ErrNotFound: no workflow or job with that id.
 var ErrNotFound = errors.New("workflow: not found")
 
+// ErrGroupNotFound: no workflow is in a group by that name.
+var ErrGroupNotFound = errors.New("workflow: no group by that name")
+
+// ErrGroupExists: renaming a group to another group's name.
+var ErrGroupExists = errors.New("workflow: another group has that name; move its workflows one by one, or choose another name")
+
 // ErrDeleted: the id belongs to a deleted workflow; restore it to use it.
 var ErrDeleted = errors.New("workflow: that id belongs to a deleted workflow; restore it, or use another id")
 
 // Summary describes a workflow for lists.
 type Summary struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Enabled   bool       `json:"enabled"`
-	Version   int        `json:"version"`
-	Triggers  []Trigger  `json:"triggers"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	LastJob   *Job       `json:"last_job,omitempty"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// Group is its group ("" for none); GroupEnabled is that group's
+	// switch. It runs only when both switches are on (Running).
+	Group        string     `json:"group"`
+	GroupEnabled bool       `json:"group_enabled"`
+	Running      bool       `json:"running"`
+	Version      int        `json:"version"`
+	Triggers     []Trigger  `json:"triggers"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at,omitempty"`
+	LastJob      *Job       `json:"last_job,omitempty"`
 }
 
 // Job is one run of a workflow, or the record of why it didn't run.
@@ -87,8 +98,8 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 	now := ts(s.now())
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		if _, err := tx.ExecContext(ctx, `INSERT INTO workflows (id, name, enabled, current_version, created_at, updated_at)
-			VALUES (?, ?, 0, 1, ?, ?)`, d.ID, d.Name, now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO workflows (id, name, enabled, current_version, created_at, updated_at, grp)
+			VALUES (?, ?, 0, 1, ?, ?, ?)`, d.ID, d.Name, now, now, d.Group); err != nil {
 			return 0, false, err
 		}
 		version = 1
@@ -98,8 +109,8 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 		return cur, false, nil // the same content: no new version
 	default:
 		version = cur + 1
-		if _, err := tx.ExecContext(ctx, "UPDATE workflows SET name = ?, current_version = ?, updated_at = ? WHERE id = ?",
-			d.Name, version, now, d.ID); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE workflows SET name = ?, current_version = ?, updated_at = ?, grp = ? WHERE id = ?",
+			d.Name, version, now, d.Group, d.ID); err != nil {
 			return 0, false, err
 		}
 	}
@@ -107,7 +118,97 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 		VALUES (?, ?, ?, ?, ?)`, d.ID, version, string(canonical), sum, now); err != nil {
 		return 0, false, err
 	}
+	if err := tidyGroups(ctx, tx, d.Group, now); err != nil {
+		return 0, false, err
+	}
 	return version, true, tx.Commit()
+}
+
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// tidyGroups makes sure a group in use has its switch (on, when new), and
+// forgets the switches of groups no workflow is in any more.
+func tidyGroups(ctx context.Context, x execer, inUse, now string) error {
+	if inUse != "" {
+		if _, err := x.ExecContext(ctx, "INSERT OR IGNORE INTO workflow_groups (name, enabled, updated_at) VALUES (?, 1, ?)", inUse, now); err != nil {
+			return err
+		}
+	}
+	_, err := x.ExecContext(ctx, `DELETE FROM workflow_groups WHERE name NOT IN
+		(SELECT grp FROM workflows WHERE deleted_at IS NULL AND grp != '')`)
+	return err
+}
+
+// GroupSummary is one group, for the list.
+type GroupSummary struct {
+	Name      string `json:"name"`
+	Enabled   bool   `json:"enabled"`
+	Workflows int    `json:"workflows"` // in it
+	On        int    `json:"on"`        // in it and switched on
+}
+
+// groups lists the groups in use, by name.
+func (s *store) groups(ctx context.Context) ([]GroupSummary, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT g.name, g.enabled, count(w.id), coalesce(sum(w.enabled), 0)
+		FROM workflow_groups g JOIN workflows w ON w.grp = g.name AND w.deleted_at IS NULL
+		GROUP BY g.name ORDER BY g.name COLLATE NOCASE`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []GroupSummary{}
+	for rows.Next() {
+		var g GroupSummary
+		var en int
+		if err := rows.Scan(&g.Name, &en, &g.Workflows, &g.On); err != nil {
+			return nil, err
+		}
+		g.Enabled = en == 1
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+// groupName finds a group's name as it's spelled, in any case.
+func (s *store) groupName(ctx context.Context, name string) (string, bool, error) {
+	var got string
+	err := s.db.QueryRowContext(ctx, "SELECT name FROM workflow_groups WHERE name = ?", name).Scan(&got)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	return got, err == nil, err
+}
+
+func (s *store) setGroupEnabled(ctx context.Context, name string, on bool) error {
+	res, err := s.db.ExecContext(ctx, "UPDATE workflow_groups SET enabled = ?, updated_at = ? WHERE name = ?", b2i(on), ts(s.now()), name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrGroupNotFound
+	}
+	return nil
+}
+
+// groupMembers lists the workflows in a group (not deleted).
+func (s *store) groupMembers(ctx context.Context, name string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM workflows WHERE grp = ? COLLATE NOCASE AND deleted_at IS NULL ORDER BY id", name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (s *store) setEnabled(ctx context.Context, id string, on bool) error {
@@ -173,7 +274,12 @@ func (s *store) setDeleted(ctx context.Context, id string, deleted bool) error {
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	var grp string
+	_ = s.db.QueryRowContext(ctx, "SELECT grp FROM workflows WHERE id = ?", id).Scan(&grp)
+	if deleted {
+		grp = ""
+	}
+	return tidyGroups(ctx, s.db, grp, ts(s.now()))
 }
 
 // list returns the workflows, or (deleted) only the deleted ones.
@@ -183,8 +289,9 @@ func (s *store) list(ctx context.Context, deleted bool) ([]Summary, error) {
 		cond = "w.deleted_at IS NOT NULL"
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT w.id, w.name, w.enabled, w.current_version, w.updated_at, w.deleted_at, v.definition
+		SELECT w.id, w.name, w.enabled, w.current_version, w.updated_at, w.deleted_at, v.definition, w.grp, coalesce(g.enabled, 1)
 		FROM workflows w JOIN workflow_versions v ON v.workflow_id = w.id AND v.version = w.current_version
+		LEFT JOIN workflow_groups g ON g.name = w.grp
 		WHERE `+cond+` ORDER BY w.name, w.id`)
 	if err != nil {
 		return nil, err
@@ -193,13 +300,15 @@ func (s *store) list(ctx context.Context, deleted bool) ([]Summary, error) {
 	out := []Summary{}
 	for rows.Next() {
 		var sm Summary
-		var en int
+		var en, groupOn int
 		var updated, raw string
 		var del sql.NullString
-		if err := rows.Scan(&sm.ID, &sm.Name, &en, &sm.Version, &updated, &del, &raw); err != nil {
+		if err := rows.Scan(&sm.ID, &sm.Name, &en, &sm.Version, &updated, &del, &raw, &sm.Group, &groupOn); err != nil {
 			return nil, err
 		}
 		sm.Enabled = en == 1
+		sm.GroupEnabled = groupOn == 1
+		sm.Running = sm.Enabled && sm.GroupEnabled && !del.Valid
 		sm.UpdatedAt, _ = storage.ParseTimestamp(updated)
 		if del.Valid {
 			t, _ := storage.ParseTimestamp(del.String)
@@ -346,7 +455,9 @@ type Stats struct {
 func (s *store) stats(ctx context.Context) (Stats, error) {
 	var st Stats
 	var on sql.NullInt64
-	if err := s.db.QueryRowContext(ctx, "SELECT count(*), sum(enabled) FROM workflows WHERE deleted_at IS NULL").Scan(&st.Total, &on); err != nil {
+	// On counts the ones that run: switched on, with their group on.
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*), sum(w.enabled * coalesce(g.enabled, 1)) FROM workflows w
+		LEFT JOIN workflow_groups g ON g.name = w.grp WHERE w.deleted_at IS NULL`).Scan(&st.Total, &on); err != nil {
 		return st, err
 	}
 	st.On = int(on.Int64)

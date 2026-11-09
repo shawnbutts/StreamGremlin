@@ -11,6 +11,7 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "twitch.thank-cheer",
     "name": "Thank cheers",
+    "group": "Thanks",
     "triggers": [
       {
         "type": "monetization.bits.cheered"

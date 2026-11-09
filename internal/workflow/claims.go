@@ -118,7 +118,7 @@ func (e *Engine) Commands(ctx context.Context) ([]commands.Entry, error) {
 		if err != nil {
 			continue
 		}
-		on[s.ID] = s.Enabled
+		on[s.ID] = s.Running // on, with its group on: what actually answers
 		claims = append(claims, ClaimsOf(s.ID, d)...)
 	}
 	return commands.Table(claims, on), nil

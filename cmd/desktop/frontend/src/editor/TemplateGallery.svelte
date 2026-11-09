@@ -65,6 +65,9 @@
           <li class="sg-panel gallery-card">
             <strong>{t.title}</strong>
             <span class="sg-muted">{t.description}</span>
+            {#if (t.workflow as { group?: string }).group}
+              <span class="sg-muted">Goes in the {(t.workflow as { group?: string }).group} group.</span>
+            {/if}
             {#if t.blanks.length}
               <span class="tag">{t.blanks.length === 1 ? '1 thing to fill in' : `${t.blanks.length} things to fill in`}</span>
             {/if}

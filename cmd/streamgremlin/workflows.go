@@ -21,6 +21,9 @@ const workflowsUsage = `usage:
   streamgremlin workflows show ID         print the definition
   streamgremlin workflows save FILE       add or update one (new ones start off)
   streamgremlin workflows on|off ID       turn one on or off
+  streamgremlin workflows groups          list groups, with their switches
+  streamgremlin workflows group NAME on|off   switch a group (each workflow keeps its own switch)
+  streamgremlin workflows group NAME rename NEW
   streamgremlin workflows delete ID       delete one (it can be restored)
   streamgremlin workflows deleted         list deleted ones
   streamgremlin workflows restore ID      bring one back, turned off
@@ -50,8 +53,14 @@ func workflowsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		}
 		for _, w := range out.Workflows {
 			state := "off"
-			if w.Enabled {
+			switch {
+			case w.Running:
 				state = "on "
+			case w.Enabled:
+				state = "on, group off"
+			}
+			if w.Group != "" {
+				state += "  [" + w.Group + "]"
 			}
 			var types []string
 			for _, t := range w.Triggers {
@@ -108,6 +117,40 @@ func workflowsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		default:
 			fmt.Fprintf(stdout, "Saved %s as v%d. It's off: turn it on with `streamgremlin workflows on %s`.\n", out.Workflow.ID, out.Workflow.Version, out.Workflow.ID)
 		}
+		return 0
+	case sub == "groups" && len(args) == 0:
+		var out struct{ Groups []workflow.GroupSummary }
+		if code := apiExit(c.Do(ctx, "GET", "/v1/workflow-groups", nil, &out), stderr); code != 0 {
+			return code
+		}
+		if len(out.Groups) == 0 {
+			fmt.Fprintln(stdout, "No groups yet. A workflow's \"group\" puts it in one.")
+		}
+		for _, g := range out.Groups {
+			state := "on "
+			if !g.Enabled {
+				state = "off"
+			}
+			fmt.Fprintf(stdout, "%s  %-24s %d workflows, %d switched on\n", state, g.Name, g.Workflows, g.On)
+		}
+		return 0
+	case sub == "group" && len(args) == 2 && (args[1] == "on" || args[1] == "off"):
+		path := "/v1/workflow-groups/" + url.PathEscape(args[0]) + "/enabled"
+		if code := apiExit(c.Do(ctx, "PUT", path, map[string]bool{"enabled": args[1] == "on"}, nil), stderr); code != 0 {
+			return code
+		}
+		if args[1] == "on" {
+			fmt.Fprintf(stdout, "%s is on: its workflows that are switched on run.\n", args[0])
+		} else {
+			fmt.Fprintf(stdout, "%s is off: none of its workflows run. Each keeps its own switch.\n", args[0])
+		}
+		return 0
+	case sub == "group" && len(args) == 3 && args[1] == "rename":
+		var out struct{ Name string }
+		if code := apiExit(c.Do(ctx, "PUT", "/v1/workflow-groups/"+url.PathEscape(args[0]), map[string]string{"name": args[2]}, &out), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Renamed %s to %s.\n", args[0], out.Name)
 		return 0
 	case sub == "deleted" && len(args) == 0:
 		var out struct{ Workflows []workflow.Summary }

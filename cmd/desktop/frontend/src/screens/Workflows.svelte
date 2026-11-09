@@ -11,6 +11,9 @@
     getJobs,
     getOverlays,
     getWorkflow,
+    getWorkflowGroups,
+    renameWorkflowGroup,
+    setWorkflowGroupEnabled,
     getWorkflows,
     restoreWorkflow,
     setWorkflowEnabled,
@@ -19,6 +22,7 @@
     type CommandEntry,
     type EventKind,
     type Job,
+    type WorkflowGroup,
     type WorkflowSummary,
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
@@ -33,6 +37,8 @@
   let { refreshMs = 2000, previewWaitMs = 4000 }: { refreshMs?: number; previewWaitMs?: number } = $props();
 
   let workflows = $state<WorkflowSummary[]>([]);
+  let groups = $state<WorkflowGroup[]>([]);
+  let renaming = $state<{ from: string; to: string } | undefined>();
   let deleted = $state<WorkflowSummary[]>([]);
   let commands = $state<CommandEntry[]>([]);
   let kinds = $state<EventKind[]>([]);
@@ -58,6 +64,8 @@
   async function load() {
     try {
       workflows = (await getWorkflows()).workflows;
+      // Groups are extra: without them, the list still shows.
+      groups = (await getWorkflowGroups().catch(() => ({ groups: [] as WorkflowGroup[] }))).groups;
       deleted = (await getDeletedWorkflows()).workflows;
       jobs = (await getJobs(shown || undefined)).jobs;
       loadError = '';
@@ -156,10 +164,52 @@
   }
 
   const testable = (w: WorkflowSummary) => w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));
-  const canTest = (w: WorkflowSummary) => w.enabled && testable(w);
+  // It runs (and can be tested) when it's on and its group is on.
+  const runs = (w: WorkflowSummary) => w.running ?? w.enabled;
+  const canTest = (w: WorkflowSummary) => runs(w) && testable(w);
   /** Why Test can't be used, said on screen rather than in a hover tip. */
   const whyNoTest = (w: WorkflowSummary) =>
-    !w.enabled ? 'Turn it on to test it.' : !testable(w) ? 'Its trigger can’t be imitated by a test event yet.' : '';
+    !w.enabled
+      ? 'Turn it on to test it.'
+      : !runs(w)
+        ? `It’s on, but its group (${w.group}) is off, so it doesn’t run.`
+        : !testable(w)
+          ? 'Its trigger can’t be imitated by a test event yet.'
+          : '';
+
+  // The list in sections: each group (by name), then the ones in none.
+  const sections = $derived.by(() => {
+    const byGroup = new Map<string, WorkflowSummary[]>();
+    for (const w of shownWorkflows) {
+      const g = w.group ?? '';
+      byGroup.set(g, [...(byGroup.get(g) ?? []), w]);
+    }
+    const out: { group?: WorkflowGroup; name: string; list: WorkflowSummary[] }[] = [];
+    for (const g of groups) {
+      const list = byGroup.get(g.name);
+      if (list?.length) out.push({ group: g, name: g.name, list });
+    }
+    const none = byGroup.get('') ?? [];
+    if (none.length) out.push({ name: '', list: none });
+    // A group the list knows but /v1/workflow-groups didn't send (yet).
+    for (const [name, list] of byGroup) {
+      if (name && !groups.some((g) => g.name === name)) out.push({ name, list });
+    }
+    return out;
+  });
+
+  async function saveRename(e: SubmitEvent) {
+    e.preventDefault();
+    const r = renaming;
+    if (!r) return;
+    const to = r.to.trim();
+    if (!to || to === r.from) {
+      renaming = undefined;
+      return;
+    }
+    await act(() => renameWorkflowGroup(r.from, to), `Renamed “${r.from}” to “${to}”.`);
+    if (!error) renaming = undefined;
+  }
 
   // Search: by name, id, or what starts it in words (which includes the
   // command), ignoring case. Every word typed must match.
@@ -214,14 +264,16 @@
       <p class="sg-muted" role="status">No workflow matches “{query.trim()}”.</p>
     {/if}
   {/if}
-  <ul class="secret-list" aria-label="Workflows">
-    {#each shownWorkflows as w (w.id)}
+  {#snippet row(w: WorkflowSummary)}
       <li class="secret-row">
         <span class="secret-info">
           <strong>{w.name}</strong>
           <span class="sg-muted secret-saved">
             When: {w.triggers.map((t) => describeTrigger(t, kinds)).join('; or ')}
           </span>
+          {#if w.group && !groups.length}
+            <span class="sg-muted secret-saved">Group: {w.group}</span>
+          {/if}
           {#if whyNoTest(w)}
             <span class="sg-muted secret-saved">{whyNoTest(w)}</span>
           {/if}
@@ -254,8 +306,64 @@
         >
         <button type="button" class="button button-danger" aria-label={`Delete ${w.name}`} disabled={busy} onclick={() => (deleting = w)}>Delete</button>
       </li>
+  {/snippet}
+  {#if !groups.length && !sections.some((x) => x.name)}
+    <ul class="secret-list" aria-label="Workflows">
+      {#each shownWorkflows as w (w.id)}
+        {@render row(w)}
+      {/each}
+    </ul>
+  {:else}
+    {#each sections as sec (sec.name)}
+      <div class="wf-group" role="group" aria-label={sec.name ? `Group ${sec.name}` : 'No group'}>
+        <div class="wf-group-head">
+          <h3>{sec.name || 'No group'}</h3>
+          {#if sec.group}
+            {@const g = sec.group}
+            <span class="sg-muted">{g.workflows} {g.workflows === 1 ? 'workflow' : 'workflows'}, {g.on} switched on</span>
+            <label class="choice-inline">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={g.enabled}
+                disabled={busy}
+                aria-label={`Group ${g.name} on`}
+                onchange={(e) => {
+                  const on = e.currentTarget.checked;
+                  e.currentTarget.checked = g.enabled; // the engine decides
+                  act(() => setWorkflowGroupEnabled(g.name, on), on
+                    ? `“${g.name}” is on: its workflows that are switched on run.`
+                    : `“${g.name}” is off: none of its workflows run. Each keeps its own switch.`);
+                }}
+              />
+              Group on
+            </label>
+            <button type="button" class="button" aria-label={`Rename ${g.name}`} disabled={busy}
+              onclick={() => (renaming = { from: g.name, to: g.name })}>Rename</button
+            >
+          {/if}
+        </div>
+        {#if renaming && renaming.from === sec.name}
+          <form class="rename-form" onsubmit={saveRename}>
+            <label class="field">
+              <span>New name for “{sec.name}”</span>
+              <input class="sg-input" bind:value={renaming.to} maxlength="40" />
+            </label>
+            <button type="submit" class="sg-button" disabled={busy}>Save</button>
+            <button type="button" class="button" onclick={() => (renaming = undefined)}>Cancel</button>
+          </form>
+        {/if}
+        {#if sec.group && !sec.group.enabled}
+          <p class="state state-unknown"><span aria-hidden="true">!</span> This group is off: none of its workflows run. Each keeps its own switch.</p>
+        {/if}
+        <ul class="secret-list" aria-label={sec.name ? `Workflows in ${sec.name}` : 'Workflows in no group'}>
+          {#each sec.list as w (w.id)}
+            {@render row(w)}
+          {/each}
+        </ul>
+      </div>
     {/each}
-  </ul>
+  {/if}
   <div class="row-actions">
     <button type="button" class="sg-button" onclick={() => { notice = ''; editing = { gallery: true }; }}>New workflow</button>
   </div>

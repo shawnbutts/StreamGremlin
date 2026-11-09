@@ -43,8 +43,10 @@ func workflowError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 		writeError(w, http.StatusConflict, CodeDeleted, err.Error())
 	case errors.Is(err, workflow.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, "no such workflow or run")
-	case errors.Is(err, workflow.ErrFinished):
+	case errors.Is(err, workflow.ErrFinished), errors.Is(err, workflow.ErrGroupExists):
 		writeError(w, http.StatusConflict, CodeConflict, err.Error())
+	case errors.Is(err, workflow.ErrGroupNotFound):
+		writeError(w, http.StatusNotFound, CodeNotFound, "no workflow is in a group by that name")
 	default:
 		internalError(w, r, d.Logger, err)
 	}
@@ -156,6 +158,63 @@ func workflowRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, s)
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/workflow-groups",
+			Summary:    "Workflow groups in use, each with its switch and how many workflows it has and has on.",
+			Permission: PermWorkflowsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				gs, err := d.Workflows.Groups(r.Context())
+				if err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"groups": gs})
+			},
+		},
+		{
+			Method: "PUT", Path: "/v1/workflow-groups/{name}/enabled",
+			Summary: "Switch a group on or off {enabled}. Each workflow's own switch is kept; a workflow runs only when both are on. " +
+				"On is refused (409 command_taken) when it would make two workflows answer one chat command.",
+			Permission: PermWorkflowsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in struct {
+					Enabled bool `json:"enabled"`
+				}
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				if err := d.Workflows.SetGroupEnabled(r.Context(), r.PathValue("name"), in.Enabled); err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				gs, err := d.Workflows.Groups(r.Context())
+				if err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"groups": gs})
+			},
+		},
+		{
+			Method: "PUT", Path: "/v1/workflow-groups/{name}",
+			Summary: "Rename a group {name}. Each workflow in it gets a new version; the switch is kept. " +
+				"Another group's name is refused (409).",
+			Permission: PermWorkflowsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in struct {
+					Name string `json:"name"`
+				}
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				name, err := d.Workflows.RenameGroup(r.Context(), r.PathValue("name"), in.Name)
+				if err != nil {
+					workflowError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]string{"name": name})
 			},
 		},
 		{

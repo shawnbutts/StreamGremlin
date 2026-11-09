@@ -11,16 +11,44 @@
     "schema": "streamgremlin.workflow/v1",
     "id": "chat.quoteadd",
     "name": "Add a quote",
+    "group": "Quotes",
     "triggers": [
-      { "type": "chat.command.received", "where": { "command": "quoteadd", "chatter.role": ["moderator", "broadcaster"] } }
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "quoteadd",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
     ],
     "steps": [
       {
         "if": "event.payload.args == \"\"",
-        "do": [{ "action": "chat.send", "with": { "message": "Type the quote after the command: !quoteadd I meant to do that" } }],
+        "do": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Type the quote after the command: !quoteadd I meant to do that"
+            }
+          }
+        ],
         "else": [
-          { "id": "a", "action": "quotes.add", "with": { "text": "${event.payload.args}" } },
-          { "action": "chat.send", "with": { "message": "Added quote #${steps.a.output.id}: ${steps.a.output.text}" } }
+          {
+            "id": "a",
+            "action": "quotes.add",
+            "with": {
+              "text": "${event.payload.args}"
+            }
+          },
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Added quote #${steps.a.output.id}: ${steps.a.output.text}"
+            }
+          }
         ]
       }
     ]

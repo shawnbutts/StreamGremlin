@@ -1083,3 +1083,29 @@ html[data-density='compact'] .row-actions {
   flex-wrap: wrap;
   gap: 4px 18px;
 }
+
+/* Workflow groups: a heading row with the group's switch. */
+.wf-group + .wf-group {
+  margin-top: 18px;
+}
+
+.wf-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 6px;
+}
+
+.wf-group-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.rename-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
