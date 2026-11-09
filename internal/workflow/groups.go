@@ -72,6 +72,7 @@ func (e *Engine) SetGroupEnabled(ctx context.Context, name string, on bool) erro
 			}
 		}
 		e.mu.Unlock()
+		held = append(held, e.otherClaims()...)
 		var cs []commands.Conflict
 		for _, id := range members {
 			d, _, wfOn, err := e.st.definition(ctx, id, 0)

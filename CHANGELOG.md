@@ -176,6 +176,15 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - `streamgremlin ads`, `ads run SECONDS` and `ads snooze`.
   - The sign-in asks to read the ad schedule, run ads and snooze them: sign in to Twitch again once.
 
+- M3 slice 1, giveaways:
+  - **A Giveaways screen:** open a giveaway, watch entries come in, draw, set a winner aside and draw again, end or cancel, and see every chat message it sent (or couldn't). A practice giveaway takes test chat from Events and sends nothing.
+  - Viewers type `!join` (or your command). One entry each, and every entry has the same chance, as chat is told. Entrants hear they're in, a few names to a message. Subscribers only, closing entries after a set time, and claiming with `!claim` within a time are options.
+  - **Checkable draws:** winners are drawn with a secure random source, and closing entries fingerprints the list (SHA-256). **Check the draws** in the app, or `streamgremlin giveaways verify`, confirms each winner from the record.
+  - While a giveaway runs, it holds its chat commands: no workflow answers them meanwhile.
+  - **Triggers** for a giveaway opening, closing, ending, and a winner drawn, claiming or not; **steps** to open, close, draw and end.
+  - `streamgremlin giveaways`, with `open`, `close`, `draw`, `set-aside`, `end`, `cancel`, `show` and `verify`.
+  - Giveaways sits in the sidebar after Overlays, so Variables' shortcut is now Ctrl/⌘+8.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

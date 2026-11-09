@@ -228,6 +228,18 @@ func Catalog() []Kind {
 		hypeKind("monetization.hype_train.started", "Hype Train starts", "A Hype Train started on your channel.", false),
 		hypeKind("monetization.hype_train.updated", "Hype Train progress", "Your Hype Train got more contributions, or went up a level.", false),
 		hypeKind("monetization.hype_train.ended", "Hype Train ends", "Your Hype Train ended.", true),
+		// Giveaways (docs/adr/0025-giveaways.md).
+		giveawayKind("giveaways.giveaway.opened", "Giveaway opens", "A giveaway opened for entries.", nil),
+		giveawayKind("giveaways.giveaway.closed", "Giveaway entries close", "A giveaway stopped taking entries; the list is fixed.",
+			func(p map[string]any, _ *Actor) { p["entries"], p["fingerprint"] = 12, "test" }),
+		giveawayKind("giveaways.giveaway.ended", "Giveaway ends", "A giveaway ended, or was cancelled.",
+			func(p map[string]any, a *Actor) {
+				p["status"] = "ended"
+				p["winners"] = []any{map[string]any{"user_id": a.ID, "login": a.Login, "name": a.DisplayName, "entry": 3}}
+			}),
+		giveawayWinnerKind("giveaways.winner.drawn", "Giveaway winner drawn", "A giveaway's winner was drawn."),
+		giveawayWinnerKind("giveaways.winner.claimed", "Giveaway win claimed", "A giveaway's winner claimed in time."),
+		giveawayWinnerKind("giveaways.winner.forfeited", "Giveaway win not claimed", "A giveaway's winner didn't claim in time."),
 		// Ads (docs/adr/0024-ads.md): asked for, refused, begun, ended (estimated).
 		adKind("ads.break.started", "Ad break begins", "Twitch says an ad break began on your channel, automatic or one you ran.",
 			[]string{"twitch"}, []Field{{Name: "duration", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3},
@@ -468,6 +480,33 @@ func hypeKind(typ, label, desc string, ended bool) Kind {
 				p["progress"], p["goal"], p["expires_at"] = 300, 2000, "2026-11-08T20:10:00Z"
 			}
 			return p, nil, nil
+		}}
+}
+
+// giveawayKind is a giveaway event with no one viewer.
+func giveawayKind(typ, label, desc string, more func(map[string]any, *Actor)) Kind {
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"core"},
+		Fields: []Field{{Name: "title", Label: "Giveaway", Kind: "text", Default: "a Steam key", Max: 100}},
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			p := map[string]any{"giveaway_id": "test", "title": v["title"], "command": "join", "winners": 1, "practice": true,
+				"subscribers_only": false}
+			if more != nil {
+				more(p, testViewer("TestViewer"))
+			}
+			return p, nil, nil
+		}}
+}
+
+// giveawayWinnerKind is a giveaway event about its winner.
+func giveawayWinnerKind(typ, label, desc string) Kind {
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"core"},
+		Fields: []Field{{Name: "title", Label: "Giveaway", Kind: "text", Default: "a Steam key", Max: 100},
+			{Name: "user", Label: "Winner", Kind: "text", Default: "TestViewer", Max: 25}},
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			a := testViewer(v["user"])
+			return map[string]any{"giveaway_id": "test", "title": v["title"], "command": "join", "winners": 1, "practice": true,
+				"subscribers_only": false, "draw": 1, "pick_index": 2, "candidates": 12, "claim_until": nil,
+				"winner": map[string]any{"user_id": a.ID, "login": a.Login, "name": a.DisplayName, "entry": 3}}, a, nil
 		}}
 }
 

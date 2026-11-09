@@ -70,6 +70,9 @@ const (
 	// Ads: the schedule and history; asking for a break or a snooze.
 	PermAdsRead  Permission = "ads.read"
 	PermAdsWrite Permission = "ads.write"
+	// Giveaways: seeing them and their records; opening, drawing and ending.
+	PermGiveawaysRead  Permission = "giveaways.read"
+	PermGiveawaysWrite Permission = "giveaways.write"
 )
 
 // Principal is an authenticated caller.

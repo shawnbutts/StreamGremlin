@@ -1047,3 +1047,84 @@ export const getAds = () => api<AdsView>('GET', '/v1/ads');
 export const startCommercial = (length: number, opKey: string) =>
   api<AdRequest>('POST', '/v1/ads/commercial', { length, op_key: opKey });
 export const snoozeAd = (opKey: string) => api<AdRequest>('POST', '/v1/ads/snooze', { op_key: opKey });
+
+// Giveaways (docs/adr/0025-giveaways.md).
+
+export interface GiveawaySettings {
+  title: string;
+  command?: string;
+  winners?: number;
+  minutes?: number;
+  claim_seconds?: number;
+  claim_command?: string;
+  subscribers_only?: boolean;
+  practice?: boolean;
+}
+
+export interface Giveaway {
+  id: string;
+  title: string;
+  command: string;
+  claim_command?: string;
+  winners: number;
+  claim_seconds: number;
+  subscribers_only: boolean;
+  practice: boolean;
+  state: 'open' | 'closed' | 'ended' | 'cancelled';
+  opened_by: string;
+  opened_at: string;
+  closes_at?: string;
+  closed_at?: string;
+  ended_at?: string;
+  entry_count: number;
+  fingerprint?: string;
+}
+
+export interface GiveawayEntry {
+  seq: number;
+  platform: string;
+  user_id: string;
+  login: string;
+  display_name: string;
+  entered_at: string;
+}
+
+export interface GiveawayDraw {
+  id: string;
+  n: number;
+  entry_seq: number;
+  pick_index: number;
+  candidates: number;
+  outcome: 'won' | 'pending_claim' | 'claimed' | 'forfeited' | 'set_aside';
+  claim_until?: string;
+  drawn_at: string;
+  settled_at?: string;
+  settled_by?: string;
+  winner: GiveawayEntry;
+}
+
+export interface GiveawayMessage {
+  id: number;
+  text: string;
+  state: 'queued' | 'sending' | 'sent' | 'failed' | 'unknown' | 'practice';
+  detail?: string;
+  created_at: string;
+}
+
+export interface GiveawayDetail extends Giveaway {
+  entries: GiveawayEntry[];
+  draws: GiveawayDraw[];
+  refusals: { login: string; display_name: string; reason: string }[];
+  messages: GiveawayMessage[];
+}
+
+export const getGiveaways = () => api<{ current: GiveawayDetail | null; recent: Giveaway[] }>('GET', '/v1/giveaways');
+export const getGiveaway = (id: string) => api<GiveawayDetail>('GET', `/v1/giveaways/${encodeURIComponent(id)}`);
+export const openGiveaway = (s: GiveawaySettings) => api<Giveaway>('POST', '/v1/giveaways', s);
+const gid = (id: string) => encodeURIComponent(id);
+export const closeGiveaway = (id: string) => api<Giveaway>('POST', `/v1/giveaways/${gid(id)}/close`);
+export const drawGiveaway = (id: string, count = 0) => api<{ draws: GiveawayDraw[] }>('POST', `/v1/giveaways/${gid(id)}/draw`, { count });
+export const setAsideWinner = (id: string, drawId: string) =>
+  api<{ draws: GiveawayDraw[] }>('POST', `/v1/giveaways/${gid(id)}/set-aside`, { draw_id: drawId });
+export const endGiveaway = (id: string) => api<Giveaway>('POST', `/v1/giveaways/${gid(id)}/end`);
+export const cancelGiveaway = (id: string) => api<Giveaway>('POST', `/v1/giveaways/${gid(id)}/cancel`);

@@ -34,6 +34,11 @@ type TriggerEntry struct {
 	Values   []Value      `json:"values"`
 }
 
+var (
+	gwTitle  = Value{Token: "giveaway", Label: "The giveaway's title", Expr: "event.payload.title"}
+	gwWinner = Value{Token: "winner", Label: "The winner's name", Expr: "event.payload.winner.name"}
+)
+
 var adSeconds = Value{Token: "seconds", Label: "Its length in seconds", Expr: "event.payload.duration_seconds"}
 
 // Palette is the body of GET /v1/palette.
@@ -98,6 +103,23 @@ func Triggers() []TriggerEntry {
 			Match: []MatchField{}, Values: hypeValues(false)},
 		{Type: "monetization.hype_train.ended", Label: "A Hype Train ends", Category: "Twitch",
 			Help: "The Hype Train ended, with the level it reached.", Match: []MatchField{}, Values: hypeValues(true)},
+		{Type: "giveaways.giveaway.opened", Label: "A giveaway opens", Category: "Giveaways",
+			Help: "A giveaway opened for entries. StreamGremlin already says how to enter in chat.", Match: []MatchField{},
+			Values: []Value{gwTitle, {Token: "command", Label: "The entry command, without !", Expr: "event.payload.command"}}},
+		{Type: "giveaways.giveaway.closed", Label: "Giveaway entries close", Category: "Giveaways", More: true,
+			Help: "A giveaway stopped taking entries.", Match: []MatchField{},
+			Values: []Value{gwTitle, {Token: "entries", Label: "How many entered", Expr: "event.payload.entries"}}},
+		{Type: "giveaways.winner.drawn", Label: "A giveaway winner is drawn", Category: "Giveaways",
+			Help:  "A winner was drawn. StreamGremlin already announces them in chat; use this for an alert or a sound.",
+			Match: []MatchField{}, Values: []Value{gwTitle, gwWinner}},
+		{Type: "giveaways.winner.claimed", Label: "A giveaway winner claims", Category: "Giveaways", More: true,
+			Help: "A winner typed the claim command in time.", Match: []MatchField{}, Values: []Value{gwTitle, gwWinner}},
+		{Type: "giveaways.winner.forfeited", Label: "A giveaway winner doesn't claim", Category: "Giveaways", More: true,
+			Help: "A winner didn't claim in time.", Match: []MatchField{}, Values: []Value{gwTitle, gwWinner}},
+		{Type: "giveaways.giveaway.ended", Label: "A giveaway ends", Category: "Giveaways", More: true,
+			Help:   "A giveaway ended, or was cancelled.",
+			Match:  []MatchField{{Path: "status", Label: "Only when it", Kind: "text", Help: "ended or cancelled. Leave empty for either."}},
+			Values: []Value{gwTitle}},
 		{Type: "ads.break.started", Label: "An ad break begins", Category: "Twitch",
 			Help:  "Twitch says an ad break began, automatic or one you ran (Affiliates and Partners). The only sure sign an ad is running.",
 			Match: []MatchField{}, Values: []Value{adSeconds, {Token: "automatic", Label: "Whether Twitch ran it on its own (true or false)",

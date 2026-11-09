@@ -46,6 +46,18 @@ export function eventSummary(ev: EventRecord): string {
       const top = (p.top_contributor ?? {}) as { name?: string };
       return `Hype Train ended at level ${num('level')}${top.name ? `; top contributor ${top.name}` : ''}`;
     }
+    case 'giveaways.giveaway.opened':
+      return `Giveaway opened: ${p.title ?? ''} (!${p.command ?? 'join'})`;
+    case 'giveaways.giveaway.closed':
+      return `Giveaway entries closed: ${p.title ?? ''}, ${num('entries')} ${num('entries') === 1 ? 'entry' : 'entries'}`;
+    case 'giveaways.giveaway.ended':
+      return p.status === 'cancelled' ? `Giveaway cancelled: ${p.title ?? ''}` : `Giveaway ended: ${p.title ?? ''}`;
+    case 'giveaways.winner.drawn':
+      return `${who} won ${p.title ?? 'the giveaway'}`;
+    case 'giveaways.winner.claimed':
+      return `${who} claimed ${p.title ?? 'the giveaway'}`;
+    case 'giveaways.winner.forfeited':
+      return `${who} didn’t claim ${p.title ?? 'the giveaway'} in time`;
     case 'ads.break.started':
       return `Ad break began: ${num('duration_seconds')} seconds${p.is_automatic ? ' (automatic)' : ''}`;
     case 'ads.break.end_estimated':

@@ -64,17 +64,45 @@ func strings1(raw json.RawMessage) []string {
 	return out
 }
 
-// heldExcept is every claim of the enabled workflows but id.
+// heldExcept is every claim of the enabled workflows but id, and the
+// commands held by others (a giveaway).
 func (e *Engine) heldExcept(id string) []commands.Claim {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	var held []commands.Claim
 	for _, wf := range e.enabled {
 		if wf.id != id {
 			held = append(held, ClaimsOf(wf.id, wf.def)...)
 		}
 	}
-	return held
+	e.mu.Unlock()
+	return append(held, e.otherClaims()...)
+}
+
+func (e *Engine) otherClaims() []commands.Claim {
+	if f := e.others.Load(); f != nil {
+		return (*f)()
+	}
+	return nil
+}
+
+// SetOtherClaims tells the engine where to find chat commands held by
+// something besides workflows (docs/adr/0025-giveaways.md).
+func (e *Engine) SetOtherClaims(f func() []commands.Claim) { e.others.Store(&f) }
+
+// CheckClaims refuses claims that a workflow that's on already answers.
+func (e *Engine) CheckClaims(claims []commands.Claim) error {
+	e.cmdMu.Lock()
+	defer e.cmdMu.Unlock()
+	e.mu.Lock()
+	var held []commands.Claim
+	for _, wf := range e.enabled {
+		held = append(held, ClaimsOf(wf.id, wf.def)...)
+	}
+	e.mu.Unlock()
+	if cs := commands.Conflicts(claims, held); len(cs) > 0 {
+		return &commands.TakenError{Conflicts: cs}
+	}
+	return nil
 }
 
 // checkCommands refuses d's claims that something else on already answers.
@@ -120,6 +148,10 @@ func (e *Engine) Commands(ctx context.Context) ([]commands.Entry, error) {
 		}
 		on[s.ID] = s.Running // on, with its group on: what actually answers
 		claims = append(claims, ClaimsOf(s.ID, d)...)
+	}
+	for _, c := range e.otherClaims() {
+		on[c.Owner] = true
+		claims = append(claims, c)
 	}
 	return commands.Table(claims, on), nil
 }

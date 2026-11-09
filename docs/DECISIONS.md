@@ -842,3 +842,18 @@ Decided 2026-11-09 under D-007, building on D-039.
   - an Ads card on Home, `streamgremlin ads`, and two templates in an Ads group.
 - **The sign-in asks for `channel:read:ads`, `channel:edit:commercial` and `channel:manage:ads`.**
 - **Built and checked against mocktwitch only** (D-039).
+
+## D-043. Giveaways (M3 slice 1)
+
+Decided 2026-11-09 under D-007. The user said "proceed" to the plan: basic giveaways first, then entry rules, extra chances, drawing from recent chat, and an overlay.
+
+- **Giveaways follow [ADR-0025](adr/0025-giveaways.md):**
+  - one entry per chat account; every entry has the same chance, said in chat;
+  - the entry list fingerprinted when entries close; each draw picked with `crypto/rand` and recorded so the app and `streamgremlin giveaways verify` can check it;
+  - optional claiming within a time, setting a winner aside, end and cancel;
+  - chat hears everything, including "you're in", from an outbox that never resends;
+  - a practice giveaway for test chat, sending nothing.
+- **One unfinished giveaway at a time.**
+- **A live giveaway holds its chat commands** against workflows (one answer per command).
+- **No entry cost or points prizes yet:** they come with the points ledger (F4).
+- **The Giveaways screen is in the main sidebar by default.** Variables' shortcut moves from Ctrl/⌘+7 to 8.

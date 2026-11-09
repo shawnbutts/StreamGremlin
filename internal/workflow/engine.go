@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/commands"
+
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
@@ -70,6 +72,10 @@ type Engine struct {
 	cursor  int64
 
 	traceErrors atomic.Int64
+
+	// others lists chat commands held by something besides workflows (a
+	// giveaway's !join), so no workflow is turned on to answer them.
+	others atomic.Pointer[func() []commands.Claim]
 }
 
 // New returns an Engine. Start begins dispatching.
