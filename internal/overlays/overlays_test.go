@@ -498,3 +498,63 @@ func dial(ctx context.Context, url string, h http.Header) (*websocket.Conn, erro
 }
 
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+// Through the real server: with two overlays open, an alert reaches only
+// the pages of the overlay it's for.
+func TestAnAlertReachesOnlyItsOwnOverlay(t *testing.T) {
+	ctx := context.Background()
+	s, h, srv := serve(t)
+	_, tokA, _ := s.Create(ctx, "alerts", KindAlert, DefaultLook(), now)
+	_, tokB, _ := s.Create(ctx, "corner", KindAlert, DefaultLook(), now)
+	type page struct {
+		c   *websocket.Conn
+		got chan string
+	}
+	openPage := func(token string) page {
+		c, err := dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"/o/"+token+"/ws", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = c.CloseNow() })
+		p := page{c: c, got: make(chan string, 10)}
+		go func() {
+			for {
+				_, b, err := c.Read(ctx)
+				if err != nil {
+					return
+				}
+				var m struct {
+					Type string
+					Body struct{ Alert Alert }
+				}
+				_ = json.Unmarshal(b, &m)
+				if m.Type == "alert" {
+					p.got <- m.Body.Alert.Text
+					ack, _ := json.Marshal(map[string]string{"type": "ack", "id": m.Body.Alert.ID, "status": "started"})
+					_ = c.Write(ctx, websocket.MessageText, ack)
+				}
+			}
+		}()
+		return p
+	}
+	a, b := openPage(tokA), openPage(tokB)
+	for {
+		pa, _ := h.Open("alerts")
+		pb, _ := h.Open("corner")
+		if pa == 1 && pb == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if res, err := h.Show(ctx, "corner", Alert{Text: "for corner", Seconds: 2}, ""); err != nil || res.Pages != 1 {
+		t.Fatal(res, err)
+	}
+	if got := <-b.got; got != "for corner" {
+		t.Fatal(got)
+	}
+	select {
+	case got := <-a.got:
+		t.Fatalf("the other overlay showed %q", got)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
