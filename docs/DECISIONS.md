@@ -693,5 +693,6 @@ Decided 2026-11-09 under D-007. Before the slice, the user asked whether overlay
 - **Links are capabilities, kept like secrets:** only a hash in the database (so backups carry no working link), the token in the secret store, never logged. A new link stops the old one at once.
 - **"Show an alert"** shows a title and text, optionally the viewer's Twitch profile picture and a sound from the library. Alerts on one overlay take turns. The step returns when a page says the alert started, and says when no page has the overlay open or none answered.
 - **Tests show alerts in the app's preview only,** never in OBS. Steps can now be Preview actions: External, but run in tests as dry runs.
+- **Test opens the preview where it's pressed** (the user, 2026-11-09, after asking whether a test should show in OBS: "yes, do both"): Test on the Workflows screen shows a preview of each overlay the workflow uses, and the trace says whether a preview showed the alert, or that nobody saw it.
 - **The app previews the overlay page itself** in a frame, so what you see is what OBS shows.
 - **A new Overlays screen at Ctrl/⌘+8.** Variables moves to 9, and Help to Ctrl/⌘+/.

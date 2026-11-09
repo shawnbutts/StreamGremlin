@@ -267,7 +267,7 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	case r.dryRun && a.SavesState:
 		rec.Reason = "test run: changed for this run only, not saved"
 	case r.dryRun && a.Preview:
-		rec.Reason = "test run: shown in the app's previews only, never in OBS"
+		rec.Reason = "test run: never reaches OBS; at most the app's previews (the output says whether one showed it)"
 	}
 	r.record(rec)
 	r.result(s.ID, StepOK, out, "")

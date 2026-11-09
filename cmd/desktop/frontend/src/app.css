@@ -975,3 +975,8 @@ kbd {
   border: 0;
   transform-origin: 0 0;
 }
+
+.test-preview {
+  max-width: 640px;
+  margin-top: 12px;
+}

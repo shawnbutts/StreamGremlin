@@ -49,7 +49,8 @@ func TestShowAnAlert(t *testing.T) {
 	out := run(t, reg, "overlays.alert", workflow.Call{DryRun: true, IdempotencyKey: "j/1",
 		Args: map[string]any{"overlay": "alerts", "text": "Fan followed", "picture": true, "sound": "chime"}})
 	res := out["result"].(overlays.Result)
-	if !res.Test || res.Shown || out["sound"] != "would play chime" || out["picture"] != "not looked up for a test" {
+	if !res.Test || res.Shown || out["sound"] != "would play chime" || out["picture"] != "not looked up for a test" ||
+		!strings.HasPrefix(out["preview"].(string), "nobody saw it: no preview of alerts was open") {
 		t.Fatalf("%+v", out)
 	}
 

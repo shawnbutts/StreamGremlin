@@ -80,6 +80,13 @@ func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overla
 			if c.DryRun {
 				res := hub.Preview(o.Name, a)
 				out["result"] = res
+				if res.Previews == 0 {
+					// Say so: a test that reached nobody mustn't read as shown.
+					out["preview"] = "nobody saw it: no preview of " + o.Name + " was open. Press Test on the Workflows " +
+						"screen to see it, or Preview an alert on the Overlays screen."
+				} else {
+					out["preview"] = fmt.Sprintf("shown in %d preview(s) in the app, never in OBS", res.Previews)
+				}
 				if wantPicture {
 					out["picture"] = "not looked up for a test"
 				}

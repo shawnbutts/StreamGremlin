@@ -321,7 +321,7 @@ func TestPreviewStepsRunInTestsAsDryRuns(t *testing.T) {
 	_, steps, _ := r.eng.Trace(context.Background(), js[0].ID)
 	got := r.rec.got()
 	if len(got) != 1 || got[0]["dry_run"] != true || got[0]["actor"] != "fan" ||
-		steps[0].Status != StepOK || !strings.Contains(steps[0].Reason, "previews only") {
+		steps[0].Status != StepOK || !strings.Contains(steps[0].Reason, "never reaches OBS") {
 		t.Fatalf("%v %+v", got, steps)
 	}
 	r.chat("p2", "hi", events.Confirmed)

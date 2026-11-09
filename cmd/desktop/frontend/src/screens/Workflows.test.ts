@@ -245,7 +245,75 @@ function engineWithRefusal() {
   });
 }
 
+// A workflow that shows alerts, and an engine whose preview of "alerts"
+// connects after a few asks (or never).
+function alertEngine(connectAfter: number) {
+  const w: WorkflowSummary = {
+    id: 'twitch.alert-follow', name: 'Follower alerts', enabled: true, version: 1, updated_at: now(),
+    triggers: [{ type: 'chat.command.received', where: { command: 'follow' } }],
+  };
+  let asks = 0;
+  const calls = mockFetch({
+    '/v1/workflows': (_m, _b, q) => ({ status: 200, body: { workflows: q.includes('deleted') ? [] : [w] } }),
+    '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
+    '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
+    '/v1/events/catalog': () => ({ status: 200, body: catalog }),
+    '/v1/workflows/twitch.alert-follow': () => ({
+      status: 200,
+      body: {
+        workflow: w,
+        definition: {
+          ...w,
+          steps: [{ if: 'true', do: [{ action: 'overlays.alert', with: { overlay: 'alerts', text: 'hi' } }] }, { action: 'overlays.alert', with: { overlay: '${vars.which}', text: 'x' } }],
+        },
+      },
+    }),
+    '/v1/overlays': () => {
+      asks++;
+      const previews = asks > connectAfter ? 1 : 0;
+      return { status: 200, body: { overlays: [{ name: 'alerts', kind: 'alert', look: {}, pages: 0, previews }], server: 'http://127.0.0.1:7431' } };
+    },
+    '/v1/overlays/alerts/link': () => ({ status: 200, body: { name: 'alerts', url: 'http://127.0.0.1:7431/o/tok/' } }),
+    '/v1/events/simulate': () => ({ status: 201, body: { event: { seq: 1 }, duplicate: false } }),
+  });
+  return calls;
+}
+
 describe('Workflows', () => {
+  it('shows a test of an alert in a preview where Test was pressed, once the preview is connected', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+    const calls = alertEngine(2);
+    const el = start();
+    await settle(60);
+    button(el, 'Test')!.click();
+    await settle(600);
+    const frame = el.querySelector('iframe')!;
+    expect(frame.getAttribute('src')).toBe('http://127.0.0.1:7431/o/tok/?preview=1');
+    expect(el.textContent).toContain('Test preview: Follower alerts');
+    // The test event goes only once the preview is there to see it.
+    const sim = calls.findIndex((c) => c.path === '/v1/events/simulate');
+    const connected = calls.filter((c) => c.path === '/v1/overlays').length;
+    expect(sim).toBeGreaterThan(-1);
+    expect(connected).toBeGreaterThanOrEqual(3);
+    expect(el.textContent).toContain('its alert shows in the preview below, never in OBS');
+    button(el, 'Close the preview')!.click();
+    flushSync();
+    expect(el.querySelector('iframe')).toBeNull();
+  });
+
+  it('says so when the preview does not connect in time, and tests anyway', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+    const calls = alertEngine(1000);
+    const target = document.createElement('main');
+    document.body.appendChild(target);
+    comp = mount(Workflows, { target, props: { refreshMs: 20, previewWaitMs: 200 } });
+    await settle(60);
+    button(target, 'Test')!.click();
+    await settle(500);
+    expect(calls.some((c) => c.path === '/v1/events/simulate')).toBe(true);
+    expect(target.textContent).toContain("didn't connect in time");
+  });
+
   it('builds a workflow in plain words, then turns it on, tests it and shows the trace', async () => {
     const e = engine();
     const el = start();

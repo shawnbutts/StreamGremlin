@@ -99,3 +99,25 @@ export function takenBy(command: string, roles: unknown, sources: string[] | und
 
 /** "for mods and you", "for vip", or "" for everyone. */
 export const forWhom = (roles?: string[]) => (roles?.length ? ` ${whoWords(roles).replace(/^\(/, 'for ').replace(/\)$/, '')}` : '');
+
+/**
+ * The overlays a workflow shows alerts on, by name, from its "Show an
+ * alert" steps anywhere in it (inside ifs, loops and choices too). A name
+ * computed with ${…} can't be known before it runs, so it's left out.
+ */
+export function overlaysIn(def: unknown): string[] {
+  const found = new Set<string>();
+  const walk = (v: unknown) => {
+    if (Array.isArray(v)) {
+      v.forEach(walk);
+      return;
+    }
+    if (!v || typeof v !== 'object') return;
+    const o = v as Record<string, unknown>;
+    const name = (o.with as Record<string, unknown> | undefined)?.overlay;
+    if (o.action === 'overlays.alert' && typeof name === 'string' && name && !name.includes('${')) found.add(name);
+    Object.values(o).forEach(walk);
+  };
+  walk(def);
+  return [...found];
+}

@@ -16,10 +16,11 @@ import (
 	"github.com/coder/websocket"
 )
 
-// fakeOBS opens an overlay's link as OBS's browser source would: it loads
+// fakeOBS opens an overlay's link as OBS's browser source would (or, with
+// preview, as the app's preview does): it loads
 // the page, connects, reports each alert as started and, at once, done.
 // It returns the alerts it showed.
-func fakeOBS(t *testing.T, link string) (shown func() []map[string]any, closed <-chan struct{}) {
+func fakeOBS(t *testing.T, link string, preview bool) (shown func() []map[string]any, closed <-chan struct{}) {
 	t.Helper()
 	res, err := http.Get(link)
 	if err != nil {
@@ -31,7 +32,11 @@ func fakeOBS(t *testing.T, link string) (shown func() []map[string]any, closed <
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	c, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(link, "http")+"ws",
+	ws := "ws" + strings.TrimPrefix(link, "http") + "ws"
+	if preview {
+		ws += "?preview=1" // as the app's preview connects
+	}
+	c, resp, err := websocket.Dial(ctx, ws,
 		&websocket.DialOptions{Subprotocols: []string{"streamgremlin.overlay.v1"}})
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
@@ -116,7 +121,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 		t.Fatal(out, errOut)
 	}
 
-	shown, _ := fakeOBS(t, link)
+	shown, _ := fakeOBS(t, link, false)
 	eventually(t, "OBS", func() string {
 		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "open in 1 page") {
 			return out
@@ -152,9 +157,41 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 		}
 		return ""
 	})
+	// Nobody had a preview open: the trace says nobody saw it. With the
+	// app's preview open, the next test shows there, and says so.
+	lastTrace := func() string {
+		_, body := call(t, e, "GET", "/v1/jobs?workflow=twitch.follow-alert", e.token, "", nil)
+		var js struct{ Jobs []struct{ ID string } }
+		_ = json.Unmarshal([]byte(body), &js)
+		if len(js.Jobs) == 0 {
+			return ""
+		}
+		_, trace := call(t, e, "GET", "/v1/jobs/"+js.Jobs[0].ID, e.token, "", nil)
+		return trace
+	}
+	if tr := lastTrace(); !strings.Contains(tr, "nobody saw it: no preview of alerts was open") || !strings.Contains(tr, "never reaches OBS") {
+		t.Fatalf("trace without a preview:\n%s", tr)
+	}
+	previewShown, _ := fakeOBS(t, link, true)
+	eventually(t, "the preview", func() string {
+		if out, _, _ := cli(t, dir, "overlays", "-json"); !strings.Contains(out, `"previews": 1`) {
+			return out
+		}
+		return ""
+	})
+	cli(t, dir, "events", "simulate", "audience.follow.created")
+	eventually(t, "the test in the preview", func() string {
+		if tr := lastTrace(); !strings.Contains(tr, "shown in 1 preview(s) in the app, never in OBS") {
+			return tr
+		}
+		return ""
+	})
+	if got := previewShown(); len(got) != 1 || !strings.Contains(got[0]["text"].(string), "followed!") {
+		t.Fatalf("the preview showed %v", got)
+	}
 	tw.Follow("streamer", "Fan")
 	eventually(t, "the alert", func() string {
-		if out, _, _ := cli(t, dir, "runs", "-workflow", "twitch.follow-alert"); strings.Count(out, "succeeded") < 2 {
+		if out, _, _ := cli(t, dir, "runs", "-workflow", "twitch.follow-alert"); strings.Count(out, "succeeded") < 3 {
 			return out
 		}
 		return ""
@@ -176,7 +213,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	}
 
 	// A new link: the old one stops, and its page is closed.
-	_, closed := fakeOBS(t, relink)
+	_, closed := fakeOBS(t, relink, false)
 	if out, errOut, code := cli(t, dir, "overlays", "new-link", "alerts"); code != 0 || !strings.Contains(out, "old link stopped working") {
 		t.Fatal(out, errOut)
 	}

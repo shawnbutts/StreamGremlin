@@ -73,7 +73,9 @@ F2 needs alerts on stream: a follow, a sub, a raid shows a box in OBS (D-004; FE
 
 - **Parameters:** `overlay` (literal), `text`, `title?`, `seconds?` (2–60; the overlay's own time by default), `picture?` (the viewer's profile picture), `sound?` (from the library, ADR-0016).
 - **Long text is shortened, not refused:** a title to 100 characters and the text to 500, with an ellipsis, so a long chat line never stops an alert.
-- **A Preview action** (new: `workflow.Action.Preview`). It's External, but it runs for test events too, told it's a dry run. Then it sends the alert to the overlay's previews only, never waits, never looks up a picture, and plays no sound. The trace says "shown in the app's previews only, never in OBS".
+- **A Preview action** (new: `workflow.Action.Preview`). It's External, but it runs for test events too, told it's a dry run. Then it sends the alert to the overlay's previews only, never waits, never looks up a picture, and plays no sound.
+  - The trace says it never reaches OBS. Its output says whether a preview showed it: "shown in 1 preview(s) in the app", or "nobody saw it: no preview of alerts was open".
+  - **Test on the Workflows screen** opens a preview of each overlay the workflow shows alerts on (named in "Show an alert" steps, anywhere in it), right there. It waits up to 4 seconds for the previews to connect before sending the test event, and says so if they don't. (Added after the live check: Test sent the alert to previews only, and none was open.)
 - **The picture** comes from Twitch's Get Users by the event viewer's id: no scope, kept 30 minutes, and only from `static-cdn.jtvnw.net`. An event with no Twitch viewer, such as an anonymous gift, has none.
   - A picture that can't be found never stops the alert; the trace says why it's missing.
   - Workflow calls now carry the event's actor (`workflow.Call.Actor`).

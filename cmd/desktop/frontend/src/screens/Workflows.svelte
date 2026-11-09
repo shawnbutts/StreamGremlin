@@ -9,6 +9,7 @@
     getDeletedWorkflows,
     getEventCatalog,
     getJobs,
+    getOverlays,
     getWorkflow,
     getWorkflows,
     restoreWorkflow,
@@ -24,11 +25,12 @@
   import type { Def } from '../lib/editor';
   import TemplateGallery from '../editor/TemplateGallery.svelte';
   import { eventTime } from '../lib/events';
-  import { describeTrigger, forWhom, jobOk, jobWords, testFields } from '../lib/workflows';
+  import { describeTrigger, forWhom, jobOk, jobWords, overlaysIn, testFields } from '../lib/workflows';
+  import OverlayPreview from '../lib/OverlayPreview.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import RunTrace from './RunTrace.svelte';
 
-  let { refreshMs = 2000 }: { refreshMs?: number } = $props();
+  let { refreshMs = 2000, previewWaitMs = 4000 }: { refreshMs?: number; previewWaitMs?: number } = $props();
 
   let workflows = $state<WorkflowSummary[]>([]);
   let deleted = $state<WorkflowSummary[]>([]);
@@ -41,6 +43,9 @@
   let notice = $state('');
   let error = $state('');
   let busy = $state(false);
+  // A test of a workflow that shows alerts: previews of its overlays, here
+  // where Test was pressed, since a test never reaches OBS.
+  let testPreview = $state<{ workflow: string; overlays: string[] } | undefined>();
 
   // The editor: closed, a new workflow, or an existing one's definition.
   // The editor: closed, the template gallery, or a definition to edit
@@ -112,11 +117,42 @@
     act(() => deleteWorkflow(w.id), `Deleted “${w.name}”. You can restore it under “Deleted workflows”.`);
   }
 
-  function test(w: WorkflowSummary) {
+  /** Waits until the app's previews of these overlays are connected, so the test alert reaches them. */
+  async function previewsOpen(names: string[]) {
+    const deadline = Date.now() + previewWaitMs;
+    while (Date.now() < deadline) {
+      try {
+        const list = (await getOverlays()).overlays;
+        if (names.every((n) => (list.find((o) => o.name === n)?.previews ?? 0) > 0)) return true;
+      } catch {
+        // Keep trying until the deadline.
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  }
+
+  async function test(w: WorkflowSummary) {
     const t = w.triggers.find((t) => testFields(t, kinds.find((k) => k.type === t.type)));
     if (!t) return;
     const fields = testFields(t, kinds.find((k) => k.type === t.type))!;
-    act(() => simulateEvent(t.type, fields, crypto.randomUUID()), `Sent a test event. “${w.name}” runs as a test: nothing reaches Twitch or OBS, and saved variables don’t change.`);
+    let names: string[] = [];
+    try {
+      names = overlaysIn((await getWorkflow(w.id)).definition);
+    } catch {
+      // Without its steps, test without previews; the run still says how it went.
+    }
+    let done = `Sent a test event. “${w.name}” runs as a test: nothing reaches Twitch or OBS, and saved variables don’t change.`;
+    if (names.length) {
+      testPreview = { workflow: w.name, overlays: names };
+      busy = true;
+      const open = await previewsOpen(names);
+      busy = false;
+      done = open
+        ? `Sent a test event. “${w.name}” runs as a test: its alert shows in the preview below, never in OBS, and nothing reaches Twitch.`
+        : `Sent a test event, but the preview below didn't connect in time, so the alert may not show there. Nothing reaches OBS or Twitch.`;
+    }
+    act(() => simulateEvent(t.type, fields, crypto.randomUUID()), done);
   }
 
   const testable = (w: WorkflowSummary) => w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));
@@ -224,6 +260,22 @@
     </details>
   {/if}
 </section>
+
+{#if testPreview}
+  <section class="sg-panel card" aria-labelledby="test-preview-heading">
+    <h2 id="test-preview-heading">Test preview: {testPreview.workflow}</h2>
+    <p class="sg-muted">Tests show alerts here, never in OBS.</p>
+    {#each testPreview.overlays as name (name)}
+      <div class="test-preview">
+        <h3>{name}</h3>
+        <OverlayPreview {name} />
+      </div>
+    {/each}
+    <div class="row-actions">
+      <button type="button" class="button" onclick={() => (testPreview = undefined)}>Close the preview</button>
+    </div>
+  </section>
+{/if}
 
 <section class="sg-panel card" aria-labelledby="cmd-heading">
   <h2 id="cmd-heading">Chat commands</h2>

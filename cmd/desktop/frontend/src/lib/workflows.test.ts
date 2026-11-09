@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandEntry } from './api';
-import { describeTrigger, forWhom, takenBy, testFields, whoPreset } from './workflows';
+import { describeTrigger, forWhom, overlaysIn, takenBy, testFields, whoPreset } from './workflows';
 
 const table: CommandEntry[] = [
   {
@@ -46,5 +46,20 @@ describe('commands', () => {
     };
     expect(testFields(t, kind)).toEqual({ command: '!hi', role: 'moderator' });
     expect(testFields({ type: t.type, where: { 'chatter.badges': 'x' } }, kind)).toBeUndefined();
+  });
+});
+
+describe('overlaysIn', () => {
+  it('finds the overlays a workflow shows alerts on, anywhere, but not computed ones', () => {
+    const def = {
+      steps: [
+        { action: 'overlays.alert', with: { overlay: 'alerts' } },
+        { if: 'x', do: [{ action: 'overlays.alert', with: { overlay: 'corner' } }], else: [{ action: 'chat.send', with: { overlay: 'no' } }] },
+        { choose: [{ weight: 1, steps: [{ action: 'overlays.alert', with: { overlay: 'alerts' } }] }] },
+        { action: 'overlays.alert', with: { overlay: '${vars.where}' } },
+      ],
+    };
+    expect(overlaysIn(def)).toEqual(['alerts', 'corner']);
+    expect(overlaysIn({ steps: [] })).toEqual([]);
   });
 });

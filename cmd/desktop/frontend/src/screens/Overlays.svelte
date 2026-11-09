@@ -17,6 +17,7 @@
     type OverlayLook,
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
+  import OverlayPreview from '../lib/OverlayPreview.svelte';
 
   let { refreshMs = 3000 }: { refreshMs?: number } = $props();
 
@@ -41,13 +42,11 @@
   let selected = $state('');
   let look = $state<OverlayLook | undefined>();
   let lookFor = $state('');
-  let previewURL = $state('');
-  let previewFor = $state('');
-  let linkProblem = $state('');
+  let previewLoaded = $state(false);
+  let previewReload = $state(0);
   let shownLink = $state('');
   let deleting = $state<Overlay | undefined>();
   let replacing = $state<Overlay | undefined>();
-  let frameWidth = $state(0);
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const current = $derived(data?.overlays.find((o) => o.name === selected));
@@ -76,21 +75,6 @@
       look = { ...o.look };
       lookFor = o.name;
     }
-  });
-  $effect(() => {
-    const name = selected;
-    if (!name || previewFor === name) return;
-    previewFor = name;
-    previewURL = '';
-    linkProblem = '';
-    shownLink = '';
-    getOverlayLink(name)
-      .then((l) => {
-        if (selected === name) previewURL = `${l.url}?preview=1`;
-      })
-      .catch((e) => {
-        if (selected === name) linkProblem = message(e);
-      });
   });
 
   async function act(f: () => Promise<unknown>, done: string) {
@@ -152,7 +136,7 @@
     replacing = undefined;
     if (await act(() => newOverlayLink(o.name), `${o.name} has a new link. Copy it into OBS: the old one no longer works.`)) {
       selected = o.name;
-      previewFor = ''; // the preview reloads with the new link
+      previewReload++; // the preview loads the new link
     }
   }
 
@@ -202,7 +186,10 @@
           </span>
         </span>
         <button type="button" class="button" aria-label={`Edit ${o.name}`} aria-pressed={o.name === selected}
-          onclick={() => (selected = o.name)}>Edit</button
+          onclick={() => {
+            selected = o.name;
+            shownLink = '';
+          }}>Edit</button
         >
         <button type="button" class="button" aria-label={`Copy ${o.name}'s link`} disabled={busy} onclick={() => copyLink(o)}
           >Copy link</button
@@ -268,31 +255,14 @@
         </label>
         <div class="row-actions">
           <button type="submit" class="sg-button" disabled={busy || !changed}>Save look</button>
-          <button type="button" class="button" disabled={busy || !previewURL}
+          <button type="button" class="button" disabled={busy || !previewLoaded}
             onclick={() => act(() => testOverlay(current.name, true), 'A sample alert is showing in the preview.')}>Preview an alert</button
           >
         </div>
         {#if changed}<p class="sg-muted">Save to see the change in the preview and in OBS.</p>{/if}
       </form>
       <div class="overlay-preview-wrap">
-        {#if previewURL}
-          <div class="overlay-preview" bind:clientWidth={frameWidth}>
-            <iframe
-              title={`Preview of ${current.name}`}
-              src={previewURL}
-              width="1920"
-              height="1080"
-              referrerpolicy="no-referrer"
-              sandbox="allow-scripts allow-same-origin"
-              style:transform={`scale(${frameWidth / 1920 || 0.25})`}
-            ></iframe>
-          </div>
-          <p class="sg-muted field-hint">The preview shows tests and samples; OBS never does.</p>
-        {:else if linkProblem}
-          <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> No preview: {linkProblem}</p>
-        {:else}
-          <p class="sg-muted">Loading the preview…</p>
-        {/if}
+        <OverlayPreview name={current.name} reload={previewReload} bind:loaded={previewLoaded} />
       </div>
     </div>
   </section>
