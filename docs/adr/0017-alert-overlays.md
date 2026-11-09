@@ -131,9 +131,4 @@ F2 needs alerts on stream: a follow, a sub, a raid shows a box in OBS (D-004; FE
 - **Backups** carry overlays and their looks, but not their links: after restoring on another computer, make a new link and paste it into OBS.
 - **The engine serves a second port.** Another program on 7431 moves overlays to another port until restart, and the app says so.
 - **Not built:** other overlay kinds (counters, goals, the F3 giveaway overlay), theme packs, and overlays on another computer (they would need authenticated remote hosting).
-- **Not yet confirmed on real systems:**
-  - the preview frame in WKWebView and WebView2;
-  - OBS's browser source on macOS and Windows;
-  - Twitch's real picture addresses.
-
-  The live check confirms them.
+- **Confirmed on real systems** (the live check, 2026-11-09, macOS and Windows): OBS's browser source, the app's preview frame in WKWebView and WebView2, and Twitch's real profile pictures.
