@@ -218,6 +218,13 @@ func Catalog() []Kind {
 				return map[string]any{"redemption_id": "test", "user_input": v["user_input"], "status": "unfulfilled",
 					"reward": map[string]any{"id": "test", "title": v["reward"], "cost": atoi(v["cost"]), "prompt": ""}}
 			}),
+		pollKind("chat.poll.started", "Poll starts", "A poll started in your chat.", ""),
+		pollKind("chat.poll.updated", "Poll votes", "Votes came in on your poll.", ""),
+		pollKind("chat.poll.ended", "Poll ends", "Your poll ended.", "completed"),
+		predictionKind("chat.prediction.started", "Prediction starts", "A prediction started in your chat.", "begin"),
+		predictionKind("chat.prediction.updated", "Prediction bets", "Viewers bet on your prediction.", "progress"),
+		predictionKind("chat.prediction.locked", "Prediction locks", "Your prediction stopped taking bets.", "lock"),
+		predictionKind("chat.prediction.ended", "Prediction ends", "Your prediction ended: resolved with a winner, or canceled and refunded.", "end"),
 		hypeKind("monetization.hype_train.started", "Hype Train starts", "A Hype Train started on your channel.", false),
 		hypeKind("monetization.hype_train.updated", "Hype Train progress", "Your Hype Train got more contributions, or went up a level.", false),
 		hypeKind("monetization.hype_train.ended", "Hype Train ends", "Your Hype Train ended.", true),
@@ -425,6 +432,49 @@ func hypeKind(typ, label, desc string, ended bool) Kind {
 				p["ended_at"], p["cooldown_ends_at"] = "2026-11-08T20:05:00Z", "2026-11-08T21:05:00Z"
 			} else {
 				p["progress"], p["goal"], p["expires_at"] = 300, 2000, "2026-11-08T20:10:00Z"
+			}
+			return p, nil, nil
+		}}
+}
+
+// pollKind is a poll event (docs/adr/0023-polls-and-predictions.md).
+func pollKind(typ, label, desc, status string) Kind {
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch"},
+		Fields: []Field{{Name: "title", Label: "Question", Kind: "text", Default: "What should I play next?", Max: 60},
+			{Name: "first", Label: "First choice", Kind: "text", Default: "Celeste", Max: 25},
+			{Name: "second", Label: "Second choice", Kind: "text", Default: "Hades", Max: 25}},
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			choices := []any{map[string]any{"id": "c1", "title": v["first"], "votes": 3, "channel_points_votes": 0},
+				map[string]any{"id": "c2", "title": v["second"], "votes": 5, "channel_points_votes": 0}}
+			p := map[string]any{"poll_id": "test", "title": v["title"], "choices": choices, "votes": 8, "leader": v["second"], "tied": false,
+				"channel_points_voting": false, "channel_points_per_vote": 0, "started_at": "2026-11-08T20:00:00Z"}
+			if status != "" {
+				p["status"], p["ended_at"] = status, "2026-11-08T20:01:00Z"
+			} else {
+				p["ends_at"] = "2026-11-08T20:01:00Z"
+			}
+			return p, nil, nil
+		}}
+}
+
+// predictionKind is a prediction event.
+func predictionKind(typ, label, desc, phase string) Kind {
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch"},
+		Fields: []Field{{Name: "title", Label: "Question", Kind: "text", Default: "Will I beat this boss?", Max: 45},
+			{Name: "first", Label: "First outcome", Kind: "text", Default: "Yes", Max: 25},
+			{Name: "second", Label: "Second outcome", Kind: "text", Default: "No", Max: 25}},
+		build: func(_ string, v map[string]string) (any, *Actor, error) {
+			outcomes := []any{
+				map[string]any{"id": "o1", "title": v["first"], "color": "blue", "users": 4, "channel_points": 1200, "top_predictors": []any{}},
+				map[string]any{"id": "o2", "title": v["second"], "color": "pink", "users": 2, "channel_points": 800, "top_predictors": []any{}}}
+			p := map[string]any{"prediction_id": "test", "title": v["title"], "outcomes": outcomes, "started_at": "2026-11-08T20:00:00Z"}
+			switch phase {
+			case "end":
+				p["status"], p["ended_at"], p["winning_outcome_id"], p["winner"] = "resolved", "2026-11-08T20:05:00Z", "o1", v["first"]
+			case "lock":
+				p["locked_at"] = "2026-11-08T20:02:00Z"
+			default:
+				p["locks_at"] = "2026-11-08T20:02:00Z"
 			}
 			return p, nil, nil
 		}}

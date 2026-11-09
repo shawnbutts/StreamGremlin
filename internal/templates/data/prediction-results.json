@@ -1,0 +1,32 @@
+{
+  "template": {
+    "id": "prediction-results",
+    "title": "Announce prediction results",
+    "category": "Twitch events",
+    "description": "When a prediction is resolved, says in chat which outcome won. Predictions need an Affiliate or Partner channel.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.prediction-results",
+    "name": "Announce prediction results",
+    "group": "Polls",
+    "triggers": [
+      {
+        "type": "chat.prediction.ended",
+        "where": {
+          "status": "resolved"
+        }
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Prediction over: “${event.payload.winner}” it is! Congrats to everyone who called it 🎉"
+        }
+      }
+    ]
+  }
+}

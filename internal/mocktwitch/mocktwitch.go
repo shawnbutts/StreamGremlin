@@ -48,6 +48,7 @@ type Server struct {
 	base    string
 	chat    chatState
 	rw      rewardState
+	pl      pollState
 }
 
 type code struct {

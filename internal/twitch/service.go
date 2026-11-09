@@ -36,7 +36,9 @@ var (
 		// redemptions (docs/adr/0018-channel-point-rewards.md).
 		ManageScope,
 		// Hype Trains (docs/adr/0022-hype-trains.md).
-		"channel:read:hype_train"}
+		"channel:read:hype_train",
+		// Polls and predictions: read, start and end them (docs/adr/0023-polls-and-predictions.md).
+		"channel:manage:polls", "channel:manage:predictions"}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

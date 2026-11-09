@@ -24,6 +24,20 @@ export function eventSummary(ev: EventRecord): string {
       const r = (p.reward ?? {}) as { title?: string };
       return `${who} redeemed ${r.title ?? 'a reward'}${typeof p.user_input === 'string' && p.user_input ? `: ${p.user_input}` : ''}`;
     }
+    case 'chat.poll.started':
+      return `Poll started: ${p.title ?? ''}`;
+    case 'chat.poll.updated':
+      return `Poll: ${num('votes')} ${num('votes') === 1 ? 'vote' : 'votes'}${p.leader ? `, ${p.leader} leads` : ''}`;
+    case 'chat.poll.ended':
+      return `Poll ended: ${p.leader ? `${p.leader} won` : p.tied ? 'a tie' : 'no votes'} (${num('votes')} ${num('votes') === 1 ? 'vote' : 'votes'})`;
+    case 'chat.prediction.started':
+      return `Prediction started: ${p.title ?? ''}`;
+    case 'chat.prediction.updated':
+      return `Prediction: bets on ${p.title ?? ''}`;
+    case 'chat.prediction.locked':
+      return `Prediction locked: ${p.title ?? ''}`;
+    case 'chat.prediction.ended':
+      return p.status === 'canceled' ? `Prediction canceled and refunded: ${p.title ?? ''}` : `Prediction resolved: ${p.winner || 'no winner'} won`;
     case 'monetization.hype_train.started':
       return `Hype Train started: level ${num('level')}`;
     case 'monetization.hype_train.updated':

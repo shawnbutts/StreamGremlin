@@ -347,6 +347,10 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.channelsLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/users":
 		s.usersLocked(w, r)
+	case r.URL.Path == "/helix/polls":
+		s.polls(w, r)
+	case r.URL.Path == "/helix/predictions":
+		s.predictions(w, r)
 	case r.URL.Path == "/helix/channel_points/custom_rewards":
 		s.customRewards(w, r)
 	case r.URL.Path == "/helix/channel_points/custom_rewards/redemptions":

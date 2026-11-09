@@ -1158,3 +1158,36 @@ html[data-density='compact'] .row-actions {
   justify-self: start;
   margin-top: 4px;
 }
+
+/* Polls: each choice with a bar of its share. */
+.poll-results {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.poll-results li {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(80px, 2fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.poll-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--sg-surface-hover);
+  overflow: hidden;
+}
+
+.poll-fill {
+  display: block;
+  height: 100%;
+  background: var(--sg-primary);
+}
+
+.inline-field {
+  display: inline-grid;
+}

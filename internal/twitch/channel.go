@@ -40,7 +40,20 @@ var Feeds = []Feed{
 	{Type: "channel.hype_train.begin", Label: "Hype Train starts", Version: "2", Scopes: []string{"channel:read:hype_train"}},
 	{Type: "channel.hype_train.progress", Label: "Hype Train progress", Version: "2", Scopes: []string{"channel:read:hype_train"}},
 	{Type: "channel.hype_train.end", Label: "Hype Train ends", Version: "2", Scopes: []string{"channel:read:hype_train"}},
+	// Polls and predictions (docs/adr/0023-polls-and-predictions.md): Affiliate or Partner.
+	{Type: "channel.poll.begin", Label: "Polls start", Version: "1", Scopes: pollScopes},
+	{Type: "channel.poll.progress", Label: "Poll votes", Version: "1", Scopes: pollScopes},
+	{Type: "channel.poll.end", Label: "Polls end", Version: "1", Scopes: pollScopes},
+	{Type: "channel.prediction.begin", Label: "Predictions start", Version: "1", Scopes: predictionScopes},
+	{Type: "channel.prediction.progress", Label: "Prediction bets", Version: "1", Scopes: predictionScopes},
+	{Type: "channel.prediction.lock", Label: "Predictions lock", Version: "1", Scopes: predictionScopes},
+	{Type: "channel.prediction.end", Label: "Predictions end", Version: "1", Scopes: predictionScopes},
 }
+
+var (
+	pollScopes       = []string{"channel:read:polls", "channel:manage:polls"}
+	predictionScopes = []string{"channel:read:predictions", "channel:manage:predictions"}
+)
 
 // FeedStatus says whether Twitch sends one kind of event.
 type FeedStatus struct {
@@ -336,6 +349,24 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 			"channel.hype_train.progress": "monetization.hype_train.updated", "channel.hype_train.end": "monetization.hype_train.ended"}[typ]
 		env.Actor = nil // the channel's own train: no one viewer
 		payload = e.payload(typ == "channel.hype_train.end")
+	case "channel.poll.begin", "channel.poll.progress", "channel.poll.end":
+		var e pollEvent
+		if json.Unmarshal(raw, &e) != nil {
+			return events.Envelope{}, false
+		}
+		env.Type = map[string]string{"channel.poll.begin": "chat.poll.started", "channel.poll.progress": "chat.poll.updated",
+			"channel.poll.end": "chat.poll.ended"}[typ]
+		env.Actor = nil
+		payload = e.payload()
+	case "channel.prediction.begin", "channel.prediction.progress", "channel.prediction.lock", "channel.prediction.end":
+		var e predictionEvent
+		if json.Unmarshal(raw, &e) != nil {
+			return events.Envelope{}, false
+		}
+		env.Type = map[string]string{"channel.prediction.begin": "chat.prediction.started", "channel.prediction.progress": "chat.prediction.updated",
+			"channel.prediction.lock": "chat.prediction.locked", "channel.prediction.end": "chat.prediction.ended"}[typ]
+		env.Actor = nil
+		payload = e.payload()
 	default:
 		return events.Envelope{}, false
 	}

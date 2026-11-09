@@ -5,12 +5,12 @@ import type { Density, TextSize, UISettings } from './api';
 export const TEXT_SIZES: TextSize[] = ['small', 'standard', 'large', 'larger'];
 
 /** Screens that can go under "More…", in sidebar order. */
-export const MOVABLE = ['connections', 'timers', 'quotes', 'sounds', 'overlays', 'rewards', 'variables'];
+export const MOVABLE = ['connections', 'timers', 'quotes', 'sounds', 'overlays', 'rewards', 'polls', 'variables'];
 
 export const appearance = $state<{ textSize: TextSize; density: Density; more: string[] }>({
   textSize: 'standard',
   density: 'comfortable',
-  more: ['timers', 'quotes', 'rewards'],
+  more: ['timers', 'quotes', 'rewards', 'polls'],
 });
 
 /** Apply saved settings to the page and the sidebar. */

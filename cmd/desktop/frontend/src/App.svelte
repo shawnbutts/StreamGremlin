@@ -14,13 +14,14 @@
   import Sounds from './screens/Sounds.svelte';
   import Overlays from './screens/Overlays.svelte';
   import Rewards from './screens/Rewards.svelte';
+  import Polls from './screens/Polls.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'rewards' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
   // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
   // order, then "More…" with the ones the streamer moved there, then
   // Settings and Help, always last. Home, Events, Workflows, Settings and
@@ -36,6 +37,7 @@
     { id: 'sounds', label: 'Sounds' },
     { id: 'overlays', label: 'Overlays' },
     { id: 'rewards', label: 'Rewards' },
+    { id: 'polls', label: 'Polls' },
     { id: 'variables', label: 'Variables' },
   ];
   const pinned: { id: Screen; label: string; key: string }[] = [
@@ -214,6 +216,8 @@
       <Overlays />
     {:else if screen === 'rewards'}
       <Rewards />
+    {:else if screen === 'polls'}
+      <Polls />
     {:else if screen === 'variables'}
       <Variables />
     {:else if screen === 'help'}

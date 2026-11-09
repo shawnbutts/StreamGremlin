@@ -32,6 +32,13 @@ var subTypes = map[string]subType{
 	"channel.hype_train.begin":    {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
 	"channel.hype_train.progress": {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
 	"channel.hype_train.end":      {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.poll.begin":          {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.poll.progress":       {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.poll.end":            {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.prediction.begin":    {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.progress": {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.lock":     {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.end":      {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
 }
 
 // RefuseType makes Twitch refuse new subscriptions of typ with 403, as for

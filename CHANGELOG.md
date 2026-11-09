@@ -160,6 +160,13 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **A template,** "Thank the Hype Train".
   - The sign-in asks to read Hype Trains: sign in to Twitch again once.
 
+- M2 slice 11, polls and predictions (Affiliate or Partner; checked against mocktwitch only):
+  - **A Polls screen** (under More…): the running poll with live votes, the prediction with its bets, and starting, ending, locking, resolving and canceling, with a confirmation before paying out or refunding.
+  - **Triggers:** polls start, get votes and end; predictions start, get bets, lock and end.
+  - **Steps:** Start a poll, End the poll, Start a prediction, End the prediction.
+  - **Templates:** announce poll results, announce prediction results.
+  - `streamgremlin polls`, with `start`, `end`, `predict`, `lock`, `resolve` and `cancel`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

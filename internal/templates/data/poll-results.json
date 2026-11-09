@@ -1,0 +1,45 @@
+{
+  "template": {
+    "id": "poll-results",
+    "title": "Announce poll results",
+    "category": "Twitch events",
+    "description": "When a poll ends, says in chat which choice won, or that it was a tie. Polls need an Affiliate or Partner channel.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.poll-results",
+    "name": "Announce poll results",
+    "group": "Polls",
+    "triggers": [
+      {
+        "type": "chat.poll.ended",
+        "where": {
+          "status": "completed"
+        }
+      }
+    ],
+    "steps": [
+      {
+        "if": "event.payload.leader != ''",
+        "do": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "The poll is in: ${event.payload.leader} wins with ${event.payload.votes} votes cast! 🗳️"
+            }
+          }
+        ],
+        "else": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "The poll ended in a tie. You'll have to decide another way! 🗳️"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

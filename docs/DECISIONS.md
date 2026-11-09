@@ -814,3 +814,17 @@ Decided 2026-11-09 under D-007, building on D-039.
 - **Hype Trains follow [ADR-0022](adr/0022-hype-trains.md):** started, updated and ended events, with level, total, progress and the top contributor; three triggers; test events; and a "Thank the Hype Train" template.
 - **The sign-in asks for `channel:read:hype_train`.**
 - **Built and checked against mocktwitch only** (D-039).
+
+## D-041. Polls and predictions (M2 slice 11)
+
+Decided 2026-11-09 under D-007, building on D-039.
+
+- **Polls and predictions follow [ADR-0023](adr/0023-polls-and-predictions.md):**
+  - events;
+  - four steps: start and end a poll; start a prediction, and lock, resolve or cancel it;
+  - a Polls screen, under More… by default;
+  - the CLI;
+  - two result templates in a Polls group.
+- **Twitch's documented limits are checked first,** and repeats are safe.
+- **The sign-in asks for `channel:manage:polls` and `channel:manage:predictions`.**
+- **Built and checked against mocktwitch only** (D-039).

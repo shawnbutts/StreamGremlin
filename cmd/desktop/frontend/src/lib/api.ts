@@ -943,3 +943,56 @@ export interface FirstWordsStatus {
 export const getFirstWords = () => api<FirstWordsStatus>('GET', '/v1/first-words');
 /** Start over: everyone's next message counts as their first words again. */
 export const resetFirstWords = () => api<FirstWordsStatus>('POST', '/v1/first-words/reset');
+
+// Polls and predictions (docs/adr/0023-polls-and-predictions.md).
+
+export interface PollChoice {
+  id: string;
+  title: string;
+  votes: number;
+  channel_points_votes: number;
+}
+
+export interface Poll {
+  id: string;
+  title: string;
+  choices: PollChoice[];
+  status: string;
+  seconds: number;
+  channel_points_per_vote: number;
+  started_at: string;
+  ended_at?: string;
+}
+
+export interface Outcome {
+  id: string;
+  title: string;
+  color: string;
+  users: number;
+  channel_points: number;
+}
+
+export interface Prediction {
+  id: string;
+  title: string;
+  outcomes: Outcome[];
+  status: string;
+  seconds: number;
+  winning_outcome_id?: string;
+  created_at: string;
+}
+
+export interface PollsView {
+  state: 'ok' | 'not_signed_in' | 'needs_permission' | 'no_channel_points' | 'unknown';
+  detail?: string;
+  poll: Poll | null;
+  prediction: Prediction | null;
+}
+
+export const getPolls = () => api<PollsView>('GET', '/v1/polls');
+export const startPoll = (p: { title: string; choices: string[]; seconds: number; channel_points_per_vote: number }) =>
+  api<Poll>('POST', '/v1/polls', p);
+export const endPoll = (archive: boolean) => api<Poll>('POST', '/v1/polls/end', { archive });
+export const startPrediction = (p: { title: string; outcomes: string[]; seconds: number }) => api<Prediction>('POST', '/v1/predictions', p);
+export const endPrediction = (how: 'lock' | 'resolve' | 'cancel', winner = '') =>
+  api<{ prediction: Prediction; repeated: boolean }>('POST', '/v1/predictions/end', { how, winner });

@@ -69,6 +69,8 @@
     <dd>Alerts in OBS. Each overlay is one browser source: copy its private link into OBS as a browser source, 1920 by 1080, and workflows show alerts on it with “Show an alert”, one at a time, with the viewer’s profile picture and a sound if you like. The overlay plays that sound, so tick “Control audio via OBS” on the browser source and it gets its own mixer bar. A Test shows the alert in the app’s preview, never in OBS.</dd>
     <dt>Rewards</dt>
     <dd>Your Twitch channel point rewards (Affiliates and Partners have them). Make rewards here, pause them, and mark redemptions done or refund them, by hand or with “Complete or refund the redemption” in a workflow. Rewards made on Twitch can start workflows, but only ones made here can be changed.</dd>
+    <dt>Polls</dt>
+    <dd>Twitch polls and channel point predictions (Affiliates and Partners): start them from the Polls screen or a workflow, watch the votes, end polls, and lock, resolve or cancel predictions. Twitch runs one of each at a time.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Unknown</dt>

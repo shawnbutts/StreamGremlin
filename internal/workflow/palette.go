@@ -75,6 +75,20 @@ func Triggers() []TriggerEntry {
 				"Your own messages never count.",
 			Match:  []MatchField{who},
 			Values: []Value{viewer, login, message, role}},
+		{Type: "chat.poll.started", Label: "A poll starts", Category: "Twitch", More: true,
+			Help: "A poll starts in your chat, from StreamGremlin or Twitch (Affiliates and Partners).", Match: []MatchField{}, Values: pollValues(false)},
+		{Type: "chat.poll.updated", Label: "Votes come in on a poll", Category: "Twitch", More: true,
+			Help: "Votes on the running poll. Often many times a poll.", Match: []MatchField{}, Values: pollValues(false)},
+		{Type: "chat.poll.ended", Label: "A poll ends", Category: "Twitch",
+			Help: "A poll ends, with the votes for each choice.", Match: []MatchField{}, Values: pollValues(true)},
+		{Type: "chat.prediction.started", Label: "A prediction starts", Category: "Twitch", More: true,
+			Help: "A prediction opens for bets (Affiliates and Partners).", Match: []MatchField{}, Values: predictionValues(false)},
+		{Type: "chat.prediction.updated", Label: "Bets come in on a prediction", Category: "Twitch", More: true,
+			Help: "Bets on the running prediction.", Match: []MatchField{}, Values: predictionValues(false)},
+		{Type: "chat.prediction.locked", Label: "A prediction locks", Category: "Twitch", More: true,
+			Help: "The prediction stops taking bets; the result comes later.", Match: []MatchField{}, Values: predictionValues(false)},
+		{Type: "chat.prediction.ended", Label: "A prediction ends", Category: "Twitch",
+			Help: "Resolved with a winner, or canceled and refunded.", Match: []MatchField{}, Values: predictionValues(true)},
 		{Type: "monetization.hype_train.started", Label: "A Hype Train starts", Category: "Twitch",
 			Help: "A Hype Train starts on your channel (Affiliates and Partners).", Match: []MatchField{}, Values: hypeValues(false)},
 		{Type: "monetization.hype_train.updated", Label: "The Hype Train moves", Category: "Twitch", More: true,
@@ -176,6 +190,29 @@ func hypeValues(ended bool) []Value {
 	if !ended {
 		v = append(v, Value{Token: "goal", Label: "Points for the next level", Expr: "event.payload.goal"},
 			Value{Token: "progress", Label: "Points toward the next level so far", Expr: "event.payload.progress"})
+	}
+	return v
+}
+
+// pollValues are a poll's values (docs/adr/0023-polls-and-predictions.md).
+func pollValues(ended bool) []Value {
+	v := []Value{
+		{Token: "question", Label: "The question", Expr: "event.payload.title"},
+		{Token: "leader", Label: "The choice with the most votes (empty when tied)", Expr: "event.payload.leader"},
+		{Token: "votes", Label: "Votes in all", Expr: "event.payload.votes"},
+	}
+	if ended {
+		v = append(v, Value{Token: "poll_status", Label: "How it ended: completed, terminated or archived", Expr: "event.payload.status"})
+	}
+	return v
+}
+
+// predictionValues are a prediction's values.
+func predictionValues(ended bool) []Value {
+	v := []Value{{Token: "question", Label: "The question", Expr: "event.payload.title"}}
+	if ended {
+		v = append(v, Value{Token: "winner", Label: "The winning outcome (empty when canceled)", Expr: "event.payload.winner"},
+			Value{Token: "prediction_status", Label: "How it ended: resolved or canceled", Expr: "event.payload.status"})
 	}
 	return v
 }

@@ -69,7 +69,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Chat read (EventSub) and send (Helix) | 0012, D-024 | Spine |
 | Separate bot account for chat (optional) | 0057, D-084 | Spine |
 | Follows, subs, bits, channel point redeems, chatters | 0018, D-030; events built in M2 (ADR-0015, D-026); chatters not yet | F2 |
-| Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087; raids built in M2 (ADR-0015), Hype Trains (ADR-0022, D-040) | F2 |
+| Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087; raids built in M2 (ADR-0015), Hype Trains (ADR-0022, D-040), polls and predictions (ADR-0023, D-041) | F2 |
 | First Words | 0059, D-085; built in M2 (ADR-0021, D-033) | F2 |
 | Profile pictures for overlays | 0074, D-118; built in M2 for alerts (ADR-0017, D-028) | F2 |
 | Channel point reward management: create, pause, change cost, fulfil or refund. Only for rewards StreamGremlin created; others are "trigger only", with an offer to create a managed copy. | new; built in M2 (ADR-0018, D-030) | F2 |

@@ -212,6 +212,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerSounds(reg, sv.Sounds, sv.Player)
 	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds)
 	registerRewards(reg, sv.Twitch)
+	registerPolls(reg, sv.Twitch)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

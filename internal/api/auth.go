@@ -64,6 +64,9 @@ const (
 	PermRewardsWrite Permission = "rewards.write"
 	// First words: starting them over by hand (reading uses events.read).
 	PermFirstWordsReset Permission = "first_words.reset"
+	// Polls and predictions: seeing the current ones; starting and ending them.
+	PermPollsRead  Permission = "polls.read"
+	PermPollsWrite Permission = "polls.write"
 )
 
 // Principal is an authenticated caller.

@@ -24,7 +24,7 @@
     { value: 'compact', label: 'Compact', hint: 'More on screen at once' },
   ];
   const LABELS: Record<string, string> = {
-    connections: 'Connections', timers: 'Timers', quotes: 'Quotes', sounds: 'Sounds', overlays: 'Overlays', rewards: 'Rewards',
+    connections: 'Connections', timers: 'Timers', quotes: 'Quotes', sounds: 'Sounds', overlays: 'Overlays', rewards: 'Rewards', polls: 'Polls and predictions',
     variables: 'Variables',
   };
 

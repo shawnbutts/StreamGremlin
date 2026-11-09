@@ -144,6 +144,16 @@ func TwitchManifest() Manifest {
 					"(D-039). Not stated in the pages read: whether a non-Affiliate gets a 403, and v1's status.",
 			},
 			{
+				Name: "polls_and_predictions", Support: PermissionRequired, Scopes: []string{PollScope, PredictionScope},
+				Notes: "channel.poll.begin/progress/end and channel.prediction.begin/progress/lock/end v1, as chat.poll.* and " +
+					"chat.prediction.*. Create/End Poll (title 60, 2-5 choices of 25, 15-1800 s, channel points per vote 1-1000000; " +
+					"end TERMINATED or ARCHIVED) and Create/End Prediction (title 45, 2-10 outcomes of 25, 30-1800 s; LOCKED, RESOLVED " +
+					"with a winner, CANCELED refunds; resolve within 24 h or Twitch cancels), from the API reference. One of each at a " +
+					"time (400 when one is running). Affiliate or Partner only, per the guides; the reference lists no status code for " +
+					"that, so a 403 or a message naming partner or affiliate is taken as it. Get Polls and Get Predictions with first=1 " +
+					"are taken as the newest (the order isn't stated). Built against mocktwitch only (D-039).",
+			},
+			{
 				Name: "rewards.manage", Support: PermissionRequired, Scopes: []string{ManageScope},
 				Notes: "Create, Get, Update and Delete Custom Reward; Get Custom Reward Redemption; Update Redemption Status. Affiliate or " +
 					"Partner only (403 otherwise, shown as such). Only the Client ID that made a reward may change, delete or handle its " +

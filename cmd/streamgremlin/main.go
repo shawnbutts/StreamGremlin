@@ -66,6 +66,7 @@ Commands:
             rewards add -cost N TITLE     make one
             rewards set|queue|delete TITLE, rewards done|refund TITLE ID
   first-words  Viewers' first messages of the stream: first-words, first-words reset.
+  polls     Polls and predictions (streamgremlin polls help).
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -136,6 +137,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return rewardsCmd(dir, rest, stdout, stderr)
 	case "first-words":
 		return firstWordsCmd(dir, rest, stdout, stderr)
+	case "polls":
+		return pollsCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":
