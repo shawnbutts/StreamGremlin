@@ -122,6 +122,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Workflow step:** "Show an alert", with a title and text, and if you like the viewer's Twitch profile picture and a sound. Alerts on one overlay take turns. A run says whether the alert showed. Test on the Workflows screen opens a preview of the overlay right there, and shows the alert only in it, never in OBS; the run says whether a preview showed it.
   - **More looks** (D-029): gradients, rounder or squarer corners, an outline and a drop shadow on the box; a font (or any font on your computer), size, title color, letter outline and text shadow on the words. "Preview an alert" tries changes before you save them.
   - **"Picture, then words"** (D-034): a third animation. The viewer's picture slides in and the message unfolds from behind it, touching it, mirrored on the right. Without a picture, their initial keeps the shape, so Test shows it too.
+  - **Animation speed** (D-035): each overlay's animations can run up to twice as fast or three times as slow.
   - **A template:** "Show an alert for new followers".
   - Links can be replaced (the old one stops at once) and are never logged or kept in backups.
   - `streamgremlin overlays`, `overlays add`, `link`, `new-link`, `look`, `test` and `delete`.

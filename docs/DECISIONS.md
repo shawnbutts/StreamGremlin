@@ -765,3 +765,10 @@ Decided 2026-11-09 under D-007. The user asked: "can we add a new option for ale
 - **It mirrors on the right,** so the words open toward the middle.
 - **Without a picture, the viewer's initial (or ★) keeps the shape,** so tests and samples show it too. Alerts now carry the viewer's name for this.
 - **It uses the overlay's look:** colours, gradient, outline, shadow, font and size ([ADR-0017](adr/0017-alert-overlays.md), amended).
+
+## D-035. Animation speed for alert overlays
+
+Decided 2026-11-09 under D-007. The user, about "Picture, then words": "can we make it the slide a little slower or maybe make it configurable?"
+
+- **Each overlay's look has an Animation speed:** from twice as fast to three times as slow (`pace`, 50 to 300 percent of the usual time). It applies to every animation, coming in and leaving.
+- **Existing overlays keep the usual speed** ([ADR-0017](adr/0017-alert-overlays.md), amended).

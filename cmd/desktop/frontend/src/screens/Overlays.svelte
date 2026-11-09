@@ -152,6 +152,14 @@
     }
   }
 
+  /** 100 → "usual", 150 → "1.5× slower", 50 → "2× faster". */
+  function paceWords(p: number) {
+    const n = Number(p) || 100;
+    if (n === 100) return 'usual';
+    const x = n > 100 ? n / 100 : 100 / n;
+    return `${Number.isInteger(x) ? x : x.toFixed(1)}× ${n > 100 ? 'slower' : 'faster'}`;
+  }
+
   /** The form's look, as numbers, or why it can't be used yet. */
   function formLook(): OverlayLook | undefined {
     if (!look) return undefined;
@@ -164,7 +172,7 @@
     return {
       ...look,
       font_name: look.font === 'custom' ? look.font_name.trim() : look.font_name,
-      seconds: n(look.seconds), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
+      seconds: n(look.seconds), pace: n(look.pace ?? 100), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
       border_width: n(look.border_width), shadow: n(look.shadow), text_size: n(look.text_size),
       text_outline: n(look.text_outline), text_shadow: n(look.text_shadow),
     };
@@ -283,6 +291,11 @@
               <option value="pop">Pop in</option>
               <option value="unfold">Picture, then words</option>
             </select>
+          </label>
+          <label class="field">
+            <span>Animation speed: {paceWords(look.pace)}</span>
+            <input type="range" min="50" max="300" step="10" bind:value={look.pace} aria-valuetext={paceWords(look.pace)} />
+            <span class="sg-muted field-hint">How long coming in and leaving take. Right is slower.</span>
           </label>
           <label class="field">
             <span>Seconds on screen</span>

@@ -76,6 +76,7 @@ export function lookStyle(look) {
   if (look.font === 'custom' && FONT_NAME.test(look.font_name || '')) font = `"${look.font_name}", ${FONTS.system}`;
   out['--sg-font'] = font;
   out['--sg-scale'] = String(clamp(look.text_size, 50, 200, 100) / 100);
+  out['--sg-pace'] = String(clamp(look.pace, 50, 300, 100) / 100);
   return out;
 }
 
@@ -102,6 +103,7 @@ export function start(win, opts = {}) {
   let stopped = false;
   let retry = 1000;
   let animation = 'slide';
+  let pace = 1; // how long animations take, times the usual
 
   function setStatus(text) {
     if (!status) return;
@@ -117,6 +119,7 @@ export function start(win, opts = {}) {
     if (!look) return;
     const root = doc.documentElement;
     for (const [k, v] of Object.entries(lookStyle(look))) root.style.setProperty(k, v);
+    pace = clamp(look.pace, 50, 300, 100) / 100;
     const pos = POSITIONS.includes(look.position) ? look.position : 'top';
     animation = ['pop', 'unfold'].includes(look.animation) ? look.animation : 'slide';
     // Unfold opens toward the middle: from the right edge on the right.
@@ -188,7 +191,7 @@ export function start(win, opts = {}) {
       return;
     }
     send({ type: 'ack', id: alert.id, status: 'started' });
-    const outMs = OUT_MS[animation] || 450;
+    const outMs = Math.round((OUT_MS[animation] || 450) * pace);
     later(() => {
       box.classList.add('out');
       later(() => {

@@ -780,6 +780,8 @@ export interface OverlayLook {
   position: OverlayPosition;
   animation: 'slide' | 'pop' | 'unfold';
   seconds: number;
+  /** How long the animation takes, percent of the usual (50 to 300; higher is slower). */
+  pace: number;
   // The box.
   background: string;
   /** A gradient's second color, or "" for one color. */

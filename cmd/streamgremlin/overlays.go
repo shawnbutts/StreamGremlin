@@ -115,6 +115,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.Background, "background", l.Background, "#RRGGBB")
 			fs.IntVar(&l.Opacity, "opacity", l.Opacity, "the background's, 0 to 100")
 			fs.IntVar(&l.Seconds, "seconds", l.Seconds, "how long an alert stays, 2 to 60")
+			fs.IntVar(&l.Pace, "pace", l.Pace, "how long the animation takes, percent of the usual: 50 (fast) to 300 (slow)")
 			fs.StringVar(&l.Background2, "gradient", l.Background2, "#RRGGBB: the gradient's second color (none for one color)")
 			fs.IntVar(&l.GradientAngle, "gradient-angle", l.GradientAngle, "0 to 359 degrees")
 			fs.IntVar(&l.Radius, "corners", l.Radius, "corner roundness, 0 to 48")

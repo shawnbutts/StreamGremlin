@@ -60,6 +60,9 @@ type Look struct {
 	Position  string `json:"position"`  // one of Positions
 	Animation string `json:"animation"` // slide, pop or unfold
 	Seconds   int    `json:"seconds"`   // on screen, 2 to 60, unless a step says
+	// Pace is how long the animation takes, in percent of the usual:
+	// 50 is twice as fast, 300 three times as slow.
+	Pace int `json:"pace"`
 
 	// The box.
 	Background    string `json:"background"`     // #RRGGBB
@@ -95,7 +98,7 @@ var fontNamePattern = regexp.MustCompile(FontNamePattern)
 
 // DefaultLook is a new alert overlay's look.
 func DefaultLook() Look {
-	return Look{Position: "top", Animation: "slide", Seconds: 6,
+	return Look{Position: "top", Animation: "slide", Seconds: 6, Pace: 100,
 		Background: "#081923", GradientAngle: 135, Opacity: 90, Radius: 16, BorderColor: "#ffffff", Shadow: 35, ShadowColor: "#000000",
 		Font: "system", TextSize: 100, TextColor: "#ffffff", TitleColor: "#ffffff", OutlineColor: "#000000"}
 }
@@ -147,6 +150,8 @@ func (l Look) Check() error {
 		return invalid("the text size is 50 to 200 percent")
 	case !between(l.TextOutline, 0, 6):
 		return invalid("the letters' outline is 0 to 6 px")
+	case !between(l.Pace, 50, 300):
+		return invalid("the animation's speed is 50 to 300 percent of the usual time")
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
 	}

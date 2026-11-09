@@ -123,6 +123,8 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 		func(l *Look) { l.TextSize = 49 },
 		func(l *Look) { l.TextOutline = 7 },
 		func(l *Look) { l.TitleColor = "#fff" },
+		func(l *Look) { l.Pace = 49 },
+		func(l *Look) { l.Pace = 301 },
 	}
 	for i, change := range more {
 		l := DefaultLook()

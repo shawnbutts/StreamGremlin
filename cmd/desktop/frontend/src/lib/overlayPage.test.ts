@@ -169,6 +169,8 @@ describe('overlay page', () => {
     expect(box.firstElementChild?.className).toBe('sg-picture');
     expect(box.lastElementChild?.className).toBe('sg-words');
     // Leaving takes longer: the words fold away, then the picture.
+    expect(lookStyle({ pace: 200 })['--sg-pace']).toBe('2');
+    expect(lookStyle({ pace: 999 })['--sg-pace']).toBe('3');
     c.advance(3000 - 750);
     expect(box.classList.contains('out')).toBe(true);
     expect(ws.sent.some((m) => m.status === 'done')).toBe(false);
@@ -189,6 +191,13 @@ describe('overlay page', () => {
     c.advance(3000);
     ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top-right', animation: 'unfold' } } } });
     expect(stage.className).toBe('pos-top-right anim-unfold side-right');
+    // A slower pace waits longer to leave: 750 ms × 2.
+    ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top', animation: 'unfold', pace: 200 } } } });
+    ws.fire('message', alert('u6', { name: 'Slow' }));
+    c.advance(3000 - 1500);
+    expect(ws.sent.some((m) => m.id === 'u6' && m.status === 'done')).toBe(false);
+    c.advance(1500);
+    expect(ws.sent.some((m) => m.id === 'u6' && m.status === 'done')).toBe(true);
     // Other animations never add an initial.
     ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top', animation: 'slide' } } } });
     ws.fire('message', alert('u5', { name: 'Fan' }));

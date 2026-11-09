@@ -34,7 +34,7 @@ const button = (el: ParentNode, text: string) =>
   Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === text);
 const now = new Date().toISOString();
 const look: OverlayLook = {
-  position: 'top', animation: 'slide', seconds: 6,
+  position: 'top', animation: 'slide', seconds: 6, pace: 100,
   background: '#081923', background2: '', gradient_angle: 135, opacity: 90, radius: 16, border_width: 0, border_color: '#ffffff',
   shadow: 35, shadow_color: '#000000',
   font: 'system', font_name: '', text_size: 100, text_color: '#ffffff', title_color: '#ffffff', text_outline: 0, outline_color: '#000000', text_shadow: 0,
@@ -214,9 +214,17 @@ describe('Overlays', () => {
     });
     expect(el.textContent).toContain('with your unsaved changes');
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+    const speed = range('Animation speed');
+    change(speed, '150');
+    expect(el.textContent).toContain('Animation speed: 1.5× slower');
+    change(speed, '50');
+    expect(el.textContent).toContain('Animation speed: 2× faster');
+    change(speed, '200');
     button(el, 'Save look')!.click();
     await settle();
-    expect(calls.find((c) => c.method === 'PUT')!.body).toMatchObject({ look: { background2: '#ff0080', font_name: 'Comic Neue', text_size: 100 } });
+    expect(calls.find((c) => c.method === 'PUT')!.body).toMatchObject({
+      look: { background2: '#ff0080', font_name: 'Comic Neue', text_size: 100, pace: 200 },
+    });
     await noViolations('the look form');
   });
 
