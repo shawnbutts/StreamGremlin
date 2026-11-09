@@ -1,6 +1,8 @@
 package twitch
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -162,5 +164,28 @@ func TestTheChannelIsReadAtConnect(t *testing.T) {
 	waitChat(t, s, ChatConnected)
 	if ch := s.Channel(); !ch.Known || ch.Category != "Stardew Valley" || ch.Title != "Cozy stream" {
 		t.Fatalf("%+v", ch)
+	}
+}
+
+// Profile pictures come from Get Users, only from Twitch's picture host,
+// and are looked up once for a while.
+func TestProfilePictures(t *testing.T) {
+	r := newRig(t)
+	s := r.configured()
+	if _, err := s.ProfilePicture(context.Background(), "123"); err == nil {
+		t.Fatal("a picture without a sign-in")
+	}
+	r.signIn(s, RoleStreamer, "Streamer")
+	pic, err := s.ProfilePicture(context.Background(), "123")
+	if err != nil || !GoodPicture(pic) || !strings.Contains(pic, "mock-123") {
+		t.Fatal(pic, err)
+	}
+	if _, err := s.ProfilePicture(context.Background(), "../users"); !errors.Is(err, ErrInvalid) {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"http://static-cdn.jtvnw.net/x.png", "https://evil.example/x.png", "https://static-cdn.jtvnw.net.evil.example/x.png", "javascript:alert(1)"} {
+		if GoodPicture(bad) {
+			t.Error(bad)
+		}
 	}
 }

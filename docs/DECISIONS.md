@@ -684,3 +684,14 @@ Decided 2026-11-08 under D-007. The user said "proceed" to sounds.
 - **Sounds are kept in the database,** so backups and restores carry them.
 - **A new Sounds screen at Ctrl/⌘+7.** Variables moves to 8 and Help to 9. Settings is Ctrl/⌘+comma only, now that there are ten screens.
 - **API routes can set their own body limit.** Only sound uploads (5 MB) use it so far.
+
+## D-028. Alert overlays (M2 slice 5)
+
+Decided 2026-11-09 under D-007. Before the slice, the user asked whether overlays should be grouped into "master" overlays, one browser source per scene, and then decided: "i think it does overly complicates the setup. let's stick to the orginal plan", then "proceed".
+
+- **Overlays follow [ADR-0017](adr/0017-alert-overlays.md):** each overlay is one OBS browser source with its own private link, served on a second loopback port (7431). Grouping overlays is not built.
+- **Links are capabilities, kept like secrets:** only a hash in the database (so backups carry no working link), the token in the secret store, never logged. A new link stops the old one at once.
+- **"Show an alert"** shows a title and text, optionally the viewer's Twitch profile picture and a sound from the library. Alerts on one overlay take turns. The step returns when a page says the alert started, and says when no page has the overlay open or none answered.
+- **Tests show alerts in the app's preview only,** never in OBS. Steps can now be Preview actions: External, but run in tests as dry runs.
+- **The app previews the overlay page itself** in a frame, so what you see is what OBS shows.
+- **A new Overlays screen at Ctrl/⌘+8.** Variables moves to 9, and Help to Ctrl/⌘+/.

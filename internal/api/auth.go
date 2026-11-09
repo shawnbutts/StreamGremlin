@@ -54,6 +54,10 @@ const (
 	// what to play, and reports).
 	PermSoundsRead  Permission = "sounds.read"
 	PermSoundsWrite Permission = "sounds.write"
+	// Overlays: listing them and reading their links; adding, changing,
+	// deleting, replacing links and showing a sample alert.
+	PermOverlaysRead  Permission = "overlays.read"
+	PermOverlaysWrite Permission = "overlays.write"
 )
 
 // Principal is an authenticated caller.

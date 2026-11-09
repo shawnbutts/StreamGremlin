@@ -49,6 +49,10 @@ type Action struct {
 	// They run for test events too, but the change is kept only for that
 	// run and never saved.
 	SavesState bool `json:"saves_state,omitempty"`
+	// Preview actions are External, but run for test events too, with
+	// Call.DryRun set: they show the result in the app's previews only,
+	// never in OBS or anywhere viewers see (an alert, say).
+	Preview bool `json:"preview,omitempty"`
 	// More puts the action behind "More steps…" in the editor.
 	More   bool                                           `json:"more,omitempty"`
 	Params []Param                                        `json:"params"`
@@ -74,6 +78,8 @@ type Call struct {
 	JobID          string
 	WorkflowID     string
 	DryRun         bool
+	// Actor is who the event is about (a follower, a chatter), or nil.
+	Actor *events.Actor
 
 	run *runVars // the run's saved variables, for the variable actions
 }

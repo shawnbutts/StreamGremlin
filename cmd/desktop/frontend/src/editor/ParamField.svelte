@@ -60,13 +60,25 @@
   <label class="field">
     <span>{label}</span>
     <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
-      <option value="">Choose a sound…</option>
+      <option value="">{param.required ? 'Choose a sound…' : (param.default_hint ?? 'None')}</option>
       {#each env.sounds as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
       {#if typeof current === 'string' && current && !env.sounds.some((s) => s.name === current)}
         <option value={current}>{current} (not in your library)</option>
       {/if}
     </select>
     {#if !env.sounds.length}<span class="sg-muted field-hint">No sounds yet: add one on the Sounds screen.</span>{/if}
+  </label>
+{:else if param.editor === 'overlay'}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose an overlay…</option>
+      {#each env.overlays as o (o.name)}<option value={o.name}>{o.name}</option>{/each}
+      {#if typeof current === 'string' && current && !env.overlays.some((o) => o.name === current)}
+        <option value={current}>{current} (not found)</option>
+      {/if}
+    </select>
+    {#if !env.overlays.length}<span class="sg-muted field-hint">No overlays yet: add one on the Overlays screen.</span>{/if}
   </label>
 {:else if param.editor === 'timer'}
   <label class="field">

@@ -117,6 +117,13 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - Backups include the sound library.
   - `streamgremlin sounds`, `sounds add`, `play`, `volume`, `delete` and `stop`.
 
+- M2 slice 5, alert overlays:
+  - **An Overlays screen:** add alert overlays, copy each one's private link into OBS as a browser source, and set where alerts appear, slide or pop, colors, opacity and time on screen, with a live preview. It shows whether OBS has each overlay open, and can show a sample alert in OBS or in the preview.
+  - **Workflow step:** "Show an alert", with a title and text, and if you like the viewer's Twitch profile picture and a sound. Alerts on one overlay take turns. A run says whether the alert showed, and a Test shows it only in the app's preview.
+  - **A template:** "Show an alert for new followers".
+  - Links can be replaced (the old one stops at once) and are never logged or kept in backups.
+  - `streamgremlin overlays`, `overlays add`, `link`, `new-link`, `look`, `test` and `delete`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
@@ -125,7 +132,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Sounds 7, Variables 8, Help 9; Settings is Ctrl/⌘+comma (and Ctrl/⌘+comma, which always reaches Settings).
+- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Sounds 7, Overlays 8, Variables 9, Help Ctrl/⌘+/; Settings is Ctrl/⌘+comma.
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 

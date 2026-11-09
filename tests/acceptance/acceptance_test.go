@@ -53,7 +53,7 @@ func startEngine(t *testing.T, dir string, extra ...string) *engine {
 	t.Helper()
 	_ = os.Remove(filepath.Join(dir, "api-addr")) // wait for this run's file
 	e := &engine{dir: dir, stderr: new(bytes.Buffer), exited: make(chan error, 1)}
-	args := append([]string{"-data-dir", dir, "engine", "-addr", "127.0.0.1:0"}, extra...)
+	args := append([]string{"-data-dir", dir, "engine", "-addr", "127.0.0.1:0", "-overlay-addr", "127.0.0.1:0"}, extra...)
 	e.cmd = exec.Command(bin, args...)
 	e.cmd.Env = cleanEnv()
 	e.cmd.Stderr = e.stderr

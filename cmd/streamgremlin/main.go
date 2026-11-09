@@ -57,6 +57,10 @@ Commands:
             sounds                        list
             sounds add [-name N] FILE     add one
             sounds play|delete NAME, sounds volume NAME V, sounds stop
+  overlays  Alert overlays for OBS (streamgremlin overlays help).
+            overlays                      list
+            overlays add NAME             add one, and print its link
+            overlays link|new-link|test|delete NAME, overlays look NAME [flags]
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -121,6 +125,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return commandsCmd(dir, rest, stdout, stderr)
 	case "sounds":
 		return soundsCmd(dir, rest, stdout, stderr)
+	case "overlays":
+		return overlaysCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":
@@ -227,6 +233,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	fs := flag.NewFlagSet("engine", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	addr := fs.String("addr", "", "loopback address to listen on (default "+brand.DefaultAPIAddr+", or a free port)")
+	overlayAddr := fs.String("overlay-addr", "", "loopback address for OBS overlays (default "+brand.DefaultOverlayAddr+", or a free port); off for none")
 	debug := fs.Bool("debug", false, "log every API request")
 	twitchURL := fs.String("twitch-auth-url", os.Getenv(brand.Env("TWITCH_AUTH_URL")),
 		"a loopback stand-in for id.twitch.tv, such as mocktwitch (default $"+brand.Env("TWITCH_AUTH_URL")+")")
@@ -257,7 +264,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, Logger: log})
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, OverlayAddr: *overlayAddr, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)
 		fmt.Fprintln(stderr, err)

@@ -77,6 +77,7 @@ type Service struct {
 	inbox       *events.Inbox
 	limits      limiter
 	own         ownSends // workflows' messages sent as you, to skip their echo
+	pictures    pictureCache
 
 	chatMu  sync.Mutex
 	chat    ChatStatus

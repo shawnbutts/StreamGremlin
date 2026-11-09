@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/obs"
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
@@ -32,6 +33,9 @@ type Services struct {
 	Quotes *quotes.Store
 	Sounds *sounds.Store
 	Player *sounds.Player
+	// Overlays and the hub that shows alerts on them.
+	Overlays *overlays.Store
+	Hub      *overlays.Hub
 }
 
 // Register adds every action to reg.
@@ -203,4 +207,5 @@ func Register(reg *workflow.Registry, sv Services) {
 	})
 	registerQuotes(reg, sv.Quotes, sv.Twitch)
 	registerSounds(reg, sv.Sounds, sv.Player)
+	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds, sv.Player)
 }

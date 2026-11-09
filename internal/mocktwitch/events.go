@@ -225,6 +225,25 @@ func (s *Server) UpdateChannel(channel, title, category string) string {
 
 type channelInfo struct{ title, category string }
 
+// usersLocked answers Get Users by id, with a profile picture on Twitch's
+// picture host for each (the address isn't a real picture).
+func (s *Server) usersLocked(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.helixAuth(w, r, ""); !ok {
+		return
+	}
+	ids := r.URL.Query()["id"]
+	if len(ids) == 0 || len(ids) > 100 {
+		writeErr(w, 400, "between 1 and 100 id parameters")
+		return
+	}
+	data := []map[string]string{}
+	for _, id := range ids {
+		data = append(data, map[string]string{"id": id, "login": "user" + id, "display_name": "User" + id,
+			"profile_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/mock-" + id + "-profile_image-300x300.png"})
+	}
+	writeJSON(w, map[string]any{"data": data})
+}
+
 // channelsLocked answers Get Channel Information.
 func (s *Server) channelsLocked(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.helixAuth(w, r, ""); !ok {

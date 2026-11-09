@@ -1,0 +1,175 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io"
+	"net/url"
+	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
+)
+
+const overlaysUsage = `usage:
+  streamgremlin overlays [-json]          list your overlays (links aren't listed)
+  streamgremlin overlays add NAME         add an alert overlay, and print its link
+  streamgremlin overlays link NAME        print its link, to paste into OBS
+  streamgremlin overlays new-link NAME    replace its link; the old one stops working
+  streamgremlin overlays look NAME [-position P] [-animation slide|pop] [-text-color #RRGGBB]
+                                          [-background #RRGGBB] [-opacity 0-100] [-seconds S]
+  streamgremlin overlays test NAME        show a sample alert in OBS
+  streamgremlin overlays delete NAME      delete it; its link stops working
+
+Each overlay is one browser source in OBS. Keep links private: anyone with
+one can see that overlay. Positions: top-left, top, top-right, center,
+bottom-left, bottom, bottom-right.`
+
+type overlayList struct {
+	Overlays []struct {
+		overlays.Overlay
+		Pages    int `json:"pages"`
+		Previews int `json:"previews"`
+	} `json:"overlays"`
+	Server     string `json:"server"`
+	ServerNote string `json:"server_note"`
+}
+
+func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
+		fmt.Fprintln(stdout, overlaysUsage)
+		return 0
+	}
+	c, ok := connect(dir, stderr)
+	if !ok {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	path := func(name string) string { return "/v1/overlays/" + url.PathEscape(name) }
+	usage := func() int { fmt.Fprintln(stderr, overlaysUsage); return 2 }
+	const keepPrivate = "Paste it into OBS as a browser source (1920 by 1080). Keep it private: anyone with it can see this overlay."
+	if len(args) > 0 {
+		switch args[0] {
+		case "add":
+			if len(args) != 2 {
+				return usage()
+			}
+			var out struct {
+				Overlay overlays.Overlay `json:"overlay"`
+				URL     string           `json:"url"`
+			}
+			if code := apiExit(c.Do(ctx, "POST", "/v1/overlays", map[string]string{"name": args[1], "kind": overlays.KindAlert}, &out), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "Added %s.\n%s\n%s\n", out.Overlay.Name, out.URL, keepPrivate)
+			return 0
+		case "link", "new-link":
+			if len(args) != 2 {
+				return usage()
+			}
+			method := "GET"
+			if args[0] == "new-link" {
+				method = "POST"
+			}
+			var out struct {
+				URL string `json:"url"`
+			}
+			if code := apiExit(c.Do(ctx, method, path(args[1])+"/link", nil, &out), stderr); code != 0 {
+				return code
+			}
+			if method == "POST" {
+				fmt.Fprintln(stdout, "The old link stopped working. The new one:")
+			}
+			fmt.Fprintf(stdout, "%s\n%s\n", out.URL, keepPrivate)
+			return 0
+		case "look":
+			if len(args) < 2 {
+				return usage()
+			}
+			var o overlays.Overlay
+			var list overlayList
+			if code := apiExit(c.Do(ctx, "GET", "/v1/overlays", nil, &list), stderr); code != 0 {
+				return code
+			}
+			found := false
+			for _, x := range list.Overlays {
+				if x.Name == args[1] {
+					o, found = x.Overlay, true
+				}
+			}
+			if !found {
+				fmt.Fprintf(stderr, "There's no overlay %q.\n", args[1])
+				return 1
+			}
+			l := o.Look
+			fs := flag.NewFlagSet("overlays look", flag.ContinueOnError)
+			fs.SetOutput(stderr)
+			fs.StringVar(&l.Position, "position", l.Position, "where alerts appear")
+			fs.StringVar(&l.Animation, "animation", l.Animation, "slide or pop")
+			fs.StringVar(&l.TextColor, "text-color", l.TextColor, "#RRGGBB")
+			fs.StringVar(&l.Background, "background", l.Background, "#RRGGBB")
+			fs.IntVar(&l.Opacity, "opacity", l.Opacity, "the background's, 0 to 100")
+			fs.IntVar(&l.Seconds, "seconds", l.Seconds, "how long an alert stays, 2 to 60")
+			if err := fs.Parse(args[2:]); err != nil || fs.NArg() > 0 {
+				return usage()
+			}
+			if code := apiExit(c.Do(ctx, "PUT", path(o.Name), map[string]any{"look": l}, &o), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "%s: %s, %s, %d seconds.\n", o.Name, o.Look.Position, o.Look.Animation, o.Look.Seconds)
+			return 0
+		case "test":
+			if len(args) != 2 {
+				return usage()
+			}
+			if code := apiExit(c.Do(ctx, "POST", path(args[1])+"/test", nil, nil), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintln(stdout, "A sample alert is showing in OBS.")
+			return 0
+		case "delete":
+			if len(args) != 2 {
+				return usage()
+			}
+			if code := apiExit(c.Do(ctx, "DELETE", path(args[1]), nil, nil), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "Deleted %s. Its link no longer works.\n", args[1])
+			return 0
+		}
+	}
+	fs := flag.NewFlagSet("overlays", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	asJSON := fs.Bool("json", false, "print JSON")
+	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+		return usage()
+	}
+	var list overlayList
+	if code := apiExit(c.Do(ctx, "GET", "/v1/overlays", nil, &list), stderr); code != 0 {
+		return code
+	}
+	if *asJSON {
+		enc := json.NewEncoder(stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(list)
+		return 0
+	}
+	if len(list.Overlays) == 0 {
+		fmt.Fprintln(stdout, "No overlays yet. Add one with: streamgremlin overlays add alerts")
+	}
+	for _, o := range list.Overlays {
+		open := "not open in OBS"
+		if o.Pages > 0 {
+			open = fmt.Sprintf("open in %d page(s)", o.Pages)
+		}
+		fmt.Fprintf(stdout, "%-24s %-6s %-13s %s\n", o.Name, o.Kind, o.Look.Position, open)
+	}
+	if list.Server == "" {
+		fmt.Fprintln(stdout, "\nThe overlay server is off.")
+	} else if list.ServerNote != "" {
+		fmt.Fprintln(stdout, "\n"+list.ServerNote)
+	}
+	return 0
+}

@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 // Step statuses in traces.
@@ -46,6 +48,7 @@ type interp struct {
 	budget *int // shared with workflows this run calls
 	jobID  string
 	wfID   string
+	actor  *events.Actor // who the event is about, or nil
 	vars   *runVars
 	eng    *Engine  // for workflow.run
 	chain  []string // workflow ids from the job's own down to this one
@@ -237,7 +240,7 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	if a.Name == RunWorkflow {
 		return r.call(ctx, path, s, rec, args, fail)
 	}
-	if r.dryRun && a.External {
+	if r.dryRun && a.External && !a.Preview {
 		out := map[string]any{"dry_run": true}
 		rec.Status, rec.Reason, rec.Output = StepSkipped, "dry run: a test event never reaches "+outside(a), out
 		r.record(rec)
@@ -251,7 +254,7 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 		actx, cancel = context.WithTimeout(ctx, d)
 		defer cancel()
 	}
-	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID, DryRun: r.dryRun, run: r.vars})
+	out, err := a.Run(actx, Call{Args: args, IdempotencyKey: r.jobID + "/" + path, JobID: r.jobID, WorkflowID: r.wfID, DryRun: r.dryRun, Actor: r.actor, run: r.vars})
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 			err = fmt.Errorf("the step took longer than its %s timeout", s.Timeout)
@@ -260,8 +263,11 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	}
 	out = normalizeOutput(out)
 	rec.Status, rec.Output = StepOK, capSize(out, 8<<10)
-	if r.dryRun && a.SavesState {
+	switch {
+	case r.dryRun && a.SavesState:
 		rec.Reason = "test run: changed for this run only, not saved"
+	case r.dryRun && a.Preview:
+		rec.Reason = "test run: shown in the app's previews only, never in OBS"
 	}
 	r.record(rec)
 	r.result(s.ID, StepOK, out, "")

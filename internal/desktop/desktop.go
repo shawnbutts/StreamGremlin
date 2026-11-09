@@ -78,10 +78,11 @@ type Info struct {
 }
 
 // CSP allows only the app's own files. No inline scripts or styles, no
-// remote resources, no frames or forms. Audio comes from the library
-// through the bridge (media-src 'self').
+// remote resources or forms. Audio comes from the library through the
+// bridge (media-src 'self'). The only frames are the overlay previews,
+// served by the engine on this computer (docs/adr/0017-alert-overlays.md).
 const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; " +
-	"font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+	"font-src 'self'; connect-src 'self'; frame-src http://127.0.0.1:*; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 // Handler serves the UI from assets (the built frontend) and bridges /v1/*.
 // open shows a web page in the system browser; POST /desktop/open-url uses

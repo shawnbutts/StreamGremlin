@@ -62,6 +62,15 @@ func testRegistry(rec *recorder) *Registry {
 				return nil, ctx.Err()
 			}
 		}})
+	reg.Add(Action{Name: "test.preview", Label: "Preview", Group: "test", External: true, Preview: true,
+		Run: func(ctx context.Context, c Call) (any, error) {
+			login := ""
+			if c.Actor != nil {
+				login = c.Actor.Login
+			}
+			rec.add(map[string]any{"dry_run": c.DryRun, "actor": login})
+			return map[string]any{"dry_run": c.DryRun}, nil
+		}})
 	return reg
 }
 
@@ -299,6 +308,26 @@ func TestTestEventsAreDryRuns(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if js, _ := r.eng.Jobs(context.Background(), "confirmed.only", 10); len(js) != 0 {
 		t.Fatal(js)
+	}
+}
+
+// A Preview step runs for a test event too, told it's a dry run, and knows
+// who the event is about; the trace says it reached previews only.
+func TestPreviewStepsRunInTestsAsDryRuns(t *testing.T) {
+	r := newRig(t)
+	r.save(def("alerts", `"triggers":[{"type":"chat.command.received"}],"steps":[{"action":"test.preview"}]`), true)
+	r.chat("p1", "hi", events.Synthetic)
+	js := r.jobs("alerts", 1)
+	_, steps, _ := r.eng.Trace(context.Background(), js[0].ID)
+	got := r.rec.got()
+	if len(got) != 1 || got[0]["dry_run"] != true || got[0]["actor"] != "fan" ||
+		steps[0].Status != StepOK || !strings.Contains(steps[0].Reason, "previews only") {
+		t.Fatalf("%v %+v", got, steps)
+	}
+	r.chat("p2", "hi", events.Confirmed)
+	r.jobs("alerts", 2)
+	if got := r.rec.got(); len(got) != 2 || got[1]["dry_run"] != false || got[1]["actor"] != "fan" {
+		t.Fatalf("%v", got)
 	}
 }
 

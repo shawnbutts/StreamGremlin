@@ -12,14 +12,17 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/templates"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
-// fill puts "Be Right Back" in every blank, the way the streamer would.
+// fill puts something in every blank, the way the streamer would: an
+// overlay's name, or "Be Right Back" for a scene.
 func fill(t *testing.T, tp templates.Template) []byte {
 	t.Helper()
 	var d any
@@ -33,6 +36,9 @@ func fill(t *testing.T, tp templates.Template) []byte {
 			t.Fatalf("%s: the blank %s isn't an empty string: %#v", tp.ID, b.Path, parent[key])
 		}
 		parent[key] = "Be Right Back"
+		if key == "overlay" {
+			parent[key] = "alerts"
+		}
 	}
 	out, _ := json.Marshal(d)
 	return out
@@ -82,8 +88,17 @@ func TestEveryTemplateWorks(t *testing.T) {
 	}
 	reg := workflow.NewRegistry()
 	// Twitch and OBS are nil: test events never reach them. Quotes are
-	// StreamGremlin's own, read even by test runs.
-	actions.Register(reg, actions.Services{Quotes: quotes.NewStore(db)})
+	// StreamGremlin's own, read even by test runs, and alerts show in
+	// previews.
+	sec, err := secrets.Open(ctx, db, secrets.Options{DataDir: dir, Want: secrets.KindFile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ovs := overlays.NewStore(db, sec)
+	if _, _, err := ovs.Create(ctx, "alerts", overlays.KindAlert, overlays.DefaultLook(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	actions.Register(reg, actions.Services{Quotes: quotes.NewStore(db), Overlays: ovs, Hub: overlays.NewHub(nil)})
 	inbox := events.NewInbox(db, nil)
 	eng := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: variables.New(db)})
 	if err := eng.Start(ctx); err != nil {

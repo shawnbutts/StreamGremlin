@@ -82,7 +82,7 @@ func (r *interp) call(ctx context.Context, path string, s Step, rec StepRecord, 
 		rv.view["workflow"] = own
 	}
 	sub := &interp{
-		reg: r.reg, dryRun: r.dryRun, budget: r.budget, jobID: r.jobID, wfID: id, vars: rv, eng: r.eng,
+		reg: r.reg, dryRun: r.dryRun, budget: r.budget, jobID: r.jobID, wfID: id, actor: r.actor, vars: rv, eng: r.eng,
 		chain: append(append([]string(nil), r.chain...), id), now: r.now, trace: r.trace,
 		sc: scope{event: r.sc.event, vars: map[string]any{}, steps: map[string]any{}, job: r.sc.job, saved: rv.view, args: pass},
 	}

@@ -1,0 +1,36 @@
+{
+  "template": {
+    "id": "alert-follow",
+    "title": "Show an alert for new followers",
+    "category": "Twitch events",
+    "description": "Shows the follower's name and profile picture on your alert overlay in OBS. Add an overlay on the Overlays screen first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.overlay",
+        "hint": "Your alert overlay's name, like alerts"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.alert-follow",
+    "name": "Show an alert for new followers",
+    "triggers": [
+      {
+        "type": "audience.follow.created"
+      }
+    ],
+    "steps": [
+      {
+        "action": "overlays.alert",
+        "with": {
+          "overlay": "",
+          "title": "New follower",
+          "text": "${event.actor.display_name} just followed!",
+          "picture": true
+        }
+      }
+    ]
+  }
+}

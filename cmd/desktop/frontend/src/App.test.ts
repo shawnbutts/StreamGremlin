@@ -86,6 +86,10 @@ describe('App', () => {
       '/v1/timers': () => ({ status: 200, body: { timers: [] } }),
       '/v1/quotes': () => ({ status: 200, body: { quotes: [], count: 0, next: 1 } }),
       '/v1/sounds': () => ({ status: 200, body: { sounds: [], player: true } }),
+      '/v1/overlays': () => ({
+        status: 200,
+        body: { overlays: [], server: 'http://127.0.0.1:7431', positions: ['top'], animations: ['slide', 'pop'], default_look: {} },
+      }),
       '/v1/settings/ui': () => ({ status: 200, body: { theme: 'light' } }),
     });
     const el = start();
@@ -123,9 +127,14 @@ describe('App', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '8', ctrlKey: true }));
     flushSync();
     await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Overlays');
+    await noViolations('overlays');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '9', ctrlKey: true }));
+    flushSync();
+    await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Variables');
     await noViolations('variables');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '9', metaKey: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '/', metaKey: true }));
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Help');

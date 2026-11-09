@@ -754,3 +754,58 @@ export interface PlayerCommand {
 export const playerNext = (after: number, wait: number, signal?: AbortSignal) =>
   api<{ commands: PlayerCommand[]; head: number }>('GET', `/v1/player/next?after=${after}&wait=${wait}`, undefined, signal);
 export const reportPlay = (r: { id: string; ok: boolean; error?: string }) => api<void>('POST', '/v1/player/reports', r);
+
+// Overlays (docs/adr/0017-alert-overlays.md): each is one OBS browser source.
+
+export type OverlayPosition = 'top-left' | 'top' | 'top-right' | 'center' | 'bottom-left' | 'bottom' | 'bottom-right';
+
+export interface OverlayLook {
+  position: OverlayPosition;
+  animation: 'slide' | 'pop';
+  text_color: string;
+  background: string;
+  opacity: number;
+  seconds: number;
+}
+
+export interface Overlay {
+  name: string;
+  kind: 'alert';
+  look: OverlayLook;
+  created_at: string;
+  updated_at: string;
+  /** Pages open in OBS (or a browser). */
+  pages: number;
+  /** The app's own previews. */
+  previews: number;
+}
+
+export interface OverlayList {
+  overlays: Overlay[];
+  /** Where overlays are served; "" when the server is off. */
+  server: string;
+  server_note?: string;
+  positions: OverlayPosition[];
+  animations: ('slide' | 'pop')[];
+  default_look: OverlayLook;
+}
+
+const overlayPath = (name: string) => `/v1/overlays/${encodeURIComponent(name)}`;
+
+export const getOverlays = () => api<OverlayList>('GET', '/v1/overlays');
+export const addOverlay = (name: string, look?: OverlayLook) =>
+  api<{ overlay: Overlay; url?: string }>('POST', '/v1/overlays', { name, kind: 'alert', look });
+export const setOverlayLook = (name: string, look: OverlayLook) => api<Overlay>('PUT', overlayPath(name), { look });
+export const deleteOverlay = (name: string) => api<{ deleted: boolean }>('DELETE', overlayPath(name));
+/** The overlay's private link, to paste into OBS. */
+export const getOverlayLink = (name: string) =>
+  api<{ name: string; url: string }>('GET', `/v1/overlays/${encodeURIComponent(name)}/link`);
+/** A new link; the old one stops working at once. */
+export const newOverlayLink = (name: string) =>
+  api<{ name: string; url: string }>('POST', `/v1/overlays/${encodeURIComponent(name)}/link`);
+/** A sample alert, shown in OBS; or, with preview, in the app's previews only. */
+export const testOverlay = (name: string, preview = false) =>
+  api<{ shown: boolean; previews?: number }>(
+    'POST',
+    preview ? `/v1/overlays/${encodeURIComponent(name)}/test?preview=1` : `/v1/overlays/${encodeURIComponent(name)}/test`,
+  );

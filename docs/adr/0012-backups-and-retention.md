@@ -96,4 +96,4 @@ Deleting old events doesn't move the inbox's cursor: `seq` keeps counting up (AU
 - **Disk use:** up to 7 daily archives, plus the streamer's own, pre-restore and pre-migration ones. Only automatic ones are pruned.
 - **What a backup exposes:** a backup holds viewers' names and chat history, like the database. Moving one off the computer is the streamer's choice.
 - **YouTube (M3)** will add its 30-day policy to the sweep.
-- **Sounds are in the database** (ADR-0016), so backups carry them with no change to the archive. Overlays, when they arrive, are added to the archive and its manifest if they need files; older archives still restore.
+- **Sounds are in the database** (ADR-0016), so backups carry them with no change to the archive. Overlays are in the database too (ADR-0017), with only their links' hashes, so backups carry no working link.

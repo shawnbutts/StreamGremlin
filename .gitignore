@@ -3,3 +3,6 @@
 node_modules/
 /cmd/desktop/frontend/dist/*
 !/cmd/desktop/frontend/dist/.gitkeep
+# Build outputs from `go build` run inside a package folder.
+/streamgremlin
+/cmd/desktop/desktop

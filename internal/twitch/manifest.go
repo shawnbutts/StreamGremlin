@@ -136,6 +136,11 @@ func TwitchManifest() Manifest {
 					"give the status codes for a missing scope or a duplicate in the pages read; 403 is shown as refused, 409 " +
 					"counts as already subscribed. A revoked event type stops only that type; chat goes on.",
 			},
+			{
+				Name: "users.profile_picture", Support: Supported,
+				Notes: "Get Users by id (no scope) for profile_image_url, for alert overlays. Used only when it's https on " +
+					"static-cdn.jtvnw.net. Kept 30 minutes per viewer. Anonymous gifts and cheers have no viewer, so no picture.",
+			},
 		},
 	}
 }

@@ -437,7 +437,7 @@ func (e *Engine) execute(ctx context.Context, id string) (status, errText string
 		}
 	}
 	budget := def.StepBudget()
-	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: &budget, jobID: id, wfID: job.WorkflowID, vars: rv, now: e.st.now,
+	in := &interp{reg: e.reg, sc: sc, dryRun: job.DryRun, budget: &budget, jobID: id, wfID: job.WorkflowID, actor: rec.Actor, vars: rv, now: e.st.now,
 		trace: trace, eng: e, chain: []string{job.WorkflowID}}
 	rctx, cancel := context.WithTimeout(ctx, def.TimeoutDuration())
 	runErr := in.run(rctx, "steps", def.Steps)

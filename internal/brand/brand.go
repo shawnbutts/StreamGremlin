@@ -18,6 +18,9 @@ const (
 	// DefaultAPIAddr is where the engine listens unless told otherwise.
 	// If it is taken, the engine falls back to a free loopback port.
 	DefaultAPIAddr = "127.0.0.1:7430"
+	// DefaultOverlayAddr is where overlay pages are served for OBS. If it
+	// is taken, the engine falls back to a free loopback port and says so.
+	DefaultOverlayAddr = "127.0.0.1:7431"
 )
 
 // Env returns the full name of an environment variable, for example

@@ -70,7 +70,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Follows, subs, bits, channel point redeems, chatters | 0018, D-030; events built in M2 (ADR-0015, D-026); chatters not yet | F2 |
 | Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087 | F2 |
 | First Words | 0059, D-085 | F2 |
-| Profile pictures for overlays | 0074, D-118 | F2 |
+| Profile pictures for overlays | 0074, D-118; built in M2 for alerts (ADR-0017, D-028) | F2 |
 | Channel point reward management: create, pause, change cost, fulfil or refund. Only for rewards StreamGremlin created; others are "trigger only", with an offer to create a managed copy. | new | F2 |
 | Ad break begins trigger; get ad schedule, snooze next ad and start commercial steps; "next ad / snooze" card on Home | 0022, D-036 | F2 |
 | Ad requests and confirmed breaks recorded separately | 0023, D-038 | F2 |
@@ -103,7 +103,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
 | Timers: timed actions, cron schedules | 0060, 0070, D-096; built in M2 (ADR-0013, D-022) | F1 |
-| Alert overlays with slide or pop | 0020, D-124 | F2 |
+| Alert overlays with slide or pop | 0020, D-124; built in M2, one browser source each, no grouping (ADR-0017, D-028) | F2 |
 | Sounds, played by the desktop app, with volume per sound | 0042, D-057, D-066; built in M2, played in the app's window (ADR-0016, D-027) | F2 |
 | Giveaways: equal entries, fingerprinted entry lists, checkable draws | 0045, D-069 | F3 |
 | Giveaway entry rules | 0075, D-125, D-127 | F3 |

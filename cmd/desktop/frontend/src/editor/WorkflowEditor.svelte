@@ -9,6 +9,7 @@
     getCommands,
     getOBSScenes,
     getSounds,
+    getOverlays,
     getTimers,
     getPalette,
     getSceneItems,
@@ -76,6 +77,7 @@
     workflows,
     timers: [],
     sounds: [],
+    overlays: [],
     // svelte-ignore state_referenced_locally
     selfId: def.id,
     scenes: [],
@@ -108,6 +110,11 @@
     getSounds()
       .then((r) => {
         env.sounds = r.sounds;
+      })
+      .catch(() => undefined);
+    getOverlays()
+      .then((r) => {
+        env.overlays = r.overlays;
       })
       .catch(() => undefined);
     getVariables()

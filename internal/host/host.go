@@ -25,6 +25,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -48,7 +49,11 @@ type Options struct {
 	// TwitchAuthURL replaces id.twitch.tv, for mocktwitch. It must be a
 	// loopback http URL; the app says it's a test server.
 	TwitchAuthURL string
-	Logger        *slog.Logger
+	// OverlayAddr is where overlay pages are served for OBS. Empty means
+	// brand.DefaultOverlayAddr, falling back to a free port if that is
+	// taken; "off" serves none.
+	OverlayAddr string
+	Logger      *slog.Logger
 }
 
 // Host is a running engine.
@@ -65,6 +70,10 @@ type Host struct {
 	workflows *workflow.Engine
 	timers    *timers.Service
 	maint     *maintenance.Service
+	hub       *overlays.Hub
+	ovSrv     *http.Server
+	ovLn      net.Listener
+	ovNote    string
 	log       *slog.Logger
 	done      chan error
 }
@@ -131,9 +140,15 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	qs := quotes.NewStore(h.db)
 	lib, player := sounds.NewStore(h.db), sounds.NewPlayer(nil)
+	ovs := overlays.NewStore(h.db, sec)
+	h.hub = overlays.NewHub(nil)
+	if err := h.serveOverlays(opts.OverlayAddr, ovs); err != nil {
+		return nil, err
+	}
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player})
+	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
@@ -149,20 +164,25 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	startedAt := time.Now()
 	h.api = api.NewServer(api.Options{Token: h.token, Logger: log}, api.Routes(api.Deps{
-		DataDir:     opts.DataDir,
-		StartedAt:   startedAt,
-		DB:          h.db,
-		Settings:    set,
-		Secrets:     sec,
-		Events:      inbox,
-		Twitch:      h.twitch,
-		OBS:         h.obs,
-		Workflows:   h.workflows,
-		Variables:   vars,
-		Timers:      h.timers,
-		Quotes:      qs,
-		Sounds:      lib,
-		Player:      player,
+		DataDir:   opts.DataDir,
+		StartedAt: startedAt,
+		DB:        h.db,
+		Settings:  set,
+		Secrets:   sec,
+		Events:    inbox,
+		Twitch:    h.twitch,
+		OBS:       h.obs,
+		Workflows: h.workflows,
+		Variables: vars,
+		Timers:    h.timers,
+		Quotes:    qs,
+		Sounds:    lib,
+		Player:    player,
+		Overlays:  ovs,
+		Hub:       h.hub,
+		OverlayServer: func() (string, string) {
+			return h.OverlayURL(), h.ovNote
+		},
 		Maintenance: h.maint,
 		Logger:      log,
 	}))
@@ -189,7 +209,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		}
 		h.done <- err
 	}()
-	log.Info("engine started", "api", h.URL(), "data_dir", opts.DataDir, "schema", res.To, "secret_store", string(sec.Kind()))
+	log.Info("engine started", "api", h.URL(), "overlays", h.OverlayURL(), "data_dir", opts.DataDir, "schema", res.To, "secret_store", string(sec.Kind()))
 	return h, nil
 }
 
@@ -209,6 +229,49 @@ func listen(addr string) (net.Listener, error) {
 		return nil, fmt.Errorf("host: listen on %s: %w", addr, err)
 	}
 	return ln, nil
+}
+
+// serveOverlays starts the overlay server for OBS (docs/adr/0017-alert-overlays.md).
+func (h *Host) serveOverlays(addr string, store *overlays.Store) error {
+	if addr == "off" {
+		return nil
+	}
+	fallback := addr == ""
+	if fallback {
+		addr = brand.DefaultOverlayAddr
+	}
+	if err := api.RequireLoopback(addr); err != nil {
+		return fmt.Errorf("host: overlays: %w", err)
+	}
+	ln, err := net.Listen("tcp", addr)
+	if err != nil && fallback && errors.Is(err, syscall.EADDRINUSE) {
+		ln, err = net.Listen("tcp", "127.0.0.1:0")
+		if err == nil {
+			h.ovNote = "The usual address, " + brand.DefaultOverlayAddr + ", is taken by another program, so overlays are at " +
+				"http://" + ln.Addr().String() + " until StreamGremlin restarts. Links pasted into OBS before won't work meanwhile."
+			h.log.Warn("the usual overlay address is taken; using another until restart", "usual", brand.DefaultOverlayAddr, "now", ln.Addr().String())
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("host: overlays: listen on %s: %w", addr, err)
+	}
+	h.ovLn = ln
+	h.ovSrv = &http.Server{
+		Handler:           overlays.NewServer(store, h.hub, h.log),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		ErrorLog:          slog.NewLogLogger(h.log.Handler(), slog.LevelWarn),
+	}
+	go func() { _ = h.ovSrv.Serve(ln) }()
+	return nil
+}
+
+// OverlayURL is where overlay pages are served, or "" when that's off.
+func (h *Host) OverlayURL() string {
+	if h.ovLn == nil {
+		return ""
+	}
+	return "http://" + h.ovLn.Addr().String()
 }
 
 // URL is the API's base URL, for example http://127.0.0.1:7430.
@@ -249,6 +312,12 @@ func (h *Host) cleanup() {
 	}
 	if h.twitch != nil {
 		h.twitch.Close()
+	}
+	if h.hub != nil {
+		h.hub.CloseAll() // pages hold connections the server doesn't track
+	}
+	if h.ovSrv != nil {
+		_ = h.ovSrv.Close()
 	}
 	if h.ln != nil {
 		_ = os.Remove(datadir.AddrPath(h.dataDir))
