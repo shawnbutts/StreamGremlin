@@ -20,9 +20,14 @@
   let problem = $state('');
   let width = $state(0);
 
+  // Only a different overlay or a new link starts the preview over. The
+  // name alone is compared, not the screen's data around it: that's
+  // rebuilt on every refresh, and reloading the frame each time made it
+  // flicker and reconnect (found in the slice 5 live check).
+  const target = $derived(`${name}\n${reload}`);
+
   $effect(() => {
-    const n = name;
-    void reload;
+    const [n] = target.split('\n');
     url = '';
     problem = '';
     loaded = false;

@@ -102,6 +102,19 @@ describe('Overlays', () => {
     await noViolations('list');
   });
 
+  it('keeps the same preview frame while the list refreshes', async () => {
+    const { calls } = engine([alerts]);
+    const el = start();
+    await settle();
+    const frame = el.querySelector('iframe');
+    expect(frame).not.toBeNull();
+    // Many refreshes later (every 30 ms here): the same frame, one link fetch.
+    await settle(300);
+    expect(calls.filter((c) => c.path === '/v1/overlays').length).toBeGreaterThan(4);
+    expect(el.querySelector('iframe')).toBe(frame);
+    expect(calls.filter((c) => c.path === '/v1/overlays/alerts/link').length).toBe(1);
+  });
+
   it('adds an overlay and copies its link to the clipboard', async () => {
     const { calls } = engine([]);
     const writeText = vi.fn(async () => {});
