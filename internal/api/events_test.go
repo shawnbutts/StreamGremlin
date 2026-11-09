@@ -56,7 +56,8 @@ func TestEventsLongPollWakes(t *testing.T) {
 	s := newTestServer(t)
 	done := make(chan EventPage, 1)
 	go func() {
-		w := do(t, s, req{method: "GET", path: "/v1/events?after=0&wait=10", token: testToken})
+		// The message only: its test first words may come in the same answer.
+		w := do(t, s, req{method: "GET", path: "/v1/events?after=0&wait=10&types=chat.message.*", token: testToken})
 		var page EventPage
 		_ = json.Unmarshal(w.Body.Bytes(), &page)
 		done <- page
