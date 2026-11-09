@@ -280,6 +280,39 @@ function alertEngine(connectAfter: number) {
 }
 
 describe('Workflows', () => {
+  it('searches workflows by name, command or trigger, and says when nothing matches', async () => {
+    const mk = (id: string, name: string, command: string): WorkflowSummary => ({
+      id, name, enabled: true, version: 1, updated_at: now(), triggers: [{ type: 'chat.command.received', where: { command } }],
+    });
+    mockFetch({
+      '/v1/workflows': (_m, _b, q) => ({
+        status: 200,
+        body: { workflows: q.includes('deleted') ? [] : [mk('chat.brb', 'Be right back', 'brb'), mk('chat.lurk', 'Lurk', 'lurk'), mk('chat.so', 'Shoutout', 'so')] },
+      }),
+      '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
+      '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
+      '/v1/events/catalog': () => ({ status: 200, body: catalog }),
+    });
+    const el = start();
+    await settle(60);
+    const names = () => Array.from(el.querySelectorAll('ul[aria-label="Workflows"] strong')).map((x) => x.textContent);
+    expect(names()).toEqual(['Be right back', 'Lurk', 'Shoutout']);
+    const box = el.querySelector<HTMLInputElement>('input[type="search"]')!;
+    set(box, '!LURK');
+    flushSync();
+    expect(names()).toEqual(['Lurk']);
+    set(box, 'right back');
+    flushSync();
+    expect(names()).toEqual(['Be right back']);
+    set(box, 'nothing like this');
+    flushSync();
+    expect(names()).toEqual([]);
+    expect(el.textContent).toContain('No workflow matches “nothing like this”.');
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushSync();
+    expect(names().length).toBe(3);
+  });
+
   it('shows a test of an alert in a preview where Test was pressed, once the preview is connected', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     const calls = alertEngine(2);

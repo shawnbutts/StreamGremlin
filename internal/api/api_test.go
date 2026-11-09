@@ -252,7 +252,14 @@ func TestSettingsRoundTripAndValidation(t *testing.T) {
 	if !strings.Contains(w.Body.String(), `"theme":"midnight"`) {
 		t.Fatalf("after put: %s", w.Body)
 	}
-	for _, body := range []string{`{"theme":"purple"}`, `{"theme":"dark","extra":1}`, `not json`, `{"theme":"dark"}{}`} {
+	// Part of the settings: the rest keep what's saved.
+	w = do(t, s, req{method: "PUT", path: "/v1/settings/ui", token: testToken, body: `{"text_size":"larger","more":["rewards"]}`})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"theme":"midnight"`) || !strings.Contains(w.Body.String(), `"text_size":"larger"`) ||
+		!strings.Contains(w.Body.String(), `"more":["rewards"]`) || !strings.Contains(w.Body.String(), `"density":"comfortable"`) {
+		t.Fatalf("part: %d %s", w.Code, w.Body)
+	}
+	for _, body := range []string{`{"theme":"purple"}`, `{"theme":"dark","extra":1}`, `not json`, `{"theme":"dark"}{}`,
+		`{"more":["home"]}`, `{"density":"airy"}`} {
 		w = do(t, s, req{method: "PUT", path: "/v1/settings/ui", token: testToken, body: body})
 		if w.Code != 400 || errCode(t, w) != CodeInvalidRequest {
 			t.Errorf("body %q: %d %s", body, w.Code, w.Body)

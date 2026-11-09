@@ -717,3 +717,26 @@ Decided 2026-11-09 under D-007. The user: "my account is too new for affiliate o
 - **Two steps:** "Complete or refund the redemption" (the one that started the run) and "Change a reward" (on, off, pause, resume, cost).
 - **A Rewards screen,** with no shortcut number (all nine are taken). The sign-in asks for `channel:manage:redemptions`.
 - **Built against mocktwitch,** because the user's channel isn't an Affiliate yet. The live check confirms the refusal is shown plainly; the rest waits for an Affiliate channel.
+
+## D-031. App comfort: More…, text size, spacing and search (M2 slice 7)
+
+Decided 2026-11-09 by the user, over several messages:
+- "we'll need to add some general setting for font size, spacing, etc to the theme. we should also discuss adding a search field at the top of at least a few of the tabs";
+- "settings to disable/hide some tabs. i can see where many streamers won't need Rewards, Quotes, and maybe some of the others";
+- "let's hide Rewards, Quotes, and Timers by default. but maybe instead of hiding them, we could make a 'More...' menu item and let uses pick whatever they want to move there. Home, Events, Workflows, Settings, and Help should always be shown. I think Help should always be at the bottom".
+
+When asked, they agreed that Settings and Help sit at the bottom and that Connections can move.
+
+- **The sidebar follows [ADR-0019](adr/0019-app-comfort.md):** main screens, More… (Timers, Quotes and Rewards at first), then Settings and Help, last. Screens under More… keep working.
+- **Ctrl/⌘+1–9 follow the main screens in order.** Settings is Ctrl/⌘+comma and Help Ctrl/⌘+/.
+- **Text size** (Small to Larger, and Ctrl/⌘ with + − 0) and **spacing** (Comfortable or Compact) in Settings.
+- **Search on Workflows and Events** (Quotes and Variables had it), with Ctrl/⌘+F.
+
+## D-032. Workflow groups (M2 slice 8, to build)
+
+Decided 2026-11-09 by the user: "I do think workflow groups are a good idea. They could allow enable/disable all of them at the group level. We should also have the templates create groups where it makes sense. e.g. all the alert templates can go in the Alerts group so all of them could be enabled/disabled quickly". To the proposal below: "1) good idea. 2) good idea as well. also, i agree with the 'one answer per chat command' rule."
+
+1. **A group has its own switch that leaves each workflow's switch alone.** A workflow runs only when both are on, so turning a group off and on restores exactly which workflows were on. The list says so ("On, but its group is off").
+2. **A workflow is in at most one group, like a folder.** The group is saved in the workflow, so exports and templates carry it. Others are under "No group".
+- **Templates name their group,** created when needed: Alerts, Thanks, Commands, Quotes, Scenes.
+- **One answer per chat command still holds:** turning a group on that would make two workflows answer one command is refused, naming them.

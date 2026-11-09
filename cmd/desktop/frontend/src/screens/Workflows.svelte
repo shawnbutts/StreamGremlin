@@ -161,6 +161,18 @@
   const whyNoTest = (w: WorkflowSummary) =>
     !w.enabled ? 'Turn it on to test it.' : !testable(w) ? 'Its trigger can’t be imitated by a test event yet.' : '';
 
+  // Search: by name, id, or what starts it in words (which includes the
+  // command), ignoring case. Every word typed must match.
+  let query = $state('');
+  const shownWorkflows = $derived.by(() => {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return workflows;
+    return workflows.filter((w) => {
+      const text = [w.name, w.id, ...w.triggers.map((t) => describeTrigger(t, kinds))].join(' ').toLowerCase();
+      return words.every((x) => text.includes(x));
+    });
+  });
+
   const taken = $derived([...workflows, ...deleted].map((w) => w.id));
 </script>
 
@@ -192,8 +204,18 @@
   {:else if workflows.length === 0}
     <p class="sg-muted">No workflows yet. A workflow does something when something happens, like answering <code>!hello</code> in chat.</p>
   {/if}
+  {#if workflows.length}
+    <label class="field var-search">
+      <span>Search</span>
+      <input class="sg-input" type="search" placeholder="A name, a command or a trigger" bind:value={query}
+        onkeydown={(e) => e.key === 'Escape' && (query = '')} />
+    </label>
+    {#if query.trim() && shownWorkflows.length === 0}
+      <p class="sg-muted" role="status">No workflow matches “{query.trim()}”.</p>
+    {/if}
+  {/if}
   <ul class="secret-list" aria-label="Workflows">
-    {#each workflows as w (w.id)}
+    {#each shownWorkflows as w (w.id)}
       <li class="secret-row">
         <span class="secret-info">
           <strong>{w.name}</strong>

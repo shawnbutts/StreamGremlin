@@ -17,7 +17,10 @@
   let {
     idleMs = 250,
     retryMs = 2000,
+    searchDelayMs = 250,
   }: {
+    /** Wait after typing before searching. */
+    searchDelayMs?: number;
     /** Pause after an empty answer; the engine already waits up to 20 s. */
     idleMs?: number;
     retryMs?: number;
@@ -83,6 +86,45 @@
     return () => abort.abort();
   });
 
+  // Search: the newest stored events matching, from the engine, while the
+  // live list keeps following underneath.
+  const searchLimit = 100;
+  let query = $state('');
+  let results = $state<EventRecord[]>([]);
+  let searching = $state(false);
+  let searchError = $state('');
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchSeq = 0;
+
+  function search() {
+    clearTimeout(searchTimer);
+    const text = query.trim();
+    if (!text) {
+      results = [];
+      return;
+    }
+    searching = true;
+    searchTimer = setTimeout(async () => {
+      const mine = ++searchSeq;
+      try {
+        const page = await getEvents({ q: text.slice(0, 100), limit: searchLimit });
+        if (mine !== searchSeq) return; // a newer search is on its way
+        results = page.events.slice().reverse();
+        searchError = '';
+      } catch (e) {
+        if (mine === searchSeq) searchError = message(e);
+      } finally {
+        if (mine === searchSeq) searching = false;
+      }
+    }, searchDelayMs);
+  }
+
+  function clearSearch() {
+    query = '';
+    results = [];
+    searchError = '';
+  }
+
   function choose(type: string) {
     chosen = type;
     const k = kinds.find((x) => x.type === type);
@@ -113,7 +155,7 @@
 <p class="sg-muted screen-intro">Everything StreamGremlin hears, as it happens: chat, commands and OBS changes. Send a test event to try a workflow without going live.</p>
 
 <section class="sg-panel card" aria-labelledby="live-heading">
-  <h2 id="live-heading">Live events</h2>
+  <h2 id="live-heading">{query.trim() ? 'Events found' : 'Live events'}</h2>
   <p class="state" role="status">
     {#if listening === 'live'}
       <span class="state-ok"><span aria-hidden="true">●</span></span> Listening. New events appear at the top.
@@ -124,13 +166,30 @@
       Connecting…
     {/if}
   </p>
-  {#if shown.length === 0 && listening === 'live'}
+  <label class="field var-search">
+    <span>Search</span>
+    <input class="sg-input" type="search" placeholder="A viewer, words in a message, or a type" bind:value={query}
+      oninput={search} onkeydown={(e) => e.key === 'Escape' && clearSearch()} />
+  </label>
+  {#if query.trim()}
+    <p class="sg-muted" role="status">
+      {#if searchError}
+        Couldn’t search: {searchError}
+      {:else if searching && !results.length}
+        Searching…
+      {:else}
+        {results.length === 0 ? 'No events match' : `The newest ${results.length === searchLimit ? searchLimit : results.length} events matching`}
+        “{query.trim()}”. Clear the search to see live events.
+      {/if}
+    </p>
+  {/if}
+  {#if shown.length === 0 && listening === 'live' && !query.trim()}
     <p class="sg-muted">
       Nothing yet. Events from Twitch and OBS show up here once they're connected. Send a test event below to see one.
     </p>
   {/if}
   <ol class="event-list" aria-label="Events, newest first">
-    {#each shown as ev (ev.seq)}
+    {#each query.trim() ? results : shown as ev (ev.seq)}
       <li class="event-row">
         <div class="event-head">
           <time datetime={ev.occurred_at} class="sg-muted">{eventTime(ev.occurred_at)}</time>

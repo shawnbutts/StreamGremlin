@@ -12,8 +12,20 @@ body {
   height: 100%;
 }
 
+/* Text size (Settings, or Ctrl/⌘ with + − 0) scales the root, and
+   everything in rem with it (docs/adr/0019-app-comfort.md). */
+html[data-text-size='small'] {
+  font-size: 90%;
+}
+html[data-text-size='large'] {
+  font-size: 115%;
+}
+html[data-text-size='larger'] {
+  font-size: 130%;
+}
+
 body {
-  font-size: 15px;
+  font-size: 0.9375rem; /* 15px at the standard size */
   line-height: 1.5;
 }
 
@@ -1007,4 +1019,67 @@ kbd {
   height: 36px;
   border-radius: 4px;
   flex: none;
+}
+
+
+/* The sidebar: More… opens in place; Settings and Help come last. */
+.nav-more {
+  color: var(--sg-muted);
+}
+
+.nav-more-list {
+  margin: 4px 0 0 0.75rem !important;
+  padding-left: 0.5rem !important;
+  border-left: 1px solid var(--sg-border);
+}
+
+.nav-pinned {
+  margin-top: 10px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid var(--sg-border);
+}
+
+/* Compact spacing: less room around things, the same text. */
+html[data-density='compact'] .shell {
+  gap: 12px;
+  padding: 12px;
+}
+html[data-density='compact'] .card {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+html[data-density='compact'] .sidebar {
+  padding: 10px 8px;
+}
+html[data-density='compact'] .nav-item {
+  padding: 0.3rem 0.6rem;
+}
+html[data-density='compact'] .sidebar ul,
+html[data-density='compact'] .secret-list {
+  gap: 4px;
+}
+html[data-density='compact'] .secret-row {
+  padding: 6px 10px;
+}
+html[data-density='compact'] h1 {
+  margin-bottom: 0.6rem;
+}
+html[data-density='compact'] h2 {
+  margin-bottom: 0.4rem;
+}
+html[data-density='compact'] .screen-intro {
+  margin-bottom: 10px;
+}
+html[data-density='compact'] .test-form,
+html[data-density='compact'] fieldset {
+  gap: 6px;
+}
+html[data-density='compact'] .row-actions {
+  margin-top: 8px;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
 }

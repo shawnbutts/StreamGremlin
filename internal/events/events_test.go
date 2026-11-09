@@ -367,3 +367,54 @@ func TestNewIDIsUUIDv4(t *testing.T) {
 		t.Fatal(id)
 	}
 }
+
+// Search finds events by type, viewer or contents, newest first in the
+// limit, ignoring case; % and _ are only themselves.
+func TestSearch(t *testing.T) {
+	in, _, _ := newInbox(t)
+	ctx := context.Background()
+	for i, text := range []string{"Hello there", "100% hype", "good_game", "nothing", "HELLO again"} {
+		if _, err := in.Accept(ctx, chatEvent(fmt.Sprint("s", i), text)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	scene := Envelope{Type: "broadcast.scene.changed", Source: "obs", Payload: json.RawMessage(`{"scene_name":"Just Chatting"}`), DeliveryQuality: Confirmed}
+	if _, err := in.Accept(ctx, scene); err != nil {
+		t.Fatal(err)
+	}
+	texts := func(recs []Record) []string {
+		var out []string
+		for _, r := range recs {
+			var p struct {
+				Text      string `json:"text"`
+				SceneName string `json:"scene_name"`
+			}
+			_ = json.Unmarshal(r.Payload, &p)
+			out = append(out, p.Text+p.SceneName)
+		}
+		return out
+	}
+	for q, want := range map[string][]string{
+		"hello":         {"Hello there", "HELLO again"},
+		"100%":          {"100% hype"},
+		"%":             {"100% hype"},
+		"d_g":           {"good_game"},
+		"_":             {"good_game"},
+		"VIEWER":        {"Hello there", "100% hype", "good_game", "nothing", "HELLO again"}, // the viewer's login
+		"scene.changed": {"Just Chatting"},
+		"just chat":     {"Just Chatting"},
+		"zebra":         nil,
+	} {
+		got, err := in.Search(ctx, q, 50, nil)
+		if err != nil || !slices.Equal(texts(got), want) {
+			t.Errorf("%q: %v %v", q, texts(got), err)
+		}
+	}
+	// The limit keeps the newest; a filter narrows by type.
+	if got, _ := in.Search(ctx, "hello", 1, nil); !slices.Equal(texts(got), []string{"HELLO again"}) {
+		t.Error(texts(got))
+	}
+	if got, _ := in.Search(ctx, "chat", 50, Filter{"broadcast.*"}); !slices.Equal(texts(got), []string{"Just Chatting"}) {
+		t.Error(texts(got))
+	}
+}

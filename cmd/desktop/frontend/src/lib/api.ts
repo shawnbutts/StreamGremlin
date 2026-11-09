@@ -63,12 +63,20 @@ export const getStatus = () => api<Status>('GET', '/v1/status');
 
 export type Theme = 'system' | 'dark' | 'light' | 'midnight';
 
+export type TextSize = 'small' | 'standard' | 'large' | 'larger';
+export type Density = 'comfortable' | 'compact';
+
 export interface UISettings {
   theme: Theme;
+  text_size: TextSize;
+  density: Density;
+  /** Screens shown under "More…" in the sidebar, by id. */
+  more: string[];
 }
 
 export const getUISettings = () => api<UISettings>('GET', '/v1/settings/ui');
-export const putUISettings = (s: UISettings) => api<UISettings>('PUT', '/v1/settings/ui', s);
+/** Change some appearance settings; the rest keep what's saved. */
+export const putUISettings = (s: Partial<UISettings>) => api<UISettings>('PUT', '/v1/settings/ui', s);
 
 export type SecretStoreKind = 'keyring' | 'file';
 export type SecretState = 'ok' | 'missing' | 'unreadable';
@@ -117,11 +125,12 @@ export interface EventPage {
 }
 
 /** The newest events, or with `after`, the ones after that cursor, waiting up to `wait` seconds. */
-export function getEvents(opts: { after?: number; wait?: number; limit?: number }, signal?: AbortSignal) {
+export function getEvents(opts: { after?: number; wait?: number; limit?: number; q?: string }, signal?: AbortSignal) {
   const q = new URLSearchParams();
   if (opts.after !== undefined) q.set('after', String(opts.after));
   if (opts.wait) q.set('wait', String(opts.wait));
   if (opts.limit) q.set('limit', String(opts.limit));
+  if (opts.q) q.set('q', opts.q);
   const qs = q.toString();
   return api<EventPage>('GET', '/v1/events' + (qs ? `?${qs}` : ''), undefined, signal);
 }

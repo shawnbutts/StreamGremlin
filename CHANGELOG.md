@@ -130,6 +130,11 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Workflow steps:** "Complete or refund the redemption" and "Change a reward".
   - `streamgremlin rewards`, `rewards add`, `set`, `queue`, `done`, `refund` and `delete`.
 
+- M2 slice 7, app comfort:
+  - **More… in the sidebar:** screens you don't use often can go there, out of the way (Settings → Screens), and keep working. Timers, Quotes and Rewards start there. Settings and Help are always last.
+  - **Text size** (Small, Standard, Large, Larger; also Ctrl/⌘ with + − 0) and **spacing** (Comfortable or Compact) in Settings.
+  - **Search** on Workflows and Events (Events searches all stored history), and Ctrl/⌘+F to jump to a screen's search.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
@@ -139,7 +144,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 - The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
 - The Twitch sign-in also asks to manage channel point rewards. Sign in again once to make and change rewards.
 
-- Screen shortcuts: Home Ctrl/⌘+1, Connections 2, Events 3, Workflows 4, Timers 5, Quotes 6, Sounds 7, Overlays 8, Variables 9, Help Ctrl/⌘+/; Settings is Ctrl/⌘+comma.
+- Screen shortcuts follow the sidebar: Ctrl/⌘+1–9 for the main screens in order (at first: Home 1, Connections 2, Events 3, Workflows 4, Sounds 5, Overlays 6, Variables 7); Settings is Ctrl/⌘+comma and Help Ctrl/⌘+/.
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.
 - Toggle buttons that are on (such as a Variables filter, or Runs on a workflow) show a check mark and an accent border.
 

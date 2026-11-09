@@ -110,10 +110,17 @@ func Routes(d Deps) []Route {
 			},
 		},
 		{
-			Method: "PUT", Path: "/v1/settings/ui", Summary: "Replace the appearance settings. Repeating a request is harmless.",
+			Method: "PUT", Path: "/v1/settings/ui",
+			Summary: "Change the appearance settings {theme?, text_size?, density?, more?}; fields left out keep what's saved. " +
+				"Repeating a request is harmless.",
 			Permission: PermSettingsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				var in settings.UI
+				// Fields left out keep what's saved.
+				in, err := d.Settings.UI(r.Context())
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
 				if !decodeJSON(w, r, &in) {
 					return
 				}

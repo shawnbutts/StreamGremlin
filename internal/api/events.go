@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
 )
@@ -37,7 +38,8 @@ func eventRoutes(d Deps) []Route {
 		{
 			Method: "GET", Path: "/v1/events",
 			Summary: "Stored events, oldest first. ?after=SEQ reads on from a cursor and ?wait=SECONDS (up to 20) waits for the next; " +
-				"without after, the newest. ?limit= (1-200, default 50), ?types=chat.*,broadcast.scene.changed.",
+				"without after, the newest. ?limit= (1-200, default 50), ?types=chat.*,broadcast.scene.changed. " +
+				"?q=TEXT (without after) finds the newest whose type, viewer or contents contain it.",
 			Permission: PermEventsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				q := r.URL.Query()
@@ -62,7 +64,14 @@ func eventRoutes(d Deps) []Route {
 					}
 				}
 				var recs []events.Record
-				if a := q.Get("after"); a != "" {
+				if text := strings.TrimSpace(q.Get("q")); text != "" {
+					// A search: the newest matches, not a cursor to follow.
+					if q.Get("after") != "" || utf8.RuneCountInString(text) > events.MaxSearch {
+						writeError(w, http.StatusBadRequest, CodeInvalidRequest, "q is up to 100 characters, without after")
+						return
+					}
+					recs, err = d.Events.Search(r.Context(), text, limit, filter)
+				} else if a := q.Get("after"); a != "" {
 					after, perr := strconv.ParseInt(a, 10, 64)
 					if perr != nil || after < 0 {
 						writeError(w, http.StatusBadRequest, CodeInvalidRequest, "after must be an event's seq")

@@ -139,7 +139,7 @@ describe('Events', () => {
     flushSync();
     expect(el.textContent).toContain('New scene');
     expect(el.textContent).not.toContain('Message');
-    expect(el.querySelector<HTMLInputElement>('label.field input')?.value).toBe('Starting Soon');
+    expect(el.querySelector<HTMLInputElement>('form.test-form label.field input')?.value).toBe('Starting Soon');
   });
 
   it('explains a refused test event', async () => {
@@ -156,5 +156,42 @@ describe('Events', () => {
     el.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
     await settle(30);
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('longer than 500');
+  });
+
+  it('searches stored events, then goes back to live events', async () => {
+    const live = { seq: 9, event_id: 'e9', type: 'chat.message.received', source: 'twitch', occurred_at: new Date().toISOString(),
+      received_at: new Date().toISOString(), delivery_quality: 'confirmed', actor: { login: 'live' }, payload: { text: 'just now' } };
+    const found = { ...live, seq: 2, event_id: 'e2', payload: { text: 'hello from before' } };
+    const calls = mockFetch({
+      '/v1/events/catalog': eventCatalog,
+      '/v1/events': (_m, _b, query) =>
+        query.includes('q=')
+          ? { status: 200, body: { events: query.includes('q=hello') ? [found] : [], head: 9 } }
+          : query.includes('after')
+            ? { status: 200, body: { events: [], head: 9 } }
+            : { status: 200, body: { events: [live], head: 9 } },
+    });
+    const target = document.createElement('main');
+    document.body.appendChild(target);
+    comp = mount(Events, { target, props: { idleMs: 5, searchDelayMs: 0 } });
+    await settle(40);
+    expect(target.textContent).toContain('just now');
+    const box = target.querySelector<HTMLInputElement>('input[type="search"]')!;
+    box.value = 'hello';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle(40);
+    expect(calls.some((c) => c.path === '/v1/events?limit=100&q=hello')).toBe(true);
+    expect(target.textContent).toContain('hello from before');
+    expect(target.textContent).not.toContain('just now');
+    expect(target.textContent).toContain('Clear the search to see live events.');
+    expect(target.querySelector('h2')?.textContent).toBe('Events found');
+    box.value = 'zebra';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle(40);
+    expect(target.querySelector('[role="status"]:not(.state)')?.textContent?.replace(/\s+/g, ' ')).toContain('No events match “zebra”');
+    box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushSync();
+    await settle(10);
+    expect(target.textContent).toContain('just now');
   });
 });

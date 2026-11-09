@@ -83,7 +83,12 @@
     {/each}
     <dt><kbd>{mod}</kbd> + <kbd>,</kbd></dt>
     <dd>Settings</dd>
+    <dt><kbd>{mod}</kbd> + <kbd>F</kbd></dt>
+    <dd>Search on this screen (Workflows, Events, Quotes, Variables)</dd>
+    <dt><kbd>{mod}</kbd> + <kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd></dt>
+    <dd>Bigger text, smaller text, standard size</dd>
   </dl>
+  <p class="sg-muted">Numbers follow the screens in the sidebar; screens under More… have none.</p>
 </section>
 
 <section class="sg-panel card" aria-labelledby="help-data">

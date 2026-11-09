@@ -109,31 +109,39 @@ describe('App', () => {
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Workflows');
     await noViolations('workflows');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '5', ctrlKey: true }));
+    // Timers, Quotes and Rewards start under More…, so the numbers go on.
+    const keyTo = async (key: string, title: string) => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: true }));
+      flushSync();
+      await settle();
+      expect(el.querySelector('h1')?.textContent).toBe(title);
+    };
+    await keyTo('5', 'Sounds');
+    await noViolations('sounds');
+    await keyTo('6', 'Overlays');
+    await noViolations('overlays');
+    await keyTo('7', 'Variables');
+    await noViolations('variables');
+    await keyTo('8', 'Variables'); // no eighth main screen: nothing changes
+    // More… opens in place; its screens work as any other.
+    const more = Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent?.includes('More…'))!;
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    more.click();
+    flushSync();
+    expect(more.getAttribute('aria-expanded')).toBe('true');
+    Array.from(el.querySelectorAll<HTMLButtonElement>('#nav-more-list button')).find((b) => b.textContent === 'Timers')!.click();
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Timers');
     await noViolations('timers');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '6', ctrlKey: true }));
+    Array.from(el.querySelectorAll<HTMLButtonElement>('#nav-more-list button')).find((b) => b.textContent === 'Quotes')!.click();
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Quotes');
     await noViolations('quotes');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '7', ctrlKey: true }));
-    flushSync();
-    await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Sounds');
-    await noViolations('sounds');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '8', ctrlKey: true }));
-    flushSync();
-    await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Overlays');
-    await noViolations('overlays');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '9', ctrlKey: true }));
-    flushSync();
-    await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Variables');
-    await noViolations('variables');
+    // Settings and Help are last, Help at the very bottom.
+    const labels = Array.from(el.querySelectorAll('nav button')).map((b) => b.textContent?.trim());
+    expect(labels.slice(-2)).toEqual(['Settings', 'Help']);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '/', metaKey: true }));
     flushSync();
     await settle();
@@ -174,5 +182,35 @@ describe('App', () => {
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Connections');
+  });
+});
+
+describe('App appearance', () => {
+  it('applies saved text size, spacing and More, and changes text size from the keyboard', async () => {
+    const calls = mockFetch({
+      '/desktop/info': readyEngine,
+      '/v1/status': runningStatus,
+      '/v1/events': noEvents,
+      '/v1/settings/ui': (method, body) =>
+        method === 'PUT'
+          ? { status: 200, body: { theme: 'dark', text_size: 'larger', density: 'compact', more: ['rewards'], ...(body as object) } }
+          : { status: 200, body: { theme: 'dark', text_size: 'large', density: 'compact', more: ['rewards'] } },
+    });
+    const el = start();
+    await settle(60);
+    const root = document.documentElement;
+    expect(root.dataset.textSize).toBe('large');
+    expect(root.dataset.density).toBe('compact');
+    // Only Rewards is under More now: Timers and Quotes are main screens.
+    const labels = Array.from(el.querySelectorAll('nav button')).map((b) => b.textContent?.trim());
+    expect(labels).toContain('Timers');
+    expect(labels).toContain('Quotes');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '=', ctrlKey: true }));
+    await settle();
+    expect(root.dataset.textSize).toBe('larger');
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ text_size: 'larger' });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '0', metaKey: true }));
+    await settle();
+    expect(root.dataset.textSize).toBe('standard');
   });
 });

@@ -284,6 +284,27 @@ func (in *Inbox) Latest(ctx context.Context, limit int, f Filter) ([]Record, err
 	return recs, err
 }
 
+// MaxSearch is the longest text Search looks for.
+const MaxSearch = 100
+
+// Search returns the newest limit events whose type, viewer or text in
+// their contents contain text (ignoring case for A to Z), oldest first.
+func (in *Inbox) Search(ctx context.Context, text string, limit int, f Filter) ([]Record, error) {
+	cond, args := f.where()
+	esc := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(strings.ToLower(strings.TrimSpace(text)))
+	like := "%" + esc + "%"
+	// Only text values count, never field names: "name" mustn't find
+	// every event that has a scene_name.
+	where := `WHERE (lower(type) LIKE ? ESCAPE '\'
+		OR EXISTS (SELECT 1 FROM json_tree(COALESCE(actor, '{}')) WHERE json_tree.type = 'text' AND lower(json_tree.value) LIKE ? ESCAPE '\')
+		OR EXISTS (SELECT 1 FROM json_tree(payload) WHERE json_tree.type = 'text' AND lower(json_tree.value) LIKE ? ESCAPE '\'))`
+	recs, err := in.query(ctx, where+cond+" ORDER BY seq DESC LIMIT ?", append(append([]any{like, like, like}, args...), limit)...)
+	for i, j := 0, len(recs)-1; i < j; i, j = i+1, j-1 {
+		recs[i], recs[j] = recs[j], recs[i]
+	}
+	return recs, err
+}
+
 func (in *Inbox) query(ctx context.Context, tail string, args ...any) ([]Record, error) {
 	rows, err := in.db.QueryContext(ctx, selectRecord+tail, args...)
 	if err != nil {

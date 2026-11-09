@@ -42,6 +42,11 @@ func TestSimulateThenRead(t *testing.T) {
 	if len(page.Events) != 1 || page.Events[0].Type != "chat.message.received" {
 		t.Fatalf("filter: %s", w.Body)
 	}
+	w = do(t, s, req{method: "GET", path: "/v1/events?q=FAN", token: testToken})
+	_ = json.Unmarshal(w.Body.Bytes(), &page)
+	if w.Code != 200 || len(page.Events) != 1 || page.Events[0].Type != "chat.message.received" {
+		t.Fatalf("search: %s", w.Body)
+	}
 }
 
 func TestEventsLongPollWakes(t *testing.T) {
@@ -68,7 +73,8 @@ func TestEventsLongPollWakes(t *testing.T) {
 func TestEventsRejectBadRequests(t *testing.T) {
 	s := newTestServer(t)
 	for _, path := range []string{"/v1/events?limit=0", "/v1/events?limit=201", "/v1/events?wait=21",
-		"/v1/events?after=-1", "/v1/events?after=x", "/v1/events?types=**", "/v1/events?types=twitch.chat.x"} {
+		"/v1/events?after=-1", "/v1/events?after=x", "/v1/events?types=**", "/v1/events?types=twitch.chat.x",
+		"/v1/events?q=hi&after=1", "/v1/events?q=" + strings.Repeat("x", 101)} {
 		if w := do(t, s, req{method: "GET", path: path, token: testToken}); w.Code != 400 {
 			t.Errorf("%s: %d", path, w.Code)
 		}
