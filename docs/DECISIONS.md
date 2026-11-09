@@ -797,3 +797,12 @@ Decided 2026-11-09 under D-007. The user, before a live check: "when using the O
 - **An alert's sound plays in the overlay page,** so OBS hears it through the browser source ("Control audio via OBS" gives it a mixer bar), in time with the alert. The app's window played it before, and on macOS OBS doesn't capture that by default.
 - **The page says whether it started,** and the run says so ([ADR-0017](adr/0017-alert-overlays.md), amended). Previews and tests are silent.
 - **"Play a sound" on its own still plays in the app's window.** Playing standalone sounds through an overlay is left for the user to decide.
+
+## D-039. Closing M2 with the Affiliate features checked against mocktwitch only
+
+Decided 2026-11-09 by the user, asked whether the real-stream check covered both systems and what to do with features that need an Affiliate channel: "Both macOS and Windows", and "Build now, close M2 anyway" (rather than moving them to a later milestone, or keeping M2 open until an Affiliate channel can check them).
+
+- **The M2 real stream passed** on macOS and Windows ("m2 real-stream check is done and went well").
+- **Hype Trains, polls and predictions, and ads are built now** as M2 slices 10 to 12, against mocktwitch, which follows Twitch's documented rules.
+- **M2 closes when they're in.** M2.md records that these were checked against the stand-in only. Their live checks confirm only that a non-Affiliate channel is told plainly. A real check waits for an Affiliate channel, and is written down then.
+- **This is an exception** to "mocks passing isn't enough" (AGENTS.md), made by the user for this milestone only.
