@@ -144,7 +144,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	lib, player := sounds.NewStore(h.db), sounds.NewPlayer(nil)
 	ovs := overlays.NewStore(h.db, sec)
 	h.hub = overlays.NewHub(nil)
-	if err := h.serveOverlays(opts.OverlayAddr, ovs); err != nil {
+	if err := h.serveOverlays(opts.OverlayAddr, ovs, lib); err != nil {
 		return nil, err
 	}
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
@@ -240,7 +240,7 @@ func listen(addr string) (net.Listener, error) {
 }
 
 // serveOverlays starts the overlay server for OBS (docs/adr/0017-alert-overlays.md).
-func (h *Host) serveOverlays(addr string, store *overlays.Store) error {
+func (h *Host) serveOverlays(addr string, store *overlays.Store, lib *sounds.Store) error {
 	if addr == "off" {
 		return nil
 	}
@@ -265,7 +265,7 @@ func (h *Host) serveOverlays(addr string, store *overlays.Store) error {
 	}
 	h.ovLn = ln
 	h.ovSrv = &http.Server{
-		Handler:           overlays.NewServer(store, h.hub, h.log),
+		Handler:           overlays.NewServer(store, h.hub, lib, h.log),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 		ErrorLog:          slog.NewLogLogger(h.log.Handler(), slog.LevelWarn),

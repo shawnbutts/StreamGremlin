@@ -57,7 +57,22 @@ type Alert struct {
 	// picture ("" when the event has no viewer).
 	Name    string `json:"name,omitempty"`
 	Seconds int    `json:"seconds"`
+	// Sound plays in the overlay page as the alert appears, so OBS hears
+	// it through the browser source.
+	Sound *AlertSound `json:"sound,omitempty"`
 }
+
+// AlertSound is a sound from the library, at a volume (0 to 100).
+type AlertSound struct {
+	Name   string `json:"name"`
+	Volume int    `json:"volume"`
+}
+
+// Errors about an alert's sound. The alert itself showed.
+var (
+	ErrSoundFailed   = errors.New("overlays: the alert showed, but its sound didn't play")
+	ErrSoundNoAnswer = errors.New("overlays: the alert showed, but the overlay didn't say whether its sound played")
+)
 
 // Result is how showing an alert went.
 type Result struct {
@@ -68,6 +83,8 @@ type Result struct {
 	Previews int    `json:"previews,omitempty"` // the app's previews that were sent it
 	Repeated bool   `json:"repeated,omitempty"` // a retried step: not shown again
 	Test     bool   `json:"test,omitempty"`     // a test: previews only
+	// SoundPlayed: a page started the alert's sound.
+	SoundPlayed bool `json:"sound_played,omitempty"`
 }
 
 // conn is one open page.
@@ -90,6 +107,10 @@ type session struct {
 	done    chan struct{}
 	once    sync.Once
 	doneMu  sync.Once
+	// The sound: "" when a page started it, else why every page couldn't.
+	sound       chan string
+	soundOnce   sync.Once
+	soundErrors int
 }
 
 // queue serialises one overlay's alerts: one on screen at a time.
@@ -209,6 +230,19 @@ func (h *Hub) ack(c *conn, id, status, detail string) {
 	switch status {
 	case "started":
 		s.once.Do(func() { s.started <- "" })
+	case "sound_started":
+		s.soundOnce.Do(func() { s.sound <- "" })
+	case "sound_error":
+		s.soundErrors++
+		if s.soundErrors >= len(s.sentTo) {
+			if detail == "" {
+				detail = "it couldn't be played"
+			}
+			if len(detail) > 200 {
+				detail = detail[:200]
+			}
+			s.soundOnce.Do(func() { s.sound <- detail })
+		}
 	case "done":
 		s.doneMu.Do(func() { close(s.done) })
 	case "error":
@@ -360,7 +394,7 @@ func (h *Hub) Show(ctx context.Context, name string, a Alert, key string) (Resul
 		return res, ErrNotOpen
 	}
 	s := &session{alert: a, overlay: name, until: h.now().Add(time.Duration(a.Seconds) * time.Second),
-		sentTo: map[*conn]bool{}, started: make(chan string, 1), done: make(chan struct{})}
+		sentTo: map[*conn]bool{}, started: make(chan string, 1), done: make(chan struct{}), sound: make(chan string, 1)}
 	h.sessions[a.ID] = s
 	msg := message("alert", map[string]any{"alert": a, "ms_left": int64(a.Seconds) * 1000})
 	for c := range h.conns[name] {
@@ -401,7 +435,23 @@ func (h *Hub) Show(ctx context.Context, name string, a Alert, key string) (Resul
 		return res, err
 	}
 	res.Shown = true
-	return res, nil
+	if a.Sound == nil {
+		return res, nil
+	}
+	// The alert showed; now whether its sound started in the page.
+	wait := time.NewTimer(AnswerWait)
+	defer wait.Stop()
+	select {
+	case why := <-s.sound:
+		if why != "" {
+			return res, fmt.Errorf("%w: %s", ErrSoundFailed, why)
+		}
+		res.SoundPlayed = true
+		return res, nil
+	case <-wait.C:
+	case <-ctx.Done():
+	}
+	return res, ErrSoundNoAnswer
 }
 
 // finish waits for an alert to leave the screen, then lets the next go.

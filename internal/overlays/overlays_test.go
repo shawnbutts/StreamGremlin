@@ -16,6 +16,7 @@ import (
 	"github.com/coder/websocket"
 
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
 
@@ -387,7 +388,7 @@ func serve(t *testing.T) (*Store, *Hub, *httptest.Server) {
 	t.Helper()
 	s, _, _ := newStore(t)
 	h := NewHub(nil)
-	srv := httptest.NewServer(NewServer(s, h, nil))
+	srv := httptest.NewServer(NewServer(s, h, nil, nil))
 	t.Cleanup(srv.Close)
 	return s, h, srv
 }
@@ -563,5 +564,93 @@ func TestAnAlertReachesOnlyItsOwnOverlay(t *testing.T) {
 	case got := <-a.got:
 		t.Fatalf("the other overlay showed %q", got)
 	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// An alert's sound: the run says it played when a page started it, why
+// not when every page refused, and that it doesn't know when none said.
+func TestAlertSoundsAreReported(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		answer string // what the page says about the sound
+		want   error
+	}{{"sound_started", nil}, {"sound_error", ErrSoundFailed}, {"", ErrSoundNoAnswer}} {
+		h := NewHub(nil)
+		c := h.join(Overlay{Name: "alerts"}, false)
+		go func() {
+			for b := range c.send {
+				var m struct {
+					Type string
+					Body struct{ Alert Alert }
+				}
+				_ = json.Unmarshal(b, &m)
+				if m.Type != "alert" {
+					continue
+				}
+				h.ack(c, m.Body.Alert.ID, "started", "")
+				if tc.answer != "" {
+					h.ack(c, m.Body.Alert.ID, tc.answer, "NotAllowedError")
+				}
+			}
+		}()
+		res, err := h.Show(ctx, "alerts", Alert{Text: "x", Seconds: 2, Sound: &AlertSound{Name: "chime", Volume: 70}}, "")
+		if !errors.Is(err, tc.want) || !res.Shown || res.SoundPlayed != (tc.want == nil) {
+			t.Errorf("%q: %+v %v", tc.answer, res, err)
+		}
+		if tc.answer == "sound_error" && !strings.Contains(err.Error(), "NotAllowedError") {
+			t.Errorf("the reason is missing: %v", err)
+		}
+		close(c.send)
+	}
+}
+
+type fakeSounds map[string][]byte
+
+func (f fakeSounds) Audio(_ context.Context, name string) (sounds.Sound, []byte, error) {
+	b, ok := f[name]
+	if !ok {
+		return sounds.Sound{}, nil, sounds.ErrNotFound
+	}
+	return sounds.Sound{Name: name, Format: "wav", UpdatedAt: now}, b, nil
+}
+
+// Sounds are served under a working link only, with their type, and ranges.
+func TestSoundsAreServedUnderALink(t *testing.T) {
+	s, _, _ := newStore(t)
+	h := NewHub(nil)
+	srv := httptest.NewServer(NewServer(s, h, fakeSounds{"chime": []byte("RIFF....WAVEdata")}, nil))
+	t.Cleanup(srv.Close)
+	_, token, _ := s.Create(context.Background(), "alerts", KindAlert, DefaultLook(), now)
+	get := func(path string, hdr ...string) (int, string, string) {
+		req, _ := http.NewRequest("GET", srv.URL+path, nil)
+		if len(hdr) == 2 {
+			req.Header.Set(hdr[0], hdr[1])
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, res.Header.Get("Content-Type"), string(b)
+	}
+	if code, ct, body := get("/o/" + token + "/sound/chime"); code != 200 || ct != "audio/wav" || body != "RIFF....WAVEdata" {
+		t.Fatal(code, ct, body)
+	}
+	if code, _, body := get("/o/"+token+"/sound/chime", "Range", "bytes=0-3"); code != 206 || body != "RIFF" {
+		t.Fatal(code, body)
+	}
+	for _, p := range []string{"/o/not-a-token/sound/chime", "/o/" + token + "/sound/nope", "/o/" + token + "/sound/..%2Fx", "/o/" + token + "/sound/"} {
+		if code, _, _ := get(p); code != 404 {
+			t.Errorf("%s: %d", p, code)
+		}
+	}
+	if code, _, _ := get("/o/" + token + "/"); code != 200 {
+		t.Fatal(code)
+	}
+	res, _ := http.Get(srv.URL + "/o/" + token + "/")
+	_ = res.Body.Close()
+	if !strings.Contains(res.Header.Get("Content-Security-Policy"), "media-src 'self'") {
+		t.Fatal(res.Header.Get("Content-Security-Policy"))
 	}
 }

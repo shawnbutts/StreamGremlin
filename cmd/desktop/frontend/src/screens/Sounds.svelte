@@ -115,8 +115,9 @@
 
 <h1>Sounds</h1>
 <p class="sg-muted screen-intro">
-  Your sound library. Workflows play these with “Play a sound”, each at its own volume. They play in this window, so keep
-  StreamGremlin open; OBS hears them through Desktop Audio.
+  Your sound library. Workflows play these with “Play a sound”, each at its own volume, in this window, so keep
+  StreamGremlin open; OBS hears them only if it captures your computer’s sound. A sound with “Show an alert” plays in the
+  overlay instead, so OBS hears it through the browser source.
 </p>
 
 <section class="sg-panel card" aria-labelledby="sounds-heading" aria-busy={busy}>

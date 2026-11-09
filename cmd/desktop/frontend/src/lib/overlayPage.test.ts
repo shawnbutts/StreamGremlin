@@ -61,6 +61,19 @@ function clock() {
   };
 }
 
+// A stand-in for the page's audio: records what it was asked to play.
+class FakeAudio {
+  static all: FakeAudio[] = [];
+  static refuse = '';
+  volume = 1;
+  constructor(readonly src: string) {
+    FakeAudio.all.push(this);
+  }
+  play() {
+    return FakeAudio.refuse ? Promise.reject(Object.assign(new Error('no'), { name: FakeAudio.refuse })) : Promise.resolve();
+  }
+}
+
 function page(search = '') {
   document.body.innerHTML = '<div id="status" hidden></div><div id="stage" class="pos-top anim-slide"></div>';
   const c = clock();
@@ -68,7 +81,7 @@ function page(search = '') {
     document,
     location: { search, pathname: '/o/tok123/', protocol: 'http:', host: '127.0.0.1:7431' },
   };
-  const ov = start(win, { WebSocket: FakeSocket, setTimeout: c.setTimeout });
+  const ov = start(win, { WebSocket: FakeSocket, setTimeout: c.setTimeout, Audio: (src: string) => new FakeAudio(src) });
   const ws = FakeSocket.all.at(-1)!;
   ws.fire('open');
   return { ov, ws, c, stage: document.getElementById('stage')!, status: document.getElementById('status')! };
@@ -81,6 +94,8 @@ const alert = (id: string, extra: Record<string, unknown> = {}) => ({
 
 afterEach(() => {
   FakeSocket.all = [];
+  FakeAudio.all = [];
+  FakeAudio.refuse = '';
   document.body.innerHTML = '';
   document.documentElement.removeAttribute('style');
 });
@@ -202,6 +217,31 @@ describe('overlay page', () => {
     ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top', animation: 'slide' } } } });
     ws.fire('message', alert('u5', { name: 'Fan' }));
     expect(stage.querySelector('.sg-avatar')).toBeNull();
+  });
+
+  it('plays the alert sound in the page, says whether it started, and never in a preview', async () => {
+    const { ws, c } = page();
+    ws.fire('message', alert('s1', { sound: { name: 'chime', volume: 70 } }));
+    expect(FakeAudio.all.length).toBe(1);
+    expect(FakeAudio.all[0].src).toBe('/o/tok123/sound/chime');
+    expect(FakeAudio.all[0].volume).toBe(0.7);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ws.sent).toContainEqual({ type: 'ack', id: 's1', status: 'sound_started' });
+    c.advance(3000);
+    FakeAudio.refuse = 'NotAllowedError';
+    ws.fire('message', alert('s2', { sound: { name: 'chime', volume: 70 } }));
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(ws.sent).toContainEqual({ type: 'ack', id: 's2', status: 'sound_error', detail: 'NotAllowedError' });
+    c.advance(3000);
+    // A name that isn't a sound's is never fetched.
+    ws.fire('message', alert('s3', { sound: { name: '../secrets', volume: 70 } }));
+    expect(FakeAudio.all.length).toBe(2);
+    c.advance(3000);
+    const pv = page('?preview=1');
+    pv.ws.fire('message', alert('s4', { sound: { name: 'chime', volume: 70 } }));
+    expect(FakeAudio.all.length).toBe(2);
   });
 
   it("shows only Twitch's profile pictures", () => {

@@ -153,6 +153,8 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - **Mark as seen** on Home's "workflow runs failed" notice (D-037): it then counts only new failures. The runs and traces are kept.
 
+- **Alert sounds play in the overlay** (D-038): OBS hears them through the browser source, so they reach the mixer, the stream and recordings (tick "Control audio via OBS" on the source). The run says whether the sound started.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

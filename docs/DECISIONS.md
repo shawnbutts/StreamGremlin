@@ -789,3 +789,11 @@ Decided 2026-11-09 under D-007. The user asked how to clear "3 workflow runs fai
 
 - **Home's failed-runs notice has Mark as seen.** It then counts only failures after that moment, and says "since you marked them as seen" until 24 hours have passed. The runs and their traces are kept.
 - **Saved in settings** (key `home`), so a restart keeps it. `POST /v1/overview/failures-seen` (settings.write). The time is the engine's real clock, the same one run times use.
+
+## D-038. Alert sounds play in the overlay
+
+Decided 2026-11-09 under D-007. The user, before a live check: "when using the OBS builtin browser source, the audio plays (i can hear it in the monitoring device) but the mixer bars don't move and there is no audio streamed/recorded. can we play the sound with alerts though the browswer source instead of the app?"
+
+- **An alert's sound plays in the overlay page,** so OBS hears it through the browser source ("Control audio via OBS" gives it a mixer bar), in time with the alert. The app's window played it before, and on macOS OBS doesn't capture that by default.
+- **The page says whether it started,** and the run says so ([ADR-0017](adr/0017-alert-overlays.md), amended). Previews and tests are silent.
+- **"Play a sound" on its own still plays in the app's window.** Playing standalone sounds through an overlay is left for the user to decide.

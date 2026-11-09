@@ -88,6 +88,7 @@ export function start(win, opts = {}) {
   const doc = win.document;
   const WS = opts.WebSocket || win.WebSocket;
   const later = opts.setTimeout || ((fn, ms) => win.setTimeout(fn, ms));
+  const makeAudio = opts.Audio || ((src) => new win.Audio(src));
   const params = new URLSearchParams(win.location.search);
   const preview = params.get('preview') === '1';
   const showStatus = preview || params.get('status') === '1';
@@ -171,6 +172,25 @@ export function start(win, opts = {}) {
     return box;
   }
 
+  // The alert's sound plays here, in the page, so OBS hears it through the
+  // browser source (tick "Control audio via OBS" to give it a mixer bar).
+  // The app's preview stays silent.
+  function playSound(alert) {
+    const snd = alert.sound;
+    if (!snd || preview || typeof snd.name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(snd.name)) return;
+    let audio;
+    try {
+      audio = makeAudio(`${base}sound/${encodeURIComponent(snd.name)}`);
+      audio.volume = clamp(snd.volume, 0, 100, 80) / 100;
+    } catch (err) {
+      send({ type: 'ack', id: alert.id, status: 'sound_error', detail: String((err && err.message) || err) });
+      return;
+    }
+    Promise.resolve(audio.play())
+      .then(() => send({ type: 'ack', id: alert.id, status: 'sound_started' }))
+      .catch((err) => send({ type: 'ack', id: alert.id, status: 'sound_error', detail: String((err && (err.name || err.message)) || err) }));
+  }
+
   function next() {
     if (playing || stopped) return;
     const item = queue.shift();
@@ -191,6 +211,7 @@ export function start(win, opts = {}) {
       return;
     }
     send({ type: 'ack', id: alert.id, status: 'started' });
+    playSound(alert);
     const outMs = Math.round((OUT_MS[animation] || 450) * pace);
     later(() => {
       box.classList.add('out');

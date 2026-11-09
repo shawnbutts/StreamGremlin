@@ -27,11 +27,12 @@ func clip(s string, n int) string {
 // registerOverlays adds "Show an alert" (docs/adr/0017-alert-overlays.md).
 // It's a Preview action: a test event shows the alert in the app's
 // previews only, never in OBS, and plays no sound.
-func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overlays.Hub, tw *twitch.Service, lib *sounds.Store, player *sounds.Player) {
+func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overlays.Hub, tw *twitch.Service, lib *sounds.Store) {
 	reg.Add(workflow.Action{
 		Name: "overlays.alert", Label: "Show an alert", Group: "Overlays", External: true, Preview: true,
 		Description: "Shows an alert on one of your alert overlays in OBS, after any alerts before it, with the viewer's " +
-			"profile picture and a sound if you like. A test shows it in the app's preview only.",
+			"profile picture and a sound if you like. The overlay plays the sound, so OBS hears it through the browser " +
+			"source. A test shows it in the app's preview only, silently.",
 		Params: []workflow.Param{
 			{Name: "overlay", Label: "Overlay", Type: "text", Required: true, Literal: true, Editor: "overlay",
 				Pattern: overlays.NamePattern, PatternHint: "an overlay's name, like alerts"},
@@ -122,21 +123,18 @@ func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overla
 					}
 				}
 			}
+			if snd != nil {
+				// The overlay page plays it, so OBS hears it through the
+				// browser source, in time with the alert.
+				a.Sound = &overlays.AlertSound{Name: snd.Name, Volume: snd.Volume}
+			}
 			res, err := hub.Show(ctx, o.Name, a, c.IdempotencyKey)
 			out["result"] = res
+			if snd != nil && res.SoundPlayed {
+				out["sound"] = "played " + snd.Name + " in the overlay"
+			}
 			if err != nil {
 				return out, alertError(o.Name, err)
-			}
-			if snd != nil && !res.Repeated {
-				key := ""
-				if c.IdempotencyKey != "" {
-					key = c.IdempotencyKey + "/sound"
-				}
-				sr, err := player.Play(ctx, *snd, snd.Volume, key)
-				out["sound"] = sr
-				if err != nil {
-					return out, fmt.Errorf("the alert showed, but the sound didn't play: %w", err)
-				}
 			}
 			return out, nil
 		},
@@ -150,6 +148,8 @@ func alertError(name string, err error) error {
 		return fmt.Errorf("the overlay %q isn't open in OBS: add its link as a browser source in a scene (%w)", name, err)
 	case errors.Is(err, overlays.ErrNoAnswer):
 		return fmt.Errorf("the overlay %q was sent the alert but didn't say whether it showed it (%w)", name, err)
+	case errors.Is(err, overlays.ErrSoundFailed), errors.Is(err, overlays.ErrSoundNoAnswer):
+		return fmt.Errorf("%q: %w. In OBS, the browser source plays it: make sure it isn't muted", name, err)
 	case errors.Is(err, overlays.ErrBusy), errors.Is(err, overlays.ErrWaitedTooLong):
 		return fmt.Errorf("%q: %w", name, err)
 	}

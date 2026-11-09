@@ -128,7 +128,7 @@
       const l = await getOverlayLink(o.name);
       try {
         await navigator.clipboard.writeText(l.url);
-        notice = `Copied ${o.name}'s link. In OBS: Sources, +, Browser, paste it as the URL, width 1920, height 1080.`;
+        notice = `Copied ${o.name}'s link. In OBS: Sources, +, Browser, paste it as the URL, width 1920, height 1080, and tick “Control audio via OBS” so alert sounds reach your stream.`;
       } catch {
         // Some systems refuse the clipboard: show it to copy by hand.
         selected = o.name;
@@ -208,7 +208,8 @@
 
 <h1>Overlays</h1>
 <p class="sg-muted screen-intro">
-  Each overlay is one browser source in OBS. Workflows show alerts on them with “Show an alert”, one at a time. Keep links
+  Each overlay is one browser source in OBS. Workflows show alerts on them with “Show an alert”, one at a time. An alert’s
+  sound plays in the overlay, so OBS hears it through the browser source (tick “Control audio via OBS” on it). Keep links
   private: anyone with one can see that overlay.
 </p>
 

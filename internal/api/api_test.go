@@ -92,15 +92,15 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	tm := timers.New(timers.Options{DB: db, Inbox: inbox})
 	reg := workflow.NewRegistry()
 	qs := quotes.NewStore(db)
-	lib, player := sounds.NewStore(db), sounds.NewPlayer(nil)
-	testPlayer = player
 	fw := firstwords.New(firstwords.Options{Inbox: inbox, Settings: set})
 	if err := fw.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(fw.Close)
 	ovs, hub := overlays.NewStore(db, sec), overlays.NewHub(nil)
-	testOverlays = httptest.NewServer(overlays.NewServer(ovs, hub, nil))
+	lib, player := sounds.NewStore(db), sounds.NewPlayer(nil)
+	testPlayer = player
+	testOverlays = httptest.NewServer(overlays.NewServer(ovs, hub, lib, nil))
 	t.Cleanup(testOverlays.Close)
 	actions.Register(reg, actions.Services{Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)

@@ -210,7 +210,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	})
 	registerQuotes(reg, sv.Quotes, sv.Twitch)
 	registerSounds(reg, sv.Sounds, sv.Player)
-	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds, sv.Player)
+	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds)
 	registerRewards(reg, sv.Twitch)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,

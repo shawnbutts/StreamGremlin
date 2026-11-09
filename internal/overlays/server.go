@@ -1,6 +1,7 @@
 package overlays
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -8,10 +9,13 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/coder/websocket"
+
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 )
 
 //go:embed page
@@ -27,7 +31,7 @@ var DesktopOrigins = []string{"wails://localhost", "http://wails.localhost"}
 
 // CSP keeps the page to its own script and style, the platforms' picture
 // host, and its own connection.
-var CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src " + strings.Join(PictureHosts, " ") +
+var CSP = "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; img-src " + strings.Join(PictureHosts, " ") +
 	"; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; base-uri 'none'; form-action 'none'; frame-ancestors " +
 	strings.Join(DesktopOrigins, " ")
 
@@ -37,19 +41,25 @@ var PictureHosts = []string{"https://static-cdn.jtvnw.net"}
 // readLimit caps what a page may send at once.
 const readLimit = 4 << 10
 
-// Server serves overlay pages at /o/<token>/.
-type Server struct {
-	store *Store
-	hub   *Hub
-	log   *slog.Logger
+// Sounds is where alerts' sounds come from: the sound library.
+type Sounds interface {
+	Audio(ctx context.Context, name string) (sounds.Sound, []byte, error)
 }
 
-// NewServer returns a Server.
-func NewServer(store *Store, hub *Hub, log *slog.Logger) *Server {
+// Server serves overlay pages at /o/<token>/.
+type Server struct {
+	store  *Store
+	hub    *Hub
+	sounds Sounds // nil: alerts have no sounds
+	log    *slog.Logger
+}
+
+// NewServer returns a Server. snd may be nil.
+func NewServer(store *Store, hub *Hub, snd Sounds, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Server{store: store, hub: hub, log: log.With("component", "overlays")}
+	return &Server{store: store, hub: hub, sounds: snd, log: log.With("component", "overlays")}
 }
 
 // loopbackHost reports whether a request's Host names this computer, so a
@@ -106,8 +116,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "ws":
 		s.connect(w, r, o)
 	default:
+		// An alert's sound, played by the page so OBS hears it through the
+		// browser source. Only under a working link.
+		if name, ok := strings.CutPrefix(file, "sound/"); ok && s.sounds != nil && soundName.MatchString(name) {
+			s.sound(w, r, name)
+			return
+		}
 		w.WriteHeader(http.StatusNotFound)
 	}
+}
+
+var soundName = regexp.MustCompile(sounds.NamePattern)
+
+func (s *Server) sound(w http.ResponseWriter, r *http.Request, name string) {
+	snd, data, err := s.sounds.Audio(r.Context(), name)
+	if err != nil {
+		if !errors.Is(err, sounds.ErrNotFound) {
+			s.log.Error("reading a sound failed", "sound", name, "err", err)
+		}
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", sounds.MediaType(snd.Format))
+	http.ServeContent(w, r, "", snd.UpdatedAt, bytes.NewReader(data))
 }
 
 func (s *Server) file(w http.ResponseWriter, name, contentType string) {

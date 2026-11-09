@@ -100,3 +100,5 @@ F2 needs sounds: a follow plays a chime, a redemption an air horn (D-004; FEATUR
 - **Backups grow with the library:** up to 100 MB in each.
 - **Confirmed on real systems** (the live check, 2026-11-09, macOS and Windows): adding, playing at a volume, workflows playing sounds, Stop, and autoplay without a click.
 - **Still not confirmed:** OGG in WKWebView on older macOS. If a sound doesn't play, its trace and the Sounds screen show the browser's reason.
+
+> **Since D-038 (2026-11-09):** a sound given with "Show an alert" plays in the overlay page in OBS (ADR-0017), not in the app's window, so OBS hears it through the browser source. On macOS OBS doesn't capture the computer's sound by default, so "Play a sound" in the app's window reaches the stream only with an audio capture source in OBS.

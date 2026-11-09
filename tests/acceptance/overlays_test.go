@@ -65,7 +65,21 @@ func fakeOBS(t *testing.T, link string, preview bool) (shown func() []map[string
 			mu.Lock()
 			got = append(got, m.Body.Alert)
 			mu.Unlock()
-			for _, st := range []string{"started", "done"} {
+			statuses := []string{"started"}
+			// Its sound comes through the overlay's own link, as the page
+			// plays it (never in a preview).
+			if snd, ok := m.Body.Alert["sound"].(map[string]any); ok && !preview {
+				res, err := http.Get(link + "sound/" + snd["name"].(string))
+				if err == nil && res.StatusCode == 200 && strings.HasPrefix(res.Header.Get("Content-Type"), "audio/") {
+					statuses = append(statuses, "sound_started")
+				} else {
+					statuses = append(statuses, "sound_error")
+				}
+				if err == nil {
+					_ = res.Body.Close()
+				}
+			}
+			for _, st := range append(statuses, "done") {
 				ack, _ := json.Marshal(map[string]any{"type": "ack", "id": m.Body.Alert["id"], "status": st})
 				_ = c.Write(ctx, websocket.MessageText, ack)
 			}
@@ -132,6 +146,10 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	if _, errOut, code := cli(t, dir, "overlays", "look", "alerts", "-font-name", `x"; }`); code == 0 || !strings.Contains(errOut, "font's name") {
 		t.Fatalf("a bad font name: %d %s", code, errOut)
 	}
+	chime := writeFile(t, t.TempDir(), "chime.wav", "RIFF\x24\x00\x00\x00WAVEfmt "+strings.Repeat("\x00", 64))
+	if out, errOut, code := cli(t, dir, "sounds", "add", chime); code != 0 {
+		t.Fatal(out, errOut)
+	}
 	shown, _ := fakeOBS(t, link, false)
 	eventually(t, "OBS", func() string {
 		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "open in 1 page") {
@@ -156,7 +174,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	})
 	wf := writeFile(t, t.TempDir(), "alert.json", `{"schema":"streamgremlin.workflow/v1","id":"twitch.follow-alert","name":"Follow alert",
 		"triggers":[{"type":"audience.follow.created"}],
-		"steps":[{"action":"overlays.alert","with":{"overlay":"alerts","title":"New follower","text":"${event.actor.display_name} followed!","picture":true}}]}`)
+		"steps":[{"action":"overlays.alert","with":{"overlay":"alerts","title":"New follower","text":"${event.actor.display_name} followed!","picture":true,"sound":"chime"}}]}`)
 	if out, errOut, code := cli(t, dir, "workflows", "save", wf); code != 0 {
 		t.Fatal(out, errOut)
 	}
@@ -207,7 +225,14 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 		}
 		return ""
 	})
+	// The run says the sound played: the overlay fetched it and started it.
+	if out, _, _ := cli(t, dir, "runs", "-workflow", "twitch.follow-alert"); strings.Count(out, "succeeded") < 3 {
+		t.Fatalf("runs:\n%s", out)
+	}
 	got := shown()
+	if snd, _ := got[1]["sound"].(map[string]any); snd["name"] != "chime" || snd["volume"] != float64(80) {
+		t.Fatalf("the alert's sound: %v", got[1]["sound"])
+	}
 	if len(got) != 2 || got[0]["title"] != "Sample alert" || got[1]["text"] != "Fan followed!" || got[1]["name"] != "Fan" ||
 		!strings.HasPrefix(got[1]["picture"].(string), "https://static-cdn.jtvnw.net/") {
 		t.Fatalf("OBS showed %v", got)
