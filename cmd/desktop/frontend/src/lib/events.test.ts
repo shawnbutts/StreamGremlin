@@ -42,6 +42,9 @@ describe('Twitch channel events in words', () => {
     expect(of('broadcast.channel.online', {})).toBe('Live on Twitch');
     expect(of('monetization.hype_train.started', { level: 1 })).toBe('Hype Train started: level 1');
     expect(of('chat.poll.ended', { leader: 'Hades', votes: 8 })).toBe('Poll ended: Hades won (8 votes)');
+    expect(of('ads.break.started', { duration_seconds: 90, is_automatic: true })).toBe('Ad break began: 90 seconds (automatic)');
+    expect(of('ads.break.end_estimated', { duration_seconds: 90 })).toBe('Ad break should be over (estimated)');
+    expect(of('ads.request.refused', { action: 'snooze', message: 'none left' })).toBe('Ad snooze refused: none left');
     expect(of('chat.poll.ended', { leader: '', tied: true, votes: 2 })).toBe('Poll ended: a tie (2 votes)');
     expect(of('chat.prediction.ended', { status: 'resolved', winner: 'Yes' })).toBe('Prediction resolved: Yes won');
     expect(of('chat.prediction.ended', { status: 'canceled', title: 'Win?' })).toBe('Prediction canceled and refunded: Win?');

@@ -67,6 +67,9 @@ const (
 	// Polls and predictions: seeing the current ones; starting and ending them.
 	PermPollsRead  Permission = "polls.read"
 	PermPollsWrite Permission = "polls.write"
+	// Ads: the schedule and history; asking for a break or a snooze.
+	PermAdsRead  Permission = "ads.read"
+	PermAdsWrite Permission = "ads.write"
 )
 
 // Principal is an authenticated caller.

@@ -67,6 +67,7 @@ Commands:
             rewards set|queue|delete TITLE, rewards done|refund TITLE ID
   first-words  Viewers' first messages of the stream: first-words, first-words reset.
   polls     Polls and predictions (streamgremlin polls help).
+  ads       Ad breaks: ads, ads run SECONDS, ads snooze (streamgremlin ads help).
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -139,6 +140,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return firstWordsCmd(dir, rest, stdout, stderr)
 	case "polls":
 		return pollsCmd(dir, rest, stdout, stderr)
+	case "ads":
+		return adsCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":

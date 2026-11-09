@@ -46,6 +46,18 @@ export function eventSummary(ev: EventRecord): string {
       const top = (p.top_contributor ?? {}) as { name?: string };
       return `Hype Train ended at level ${num('level')}${top.name ? `; top contributor ${top.name}` : ''}`;
     }
+    case 'ads.break.started':
+      return `Ad break began: ${num('duration_seconds')} seconds${p.is_automatic ? ' (automatic)' : ''}`;
+    case 'ads.break.end_estimated':
+      return 'Ad break should be over (estimated)';
+    case 'ads.break.requested':
+      return `Twitch accepted an ad break request: ${num('length')} seconds`;
+    case 'ads.request.refused':
+      return `Ad ${p.action === 'snooze' ? 'snooze' : 'request'} refused${typeof p.message === 'string' && p.message ? `: ${p.message}` : ''}`;
+    case 'ads.request.unresolved':
+      return 'Ad request unclear: it may or may not have started';
+    case 'ads.snooze.applied':
+      return `Next ad snoozed; ${num('snooze_count')} ${num('snooze_count') === 1 ? 'snooze' : 'snoozes'} left`;
     case 'chat.first_words.received':
       return `${who}’s first words this stream${typeof p.text === 'string' && p.text ? `: ${p.text}` : ''}`;
     case 'broadcast.channel.online':

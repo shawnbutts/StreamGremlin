@@ -34,6 +34,8 @@ type TriggerEntry struct {
 	Values   []Value      `json:"values"`
 }
 
+var adSeconds = Value{Token: "seconds", Label: "Its length in seconds", Expr: "event.payload.duration_seconds"}
+
 // Palette is the body of GET /v1/palette.
 type Palette struct {
 	Triggers []TriggerEntry `json:"triggers"`
@@ -96,6 +98,26 @@ func Triggers() []TriggerEntry {
 			Match: []MatchField{}, Values: hypeValues(false)},
 		{Type: "monetization.hype_train.ended", Label: "A Hype Train ends", Category: "Twitch",
 			Help: "The Hype Train ended, with the level it reached.", Match: []MatchField{}, Values: hypeValues(true)},
+		{Type: "ads.break.started", Label: "An ad break begins", Category: "Twitch",
+			Help:  "Twitch says an ad break began, automatic or one you ran (Affiliates and Partners). The only sure sign an ad is running.",
+			Match: []MatchField{}, Values: []Value{adSeconds, {Token: "automatic", Label: "Whether Twitch ran it on its own (true or false)",
+				Expr: "event.payload.is_automatic"}}},
+		{Type: "ads.break.end_estimated", Label: "An ad break should be over", Category: "Twitch",
+			Help: "When an ad break should end: its start plus its length. An estimate, because Twitch doesn't say when ads end; " +
+				"some viewers may still see one.", Match: []MatchField{}, Values: []Value{adSeconds}},
+		{Type: "ads.break.requested", Label: "Twitch accepts an ad request", Category: "Twitch", More: true,
+			Help:  "Twitch accepted a request for an ad break. It isn't running yet: use “An ad break begins” to announce one.",
+			Match: []MatchField{}, Values: []Value{{Token: "seconds", Label: "Its length in seconds", Expr: "event.payload.length"}}},
+		{Type: "ads.request.refused", Label: "Twitch refuses an ad request", Category: "Twitch", More: true,
+			Help:   "Twitch refused an ad break or snooze, so nothing happened.",
+			Match:  []MatchField{{Path: "reason", Label: "Only for this reason", Kind: "text", Help: "cooldown, not_live, not_eligible, no_snoozes or refused. Leave empty for any."}},
+			Values: []Value{{Token: "why", Label: "Why, in Twitch's words", Expr: "event.payload.message"}}},
+		{Type: "ads.request.unresolved", Label: "An ad request's outcome is unclear", Category: "Twitch", More: true,
+			Help:  "Twitch didn't answer an ad request clearly: it may or may not have started. It's never sent again.",
+			Match: []MatchField{}, Values: []Value{}},
+		{Type: "ads.snooze.applied", Label: "The next ad is snoozed", Category: "Twitch", More: true,
+			Help: "The next automatic ad was pushed back.", Match: []MatchField{},
+			Values: []Value{{Token: "snoozes_left", Label: "Snoozes left", Expr: "event.payload.snooze_count"}}},
 		{Type: "broadcast.scene.changed", Label: "OBS switches scene", Category: "OBS",
 			Help:  "OBS's live scene changes, whoever changed it.",
 			Match: []MatchField{{Path: "scene_name", Label: "Only for scene", Kind: "scene", Help: "Leave empty for any scene."}},

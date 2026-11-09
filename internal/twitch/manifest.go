@@ -154,6 +154,19 @@ func TwitchManifest() Manifest {
 					"are taken as the newest (the order isn't stated). Built against mocktwitch only (D-039).",
 			},
 			{
+				Name: "ads", Support: PermissionRequired, Scopes: []string{AdsReadScope, CommercialScope, AdsManageScope},
+				Notes: "Start Commercial (channel:edit:commercial; the broadcaster only, Partner or Affiliate, live; up to 180 s asked, " +
+					"Twitch may serve shorter or longer; answers length and retry_after; 400 not live, 429 or 400 inside the cooldown). " +
+					"Get Ad Schedule (channel:read:ads; snooze_count, snooze_refresh_at, next_ad_at, last_ad_at, duration, " +
+					"preroll_free_time; a new ad can't run until 8 minutes after the last). Snooze Next Ad (channel:manage:ads; +5 " +
+					"minutes when a snooze is left). The reference's examples send numbers as strings and times as RFC3339 while " +
+					"fields are described as Unix times in places, so every documented shape is read. channel.ad_break.begin v1 " +
+					"(channel:read:ads) as ads.break.started, the only sign an ad is running. Not offered by Twitch: an ad-ended " +
+					"event, an eligibility check, cancelling a break, or which viewers saw an ad; the end is announced as an estimate " +
+					"(start plus length). Requests are never retried; an unclear answer is checked against last_ad_at. Built against " +
+					"mocktwitch only (D-039).",
+			},
+			{
 				Name: "rewards.manage", Support: PermissionRequired, Scopes: []string{ManageScope},
 				Notes: "Create, Get, Update and Delete Custom Reward; Get Custom Reward Redemption; Update Redemption Status. Affiliate or " +
 					"Partner only (403 otherwise, shown as such). Only the Client ID that made a reward may change, delete or handle its " +

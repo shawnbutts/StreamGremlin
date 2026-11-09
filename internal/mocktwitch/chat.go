@@ -96,13 +96,19 @@ func (s *Server) ChatLog() []ChatMessage {
 
 // Subscribed reports how many sessions read channelLogin's chat.
 func (s *Server) Subscribed(channelLogin string) int {
+	return s.SubscribedTo(channelLogin, "channel.chat.message")
+}
+
+// SubscribedTo reports how many sessions follow one EventSub type for
+// channelLogin.
+func (s *Server) SubscribedTo(channelLogin, typ string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.chatInit()
 	id := s.users[strings.ToLower(channelLogin)]
 	n := 0
 	for _, ss := range s.chat.sessions {
-		if ss.subs["channel.chat.message"] == id && id != "" {
+		if ss.subs[typ] == id && id != "" {
 			n++
 		}
 	}
@@ -347,6 +353,12 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.channelsLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/users":
 		s.usersLocked(w, r)
+	case r.Method == "POST" && r.URL.Path == "/helix/channels/commercial":
+		s.commercial(w, r)
+	case r.Method == "GET" && r.URL.Path == "/helix/channels/ads":
+		s.adSchedule(w, r)
+	case r.Method == "POST" && r.URL.Path == "/helix/channels/ads/schedule/snooze":
+		s.snooze(w, r)
 	case r.URL.Path == "/helix/polls":
 		s.polls(w, r)
 	case r.URL.Path == "/helix/predictions":

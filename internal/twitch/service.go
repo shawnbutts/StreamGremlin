@@ -38,7 +38,9 @@ var (
 		// Hype Trains (docs/adr/0022-hype-trains.md).
 		"channel:read:hype_train",
 		// Polls and predictions: read, start and end them (docs/adr/0023-polls-and-predictions.md).
-		"channel:manage:polls", "channel:manage:predictions"}
+		"channel:manage:polls", "channel:manage:predictions",
+		// Ads: the schedule, starting a break and snoozing (docs/adr/0024-ads.md).
+		AdsReadScope, CommercialScope, AdsManageScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

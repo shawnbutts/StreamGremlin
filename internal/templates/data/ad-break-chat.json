@@ -1,0 +1,45 @@
+{
+  "template": {
+    "id": "ad-break-chat",
+    "title": "Tell chat about ad breaks",
+    "category": "Twitch events",
+    "description": "When Twitch says an ad break began, says so in chat; when it should be over, welcomes everyone back. The end is an estimate: Twitch doesn't say when ads end. Ads need an Affiliate or Partner channel.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "twitch.ad-break-chat",
+    "name": "Tell chat about ad breaks",
+    "group": "Ads",
+    "triggers": [
+      {
+        "type": "ads.break.started"
+      },
+      {
+        "type": "ads.break.end_estimated"
+      }
+    ],
+    "steps": [
+      {
+        "if": "event.type == 'ads.break.started'",
+        "do": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "A ${event.payload.duration_seconds}-second ad break is starting. Thanks for sticking around, back soon! 📺"
+            }
+          }
+        ],
+        "else": [
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "The ads should be over now. Welcome back! 👋"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

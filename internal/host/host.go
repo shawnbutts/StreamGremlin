@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/actions"
+	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/api"
 	"code.streamgremlin.com/streamgremlin/internal/backup"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
@@ -71,6 +72,7 @@ type Host struct {
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
+	ads       *ads.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -149,8 +151,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
+	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -160,6 +163,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.timers.Start(context.Background())
 	// After workflows: first words are stored as events, which they run on.
 	if err := h.firsts.Start(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.ads.Start(ctx); err != nil {
 		return nil, err
 	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
@@ -188,6 +194,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Overlays:   ovs,
 		Hub:        h.hub,
 		FirstWords: h.firsts,
+		Ads:        h.ads,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -308,6 +315,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.ads != nil {
+		h.ads.Close() // before workflows: no new estimated ends while runs finish
 	}
 	if h.firsts != nil {
 		h.firsts.Close() // before workflows: no new first words while runs finish

@@ -49,6 +49,7 @@ type Server struct {
 	chat    chatState
 	rw      rewardState
 	pl      pollState
+	ad      adState
 }
 
 type code struct {

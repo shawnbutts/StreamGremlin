@@ -996,3 +996,54 @@ export const endPoll = (archive: boolean) => api<Poll>('POST', '/v1/polls/end', 
 export const startPrediction = (p: { title: string; outcomes: string[]; seconds: number }) => api<Prediction>('POST', '/v1/predictions', p);
 export const endPrediction = (how: 'lock' | 'resolve' | 'cancel', winner = '') =>
   api<{ prediction: Prediction; repeated: boolean }>('POST', '/v1/predictions/end', { how, winner });
+
+// Ads (docs/adr/0024-ads.md): what was asked and what Twitch said happened,
+// kept apart. A break's end is always an estimate.
+
+export interface AdSchedule {
+  snooze_count: number;
+  snooze_refresh_at?: string;
+  next_ad_at?: string;
+  duration: number;
+  last_ad_at?: string;
+  preroll_free_seconds: number;
+}
+
+export interface AdRequest {
+  id: string;
+  action: 'commercial' | 'snooze';
+  length?: number;
+  requested_by: string;
+  status: 'pending' | 'accepted' | 'refused' | 'unknown';
+  reason?: string;
+  message?: string;
+  accepted_length?: number;
+  retry_until?: string;
+  next_ad_at?: string;
+  snooze_count?: number;
+  confirmed_by?: '' | 'event' | 'schedule';
+  created_at: string;
+}
+
+export interface AdBreak {
+  key: string;
+  started_at: string;
+  duration_seconds: number;
+  is_automatic: boolean;
+  request_id?: string;
+  end_estimated_at: string;
+}
+
+export interface AdsView {
+  state: 'ok' | 'not_signed_in' | 'needs_permission' | 'no_channel_points' | 'unknown';
+  detail?: string;
+  schedule: AdSchedule | null;
+  requests: AdRequest[];
+  breaks: AdBreak[];
+}
+
+export const getAds = () => api<AdsView>('GET', '/v1/ads');
+/** opKey makes a repeat harmless: the same key is never sent to Twitch twice. */
+export const startCommercial = (length: number, opKey: string) =>
+  api<AdRequest>('POST', '/v1/ads/commercial', { length, op_key: opKey });
+export const snoozeAd = (opKey: string) => api<AdRequest>('POST', '/v1/ads/snooze', { op_key: opKey });

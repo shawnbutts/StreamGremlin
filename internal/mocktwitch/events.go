@@ -39,6 +39,7 @@ var subTypes = map[string]subType{
 	"channel.prediction.progress": {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
 	"channel.prediction.lock":     {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
 	"channel.prediction.end":      {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.ad_break.begin":      {"1", []string{"channel:read:ads"}, "broadcaster_user_id"},
 }
 
 // RefuseType makes Twitch refuse new subscriptions of typ with 403, as for
@@ -255,10 +256,12 @@ type HypeContribution struct {
 
 // GoLive and GoOffline: the channel's stream starts or ends.
 func (s *Server) GoLive(channel string) string {
+	s.SetLive(channel, true)
 	return s.Notify(channel, "stream.online", map[string]any{"id": random(8), "type": "live", "started_at": s.now().UTC().Format(time.RFC3339Nano)}, "")
 }
 
 func (s *Server) GoOffline(channel string) string {
+	s.SetLive(channel, false)
 	return s.Notify(channel, "stream.offline", map[string]any{}, "")
 }
 

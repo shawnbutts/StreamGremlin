@@ -228,6 +228,40 @@ func Catalog() []Kind {
 		hypeKind("monetization.hype_train.started", "Hype Train starts", "A Hype Train started on your channel.", false),
 		hypeKind("monetization.hype_train.updated", "Hype Train progress", "Your Hype Train got more contributions, or went up a level.", false),
 		hypeKind("monetization.hype_train.ended", "Hype Train ends", "Your Hype Train ended.", true),
+		// Ads (docs/adr/0024-ads.md): asked for, refused, begun, ended (estimated).
+		adKind("ads.break.started", "Ad break begins", "Twitch says an ad break began on your channel, automatic or one you ran.",
+			[]string{"twitch"}, []Field{{Name: "duration", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3},
+				{Name: "automatic", Label: "Automatic", Kind: "choice", Default: "no", Max: 3, Choices: []string{"no", "yes"}}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"duration_seconds": atoi(v["duration"]), "started_at": "2026-11-08T20:00:00Z",
+					"is_automatic": v["automatic"] == "yes", "requester_id": "", "requester_login": ""}
+			}),
+		adKind("ads.break.end_estimated", "Ad break should be over",
+			"The time an ad break should end: its start plus its length. An estimate: Twitch doesn't say when ads end.",
+			[]string{"core"}, []Field{{Name: "duration", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"duration_seconds": atoi(v["duration"]), "started_at": "2026-11-08T20:00:00Z", "estimated": true}
+			}),
+		adKind("ads.break.requested", "Ad break accepted", "Twitch accepted a request for an ad break. It isn't running until Twitch says it began.",
+			[]string{"core"}, []Field{{Name: "length", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"request_id": "test", "action": "commercial", "length": atoi(v["length"])}
+			}),
+		adKind("ads.request.refused", "Ad request refused", "Twitch refused an ad break or snooze, so nothing happened.",
+			[]string{"core"}, []Field{{Name: "reason", Label: "Why", Kind: "choice", Default: "cooldown", Max: 12,
+				Choices: []string{"cooldown", "not_live", "not_eligible", "no_snoozes", "refused"}, Path: "reason"}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"request_id": "test", "action": "commercial", "reason": v["reason"], "message": "a test refusal"}
+			}),
+		adKind("ads.request.unresolved", "Ad request unclear", "Twitch didn't answer an ad request clearly: it may or may not have started.",
+			[]string{"core"}, nil, func(map[string]string) map[string]any {
+				return map[string]any{"request_id": "test", "action": "commercial"}
+			}),
+		adKind("ads.snooze.applied", "Ad snoozed", "The next automatic ad was pushed back.", []string{"core"},
+			[]Field{{Name: "snoozes", Label: "Snoozes left", Kind: "number", Default: "2", Max: 1}},
+			func(v map[string]string) map[string]any {
+				return map[string]any{"request_id": "test", "action": "snooze", "next_ad_at": "2026-11-08T20:35:00Z", "snooze_count": atoi(v["snoozes"])}
+			}),
 		{Type: "broadcast.channel.online", Label: "Live on Twitch", Description: "Your channel went live on Twitch.",
 			Sources: []string{"twitch"}, Fields: []Field{},
 			build: func(string, map[string]string) (any, *Actor, error) {
@@ -435,6 +469,15 @@ func hypeKind(typ, label, desc string, ended bool) Kind {
 			}
 			return p, nil, nil
 		}}
+}
+
+// adKind is an ad event: no viewer.
+func adKind(typ, label, desc string, sources []string, fields []Field, payload func(map[string]string) map[string]any) Kind {
+	if fields == nil {
+		fields = []Field{}
+	}
+	return Kind{Type: typ, Label: label, Description: desc, Sources: sources, Fields: fields,
+		build: func(_ string, v map[string]string) (any, *Actor, error) { return payload(v), nil, nil }}
 }
 
 // pollKind is a poll event (docs/adr/0023-polls-and-predictions.md).

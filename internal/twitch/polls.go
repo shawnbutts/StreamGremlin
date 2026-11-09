@@ -158,12 +158,15 @@ func (n NewPrediction) Check() error {
 	return nil
 }
 
-// streamerCall calls the API as the streamer, with scope, and puts
-// Twitch's refusals in words.
-func (s *Service) streamerCall(ctx context.Context, scope, method, path string, q url.Values, body, out any) error {
+// errStreamerSignIn is ErrNotSignedIn for calls made as the streamer.
+var errStreamerSignIn = signInError{"twitch: sign in with your Twitch account first"}
+
+// streamerRaw calls the API as the streamer, with scope, and returns
+// Twitch's answer as it is (a *helixError for a 4xx).
+func (s *Service) streamerRaw(ctx context.Context, scope, method, path string, q url.Values, body, out any) error {
 	st := s.streamer.Status()
 	if st.UserID == "" || (st.State != StateConnected && st.State != StateUnknown) {
-		return errPollsSignIn
+		return errStreamerSignIn
 	}
 	if !slices.Contains(st.Scopes, scope) {
 		return fmt.Errorf("%w (%s)", ErrNeedsPermission, scope)
@@ -179,13 +182,21 @@ func (s *Service) streamerCall(ctx context.Context, scope, method, path string, 
 	if q == nil {
 		q = url.Values{}
 	}
-	if method == "GET" {
-		q.Set("broadcaster_id", st.UserID)
-	} else if m, ok := body.(map[string]any); ok {
+	if m, ok := body.(map[string]any); ok && method != "GET" {
 		m["broadcaster_id"] = st.UserID
+	} else {
+		q.Set("broadcaster_id", st.UserID)
 	}
-	path += "?" + q.Encode()
-	err = s.helix.call(ctx, method, path, clientID, tok.Reveal(), body, out)
+	return s.helix.call(ctx, method, path+"?"+q.Encode(), clientID, tok.Reveal(), body, out)
+}
+
+// streamerCall is streamerRaw with Twitch's refusals put in words, for
+// polls and predictions.
+func (s *Service) streamerCall(ctx context.Context, scope, method, path string, q url.Values, body, out any) error {
+	err := s.streamerRaw(ctx, scope, method, path, q, body, out)
+	if errors.Is(err, errStreamerSignIn) {
+		return errPollsSignIn
+	}
 	var he *helixError
 	if errors.As(err, &he) {
 		msg := strings.ToLower(he.Message)

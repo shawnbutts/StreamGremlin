@@ -24,6 +24,7 @@
   import { duration } from '../lib/format';
   import { accountHealth, chatHealth, obsHealth, toneIcon, type Health } from '../lib/health';
   import { jobOk, jobWords } from '../lib/workflows';
+  import AdsCard from './AdsCard.svelte';
 
   let {
     refreshMs = 5000,
@@ -240,6 +241,8 @@
     </div>
   </div>
 </section>
+
+<AdsCard />
 
 <section class="sg-panel card" aria-labelledby="conn-heading">
   <h2 id="conn-heading">Connections</h2>

@@ -828,3 +828,17 @@ Decided 2026-11-09 under D-007, building on D-039.
 - **Twitch's documented limits are checked first,** and repeats are safe.
 - **The sign-in asks for `channel:manage:polls` and `channel:manage:predictions`.**
 - **Built and checked against mocktwitch only** (D-039).
+
+## D-042. Ads (M2 slice 12)
+
+Decided 2026-11-09 under D-007, building on D-039.
+
+- **Ads follow [ADR-0024](adr/0024-ads.md):**
+  - requests and breaks recorded apart; a break only from Twitch's event; its end an estimate;
+  - requests sent once, never retried; an unclear one checked against the schedule;
+  - nothing announced for a refused request;
+  - two steps, "Run an ad break" and "Snooze the next ad", that fail when refused or unclear;
+  - from chat, only the streamer's own message runs them;
+  - an Ads card on Home, `streamgremlin ads`, and two templates in an Ads group.
+- **The sign-in asks for `channel:read:ads`, `channel:edit:commercial` and `channel:manage:ads`.**
+- **Built and checked against mocktwitch only** (D-039).

@@ -1,0 +1,38 @@
+{
+  "template": {
+    "id": "ad",
+    "title": "Run an ad from chat",
+    "category": "Twitch events",
+    "description": "!ad (you only) asks Twitch for a 90-second ad break. Pair it with Tell chat about ad breaks, which speaks up only once Twitch says the break began. Ads need an Affiliate or Partner channel, live.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.ad",
+    "name": "Run an ad from chat",
+    "group": "Ads",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "ad",
+          "chatter.role": [
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "ads.commercial.start",
+        "with": {
+          "seconds": 90
+        }
+      }
+    ]
+  }
+}

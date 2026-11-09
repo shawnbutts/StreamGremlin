@@ -167,6 +167,15 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Templates:** announce poll results, announce prediction results.
   - `streamgremlin polls`, with `start`, `end`, `predict`, `lock`, `resolve` and `cancel`.
 
+- M2 slice 12, ads (Affiliate or Partner; checked against mocktwitch only):
+  - **An Ads card on Home:** the next ad, snoozes left, a running break with the time left (an estimate: Twitch doesn't say when ads end), Run an ad now and Snooze the next ad, and what was asked, in words.
+  - **Triggers:** an ad break begins; an ad break should be over (estimated); under More, Twitch accepts, refuses or doesn't clearly answer a request, and a snooze.
+  - **Steps:** Run an ad break, Snooze the next ad. A refused or unclear request fails the step, so nothing after it announces an ad. From chat, only your own message runs them.
+  - **Templates:** "Tell chat about ad breaks" and "Run an ad from chat" (`!ad`, you only).
+  - A request is sent once and never retried. If Twitch's answer is unclear, StreamGremlin checks Twitch's schedule rather than asking again.
+  - `streamgremlin ads`, `ads run SECONDS` and `ads snooze`.
+  - The sign-in asks to read the ad schedule, run ads and snooze them: sign in to Twitch again once.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

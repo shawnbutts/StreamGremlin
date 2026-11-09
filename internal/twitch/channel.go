@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
@@ -48,6 +49,8 @@ var Feeds = []Feed{
 	{Type: "channel.prediction.progress", Label: "Prediction bets", Version: "1", Scopes: predictionScopes},
 	{Type: "channel.prediction.lock", Label: "Predictions lock", Version: "1", Scopes: predictionScopes},
 	{Type: "channel.prediction.end", Label: "Predictions end", Version: "1", Scopes: predictionScopes},
+	// Ad breaks (docs/adr/0024-ads.md): Affiliate or Partner.
+	{Type: "channel.ad_break.begin", Label: "Ad breaks", Version: "1", Scopes: []string{"channel:read:ads"}},
 }
 
 var (
@@ -349,6 +352,29 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 			"channel.hype_train.progress": "monetization.hype_train.updated", "channel.hype_train.end": "monetization.hype_train.ended"}[typ]
 		env.Actor = nil // the channel's own train: no one viewer
 		payload = e.payload(typ == "channel.hype_train.end")
+	case "channel.ad_break.begin":
+		var e struct {
+			Duration       json.RawMessage `json:"duration_seconds"`
+			StartedAt      json.RawMessage `json:"started_at"`
+			IsAutomatic    json.RawMessage `json:"is_automatic"`
+			RequesterID    string          `json:"requester_user_id"`
+			RequesterLogin string          `json:"requester_user_login"`
+		}
+		if json.Unmarshal(raw, &e) != nil {
+			return events.Envelope{}, false
+		}
+		dur, err := adInt(e.Duration)
+		started, terr := adTime(e.StartedAt)
+		if err != nil || terr != nil || started == nil {
+			return events.Envelope{}, false
+		}
+		auto := strings.Trim(string(e.IsAutomatic), `"`) == "true"
+		// Keyed by when it started: a redelivery under a new message id is
+		// still one break.
+		env.Type, env.Actor, env.OccurredAt = "ads.break.started", nil, *started
+		env.SourceEventID = "ad_break:" + base.BroadcasterUserID + ":" + started.Format(time.RFC3339)
+		payload = map[string]any{"duration_seconds": dur, "started_at": started.Format(time.RFC3339), "is_automatic": auto,
+			"requester_id": e.RequesterID, "requester_login": e.RequesterLogin}
 	case "channel.poll.begin", "channel.poll.progress", "channel.poll.end":
 		var e pollEvent
 		if json.Unmarshal(raw, &e) != nil {
