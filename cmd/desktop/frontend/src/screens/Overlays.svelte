@@ -22,6 +22,7 @@
   let { refreshMs = 3000 }: { refreshMs?: number } = $props();
 
   const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+  const ANIMATION_LABELS: Record<string, string> = { slide: 'slide in', pop: 'pop in', unfold: 'picture, then words' };
   const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
   const FONT_LABELS: Record<string, string> = {
     system: 'Clean (your system’s)',
@@ -226,7 +227,7 @@
             {:else}
               <span class="state-unknown"><span aria-hidden="true">○</span></span>
             {/if}
-            {openState(o)} · {POSITION_LABELS[o.look.position] ?? o.look.position}, {o.look.animation}
+            {openState(o)} · {POSITION_LABELS[o.look.position] ?? o.look.position}, {ANIMATION_LABELS[o.look.animation] ?? o.look.animation}
           </span>
         </span>
         <button type="button" class="button" aria-label={`Edit ${o.name}`} aria-pressed={o.name === selected}
@@ -280,6 +281,7 @@
             <select class="sg-input" bind:value={look.animation}>
               <option value="slide">Slide in</option>
               <option value="pop">Pop in</option>
+              <option value="unfold">Picture, then words</option>
             </select>
           </label>
           <label class="field">

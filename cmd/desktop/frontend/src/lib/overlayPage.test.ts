@@ -160,6 +160,41 @@ describe('overlay page', () => {
     expect(ws.sent.filter((m) => m.id === 'a1' && m.status === 'started').length).toBe(1);
   });
 
+  it('unfolds: the picture (or an initial) first, the words beside it, mirrored on the right', () => {
+    const { ws, stage, c } = page();
+    ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'bottom-left', animation: 'unfold' } } } });
+    expect(stage.className).toBe('pos-bottom-left anim-unfold');
+    ws.fire('message', alert('u1', { picture: 'https://static-cdn.jtvnw.net/fan.png', name: 'Fan' }));
+    const box = stage.querySelector('.sg-alert')!;
+    expect(box.firstElementChild?.className).toBe('sg-picture');
+    expect(box.lastElementChild?.className).toBe('sg-words');
+    // Leaving takes longer: the words fold away, then the picture.
+    c.advance(3000 - 750);
+    expect(box.classList.contains('out')).toBe(true);
+    expect(ws.sent.some((m) => m.status === 'done')).toBe(false);
+    c.advance(750);
+    expect(ws.sent.some((m) => m.id === 'u1' && m.status === 'done')).toBe(true);
+    // No picture: the viewer's initial keeps the shape; no viewer, a star.
+    ws.fire('message', alert('u2', { name: 'émile' }));
+    expect(stage.querySelector('.sg-avatar')?.textContent).toBe('É');
+    c.advance(3000);
+    ws.fire('message', alert('u3', {}));
+    expect(stage.querySelector('.sg-avatar')?.textContent).toBe('★');
+    c.advance(3000);
+    // A picture that won't load becomes the initial.
+    ws.fire('message', alert('u4', { picture: 'https://static-cdn.jtvnw.net/gone.png', name: 'Pal' }));
+    stage.querySelector('img')!.dispatchEvent(new Event('error'));
+    expect(stage.querySelector('img')).toBeNull();
+    expect(stage.querySelector('.sg-avatar')?.textContent).toBe('P');
+    c.advance(3000);
+    ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top-right', animation: 'unfold' } } } });
+    expect(stage.className).toBe('pos-top-right anim-unfold side-right');
+    // Other animations never add an initial.
+    ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'top', animation: 'slide' } } } });
+    ws.fire('message', alert('u5', { name: 'Fan' }));
+    expect(stage.querySelector('.sg-avatar')).toBeNull();
+  });
+
   it("shows only Twitch's profile pictures", () => {
     const { ws, stage, c } = page();
     ws.fire('message', alert('p1', { picture: 'https://static-cdn.jtvnw.net/jtv_user_pictures/fan.png' }));

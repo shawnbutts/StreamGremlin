@@ -756,3 +756,12 @@ Decided 2026-11-09 under D-007. The user said "proceed" to the plan: Streamer.bo
 - **Test chat is judged apart.**
 - **A First words card on Events** with Start over; the step "Start First Words over"; `streamgremlin first-words`.
 - **Welcome templates** in a new Welcome category and group: a chat welcome (a starter) and an on-screen welcome with the profile picture.
+
+## D-034. "Picture, then words": a third alert animation
+
+Decided 2026-11-09 under D-007. The user asked: "can we add a new option for alert animation? there is a widget that starts by sliding in viewer's profile image, then sliding in the first-words welcome message directly to the right of the image. The two are touching on screen. can we do something like that? maybe you have a better idea".
+
+- **`unfold`, built from StreamGremlin's own parts,** not a copy of that widget's design: the picture slides in, then the words unfold from behind it, touching it, and it reverses on the way out.
+- **It mirrors on the right,** so the words open toward the middle.
+- **Without a picture, the viewer's initial (or ★) keeps the shape,** so tests and samples show it too. Alerts now carry the viewer's name for this.
+- **It uses the overlay's look:** colours, gradient, outline, shadow, font and size ([ADR-0017](adr/0017-alert-overlays.md), amended).

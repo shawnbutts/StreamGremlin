@@ -19,7 +19,7 @@ const overlaysUsage = `usage:
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
   streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
-                                          -position bottom-left -animation pop -seconds 8
+                                          -position bottom-left -animation unfold -seconds 8
                                           -background #6a00ff -gradient #ff0080 -corners 24 -border 2
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
   streamgremlin overlays test NAME        show a sample alert in OBS
@@ -110,7 +110,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs := flag.NewFlagSet("overlays look", flag.ContinueOnError)
 			fs.SetOutput(stderr)
 			fs.StringVar(&l.Position, "position", l.Position, "where alerts appear")
-			fs.StringVar(&l.Animation, "animation", l.Animation, "slide or pop")
+			fs.StringVar(&l.Animation, "animation", l.Animation, "slide, pop or unfold (the picture, then the words)")
 			fs.StringVar(&l.TextColor, "text-color", l.TextColor, "#RRGGBB")
 			fs.StringVar(&l.Background, "background", l.Background, "#RRGGBB")
 			fs.IntVar(&l.Opacity, "opacity", l.Opacity, "the background's, 0 to 100")

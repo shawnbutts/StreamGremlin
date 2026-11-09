@@ -49,15 +49,16 @@ var (
 
 // Positions and animations an alert overlay offers.
 var (
-	Positions  = []string{"top-left", "top", "top-right", "center", "bottom-left", "bottom", "bottom-right"}
-	Animations = []string{"slide", "pop"}
+	Positions = []string{"top-left", "top", "top-right", "center", "bottom-left", "bottom", "bottom-right"}
+	// unfold: the picture slides in, then the words unfold from behind it.
+	Animations = []string{"slide", "pop", "unfold"}
 )
 
 // Look is how an alert overlay looks. Fields added later default to how
 // overlays looked before them, so a saved look keeps its appearance.
 type Look struct {
 	Position  string `json:"position"`  // one of Positions
-	Animation string `json:"animation"` // slide or pop
+	Animation string `json:"animation"` // slide, pop or unfold
 	Seconds   int    `json:"seconds"`   // on screen, 2 to 60, unless a step says
 
 	// The box.
@@ -125,7 +126,7 @@ func (l Look) Check() error {
 	case !oneOf(l.Position, Positions):
 		return invalid("the position is a corner, top or bottom middle, or center")
 	case !oneOf(l.Animation, Animations):
-		return invalid("the animation is slide or pop")
+		return invalid("the animation is slide, pop or unfold")
 	case l.Background2 != "" && !colorPattern.MatchString(l.Background2):
 		return invalid("the gradient's second color is like #ffffff, or none")
 	case !between(l.GradientAngle, 0, 359):

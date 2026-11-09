@@ -5,7 +5,8 @@
 
 const PICTURE_PREFIX = 'https://static-cdn.jtvnw.net/';
 const POSITIONS = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
-const OUT_MS = 450;
+// How long leaving takes: unfold folds the words away, then the picture.
+const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
 
 const HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
@@ -100,6 +101,7 @@ export function start(win, opts = {}) {
   let ws = null;
   let stopped = false;
   let retry = 1000;
+  let animation = 'slide';
 
   function setStatus(text) {
     if (!status) return;
@@ -116,21 +118,39 @@ export function start(win, opts = {}) {
     const root = doc.documentElement;
     for (const [k, v] of Object.entries(lookStyle(look))) root.style.setProperty(k, v);
     const pos = POSITIONS.includes(look.position) ? look.position : 'top';
-    const anim = look.animation === 'pop' ? 'pop' : 'slide';
-    stage.className = `pos-${pos} anim-${anim}`;
+    animation = ['pop', 'unfold'].includes(look.animation) ? look.animation : 'slide';
+    // Unfold opens toward the middle: from the right edge on the right.
+    const side = animation === 'unfold' && pos.endsWith('right') ? ' side-right' : '';
+    stage.className = `pos-${pos} anim-${animation}${side}`;
+  }
+
+  // A circle with the viewer's initial (or a star), where a picture
+  // would go: unfold keeps its shape without one.
+  function initial(alert) {
+    const badge = doc.createElement('div');
+    badge.className = 'sg-avatar';
+    const name = typeof alert.name === 'string' ? alert.name.trim() : '';
+    badge.textContent = name ? Array.from(name)[0].toUpperCase() : '★';
+    return badge;
   }
 
   function build(alert) {
     const box = doc.createElement('div');
     box.className = 'sg-alert';
-    if (typeof alert.picture === 'string' && alert.picture.startsWith(PICTURE_PREFIX)) {
+    const hasPicture = typeof alert.picture === 'string' && alert.picture.startsWith(PICTURE_PREFIX);
+    if (hasPicture) {
       const img = doc.createElement('img');
       img.className = 'sg-picture';
       img.alt = '';
       img.referrerPolicy = 'no-referrer';
-      img.addEventListener('error', () => img.remove());
+      img.addEventListener('error', () => {
+        if (animation === 'unfold') img.replaceWith(initial(alert));
+        else img.remove();
+      });
       img.src = alert.picture;
       box.appendChild(img);
+    } else if (animation === 'unfold') {
+      box.appendChild(initial(alert));
     }
     const words = doc.createElement('div');
     words.className = 'sg-words';
@@ -168,6 +188,7 @@ export function start(win, opts = {}) {
       return;
     }
     send({ type: 'ack', id: alert.id, status: 'started' });
+    const outMs = OUT_MS[animation] || 450;
     later(() => {
       box.classList.add('out');
       later(() => {
@@ -175,8 +196,8 @@ export function start(win, opts = {}) {
         send({ type: 'ack', id: alert.id, status: 'done' });
         playing = false;
         next();
-      }, OUT_MS);
-    }, Math.max(500, msLeft - OUT_MS));
+      }, outMs);
+    }, Math.max(500, msLeft - outMs));
   }
 
   function onMessage(ev) {

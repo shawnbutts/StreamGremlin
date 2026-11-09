@@ -54,6 +54,13 @@ func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overla
 			title, _ := c.String("title", "")
 			text, _ := c.String("text", "")
 			a := overlays.Alert{Title: clip(title, overlays.MaxTitle), Text: clip(text, overlays.MaxText), Seconds: o.Look.Seconds}
+			if c.Actor != nil {
+				name := c.Actor.DisplayName
+				if name == "" {
+					name = c.Actor.Login
+				}
+				a.Name = clip(name, 50)
+			}
 			if a.Text == "" {
 				return nil, errors.New("the alert's text is empty")
 			}

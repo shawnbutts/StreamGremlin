@@ -53,6 +53,9 @@ type Alert struct {
 	Title   string `json:"title,omitempty"`
 	Text    string `json:"text"`
 	Picture string `json:"picture,omitempty"`
+	// Name is the viewer's, for the initial shown in place of a missing
+	// picture ("" when the event has no viewer).
+	Name    string `json:"name,omitempty"`
 	Seconds int    `json:"seconds"`
 }
 

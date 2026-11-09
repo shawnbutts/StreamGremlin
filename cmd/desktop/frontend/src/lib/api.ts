@@ -778,7 +778,7 @@ export type OverlayFont = 'system' | 'rounded' | 'serif' | 'mono' | 'condensed' 
 
 export interface OverlayLook {
   position: OverlayPosition;
-  animation: 'slide' | 'pop';
+  animation: 'slide' | 'pop' | 'unfold';
   seconds: number;
   // The box.
   background: string;
@@ -821,7 +821,7 @@ export interface OverlayList {
   server: string;
   server_note?: string;
   positions: OverlayPosition[];
-  animations: ('slide' | 'pop')[];
+  animations: ('slide' | 'pop' | 'unfold')[];
   fonts: OverlayFont[];
   default_look: OverlayLook;
 }

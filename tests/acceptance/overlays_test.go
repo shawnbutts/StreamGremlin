@@ -208,7 +208,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 		return ""
 	})
 	got := shown()
-	if len(got) != 2 || got[0]["title"] != "Sample alert" || got[1]["text"] != "Fan followed!" ||
+	if len(got) != 2 || got[0]["title"] != "Sample alert" || got[1]["text"] != "Fan followed!" || got[1]["name"] != "Fan" ||
 		!strings.HasPrefix(got[1]["picture"].(string), "https://static-cdn.jtvnw.net/") {
 		t.Fatalf("OBS showed %v", got)
 	}

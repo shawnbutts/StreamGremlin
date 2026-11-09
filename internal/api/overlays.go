@@ -218,7 +218,7 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
-				sample := overlays.Alert{Title: "Sample alert", Text: "This is where your alerts appear", Seconds: o.Look.Seconds}
+				sample := overlays.Alert{Title: "Sample alert", Text: "This is where your alerts appear", Name: "Sample", Seconds: o.Look.Seconds}
 				if r.URL.Query().Get("preview") == "1" {
 					// A look in the body is tried in the previews only: OBS
 					// keeps the saved one.

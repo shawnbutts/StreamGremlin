@@ -151,6 +151,11 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 	if _, err := s.SetLook(ctx, "nope", l, now); !errors.Is(err, ErrNotFound) {
 		t.Fatal(err)
 	}
+	unfold := DefaultLook()
+	unfold.Animation = "unfold"
+	if _, err := s.SetLook(ctx, "a", unfold, now); err != nil {
+		t.Fatal("unfold:", err)
+	}
 	fancy := DefaultLook()
 	fancy.Background2, fancy.GradientAngle, fancy.BorderWidth, fancy.TextOutline, fancy.TextShadow = "#ff00aa", 90, 3, 2, 60
 	fancy.Font, fancy.FontName, fancy.TextSize, fancy.TitleColor = "custom", "Comic Neue", 150, "#ffcc00"
