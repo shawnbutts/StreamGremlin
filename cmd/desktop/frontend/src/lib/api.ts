@@ -759,13 +759,33 @@ export const reportPlay = (r: { id: string; ok: boolean; error?: string }) => ap
 
 export type OverlayPosition = 'top-left' | 'top' | 'top-right' | 'center' | 'bottom-left' | 'bottom' | 'bottom-right';
 
+export type OverlayFont = 'system' | 'rounded' | 'serif' | 'mono' | 'condensed' | 'handwritten' | 'custom';
+
 export interface OverlayLook {
   position: OverlayPosition;
   animation: 'slide' | 'pop';
-  text_color: string;
-  background: string;
-  opacity: number;
   seconds: number;
+  // The box.
+  background: string;
+  /** A gradient's second color, or "" for one color. */
+  background2: string;
+  gradient_angle: number;
+  opacity: number;
+  radius: number;
+  border_width: number;
+  border_color: string;
+  shadow: number;
+  shadow_color: string;
+  // The words.
+  font: OverlayFont;
+  /** A font installed on this computer, for "custom". */
+  font_name: string;
+  text_size: number;
+  text_color: string;
+  title_color: string;
+  text_outline: number;
+  outline_color: string;
+  text_shadow: number;
 }
 
 export interface Overlay {
@@ -787,6 +807,7 @@ export interface OverlayList {
   server_note?: string;
   positions: OverlayPosition[];
   animations: ('slide' | 'pop')[];
+  fonts: OverlayFont[];
   default_look: OverlayLook;
 }
 
@@ -803,9 +824,13 @@ export const getOverlayLink = (name: string) =>
 /** A new link; the old one stops working at once. */
 export const newOverlayLink = (name: string) =>
   api<{ name: string; url: string }>('POST', `/v1/overlays/${encodeURIComponent(name)}/link`);
-/** A sample alert, shown in OBS; or, with preview, in the app's previews only. */
-export const testOverlay = (name: string, preview = false) =>
+/**
+ * A sample alert, shown in OBS; or, with preview, in the app's previews
+ * only, in look if given (unsaved: OBS keeps the saved look).
+ */
+export const testOverlay = (name: string, preview = false, look?: OverlayLook) =>
   api<{ shown: boolean; previews?: number }>(
     'POST',
     preview ? `/v1/overlays/${encodeURIComponent(name)}/test?preview=1` : `/v1/overlays/${encodeURIComponent(name)}/test`,
+    preview && look ? { look } : undefined,
   );

@@ -33,7 +33,13 @@ function start() {
 const button = (el: ParentNode, text: string) =>
   Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === text);
 const now = new Date().toISOString();
-const look: OverlayLook = { position: 'top', animation: 'slide', text_color: '#ffffff', background: '#081923', opacity: 90, seconds: 6 };
+const look: OverlayLook = {
+  position: 'top', animation: 'slide', seconds: 6,
+  background: '#081923', background2: '', gradient_angle: 135, opacity: 90, radius: 16, border_width: 0, border_color: '#ffffff',
+  shadow: 35, shadow_color: '#000000',
+  font: 'system', font_name: '', text_size: 100, text_color: '#ffffff', title_color: '#ffffff', text_outline: 0, outline_color: '#000000', text_shadow: 0,
+};
+const fonts = ['system', 'rounded', 'serif', 'mono', 'condensed', 'handwritten', 'custom'];
 const alerts: Overlay = { name: 'alerts', kind: 'alert', look, created_at: now, updated_at: now, pages: 1, previews: 0 };
 const positions = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
 
@@ -49,7 +55,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
       }
       return {
         status: 200,
-        body: { overlays: list, server: 'http://127.0.0.1:7431', server_note: opts.note, positions, animations: ['slide', 'pop'], default_look: look },
+        body: { overlays: list, server: 'http://127.0.0.1:7431', server_note: opts.note, positions, animations: ['slide', 'pop'], fonts, default_look: look },
       };
     },
   };
@@ -173,6 +179,45 @@ describe('Overlays', () => {
     await settle();
     expect(calls.some((c) => c.path === '/v1/overlays/alerts/test')).toBe(true);
     expect(el.textContent).toContain('A sample alert is showing on alerts in OBS.');
+  });
+
+  it('tries gradients, outlines and a font of your own in the preview before saving them', async () => {
+    const { calls } = engine([alerts]);
+    const el = start();
+    await settle();
+    const change = (c: HTMLInputElement | HTMLSelectElement, v: string) => {
+      c.value = v;
+      c.dispatchEvent(new Event(c.type === 'checkbox' ? 'change' : 'input', { bubbles: true }));
+      c.dispatchEvent(new Event('change', { bubbles: true }));
+      flushSync();
+    };
+    const gradient = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim() === 'Gradient')!.querySelector('input')!;
+    gradient.click();
+    flushSync();
+    expect(el.textContent).toContain('Gradient direction');
+    const range = (label: string) =>
+      Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent?.startsWith(label))!.querySelector('input')!;
+    change(range('Outline'), '3');
+    change(range('Letter outline'), '2');
+    const font = Array.from(el.querySelectorAll('select')).find((x) => Array.from(x.options).some((o) => o.value === 'custom'))!;
+    change(font, 'custom');
+    // A custom font needs a name.
+    button(el, 'Preview an alert')!.click();
+    await settle();
+    expect(el.textContent).toContain('Type the name of a font installed on this computer');
+    change(el.querySelector<HTMLInputElement>('input[placeholder="Comic Neue"]')!, ' Comic Neue ');
+    button(el, 'Preview an alert')!.click();
+    await settle();
+    const tried = calls.find((c) => c.path === '/v1/overlays/alerts/test?preview=1')!;
+    expect(tried.body).toMatchObject({
+      look: { background2: '#ff0080', border_width: 3, text_outline: 2, font: 'custom', font_name: 'Comic Neue' },
+    });
+    expect(el.textContent).toContain('with your unsaved changes');
+    expect(calls.some((c) => c.method === 'PUT')).toBe(false);
+    button(el, 'Save look')!.click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT')!.body).toMatchObject({ look: { background2: '#ff0080', font_name: 'Comic Neue', text_size: 100 } });
+    await noViolations('the look form');
   });
 
   it("says why a sample can't show, and when the usual address is taken", async () => {

@@ -121,6 +121,17 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 		t.Fatal(out, errOut)
 	}
 
+	if out, errOut, code := cli(t, dir, "overlays", "look", "alerts", "-gradient", "#ff0080", "-gradient-angle", "90", "-border", "2",
+		"-font-name", "Comic Neue", "-size", "120", "-outline", "2", "-text-shadow", "40"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	if out, _, _ := cli(t, dir, "overlays", "-json"); !strings.Contains(out, `"font": "custom"`) || !strings.Contains(out, `"font_name": "Comic Neue"`) ||
+		!strings.Contains(out, `"background2": "#ff0080"`) || !strings.Contains(out, `"position": "bottom-left"`) {
+		t.Fatalf("the look:\n%s", out)
+	}
+	if _, errOut, code := cli(t, dir, "overlays", "look", "alerts", "-font-name", `x"; }`); code == 0 || !strings.Contains(errOut, "font's name") {
+		t.Fatalf("a bad font name: %d %s", code, errOut)
+	}
 	shown, _ := fakeOBS(t, link, false)
 	eventually(t, "OBS", func() string {
 		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "open in 1 page") {

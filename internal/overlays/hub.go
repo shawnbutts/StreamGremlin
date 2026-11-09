@@ -233,6 +233,21 @@ func (h *Hub) Changed(o Overlay) {
 	}
 }
 
+// PreviewLook sends a look to an overlay's previews only, to try before
+// saving. OBS keeps the saved look.
+func (h *Hub) PreviewLook(o Overlay) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for c := range h.conns[o.Name] {
+		if c.preview {
+			n++
+			h.sendLocked(c, message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": true}))
+		}
+	}
+	return n
+}
+
 // CloseAll closes every page, as the engine stops.
 func (h *Hub) CloseAll() {
 	h.mu.Lock()

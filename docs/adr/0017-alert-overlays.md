@@ -4,6 +4,8 @@
 - **Date:** 2026-11-09
 - **Based on:** StreamWisp ADR-0020 (the overlay server), with its amendments D-123 (a look, profile pictures, previews) and D-124 (slide or pop), and the picture part of its ADR-0074. Changed: only the alert kind is built; a page answers when an alert *starts* as well as when it ends, and alerts on one overlay take turns.
 
+> **Amended by D-029 (2026-11-09):** a look also has, for the box, a gradient (a second color and an angle), corner roundness, an outline (width and color) and a drop shadow (strength and color); and for the words, a font (six lists most computers have, or any font installed on this computer by name), a size (50–200%), a title color, a letter outline (width and color) and a text shadow. Fonts are never downloaded: the page's CSP stays as it is, and OBS runs on the same computer, so it has the same fonts. Every value is checked by the engine and again by the page before it becomes CSS; a font's name is limited to letters, digits, spaces and `. _ & ' -`, so it can't end the CSS value. Looks saved before keep their appearance: the new fields default to what the page drew before, and a title keeps the text's color. "Preview an alert" can send an unsaved look to the previews only (`POST …/test?preview=1 {look}`, `Hub.PreviewLook`); OBS keeps the saved look.
+
 ## Context
 
 F2 needs alerts on stream: a follow, a sub, a raid shows a box in OBS (D-004; FEATURES "Alert overlays with slide or pop", "Profile pictures for overlays"). Streamers coming from Streamer.bot are used to adding a browser source per alert overlay and pointing it at a local page.

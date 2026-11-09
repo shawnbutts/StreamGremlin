@@ -696,3 +696,13 @@ Decided 2026-11-09 under D-007. Before the slice, the user asked whether overlay
 - **Test opens the preview where it's pressed** (the user, 2026-11-09, after asking whether a test should show in OBS: "yes, do both"): Test on the Workflows screen shows a preview of each overlay the workflow uses, and the trace says whether a preview showed the alert, or that nobody saw it.
 - **The app previews the overlay page itself** in a frame, so what you see is what OBS shows.
 - **A new Overlays screen at Ctrl/⌘+8.** Variables moves to 9, and Help to Ctrl/⌘+/.
+
+## D-029. More looks for alert overlays
+
+Decided 2026-11-09 under D-007. During the slice 5 live check the user asked: "can we add a few more options for the alerts? graduated colors, drop shadow, outlines, font selection, etc".
+
+- **The box:** a gradient (second color and direction), corner roundness, an outline, and a drop shadow, each with its color.
+- **The words:** a font, a size, a title color, an outline around the letters, and a text shadow.
+- **Fonts come from the computer, never downloaded:** six choices that look alike on macOS and Windows, or any installed font by name. The overlay page keeps loading nothing from outside. Bundling web fonts was left out: it adds files and licences to track, for what installed fonts already give.
+- **Try before saving:** "Preview an alert" shows the unsaved look in the app's preview only; OBS changes on Save.
+- **Saved looks keep their appearance** ([ADR-0017](adr/0017-alert-overlays.md), amended).

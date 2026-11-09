@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -52,19 +53,50 @@ var (
 	Animations = []string{"slide", "pop"}
 )
 
-// Look is how an alert overlay looks.
+// Look is how an alert overlay looks. Fields added later default to how
+// overlays looked before them, so a saved look keeps its appearance.
 type Look struct {
-	Position   string `json:"position"`   // one of Positions
-	Animation  string `json:"animation"`  // slide or pop
-	TextColor  string `json:"text_color"` // #RRGGBB
-	Background string `json:"background"` // #RRGGBB
-	Opacity    int    `json:"opacity"`    // the background's, 0 to 100
-	Seconds    int    `json:"seconds"`    // on screen, 2 to 60, unless a step says
+	Position  string `json:"position"`  // one of Positions
+	Animation string `json:"animation"` // slide or pop
+	Seconds   int    `json:"seconds"`   // on screen, 2 to 60, unless a step says
+
+	// The box.
+	Background    string `json:"background"`     // #RRGGBB
+	Background2   string `json:"background2"`    // #RRGGBB for a gradient, "" for one color
+	GradientAngle int    `json:"gradient_angle"` // 0 to 359 degrees: 0 is bottom to top, 90 left to right
+	Opacity       int    `json:"opacity"`        // the background's, 0 to 100
+	Radius        int    `json:"radius"`         // corner roundness, 0 to 48 px
+	BorderWidth   int    `json:"border_width"`   // 0 to 12 px
+	BorderColor   string `json:"border_color"`   // #RRGGBB
+	Shadow        int    `json:"shadow"`         // the box's drop shadow, 0 (none) to 100
+	ShadowColor   string `json:"shadow_color"`   // #RRGGBB
+
+	// The words.
+	Font         string `json:"font"`          // one of Fonts, or "custom"
+	FontName     string `json:"font_name"`     // a font installed on this computer, for "custom"
+	TextSize     int    `json:"text_size"`     // percent of the usual, 50 to 200
+	TextColor    string `json:"text_color"`    // #RRGGBB
+	TitleColor   string `json:"title_color"`   // #RRGGBB
+	TextOutline  int    `json:"text_outline"`  // around the letters, 0 to 6 px
+	OutlineColor string `json:"outline_color"` // #RRGGBB
+	TextShadow   int    `json:"text_shadow"`   // the words' drop shadow, 0 (none) to 100
 }
+
+// Fonts offered by name. Each is a list of fonts most computers have, so
+// it looks alike on macOS and Windows; "custom" uses FontName.
+var Fonts = []string{"system", "rounded", "serif", "mono", "condensed", "handwritten", "custom"}
+
+// FontNamePattern is what an installed font's name may look like. It's
+// set as a CSS value, so nothing that could end it gets in.
+const FontNamePattern = `^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$`
+
+var fontNamePattern = regexp.MustCompile(FontNamePattern)
 
 // DefaultLook is a new alert overlay's look.
 func DefaultLook() Look {
-	return Look{Position: "top", Animation: "slide", TextColor: "#ffffff", Background: "#081923", Opacity: 90, Seconds: 6}
+	return Look{Position: "top", Animation: "slide", Seconds: 6,
+		Background: "#081923", GradientAngle: 135, Opacity: 90, Radius: 16, BorderColor: "#ffffff", Shadow: 35, ShadowColor: "#000000",
+		Font: "system", TextSize: 100, TextColor: "#ffffff", TitleColor: "#ffffff", OutlineColor: "#000000"}
 }
 
 func invalid(format string, a ...any) error {
@@ -80,18 +112,41 @@ func oneOf(v string, list []string) bool {
 	return false
 }
 
+func between(n, lo, hi int) bool { return n >= lo && n <= hi }
+
 // Check reports what's wrong with a look, in words.
 func (l Look) Check() error {
+	for _, c := range []string{l.TextColor, l.TitleColor, l.Background, l.BorderColor, l.ShadowColor, l.OutlineColor} {
+		if !colorPattern.MatchString(c) {
+			return invalid("colors are like #ffffff")
+		}
+	}
 	switch {
 	case !oneOf(l.Position, Positions):
 		return invalid("the position is a corner, top or bottom middle, or center")
 	case !oneOf(l.Animation, Animations):
 		return invalid("the animation is slide or pop")
-	case !colorPattern.MatchString(l.TextColor), !colorPattern.MatchString(l.Background):
-		return invalid("colors are like #ffffff")
-	case l.Opacity < 0 || l.Opacity > 100:
+	case l.Background2 != "" && !colorPattern.MatchString(l.Background2):
+		return invalid("the gradient's second color is like #ffffff, or none")
+	case !between(l.GradientAngle, 0, 359):
+		return invalid("the gradient's angle is 0 to 359 degrees")
+	case !between(l.Opacity, 0, 100):
 		return invalid("the opacity is 0 to 100")
-	case l.Seconds < MinSeconds || l.Seconds > MaxSeconds:
+	case !between(l.Radius, 0, 48):
+		return invalid("the corners are 0 to 48 px round")
+	case !between(l.BorderWidth, 0, 12):
+		return invalid("the box's outline is 0 to 12 px")
+	case !between(l.Shadow, 0, 100), !between(l.TextShadow, 0, 100):
+		return invalid("a shadow is 0 to 100")
+	case !oneOf(l.Font, Fonts):
+		return invalid("the font is one of %v", Fonts)
+	case l.Font == "custom" && !fontNamePattern.MatchString(l.FontName):
+		return invalid("a font's name is up to 64 letters, digits, spaces and . _ & ' -, like Comic Neue")
+	case !between(l.TextSize, 50, 200):
+		return invalid("the text size is 50 to 200 percent")
+	case !between(l.TextOutline, 0, 6):
+		return invalid("the letters' outline is 0 to 6 px")
+	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
 	}
 	return nil
@@ -158,6 +213,9 @@ func scan(s scanner) (Overlay, error) {
 	o.Look = DefaultLook()
 	if err := json.Unmarshal([]byte(look), &o.Look); err != nil {
 		return Overlay{}, fmt.Errorf("overlays: %s's look: %w", o.Name, err)
+	}
+	if !strings.Contains(look, `"title_color"`) {
+		o.Look.TitleColor = o.Look.TextColor // saved before titles had their own color
 	}
 	o.CreatedAt, _ = storage.ParseTimestamp(created)
 	o.UpdatedAt, _ = storage.ParseTimestamp(updated)

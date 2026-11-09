@@ -120,6 +120,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 - M2 slice 5, alert overlays:
   - **An Overlays screen:** add alert overlays, copy each one's private link into OBS as a browser source, and set where alerts appear, slide or pop, colors, opacity and time on screen, with a live preview. It shows whether OBS has each overlay open, and can show a sample alert in OBS or in the preview.
   - **Workflow step:** "Show an alert", with a title and text, and if you like the viewer's Twitch profile picture and a sound. Alerts on one overlay take turns. A run says whether the alert showed. Test on the Workflows screen opens a preview of the overlay right there, and shows the alert only in it, never in OBS; the run says whether a preview showed it.
+  - **More looks** (D-029): gradients, rounder or squarer corners, an outline and a drop shadow on the box; a font (or any font on your computer), size, title color, letter outline and text shadow on the words. "Preview an alert" tries changes before you save them.
   - **A template:** "Show an alert for new followers".
   - Links can be replaced (the old one stops at once) and are never logged or kept in backups.
   - `streamgremlin overlays`, `overlays add`, `link`, `new-link`, `look`, `test` and `delete`.

@@ -45,6 +45,7 @@ type OverlayList struct {
 	ServerNote string        `json:"server_note,omitempty"`
 	Positions  []string      `json:"positions"`
 	Animations []string      `json:"animations"`
+	Fonts      []string      `json:"fonts"`
 	Default    overlays.Look `json:"default_look"`
 }
 
@@ -84,7 +85,7 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
-				out := OverlayList{Overlays: []OverlayView{}, Positions: overlays.Positions, Animations: overlays.Animations, Default: overlays.DefaultLook()}
+				out := OverlayList{Overlays: []OverlayView{}, Positions: overlays.Positions, Animations: overlays.Animations, Fonts: overlays.Fonts, Default: overlays.DefaultLook()}
 				for _, o := range list {
 					out.Overlays = append(out.Overlays, view(o))
 				}
@@ -209,7 +210,7 @@ func overlayRoutes(d Deps) []Route {
 		{
 			Method: "POST", Path: "/v1/overlays/{name}/test",
 			Summary: "Show a sample alert on an overlay in OBS, to see where it goes. Fails when the overlay isn't open in OBS (503). " +
-				"?preview=1 shows it in the app's previews only, never in OBS.",
+				"?preview=1 shows it in the app's previews only, never in OBS; with {look}, in that look, unsaved.",
 			Permission: PermOverlaysWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				o, err := d.Overlays.Get(r.Context(), r.PathValue("name"))
@@ -219,6 +220,26 @@ func overlayRoutes(d Deps) []Route {
 				}
 				sample := overlays.Alert{Title: "Sample alert", Text: "This is where your alerts appear", Seconds: o.Look.Seconds}
 				if r.URL.Query().Get("preview") == "1" {
+					// A look in the body is tried in the previews only: OBS
+					// keeps the saved one.
+					if r.ContentLength != 0 {
+						look := o.Look
+						in := struct {
+							Look *overlays.Look `json:"look"`
+						}{Look: &look}
+						if !decodeJSON(w, r, &in) {
+							return
+						}
+						if in.Look != nil {
+							if err := in.Look.Check(); err != nil {
+								overlayError(w, r, d, err)
+								return
+							}
+							o.Look = *in.Look
+							sample.Seconds = o.Look.Seconds
+							d.Hub.PreviewLook(o)
+						}
+					}
 					writeJSON(w, http.StatusOK, d.Hub.Preview(o.Name, sample))
 					return
 				}

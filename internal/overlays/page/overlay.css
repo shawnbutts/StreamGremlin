@@ -3,7 +3,14 @@
    look, set as custom properties by overlay.js. */
 :root {
   --sg-text: #ffffff;
+  --sg-title: #ffffff;
   --sg-bg: rgba(8, 25, 35, 0.9);
+  --sg-radius: 16px;
+  --sg-border: none;
+  --sg-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --sg-text-shadow: none;
+  --sg-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sg-scale: 1;
   --sg-in: 450ms;
 }
 html, body {
@@ -12,7 +19,7 @@ html, body {
   height: 100vh;
   overflow: hidden;
   background: transparent;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--sg-font);
 }
 #status {
   position: fixed;
@@ -43,30 +50,32 @@ html, body {
 .sg-alert {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: calc(18px * var(--sg-scale));
   max-width: 70vw;
-  padding: 18px 26px;
-  border-radius: 16px;
+  padding: calc(18px * var(--sg-scale)) calc(26px * var(--sg-scale));
+  border-radius: var(--sg-radius);
+  border: var(--sg-border);
   background: var(--sg-bg);
   color: var(--sg-text);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--sg-shadow);
   opacity: 0;
 }
 .sg-picture {
-  width: 76px;
-  height: 76px;
+  width: calc(76px * var(--sg-scale));
+  height: calc(76px * var(--sg-scale));
   border-radius: 50%;
   flex: none;
   object-fit: cover;
 }
-.sg-words { min-width: 0; }
+.sg-words { min-width: 0; text-shadow: var(--sg-text-shadow); }
 .sg-title {
-  font-size: 22px;
+  font-size: calc(22px * var(--sg-scale));
   font-weight: 600;
+  color: var(--sg-title);
   opacity: 0.85;
 }
 .sg-text {
-  font-size: 32px;
+  font-size: calc(32px * var(--sg-scale));
   font-weight: 700;
   line-height: 1.2;
   overflow-wrap: anywhere;

@@ -48,6 +48,17 @@ func TestOverlaysThroughTheAPI(t *testing.T) {
 	if code, out = call("POST", "/v1/overlays/alerts/test", ""); code != 503 || !strings.Contains(out, "isn't open in OBS") {
 		t.Fatalf("test, closed: %d %s", code, out)
 	}
+	// An unsaved look can be tried in the preview; a bad one is refused,
+	// and neither is saved.
+	if code, out = call("POST", "/v1/overlays/alerts/test?preview=1", `{"look":{"font":"custom","font_name":"Comic Neue","background2":"#ff0080"}}`); code != 200 || !strings.Contains(out, `"test":true`) {
+		t.Fatalf("preview a look: %d %s", code, out)
+	}
+	if code, _ = call("POST", "/v1/overlays/alerts/test?preview=1", `{"look":{"font":"custom","font_name":"x\"; }"}}`); code != 400 {
+		t.Fatal("a bad look in a preview:", code)
+	}
+	if _, out = call("GET", "/v1/overlays", ""); strings.Contains(out, "Comic Neue") {
+		t.Fatal("a previewed look was saved")
+	}
 	// A preview-only sample needs no OBS, and reaches no OBS.
 	if code, out = call("POST", "/v1/overlays/alerts/test?preview=1", ""); code != 200 || !strings.Contains(out, `"test":true`) || strings.Contains(out, `"shown":true`) {
 		t.Fatalf("preview: %d %s", code, out)

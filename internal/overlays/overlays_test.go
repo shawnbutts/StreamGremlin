@@ -108,6 +108,29 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 			t.Errorf("%d: %v", i, err)
 		}
 	}
+	more := []func(*Look){
+		func(l *Look) { l.Background2 = "blue" },
+		func(l *Look) { l.GradientAngle = 360 },
+		func(l *Look) { l.Radius = 49 },
+		func(l *Look) { l.BorderWidth = 13 },
+		func(l *Look) { l.BorderColor = "" },
+		func(l *Look) { l.Shadow = -1 },
+		func(l *Look) { l.TextShadow = 101 },
+		func(l *Look) { l.Font = "papyrus" },
+		func(l *Look) { l.Font, l.FontName = "custom", "" },
+		func(l *Look) { l.Font, l.FontName = "custom", `Arial"; } body { color: red` },
+		func(l *Look) { l.Font, l.FontName = "custom", "a\\b" },
+		func(l *Look) { l.TextSize = 49 },
+		func(l *Look) { l.TextOutline = 7 },
+		func(l *Look) { l.TitleColor = "#fff" },
+	}
+	for i, change := range more {
+		l := DefaultLook()
+		change(&l)
+		if _, _, err := s.Create(ctx, "x", KindAlert, l, now); !errors.Is(err, ErrInvalid) {
+			t.Errorf("more %d: %v", i, err)
+		}
+	}
 	for _, name := range []string{"", "Alerts", "a b", "-x", strings.Repeat("a", 65)} {
 		if _, _, err := s.Create(ctx, name, KindAlert, DefaultLook(), now); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%q: %v", name, err)
@@ -127,6 +150,33 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 	}
 	if _, err := s.SetLook(ctx, "nope", l, now); !errors.Is(err, ErrNotFound) {
 		t.Fatal(err)
+	}
+	fancy := DefaultLook()
+	fancy.Background2, fancy.GradientAngle, fancy.BorderWidth, fancy.TextOutline, fancy.TextShadow = "#ff00aa", 90, 3, 2, 60
+	fancy.Font, fancy.FontName, fancy.TextSize, fancy.TitleColor = "custom", "Comic Neue", 150, "#ffcc00"
+	if o, err := s.SetLook(ctx, "a", fancy, now); err != nil || o.Look != fancy {
+		t.Fatal(o, err)
+	}
+}
+
+// A look saved before the newer options keeps how it looked: their
+// defaults, and a title in the text's color.
+func TestOlderLooksKeepTheirAppearance(t *testing.T) {
+	ctx := context.Background()
+	s, db, _ := newStore(t)
+	if _, _, err := s.Create(ctx, "old", KindAlert, DefaultLook(), now); err != nil {
+		t.Fatal(err)
+	}
+	old := `{"position":"bottom","animation":"pop","text_color":"#112233","background":"#ffffff","opacity":70,"seconds":5}`
+	if _, err := db.ExecContext(ctx, "UPDATE overlays SET look = ?", old); err != nil {
+		t.Fatal(err)
+	}
+	o, err := s.Get(ctx, "old")
+	want := DefaultLook()
+	want.Position, want.Animation, want.TextColor, want.TitleColor, want.Background, want.Opacity, want.Seconds =
+		"bottom", "pop", "#112233", "#112233", "#ffffff", 70, 5
+	if err != nil || o.Look != want || o.Look.Check() != nil {
+		t.Fatalf("%+v %v", o.Look, err)
 	}
 }
 
@@ -283,6 +333,10 @@ func TestPreviewsOnlyGetTests(t *testing.T) {
 	h := NewHub(nil)
 	p := open(h, "alerts", false, true)
 	pv := open(h, "alerts", true, false)
+	// An unsaved look reaches previews only.
+	if n := h.PreviewLook(Overlay{Name: "alerts", Look: DefaultLook()}); n != 1 {
+		t.Fatal(n)
+	}
 	res := h.Preview("alerts", Alert{Text: "test", Seconds: 2})
 	if res.Previews != 1 || !res.Test || res.Shown {
 		t.Fatal(res)

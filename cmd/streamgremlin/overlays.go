@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -17,8 +18,10 @@ const overlaysUsage = `usage:
   streamgremlin overlays add NAME         add an alert overlay, and print its link
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
-  streamgremlin overlays look NAME [-position P] [-animation slide|pop] [-text-color #RRGGBB]
-                                          [-background #RRGGBB] [-opacity 0-100] [-seconds S]
+  streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
+                                          -position bottom-left -animation pop -seconds 8
+                                          -background #6a00ff -gradient #ff0080 -corners 24 -border 2
+                                          -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
   streamgremlin overlays test NAME        show a sample alert in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -112,8 +115,28 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.Background, "background", l.Background, "#RRGGBB")
 			fs.IntVar(&l.Opacity, "opacity", l.Opacity, "the background's, 0 to 100")
 			fs.IntVar(&l.Seconds, "seconds", l.Seconds, "how long an alert stays, 2 to 60")
+			fs.StringVar(&l.Background2, "gradient", l.Background2, "#RRGGBB: the gradient's second color (none for one color)")
+			fs.IntVar(&l.GradientAngle, "gradient-angle", l.GradientAngle, "0 to 359 degrees")
+			fs.IntVar(&l.Radius, "corners", l.Radius, "corner roundness, 0 to 48")
+			fs.IntVar(&l.BorderWidth, "border", l.BorderWidth, "the box's outline, 0 to 12")
+			fs.StringVar(&l.BorderColor, "border-color", l.BorderColor, "#RRGGBB")
+			fs.IntVar(&l.Shadow, "shadow", l.Shadow, "the box's drop shadow, 0 to 100")
+			fs.StringVar(&l.ShadowColor, "shadow-color", l.ShadowColor, "#RRGGBB")
+			fs.StringVar(&l.Font, "font", l.Font, strings.Join(overlays.Fonts, ", "))
+			fs.StringVar(&l.FontName, "font-name", l.FontName, "a font installed on this computer, with -font custom")
+			fs.IntVar(&l.TextSize, "size", l.TextSize, "text size, 50 to 200 percent")
+			fs.StringVar(&l.TitleColor, "title-color", l.TitleColor, "#RRGGBB")
+			fs.IntVar(&l.TextOutline, "outline", l.TextOutline, "around the letters, 0 to 6")
+			fs.StringVar(&l.OutlineColor, "outline-color", l.OutlineColor, "#RRGGBB")
+			fs.IntVar(&l.TextShadow, "text-shadow", l.TextShadow, "the words' drop shadow, 0 to 100")
 			if err := fs.Parse(args[2:]); err != nil || fs.NArg() > 0 {
 				return usage()
+			}
+			if l.Background2 == "none" {
+				l.Background2 = ""
+			}
+			if l.FontName != "" && l.Font != "custom" {
+				l.Font = "custom" // naming a font means using it
 			}
 			if code := apiExit(c.Do(ctx, "PUT", path(o.Name), map[string]any{"look": l}, &o), stderr); code != 0 {
 				return code

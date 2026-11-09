@@ -22,6 +22,16 @@
   let { refreshMs = 3000 }: { refreshMs?: number } = $props();
 
   const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+  const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
+  const FONT_LABELS: Record<string, string> = {
+    system: 'Clean (your system’s)',
+    rounded: 'Rounded',
+    serif: 'Serif',
+    mono: 'Typewriter',
+    condensed: 'Bold and narrow',
+    handwritten: 'Handwritten',
+    custom: 'A font on this computer…',
+  };
   const POSITION_LABELS: Record<string, string> = {
     'top-left': 'Top left',
     top: 'Top middle',
@@ -39,6 +49,7 @@
   let busy = $state(false);
   let newName = $state('alerts');
   let formError = $state('');
+  let lookError = $state('');
   let selected = $state('');
   let look = $state<OverlayLook | undefined>();
   let lookFor = $state('');
@@ -140,12 +151,45 @@
     }
   }
 
+  /** The form's look, as numbers, or why it can't be used yet. */
+  function formLook(): OverlayLook | undefined {
+    if (!look) return undefined;
+    lookError = '';
+    if (look.font === 'custom' && !FONT_NAME.test(look.font_name.trim())) {
+      lookError = 'Type the name of a font installed on this computer, like Comic Neue.';
+      return undefined;
+    }
+    const n = (v: unknown) => Number(v);
+    return {
+      ...look,
+      font_name: look.font === 'custom' ? look.font_name.trim() : look.font_name,
+      seconds: n(look.seconds), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
+      border_width: n(look.border_width), shadow: n(look.shadow), text_size: n(look.text_size),
+      text_outline: n(look.text_outline), text_shadow: n(look.text_shadow),
+    };
+  }
+
+  function setGradient(on: boolean) {
+    if (!look) return;
+    look.background2 = on ? look.background2 || '#ff0080' : '';
+  }
+
   async function saveLook(e: SubmitEvent) {
     e.preventDefault();
-    if (!current || !look) return;
+    if (!current) return;
     const name = current.name;
-    const l = { ...look, opacity: Number(look.opacity), seconds: Number(look.seconds) };
+    const l = formLook();
+    if (!l) return;
     if (await act(() => setOverlayLook(name, l), `Saved ${name}'s look.`)) lookFor = '';
+  }
+
+  /** A sample in the preview, in the form's look, saved or not. */
+  function previewLook() {
+    if (!current) return;
+    const name = current.name;
+    const l = formLook();
+    if (!l) return;
+    act(() => testOverlay(name, true, l), changed ? 'A sample is showing in the preview, with your unsaved changes.' : 'A sample alert is showing in the preview.');
   }
 
   function openState(o: Overlay) {
@@ -221,45 +265,138 @@
     <h2 id="overlay-look-heading">{current.name}: look and preview</h2>
     <div class="overlay-edit">
       <form class="test-form overlay-look" onsubmit={saveLook}>
-        <label class="field">
-          <span>Where alerts appear</span>
-          <select class="sg-input" bind:value={look.position}>
-            {#each data?.positions ?? [] as p (p)}
-              <option value={p}>{POSITION_LABELS[p] ?? p}</option>
-            {/each}
-          </select>
-        </label>
-        <label class="field">
-          <span>How they come in</span>
-          <select class="sg-input" bind:value={look.animation}>
-            <option value="slide">Slide in</option>
-            <option value="pop">Pop in</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Text color</span>
-          <input class="sg-input color-input" type="color" bind:value={look.text_color} />
-        </label>
-        <label class="field">
-          <span>Background color</span>
-          <input class="sg-input color-input" type="color" bind:value={look.background} />
-        </label>
-        <label class="field">
-          <span>Background opacity {look.opacity}%</span>
-          <input type="range" min="0" max="100" step="5" bind:value={look.opacity} />
-        </label>
-        <label class="field">
-          <span>Seconds on screen</span>
-          <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
-          <span class="sg-muted field-hint">A step can choose its own.</span>
-        </label>
+        <fieldset class="look-group">
+          <legend>Placement</legend>
+          <label class="field">
+            <span>Where alerts appear</span>
+            <select class="sg-input" bind:value={look.position}>
+              {#each data?.positions ?? [] as p (p)}
+                <option value={p}>{POSITION_LABELS[p] ?? p}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="field">
+            <span>How they come in</span>
+            <select class="sg-input" bind:value={look.animation}>
+              <option value="slide">Slide in</option>
+              <option value="pop">Pop in</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Seconds on screen</span>
+            <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
+            <span class="sg-muted field-hint">A step can choose its own.</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="look-group">
+          <legend>Box</legend>
+          <div class="color-row">
+            <label class="field">
+              <span>Background</span>
+              <input class="sg-input color-input" type="color" bind:value={look.background} />
+            </label>
+            <label class="choice-inline">
+              <input type="checkbox" checked={!!look.background2} onchange={(e) => setGradient(e.currentTarget.checked)} />
+              Gradient
+            </label>
+            {#if look.background2}
+              <label class="field">
+                <span>To</span>
+                <input class="sg-input color-input" type="color" bind:value={look.background2} />
+              </label>
+            {/if}
+          </div>
+          {#if look.background2}
+            <label class="field">
+              <span>Gradient direction {look.gradient_angle}°</span>
+              <input type="range" min="0" max="359" step="15" bind:value={look.gradient_angle} />
+            </label>
+          {/if}
+          <label class="field">
+            <span>Background opacity {look.opacity}%</span>
+            <input type="range" min="0" max="100" step="5" bind:value={look.opacity} />
+          </label>
+          <label class="field">
+            <span>Corner roundness {look.radius}</span>
+            <input type="range" min="0" max="48" step="2" bind:value={look.radius} />
+          </label>
+          <div class="color-row">
+            <label class="field">
+              <span>Outline {look.border_width ? `${look.border_width} px` : 'none'}</span>
+              <input type="range" min="0" max="12" step="1" bind:value={look.border_width} />
+            </label>
+            <label class="field">
+              <span>Outline color</span>
+              <input class="sg-input color-input" type="color" bind:value={look.border_color} />
+            </label>
+          </div>
+          <div class="color-row">
+            <label class="field">
+              <span>Drop shadow {look.shadow ? look.shadow : 'none'}</span>
+              <input type="range" min="0" max="100" step="5" bind:value={look.shadow} />
+            </label>
+            <label class="field">
+              <span>Shadow color</span>
+              <input class="sg-input color-input" type="color" bind:value={look.shadow_color} />
+              <span class="sg-muted field-hint">For the box's and the words' shadows.</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="look-group">
+          <legend>Text</legend>
+          <label class="field">
+            <span>Font</span>
+            <select class="sg-input" bind:value={look.font}>
+              {#each data?.fonts ?? [] as f (f)}
+                <option value={f}>{FONT_LABELS[f] ?? f}</option>
+              {/each}
+            </select>
+          </label>
+          {#if look.font === 'custom'}
+            <label class="field">
+              <span>Font name</span>
+              <input class="sg-input" bind:value={look.font_name} maxlength="64" spellcheck="false" placeholder="Comic Neue" />
+              <span class="sg-muted field-hint">Any font installed on this computer, as your other apps name it. OBS uses the same fonts.</span>
+            </label>
+          {/if}
+          <label class="field">
+            <span>Text size {look.text_size}%</span>
+            <input type="range" min="50" max="200" step="10" bind:value={look.text_size} />
+          </label>
+          <div class="color-row">
+            <label class="field">
+              <span>Text color</span>
+              <input class="sg-input color-input" type="color" bind:value={look.text_color} />
+            </label>
+            <label class="field">
+              <span>Title color</span>
+              <input class="sg-input color-input" type="color" bind:value={look.title_color} />
+            </label>
+          </div>
+          <div class="color-row">
+            <label class="field">
+              <span>Letter outline {look.text_outline ? `${look.text_outline} px` : 'none'}</span>
+              <input type="range" min="0" max="6" step="1" bind:value={look.text_outline} />
+            </label>
+            <label class="field">
+              <span>Letter outline color</span>
+              <input class="sg-input color-input" type="color" bind:value={look.outline_color} />
+            </label>
+          </div>
+          <label class="field">
+            <span>Text shadow {look.text_shadow ? look.text_shadow : 'none'}</span>
+            <input type="range" min="0" max="100" step="5" bind:value={look.text_shadow} />
+          </label>
+        </fieldset>
+
+        {#if lookError}<p class="error" role="alert">{lookError}</p>{/if}
         <div class="row-actions">
           <button type="submit" class="sg-button" disabled={busy || !changed}>Save look</button>
-          <button type="button" class="button" disabled={busy || !previewLoaded}
-            onclick={() => act(() => testOverlay(current.name, true), 'A sample alert is showing in the preview.')}>Preview an alert</button
-          >
+          <button type="button" class="button" disabled={busy || !previewLoaded} onclick={previewLook}>Preview an alert</button>
         </div>
-        {#if changed}<p class="sg-muted">Save to see the change in the preview and in OBS.</p>{/if}
+        {#if changed}<p class="sg-muted">Preview an alert shows your changes here. Save to use them in OBS.</p>{/if}
       </form>
       <div class="overlay-preview-wrap">
         <OverlayPreview name={current.name} reload={previewReload} bind:loaded={previewLoaded} />

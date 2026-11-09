@@ -4,11 +4,14 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 type Start = (win: unknown, opts?: unknown) => { stop: () => void };
 let start: Start;
+let lookStyle: (look: Record<string, unknown>) => Record<string, string>;
 
 beforeAll(async () => {
   (window as unknown as { __streamgremlinOverlayTest: boolean }).__streamgremlinOverlayTest = true;
   const path = new URL('../../../../../internal/overlays/page/overlay.js', import.meta.url).pathname;
-  start = ((await import(/* @vite-ignore */ path)) as { start: Start }).start;
+  const mod = (await import(/* @vite-ignore */ path)) as { start: Start; lookStyle: typeof lookStyle };
+  start = mod.start;
+  lookStyle = mod.lookStyle;
 });
 
 class FakeSocket {
@@ -98,6 +101,40 @@ describe('overlay page', () => {
     ws.fire('message', { type: 'hello', body: { overlay: { look: { position: 'x"><b>', text_color: 'red;}' } } } });
     expect(stage.className).toBe('pos-top anim-slide');
     expect(document.documentElement.style.getPropertyValue('--sg-text')).toBe('#112233');
+  });
+
+  it('draws gradients, outlines, shadows, fonts and sizes from checked values only', () => {
+    const st = lookStyle({
+      text_color: '#ffffff', title_color: '#ffcc00', background: '#6a00ff', background2: '#ff0080', gradient_angle: 90, opacity: 80,
+      radius: 24, border_width: 3, border_color: '#ffffff', shadow: 0, shadow_color: '#000000',
+      font: 'custom', font_name: 'Comic Neue', text_size: 150, text_outline: 2, outline_color: '#000000', text_shadow: 50,
+    });
+    expect(st['--sg-bg']).toBe('linear-gradient(90deg, rgba(106, 0, 255, 0.8), rgba(255, 0, 128, 0.8))');
+    expect(st['--sg-title']).toBe('#ffcc00');
+    expect(st['--sg-radius']).toBe('24px');
+    expect(st['--sg-border']).toBe('3px solid #ffffff');
+    expect(st['--sg-shadow']).toBe('none');
+    expect(st['--sg-font']).toMatch(/^"Comic Neue", system-ui/);
+    expect(st['--sg-scale']).toBe('1.5');
+    expect(st['--sg-text-shadow']).toMatch(/3\.0px 3\.0px 5\.0px rgba\(0, 0, 0, 0\.65\)$/); // the drop shadow, last
+    expect(st['--sg-text-shadow']).toContain('2.00px 0.00px 0 #000000');
+    // A solid box, no outline, no text shadow.
+    const plain = lookStyle({ background: '#081923', opacity: 90, shadow: 35, text_outline: 0, text_shadow: 0, font: 'serif' });
+    expect(plain['--sg-bg']).toBe('rgba(8, 25, 35, 0.9)');
+    expect(plain['--sg-text-shadow']).toBe('none');
+    expect(plain['--sg-shadow']).toBe('0 8px 30px rgba(0, 0, 0, 0.35)');
+    expect(plain['--sg-font']).toMatch(/^Georgia/);
+    // Anything that could end the CSS value falls back, never passes through.
+    const bad = lookStyle({
+      font: 'custom', font_name: 'Arial"; } body { color: red', background: '#000000', background2: 'red); x: (',
+      border_width: 99, border_color: 'red', text_size: 9999, radius: -5, text_color: 'url(x)',
+    });
+    expect(bad['--sg-font']).toMatch(/^system-ui/);
+    expect(bad['--sg-bg']).toBe('rgba(0, 0, 0, 1)');
+    expect(bad['--sg-border']).toBe('none');
+    expect(bad['--sg-scale']).toBe('2');
+    expect(bad['--sg-radius']).toBe('0px');
+    expect(bad['--sg-text']).toBeUndefined();
   });
 
   it('shows text as text, says it started and when it left, and plays alerts in turn', () => {

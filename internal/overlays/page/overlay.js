@@ -7,11 +7,75 @@ const PICTURE_PREFIX = 'https://static-cdn.jtvnw.net/';
 const POSITIONS = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
 const OUT_MS = 450;
 
+const HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
+const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
+
+// Font lists most computers have, so a choice looks alike on macOS and
+// Windows. "custom" uses a font installed on this computer, by name.
+const FONTS = {
+  system: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  rounded: 'ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", "Nunito", "Varela Round", system-ui, sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+  condensed: 'Impact, Haettenschweiler, "Arial Narrow Bold", "Bahnschrift Condensed", sans-serif',
+  handwritten: '"Comic Sans MS", "Chalkboard SE", "Marker Felt", "Segoe Print", cursive',
+};
+
+const clamp = (n, lo, hi, dflt) => {
+  const x = Number(n);
+  return Number.isFinite(x) ? Math.max(lo, Math.min(hi, Math.round(x))) : dflt;
+};
+
 function hexToRgba(hex, opacity) {
-  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
+  const m = HEX.exec(hex || '');
   if (!m) return null;
-  const a = Math.max(0, Math.min(100, Number(opacity) || 0)) / 100;
+  const a = clamp(opacity, 0, 100, 100) / 100;
   return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${a})`;
+}
+
+/** The CSS custom properties for a look, from checked values only. */
+export function lookStyle(look) {
+  const out = {};
+  if (!look) return out;
+  const color = (c) => (HEX.test(c || '') ? c : null);
+  if (color(look.text_color)) out['--sg-text'] = look.text_color;
+  if (color(look.title_color)) out['--sg-title'] = look.title_color;
+  const bg = hexToRgba(look.background, look.opacity);
+  if (bg) {
+    const bg2 = hexToRgba(look.background2, look.opacity);
+    out['--sg-bg'] = bg2 ? `linear-gradient(${clamp(look.gradient_angle, 0, 359, 135)}deg, ${bg}, ${bg2})` : bg;
+  }
+  out['--sg-radius'] = `${clamp(look.radius, 0, 48, 16)}px`;
+  const bw = clamp(look.border_width, 0, 12, 0);
+  out['--sg-border'] = bw > 0 && color(look.border_color) ? `${bw}px solid ${look.border_color}` : 'none';
+  const shadowColor = color(look.shadow_color) || '#000000';
+  const shadow = clamp(look.shadow, 0, 100, 35);
+  out['--sg-shadow'] = shadow > 0
+    ? `0 ${Math.round(shadow / 4.4)}px ${Math.round(shadow * 0.86)}px ${hexToRgba(shadowColor, shadow)}`
+    : 'none';
+  // Letters: an outline drawn as shadows all around (works in every
+  // browser OBS has used), then a drop shadow.
+  const parts = [];
+  const ow = clamp(look.text_outline, 0, 6, 0);
+  if (ow > 0) {
+    const oc = color(look.outline_color) || '#000000';
+    const steps = ow > 2 ? 16 : 8;
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * 2 * Math.PI;
+      parts.push(`${(Math.cos(a) * ow).toFixed(2)}px ${(Math.sin(a) * ow).toFixed(2)}px 0 ${oc}`);
+    }
+  }
+  const ts = clamp(look.text_shadow, 0, 100, 0);
+  if (ts > 0) {
+    const off = (1 + ts / 25).toFixed(1);
+    parts.push(`${off}px ${off}px ${(ts / 10).toFixed(1)}px ${hexToRgba(shadowColor, Math.min(100, 30 + ts * 0.7))}`);
+  }
+  out['--sg-text-shadow'] = parts.length ? parts.join(', ') : 'none';
+  let font = FONTS[look.font] || FONTS.system;
+  if (look.font === 'custom' && FONT_NAME.test(look.font_name || '')) font = `"${look.font_name}", ${FONTS.system}`;
+  out['--sg-font'] = font;
+  out['--sg-scale'] = String(clamp(look.text_size, 50, 200, 100) / 100);
+  return out;
 }
 
 /**
@@ -50,9 +114,7 @@ export function start(win, opts = {}) {
   function applyLook(look) {
     if (!look) return;
     const root = doc.documentElement;
-    if (/^#[0-9a-f]{6}$/i.test(look.text_color || '')) root.style.setProperty('--sg-text', look.text_color);
-    const bg = hexToRgba(look.background, look.opacity);
-    if (bg) root.style.setProperty('--sg-bg', bg);
+    for (const [k, v] of Object.entries(lookStyle(look))) root.style.setProperty(k, v);
     const pos = POSITIONS.includes(look.position) ? look.position : 'top';
     const anim = look.animation === 'pop' ? 'pop' : 'slide';
     stage.className = `pos-${pos} anim-${anim}`;
