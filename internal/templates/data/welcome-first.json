@@ -1,0 +1,29 @@
+{
+  "template": {
+    "id": "welcome-first",
+    "title": "Welcome first-time chatters",
+    "category": "Welcome",
+    "description": "Says welcome in chat to each viewer's first message of the stream. Your own messages never count.",
+    "starter": true,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.welcome-first",
+    "name": "Welcome first-time chatters",
+    "group": "Welcome",
+    "triggers": [
+      {
+        "type": "chat.first_words.received"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Welcome to the stream, ${event.actor.display_name}! 👋"
+        }
+      }
+    ]
+  }
+}

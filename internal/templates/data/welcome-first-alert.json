@@ -1,0 +1,38 @@
+{
+  "template": {
+    "id": "welcome-first-alert",
+    "title": "Welcome first-time chatters on screen",
+    "category": "Welcome",
+    "description": "Shows each viewer's name and profile picture on your alert overlay at their first message of the stream. Add an overlay on the Overlays screen first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.overlay",
+        "hint": "Your alert overlay's name, like alerts"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.welcome-first-alert",
+    "name": "Welcome first-time chatters on screen",
+    "group": "Welcome",
+    "triggers": [
+      {
+        "type": "chat.first_words.received"
+      }
+    ],
+    "steps": [
+      {
+        "action": "overlays.alert",
+        "with": {
+          "overlay": "",
+          "title": "Welcome!",
+          "text": "${event.actor.display_name} is here",
+          "picture": true,
+          "seconds": 5
+        }
+      }
+    ]
+  }
+}

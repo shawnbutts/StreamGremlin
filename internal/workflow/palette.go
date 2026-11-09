@@ -70,6 +70,11 @@ func Triggers() []TriggerEntry {
 			Help:   "Any message in your chat, commands included.",
 			Match:  []MatchField{who},
 			Values: []Value{viewer, login, message, role}},
+		{Type: "chat.first_words.received", Label: "A viewer chats for the first time this stream", Category: "Chat",
+			Help: "Their first message since you went live (OBS or Twitch), since First Words was reset, or after 12 quiet hours. " +
+				"Your own messages never count.",
+			Match:  []MatchField{who},
+			Values: []Value{viewer, login, message, role}},
 		{Type: "broadcast.scene.changed", Label: "OBS switches scene", Category: "OBS",
 			Help:  "OBS's live scene changes, whoever changed it.",
 			Match: []MatchField{{Path: "scene_name", Label: "Only for scene", Kind: "scene", Help: "Leave empty for any scene."}},

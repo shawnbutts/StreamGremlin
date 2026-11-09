@@ -63,6 +63,8 @@
     <dd>Numbered quotes from your streams. Viewers see one with <code>!quote</code>, and mods add them with <code>!quoteadd</code>. Deleting one never renumbers the rest.</dd>
     <dt>Sounds</dt>
     <dd>Your sound library, each with its own volume. Workflows play them in the StreamGremlin window, so keep the app open; OBS hears them through Desktop Audio.</dd>
+    <dt>First words</dt>
+    <dd>A viewer’s first message of the stream starts “A viewer chats for the first time this stream”, for a welcome. Going live starts it over; so does Start over on the Events screen. Your own messages never count.</dd>
     <dt>Overlays</dt>
     <dd>Alerts in OBS. Each overlay is one browser source: copy its private link into OBS as a browser source, 1920 by 1080, and workflows show alerts on it with “Show an alert”, one at a time, with the viewer’s profile picture and a sound if you like. A Test shows the alert in the app’s preview, never in OBS.</dd>
     <dt>Rewards</dt>

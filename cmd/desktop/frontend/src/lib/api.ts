@@ -923,3 +923,17 @@ export const setWorkflowGroupEnabled = (name: string, enabled: boolean) =>
   api<{ groups: WorkflowGroup[] }>('PUT', `/v1/workflow-groups/${encodeURIComponent(name)}/enabled`, { enabled });
 export const renameWorkflowGroup = (name: string, to: string) =>
   api<{ name: string }>('PUT', `/v1/workflow-groups/${encodeURIComponent(name)}`, { name: to });
+
+// First Words (docs/adr/0021-first-words.md).
+
+export interface FirstWordsStatus {
+  /** When this stream began, for first words. */
+  since: string;
+  why: 'stream start' | 'reset' | '12 hours';
+  /** Viewers who've chatted since. */
+  viewers: number;
+}
+
+export const getFirstWords = () => api<FirstWordsStatus>('GET', '/v1/first-words');
+/** Start over: everyone's next message counts as their first words again. */
+export const resetFirstWords = () => api<FirstWordsStatus>('POST', '/v1/first-words/reset');

@@ -78,6 +78,26 @@ func Catalog() []Kind {
 			},
 		},
 		{
+			// Made by internal/firstwords from a chat message (docs/adr/0021-first-words.md);
+			// a test chat message makes a test one too.
+			Type: "chat.first_words.received", Label: "First words",
+			Description: "A viewer's first chat message this stream (since you went live, a reset, or 12 quiet hours).",
+			Sources:     []string{"twitch"}, Sensitive: true,
+			Fields: []Field{
+				{Name: "user", Label: "Viewer", Kind: "text", Default: "NewViewer", Max: 25},
+				{Name: "text", Label: "Message", Kind: "text", Default: "Hi everyone!", Max: 500},
+				roleField,
+			},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				a := testViewer(v["user"])
+				ch, err := chatter(a, v["role"])
+				if err != nil {
+					return nil, nil, err
+				}
+				return map[string]any{"message_id": id, "text": v["text"], "chatter": ch, "message_type": "text", "color": ""}, a, nil
+			},
+		},
+		{
 			Type: "chat.command.received", Label: "Chat command",
 			Description: "A viewer typed a command, such as !hello, in chat.",
 			Sources:     []string{"twitch"}, Sensitive: true,

@@ -142,6 +142,11 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - A group can't come on if it would make two workflows answer one chat command.
   - `streamgremlin workflows groups`, `workflows group NAME on|off` and `workflows group NAME rename NEW`.
 
+- M2 slice 9, First Words:
+  - **A new trigger:** "A viewer chats for the first time this stream", once per viewer, starting over when you go live (OBS or Twitch), when you start it over, or after 12 quiet hours. Your own messages never count.
+  - **Two templates** in a new Welcome group: welcome first-time chatters in chat, or on screen with their name and profile picture.
+  - **A First words card on Events:** since when it counts, how many viewers have spoken, and Start over. Also the step "Start First Words over" and `streamgremlin first-words [reset]`.
+
 ### Fixed
 
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).

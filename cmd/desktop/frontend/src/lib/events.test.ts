@@ -40,6 +40,7 @@ describe('Twitch channel events in words', () => {
     expect(of('audience.raid.received', { viewers: 42 }, fan)).toBe('Fan raided with 42 viewers');
     expect(of('rewards.channel_points.redeemed', { reward: { title: 'Hydrate' }, user_input: '' }, fan)).toBe('Fan redeemed Hydrate');
     expect(of('broadcast.channel.online', {})).toBe('Live on Twitch');
+    expect(of('chat.first_words.received', { text: 'hi all' }, fan)).toBe('Fan’s first words this stream: hi all');
     expect(of('broadcast.channel.updated', { title: 'Night', category: 'Celeste' })).toBe('“Night”, in Celeste');
   });
 });

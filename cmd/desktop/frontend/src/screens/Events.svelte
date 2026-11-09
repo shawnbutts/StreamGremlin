@@ -8,11 +8,15 @@
     ApiError,
     getEventCatalog,
     getEvents,
+    getFirstWords,
+    resetFirstWords,
     simulateEvent,
+    type FirstWordsStatus,
     type EventKind,
     type EventRecord,
   } from '../lib/api';
   import { eventSummary, eventTime } from '../lib/events';
+  import ConfirmDialog from '../lib/ConfirmDialog.svelte';
 
   let {
     idleMs = 250,
@@ -50,6 +54,9 @@
 
   onMount(() => {
     const abort = new AbortController();
+    loadFirsts();
+    const firstsTimer = setInterval(loadFirsts, 15000);
+    abort.signal.addEventListener('abort', () => clearInterval(firstsTimer));
     (async () => {
       try {
         kinds = (await getEventCatalog()).kinds;
@@ -124,6 +131,33 @@
     results = [];
     searchError = '';
   }
+
+  // First Words: since when the stream counts, and starting it over.
+  let firsts = $state<FirstWordsStatus | undefined>();
+  let firstsError = $state('');
+  let firstsNotice = $state('');
+  let confirmReset = $state(false);
+  async function loadFirsts() {
+    try {
+      firsts = await getFirstWords();
+      firstsError = '';
+    } catch (e) {
+      firstsError = message(e);
+    }
+  }
+  async function resetFirsts() {
+    confirmReset = false;
+    firstsNotice = '';
+    try {
+      firsts = await resetFirstWords();
+      firstsError = '';
+      firstsNotice = 'Started over: everyone’s next message counts as their first words.';
+    } catch (e) {
+      firstsError = message(e);
+    }
+  }
+  const whyWords = (f: FirstWordsStatus) =>
+    f.why === 'stream start' ? 'you went live' : f.why === 'reset' ? 'you started it over' : 'the last 12 hours (no stream start since)';
 
   function choose(type: string) {
     chosen = type;
@@ -220,6 +254,36 @@
     {/each}
   </ol>
 </section>
+
+<section class="sg-panel card" aria-labelledby="firsts-heading">
+  <h2 id="firsts-heading">First words</h2>
+  {#if firstsError}
+    <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {firstsError}</p>
+  {:else if firsts}
+    <p>
+      Counting since {whyWords(firsts)}, {eventTime(firsts.since)}:
+      {firsts.viewers === 0 ? 'nobody has chatted yet' : `${firsts.viewers} ${firsts.viewers === 1 ? 'viewer has' : 'viewers have'} said their first words`}.
+    </p>
+  {/if}
+  <p class="sg-muted">
+    A viewer’s first message of the stream starts “A viewer chats for the first time this stream”. Going live starts it over by
+    itself; start over by hand after a long break.
+  </p>
+  <div class="row-actions">
+    <button type="button" class="button" onclick={() => (confirmReset = true)}>Start over</button>
+  </div>
+  <p class="saved" role="status">{firstsNotice}</p>
+</section>
+
+{#if confirmReset}
+  <ConfirmDialog
+    title="Start First Words over?"
+    message="Everyone’s next message counts as their first words again, so your welcomes run again for viewers already here."
+    confirmLabel="Start over"
+    onconfirm={resetFirsts}
+    oncancel={() => (confirmReset = false)}
+  />
+{/if}
 
 <section class="sg-panel card" aria-labelledby="test-heading">
   <h2 id="test-heading">Send a test event</h2>

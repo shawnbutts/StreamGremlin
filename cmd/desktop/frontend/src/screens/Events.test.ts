@@ -155,7 +155,7 @@ describe('Events', () => {
     await settle(30);
     el.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
     await settle(30);
-    expect(el.querySelector('[role="alert"]')?.textContent).toContain('longer than 500');
+    expect(el.querySelector('section[aria-labelledby="test-heading"] [role="alert"]')?.textContent).toContain('longer than 500');
   });
 
   it('searches stored events, then goes back to live events', async () => {
@@ -193,5 +193,32 @@ describe('Events', () => {
     flushSync();
     await settle(10);
     expect(target.textContent).toContain('just now');
+  });
+
+  it('shows where First Words stand, and starts them over after asking', async () => {
+    let status = { since: new Date().toISOString(), why: 'stream start', viewers: 3 };
+    const calls = mockFetch({
+      '/v1/events/catalog': eventCatalog,
+      '/v1/events': () => ({ status: 200, body: { events: [], head: 0 } }),
+      '/v1/first-words': () => ({ status: 200, body: status }),
+      '/v1/first-words/reset': () => {
+        status = { ...status, why: 'reset', viewers: 0 };
+        return { status: 200, body: status };
+      },
+    });
+    const el = start();
+    await settle(40);
+    const card = () => el.querySelector('section[aria-labelledby="firsts-heading"]')!;
+    expect(card().textContent).toContain('Counting since you went live');
+    expect(card().textContent).toContain('3 viewers have said their first words');
+    Array.from(card().querySelectorAll('button')).find((b) => b.textContent === 'Start over')!.click();
+    flushSync();
+    const dialog = document.querySelector('[role="alertdialog"]')!;
+    expect(dialog.textContent).toContain('your welcomes run again');
+    Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Start over')!.click();
+    await settle(30);
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/v1/first-words/reset')).toBe(true);
+    expect(card().textContent).toContain('Counting since you started it over');
+    expect(card().textContent).toContain('nobody has chatted yet');
   });
 });

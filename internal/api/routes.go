@@ -9,6 +9,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -44,6 +45,7 @@ type Deps struct {
 	// OverlayServer is where overlay pages are served ("" when off), and
 	// a note when it isn't the usual address.
 	OverlayServer func() (base, note string)
+	FirstWords    *firstwords.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time
@@ -136,7 +138,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), firstWordsRoutes(d)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

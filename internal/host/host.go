@@ -23,6 +23,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -69,6 +70,7 @@ type Host struct {
 	obs       *obs.Service
 	workflows *workflow.Engine
 	timers    *timers.Service
+	firsts    *firstwords.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -146,8 +148,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
+	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -155,6 +158,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	h.timers.Start(context.Background())
+	// After workflows: first words are stored as events, which they run on.
+	if err := h.firsts.Start(ctx); err != nil {
+		return nil, err
+	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
 	h.maint.Start(context.Background())
 
@@ -164,22 +171,23 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	startedAt := time.Now()
 	h.api = api.NewServer(api.Options{Token: h.token, Logger: log}, api.Routes(api.Deps{
-		DataDir:   opts.DataDir,
-		StartedAt: startedAt,
-		DB:        h.db,
-		Settings:  set,
-		Secrets:   sec,
-		Events:    inbox,
-		Twitch:    h.twitch,
-		OBS:       h.obs,
-		Workflows: h.workflows,
-		Variables: vars,
-		Timers:    h.timers,
-		Quotes:    qs,
-		Sounds:    lib,
-		Player:    player,
-		Overlays:  ovs,
-		Hub:       h.hub,
+		DataDir:    opts.DataDir,
+		StartedAt:  startedAt,
+		DB:         h.db,
+		Settings:   set,
+		Secrets:    sec,
+		Events:     inbox,
+		Twitch:     h.twitch,
+		OBS:        h.obs,
+		Workflows:  h.workflows,
+		Variables:  vars,
+		Timers:     h.timers,
+		Quotes:     qs,
+		Sounds:     lib,
+		Player:     player,
+		Overlays:   ovs,
+		Hub:        h.hub,
+		FirstWords: h.firsts,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -300,6 +308,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.firsts != nil {
+		h.firsts.Close() // before workflows: no new first words while runs finish
 	}
 	if h.timers != nil {
 		h.timers.Close() // before workflows: no new turns while runs finish

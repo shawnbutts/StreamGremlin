@@ -56,7 +56,7 @@ func TestEventsWatchFollowsLiveFromTheCursor(t *testing.T) {
 	startEngine(t, dir)
 	cli(t, dir, "events", "simulate", "chat.message.received", "text=before")
 
-	cmd := exec.Command(bin, "-data-dir", dir, "events", "watch", "-after", "0", "-types", "chat.*")
+	cmd := exec.Command(bin, "-data-dir", dir, "events", "watch", "-after", "0", "-types", "chat.message.*")
 	cmd.Env = cleanEnv()
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

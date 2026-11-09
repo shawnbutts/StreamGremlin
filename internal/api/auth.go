@@ -62,6 +62,8 @@ const (
 	// changing and deleting them, and completing or refunding redemptions.
 	PermRewardsRead  Permission = "rewards.read"
 	PermRewardsWrite Permission = "rewards.write"
+	// First words: starting them over by hand (reading uses events.read).
+	PermFirstWordsReset Permission = "first_words.reset"
 )
 
 // Principal is an authenticated caller.

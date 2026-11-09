@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/mockobs"
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
@@ -93,10 +94,15 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	qs := quotes.NewStore(db)
 	lib, player := sounds.NewStore(db), sounds.NewPlayer(nil)
 	testPlayer = player
+	fw := firstwords.New(firstwords.Options{Inbox: inbox, Settings: set})
+	if err := fw.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(fw.Close)
 	ovs, hub := overlays.NewStore(db, sec), overlays.NewHub(nil)
 	testOverlays = httptest.NewServer(overlays.NewServer(ovs, hub, nil))
 	t.Cleanup(testOverlays.Close)
-	actions.Register(reg, actions.Services{Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub})
+	actions.Register(reg, actions.Services{Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -107,7 +113,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, FirstWords: fw, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

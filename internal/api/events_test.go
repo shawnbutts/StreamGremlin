@@ -27,22 +27,25 @@ func TestSimulateThenRead(t *testing.T) {
 	}
 	simulate(t, s, `{"type":"broadcast.scene.changed","request_id":"a2"}`)
 
+	// A test chat message also makes test first words (ADR-0021); only the
+	// two sent are read here.
 	var page EventPage
-	w := do(t, s, req{method: "GET", path: "/v1/events", token: testToken})
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || len(page.Events) != 2 || page.Head != 2 {
+	sent := "types=chat.message.received,broadcast.scene.changed"
+	w := do(t, s, req{method: "GET", path: "/v1/events?" + sent, token: testToken})
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &page) != nil || len(page.Events) != 2 || page.Head < 2 {
 		t.Fatalf("%d %s", w.Code, w.Body)
 	}
-	w = do(t, s, req{method: "GET", path: "/v1/events?after=1", token: testToken})
+	w = do(t, s, req{method: "GET", path: "/v1/events?after=1&" + sent, token: testToken})
 	_ = json.Unmarshal(w.Body.Bytes(), &page)
 	if len(page.Events) != 1 || page.Events[0].Type != "broadcast.scene.changed" {
 		t.Fatalf("after: %s", w.Body)
 	}
-	w = do(t, s, req{method: "GET", path: "/v1/events?types=chat.*", token: testToken})
+	w = do(t, s, req{method: "GET", path: "/v1/events?types=chat.message.*", token: testToken})
 	_ = json.Unmarshal(w.Body.Bytes(), &page)
 	if len(page.Events) != 1 || page.Events[0].Type != "chat.message.received" {
 		t.Fatalf("filter: %s", w.Body)
 	}
-	w = do(t, s, req{method: "GET", path: "/v1/events?q=FAN", token: testToken})
+	w = do(t, s, req{method: "GET", path: "/v1/events?q=FAN&types=chat.message.*", token: testToken})
 	_ = json.Unmarshal(w.Body.Bytes(), &page)
 	if w.Code != 200 || len(page.Events) != 1 || page.Events[0].Type != "chat.message.received" {
 		t.Fatalf("search: %s", w.Body)

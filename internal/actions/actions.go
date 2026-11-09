@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
@@ -36,6 +37,8 @@ type Services struct {
 	// Overlays and the hub that shows alerts on them.
 	Overlays *overlays.Store
 	Hub      *overlays.Hub
+	// FirstWords finds each viewer's first message of a stream.
+	FirstWords *firstwords.Service
 }
 
 // Register adds every action to reg.
@@ -209,4 +212,16 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerSounds(reg, sv.Sounds, sv.Player)
 	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds, sv.Player)
 	registerRewards(reg, sv.Twitch)
+	reg.Add(workflow.Action{
+		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
+		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +
+			"Going live does this by itself; use it after a break, say.",
+		Run: func(ctx context.Context, c workflow.Call) (any, error) {
+			if c.DryRun {
+				return map[string]any{"reset": false, "test": true, "would": "start First Words over"}, nil
+			}
+			st, err := sv.FirstWords.Reset(ctx)
+			return map[string]any{"reset": err == nil, "since": st.Since}, err
+		},
+	})
 }

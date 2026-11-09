@@ -284,6 +284,17 @@ func (in *Inbox) Latest(ctx context.Context, limit int, f Filter) ([]Record, err
 	return recs, err
 }
 
+// SeqBefore returns the seq of the last event received before t, so a
+// reader can start from there (0 when none).
+func (in *Inbox) SeqBefore(ctx context.Context, t time.Time) (int64, error) {
+	var seq int64
+	err := in.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(seq), 0) FROM events WHERE received_at < ?", storage.Timestamp(t)).Scan(&seq)
+	if err != nil {
+		return 0, fmt.Errorf("events: seq before: %w", err)
+	}
+	return seq, nil
+}
+
 // MaxSearch is the longest text Search looks for.
 const MaxSearch = 100
 

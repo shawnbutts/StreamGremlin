@@ -24,6 +24,8 @@ export function eventSummary(ev: EventRecord): string {
       const r = (p.reward ?? {}) as { title?: string };
       return `${who} redeemed ${r.title ?? 'a reward'}${typeof p.user_input === 'string' && p.user_input ? `: ${p.user_input}` : ''}`;
     }
+    case 'chat.first_words.received':
+      return `${who}’s first words this stream${typeof p.text === 'string' && p.text ? `: ${p.text}` : ''}`;
     case 'broadcast.channel.online':
       return 'Live on Twitch';
     case 'broadcast.channel.offline':

@@ -746,3 +746,13 @@ Built in slice 8 as [ADR-0020](adr/0020-workflow-groups.md). Choices made while 
 - renaming to another group's name is refused, not merged;
 - "Say hi when the stream starts" stays without a group (a group of one).
 - Groups fold on the Workflows screen (the user, after the live check: "i think we need a way to collapse items in a group rather than show all workflows"). Groups start folded and "No group" stays open. The open ones are remembered in the window's storage, and a search opens groups with matches.
+
+## D-033. First Words (M2 slice 9)
+
+Decided 2026-11-09 under D-007. The user said "proceed" to the plan: Streamer.bot's First Words, starting over on stream start or after 12 quiet hours (no setting yet), never counting the streamer's or the bot's messages, with a reset and welcome templates.
+
+- **First Words follow [ADR-0021](adr/0021-first-words.md):** `chat.first_words.received`, derived from the stored chat for every platform, once per viewer per stream.
+- **The stream starts over** on going live (OBS or Twitch, placed by inbox order), a reset by hand (saved), or 12 quiet hours.
+- **Test chat is judged apart.**
+- **A First words card on Events** with Start over; the step "Start First Words over"; `streamgremlin first-words`.
+- **Welcome templates** in a new Welcome category and group: a chat welcome (a starter) and an on-screen welcome with the profile picture.
