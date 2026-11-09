@@ -5,6 +5,7 @@ package acceptance
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,5 +142,58 @@ func TestSoundsThroughTheCLI(t *testing.T) {
 	}
 	if out, errOut, code := cli(t, dir, "sounds", "delete", "air-horn"); code != 0 {
 		t.Fatal(out, errOut)
+	}
+}
+
+// One of several sounds, picked at random each time, through real chat.
+func TestOneOfSeveralSoundsThroughChat(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	e := startEngine(t, dir, "-twitch-auth-url", twURL)
+	files := t.TempDir()
+	for _, name := range []string{"airhorn", "chime", "boing"} {
+		f := writeFile(t, files, name+".wav", "RIFF\x24\x00\x00\x00WAVE"+name+strings.Repeat("\x00", 64))
+		if out, errOut, code := cli(t, dir, "sounds", "add", f); code != 0 {
+			t.Fatal(out, errOut)
+		}
+	}
+	heard, stop := fakeWindow(t, e)
+	defer stop()
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
+			return out
+		}
+		return ""
+	})
+	f := writeFile(t, t.TempDir(), "horn.json", `{"schema":"streamgremlin.workflow/v1","id":"chat.horn","name":"Horn",
+		"triggers":[{"type":"chat.command.received","where":{"command":"horn"}}],
+		"steps":[{"action":"sounds.play","with":{"sound":{"one_of":["airhorn","chime","boing"]}}}]}`)
+	if out, errOut, code := cli(t, dir, "workflows", "save", f); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	cli(t, dir, "workflows", "on", "chat.horn")
+	for range 15 {
+		tw.Say("streamer", "Fan", "!horn")
+	}
+	eventually(t, "15 sounds", func() string {
+		if n := len(heard()); n < 15 {
+			return fmt.Sprintf("heard %d", n)
+		}
+		return ""
+	})
+	seen := map[string]bool{}
+	for _, h := range heard() {
+		name := strings.Fields(h)[1]
+		if name != "airhorn" && name != "chime" && name != "boing" {
+			t.Fatalf("played %q", h)
+		}
+		seen[name] = true
+	}
+	if len(seen) < 2 {
+		t.Fatalf("always the same: %v", seen)
 	}
 }

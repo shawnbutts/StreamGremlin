@@ -229,7 +229,8 @@ func (r *interp) action(ctx context.Context, path string, s Step, rec StepRecord
 	for _, n := range names {
 		raw := s.With[n]
 		if versions, ok := oneOf(raw); ok {
-			// Several ways to say it: one, at random (docs/adr/0008-workflows.md).
+			// Several ways to say it, or several sounds: one, at random
+			// (docs/adr/0008-workflows.md).
 			raw = versions[pickIndex(len(versions))]
 		}
 		v, err := render(ctx, raw, r.sc)
@@ -349,7 +350,7 @@ func capSize(v any, limit int) any {
 	return map[string]any{"truncated": true, "bytes": len(b)}
 }
 
-// MaxVersions is how many ways a message can be said.
+// MaxVersions is how many versions a message or a sound can have.
 const MaxVersions = 50
 
 // oneOf reads a message given as several versions, {"one_of": [...]}, each

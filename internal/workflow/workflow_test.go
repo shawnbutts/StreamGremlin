@@ -38,7 +38,8 @@ func (r *recorder) got() []map[string]any {
 func testRegistry(rec *recorder) *Registry {
 	reg := NewRegistry()
 	reg.Add(Action{Name: "test.send", Label: "Send", Group: "test", External: true,
-		Params: []Param{{Name: "message", Label: "Message", Type: "text", Required: true, Editor: "message"}, {Name: "password", Label: "Password", Type: "text"}},
+		Params: []Param{{Name: "message", Label: "Message", Type: "text", Required: true, Editor: "message"}, {Name: "password", Label: "Password", Type: "text"},
+			{Name: "sound", Label: "Sound", Type: "text", Editor: "sound", Pattern: `^[a-z0-9][a-z0-9_-]{0,63}$`, PatternHint: "a sound's name"}},
 		Run: func(ctx context.Context, c Call) (any, error) {
 			rec.add(c.Args)
 			return map[string]any{"sent": c.Args["message"], "key": c.IdempotencyKey}, nil
@@ -360,14 +361,38 @@ func TestOneOfSeveralVersions(t *testing.T) {
 	}
 }
 
+// A sound can be several sounds too: one plays, at random.
+func TestOneOfSeveralSounds(t *testing.T) {
+	r := newRig(t)
+	r.save(def("chat.horn", `"triggers":[{"type":"chat.command.received"}],
+		"steps":[{"action":"test.send","with":{"message":"x","sound":{"one_of":["airhorn","chime","boing"]}}}]`), true)
+	for i := range 40 {
+		r.chat(fmt.Sprint("s", i), "horn", events.Confirmed)
+	}
+	r.jobs("chat.horn", 40)
+	seen := map[string]bool{}
+	for _, c := range r.rec.got() {
+		seen[c["sound"].(string)] = true
+	}
+	for snd := range seen {
+		if snd != "airhorn" && snd != "chime" && snd != "boing" {
+			t.Fatalf("not one of them: %q", snd)
+		}
+	}
+	if len(seen) < 2 {
+		t.Fatalf("always the same: %v", seen)
+	}
+}
+
 func TestVersionsAreChecked(t *testing.T) {
 	r := newRig(t)
 	for body, want := range map[string]string{
-		`{"message":{"one_of":["ok",""]}}`:                "$.steps[0].with.message.one_of[1]",
-		`{"message":{"one_of":[]}}`:                       "$.steps[0].with.message.one_of",
-		`{"message":{"one_of":["a"],"extra":1}}`:          "$.steps[0].with.message",
-		`{"message":"x","password":{"one_of":["a","b"]}}`: "$.steps[0].with.password",
-		`{"message":{"one_of":["${nope("]}}`:              "$.steps[0].with.message.one_of[0]",
+		`{"message":{"one_of":["ok",""]}}`:                       "$.steps[0].with.message.one_of[1]",
+		`{"message":{"one_of":[]}}`:                              "$.steps[0].with.message.one_of",
+		`{"message":{"one_of":["a"],"extra":1}}`:                 "$.steps[0].with.message",
+		`{"message":"x","password":{"one_of":["a","b"]}}`:        "$.steps[0].with.password",
+		`{"message":"x","sound":{"one_of":["ding","Bad Name"]}}`: "$.steps[0].with.sound.one_of[1]",
+		`{"message":{"one_of":["${nope("]}}`:                     "$.steps[0].with.message.one_of[0]",
 	} {
 		_, _, err := r.eng.Save(context.Background(), def("chat.bad", `"triggers":[{"type":"chat.command.received"}],
 			"steps":[{"action":"test.send","with":`+body+`}]`))

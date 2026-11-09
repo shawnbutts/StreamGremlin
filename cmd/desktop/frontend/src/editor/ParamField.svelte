@@ -102,17 +102,43 @@
     </select>
   </label>
 {:else if param.editor === 'sound'}
-  <label class="field">
-    <span>{label}</span>
-    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
-      <option value="">{param.required ? 'Choose a sound…' : (param.default_hint ?? 'None')}</option>
-      {#each env.sounds as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
-      {#if typeof current === 'string' && current && !env.sounds.some((s) => s.name === current)}
-        <option value={current}>{current} (not in your library)</option>
-      {/if}
-    </select>
-    {#if !env.sounds.length}<span class="sg-muted field-hint">No sounds yet: add one on the Sounds screen.</span>{/if}
-  </label>
+  {#snippet soundPicker(value: string, label: string, onpick: (v: string) => void, emptyLabel: string)}
+    <label class="field">
+      <span>{label}</span>
+      <select class="sg-input" {value} onchange={(e) => onpick(e.currentTarget.value)}>
+        <option value="">{emptyLabel}</option>
+        {#each env.sounds as s (s.name)}<option value={s.name}>{s.name}</option>{/each}
+        {#if value && !env.sounds.some((s) => s.name === value)}
+          <option {value}>{value} (not in your library)</option>
+        {/if}
+      </select>
+    </label>
+  {/snippet}
+  {#if versions}
+    <div class="versions" role="group" aria-label={`${param.label}: one of these, picked at random`}>
+      <span class="versions-title">{param.label}: one of these, picked at random each time</span>
+      {#key versionsKey}
+        {#each versions as v, i (i)}
+          <div class="version-row">
+            {@render soundPicker(v, `Sound ${i + 1}`, (nv) => setVersion(i, nv), 'Choose a sound…')}
+            <button type="button" class="button" aria-label={`Remove sound ${i + 1}`} onclick={() => removeVersion(i)}>Remove</button>
+          </div>
+        {/each}
+      {/key}
+      <button type="button" class="button" disabled={versions.length >= 50} onclick={addVersion}>+ Another sound</button>
+    </div>
+  {:else}
+    {@render soundPicker(
+      typeof current === 'string' ? current : '',
+      label,
+      (v) => set(v),
+      param.required ? 'Choose a sound…' : (param.default_hint ?? 'None'),
+    )}
+    {#if typeof current === 'string' && current}
+      <button type="button" class="button add-version" onclick={addVersion}>+ Another sound</button>
+    {/if}
+  {/if}
+  {#if !env.sounds.length}<span class="sg-muted field-hint">No sounds yet: add one on the Sounds screen.</span>{/if}
 {:else if param.editor === 'overlay'}
   <label class="field">
     <span>{label}</span>

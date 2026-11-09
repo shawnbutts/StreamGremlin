@@ -781,3 +781,4 @@ Decided 2026-11-09 under D-007. The user asked: "can we add a workflow 'text' op
 - **Stored as `{"one_of": [...]}`** on message parameters only ([ADR-0008](adr/0008-workflows.md), amended). Removing rows down to one makes it a plain message again.
 - **Chosen over a separate "pick a random line" step:** it's where the message is written, with no step id to refer to.
 - **The "Welcome first-time chatters" template** now says it one of three ways.
+- **Sounds too** (the user: "what would it take to do the same for playing a random audio file?", then "proceed"): "Play a sound" and an alert's sound can be several sounds, with "+ Another sound", and one plays at random. A sound deleted from the library later fails the run that picks it and says which; no other is picked in its place, so a run reports what actually happened.

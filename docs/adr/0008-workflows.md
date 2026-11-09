@@ -4,7 +4,7 @@
 - **Date:** 2026-11-08
 - **Based on:** StreamWisp ADR-0006 (definitions and queues), ADR-0007 (expressions and the interpreter), ADR-0008 (traces) and ADR-0015 (dry runs).
 
-> **Amended by D-036 (2026-11-09):** a message parameter (`Editor: "message"`) may be given as several ways to say it, `{"one_of": ["…", "…"]}`: 1 to 50 texts, none empty, each checked as a template. When the step runs, one is picked with a secure random source and then filled in as usual. The trace's input shows the version used. Only message parameters take it. A plain string is unchanged.
+> **Amended by D-036 (2026-11-09):** a message parameter (`Editor: "message"`) may be given as several ways to say it, `{"one_of": ["…", "…"]}`: 1 to 50 texts, none empty, each checked as a template. When the step runs, one is picked with a secure random source and then filled in as usual. The trace's input shows the version used. Only message parameters take it, and sound parameters (`Editor: "sound"`, added the same day: one of several sounds, each checked as a sound's name). A plain string is unchanged. A listed sound that's later deleted from the library fails the run that picks it, naming the sound; another isn't picked in its place.
 
 ## Context
 

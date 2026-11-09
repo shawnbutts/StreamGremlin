@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -46,7 +47,7 @@ func TestFirstWordsThroughTheCLI(t *testing.T) {
 		t.Helper()
 		eventually(t, "welcomes for "+name, func() string {
 			if n := welcomes(name); n != want {
-				return strings.Repeat("x", n)
+				return fmt.Sprintf("%d welcomes", n)
 			}
 			return ""
 		})

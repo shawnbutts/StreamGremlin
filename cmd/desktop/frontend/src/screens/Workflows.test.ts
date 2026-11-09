@@ -103,6 +103,10 @@ const palette: Palette = {
       name: 'obs.screenshot', label: 'Take a screenshot', description: '', group: 'OBS', external: true, more: true,
       params: [{ name: 'source', label: 'Source or scene', type: 'text', required: true, editor: 'source' }],
     },
+    {
+      name: 'sounds.play', label: 'Play a sound', description: '', group: 'Sounds', external: true,
+      params: [{ name: 'sound', label: 'Sound', type: 'text', required: true, editor: 'sound' }],
+    },
   ],
 };
 
@@ -155,6 +159,10 @@ function engine(initial: { wfs?: WorkflowSummary[]; defs?: Record<string, unknow
     '/v1/workflows': (_m, _b, query) => ({ status: 200, body: { workflows: query.includes('deleted=true') ? deleted : wfs } }),
     '/v1/jobs': () => ({ status: 200, body: { jobs } }),
     '/v1/palette': () => ({ status: 200, body: palette }),
+    '/v1/sounds': () => ({
+      status: 200,
+      body: { sounds: ['airhorn', 'chime', 'boing'].map((name) => ({ name, format: 'wav', size: 1, sha256: '', volume: 80, created_at: '', updated_at: '' })), player: true },
+    }),
     '/v1/commands': () => ({ status: 200, body: { commands: [] } }),
     '/v1/templates': () => ({ status: 200, body: templates }),
     '/v1/workflows/chat.brb': save('chat.brb'),
@@ -542,6 +550,42 @@ describe('Workflows', () => {
     await settle(60);
     expect((lastPut(e.calls) as { id: string; steps: { with: { message: string } }[] }).steps[0].with.message).toBe('BRB!');
     expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s off until you turn it on.');
+  });
+
+  it('plays one of several sounds, and back to one', async () => {
+    const def = {
+      schema: 'streamgremlin.workflow/v1', id: 'chat.hello', name: 'Horn',
+      triggers: [{ type: 'chat.command.received', where: { command: 'horn' } }],
+      steps: [{ action: 'sounds.play', with: { sound: 'airhorn' } }],
+    };
+    const e = engine({
+      wfs: [{ id: 'chat.hello', name: 'Horn', enabled: true, version: 1, updated_at: now(), triggers: def.triggers as WorkflowSummary['triggers'] }],
+      defs: { 'chat.hello': def },
+    });
+    const el = start();
+    await settle(40);
+    button(el, 'Edit Horn')!.click();
+    await settle(60);
+    button(el, '+ Another sound')!.click();
+    flushSync();
+    expect(field<HTMLSelectElement>(el, 'Sound 1').value).toBe('airhorn');
+    set(field<HTMLSelectElement>(el, 'Sound 2'), 'chime');
+    button(el, '+ Another sound')!.click();
+    flushSync();
+    set(field<HTMLSelectElement>(el, 'Sound 3'), 'boing');
+    await noViolations('sounds');
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual({ ...def, steps: [{ action: 'sounds.play', with: { sound: { one_of: ['airhorn', 'chime', 'boing'] } } }] });
+    button(el, 'Edit Horn')!.click();
+    await settle(60);
+    button(el, 'Remove sound 1')!.click();
+    flushSync();
+    button(el, 'Remove sound 1')!.click();
+    flushSync();
+    button(el, 'Save')!.click();
+    await settle(60);
+    expect(lastPut(e.calls)).toEqual({ ...def, steps: [{ action: 'sounds.play', with: { sound: 'boing' } }] });
   });
 
   it('gives a message several ways to say it, and back to one', async () => {
