@@ -322,6 +322,19 @@ func (in *Inbox) CountChatFrom(ctx context.Context, platform, userID string, aft
 	return n, nil
 }
 
+// SeqBeforeUpTo is SeqBefore among events up to seq upTo, so a window
+// ending there starts in the right place even when later events carry
+// earlier times.
+func (in *Inbox) SeqBeforeUpTo(ctx context.Context, t time.Time, upTo int64) (int64, error) {
+	var seq int64
+	err := in.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(seq), 0) FROM events WHERE received_at < ? AND seq <= ?",
+		storage.Timestamp(t), upTo).Scan(&seq)
+	if err != nil {
+		return 0, fmt.Errorf("events: seq before: %w", err)
+	}
+	return seq, nil
+}
+
 // MaxSearch is the longest text Search looks for.
 const MaxSearch = 100
 

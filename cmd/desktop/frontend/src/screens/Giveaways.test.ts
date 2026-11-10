@@ -117,6 +117,40 @@ describe('Giveaways', () => {
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });
 
+  it('draws now from recent chat', async () => {
+    const calls = mockFetch({
+      '/v1/giveaways': (m) => (m === 'POST' ? { status: 201, body: {} } : { status: 200, body: { current: null, recent: [] } }),
+    });
+    const el = start();
+    await settle(30);
+    typed(field(el, 'What’s being given away'), 'a badge');
+    (el.querySelector('input[value=chat]') as HTMLInputElement).click();
+    flushSync();
+    expect(el.textContent).not.toContain('Entry command');
+    expect(el.textContent!.replace(/\s+/g, ' ')).toContain('Viewers who didn’t chat can’t be included');
+    typed(field(el, 'Chatted in the last (minutes)'), '5');
+    expect(button(el, 'Draw now')).toBeTruthy();
+    (el.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(30);
+    const sent = calls.find((c) => c.method === 'POST')!.body as Record<string, unknown>;
+    expect(sent).toMatchObject({ title: 'a badge', from_chat_minutes: 5 });
+    expect(sent).not.toHaveProperty('command');
+    expect(el.textContent).toContain('Drawn from recent chat');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('says a giveaway was drawn from chat, and that those left out weren’t told', async () => {
+    const d = await detail({ state: 'closed', command: '', from_chat_minutes: 10 });
+    d.refusals = [{ login: 'bob', display_name: 'Bob', reason: 'followers' }];
+    mockFetch({ '/v1/giveaways': () => ({ status: 200, body: { current: d, recent: [] } }) });
+    const el = start();
+    await settle(30);
+    expect(el.textContent!.replace(/\s+/g, ' ')).toContain('Drawn from everyone who chatted in the last 10 minutes.');
+    expect(el.textContent).toContain('Drawn from chat, so they weren’t told.');
+    expect(el.textContent).not.toContain('Viewers type');
+  });
+
   it('gives subscribers more chances, and says the odds', async () => {
     const calls = mockFetch({
       '/v1/giveaways': (m) => (m === 'POST' ? { status: 201, body: {} } : { status: 200, body: { current: null, recent: [] } }),

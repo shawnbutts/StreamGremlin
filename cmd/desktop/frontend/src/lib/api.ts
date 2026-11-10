@@ -1072,6 +1072,8 @@ export interface GiveawaySettings {
   enter_by_chat?: boolean;
   // Chances each subscriber holds, 2 to 10 (docs/adr/0027-giveaway-chances.md); 1: the same as everyone.
   subscriber_chances?: number;
+  // Draw now from everyone who chatted in this many minutes, 1 to 60 (docs/adr/0028-giveaway-from-chat.md).
+  from_chat_minutes?: number;
   practice?: boolean;
 }
 
@@ -1086,6 +1088,7 @@ export interface Giveaway {
   rules: GiveawayRules;
   enter_by_chat: boolean;
   subscriber_chances: number;
+  from_chat_minutes?: number;
   practice: boolean;
   state: 'open' | 'closed' | 'ended' | 'cancelled';
   opened_by: string;

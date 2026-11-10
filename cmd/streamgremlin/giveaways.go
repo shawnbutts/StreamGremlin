@@ -24,6 +24,8 @@ const giveawaysUsage = `usage:
       -subs            subscribers only
       -practice        take only test chat, and send nothing
       -chat            any chat message enters, as well as the command
+      -from-chat 0     draw now from everyone who chatted in this many minutes
+                       (1 to 60), with no entry period
       -sub-chances 1   chances each subscriber holds (2 to 10; 1: the same as everyone)
       Who can enter (each off at 0):
       -followers       followers only
@@ -114,6 +116,7 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fs.BoolVar(&st.SubscribersOnly, "subs", false, "subscribers only")
 		fs.BoolVar(&st.Practice, "practice", false, "test chat only, and send nothing")
 		fs.BoolVar(&st.EnterByChat, "chat", false, "any chat message enters, as well as the command")
+		fs.IntVar(&st.FromChatMinutes, "from-chat", 0, "draw now from everyone who chatted in this many minutes (1 to 60)")
 		fs.IntVar(&st.SubscriberChances, "sub-chances", 1, "chances each subscriber holds (2 to 10; 1: the same as everyone)")
 		fs.BoolVar(&st.Rules.Followers, "followers", false, "followers only")
 		fs.IntVar(&st.Rules.FollowDays, "follow-days", 0, "followed for at least this many days")
@@ -128,6 +131,15 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		var g giveaways.Giveaway
 		if code := apiExit(c.Do(ctx, "POST", "/v1/giveaways", st, &g), stderr); code != 0 {
 			return code
+		}
+		if g.FromChatMinutes > 0 {
+			d, code := getGiveaway(ctx, c, g.ID, stderr)
+			if code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "Drawn from chat of the last %s.\n", plural(g.FromChatMinutes, "minute", "minutes"))
+			showGiveaway(stdout, d, false)
+			return 0
 		}
 		practice := ""
 		if g.Practice {
@@ -243,7 +255,11 @@ func showGiveaway(w io.Writer, d giveaways.Detail, entries bool) {
 	if d.Practice {
 		practice = ", practice"
 	}
-	fmt.Fprintf(w, "%s (%s%s): !%s, %s, %s\n", d.Title, d.State, practice, d.Command, plural(d.Winners, "winner", "winners"),
+	how := "!" + d.Command
+	if d.FromChatMinutes > 0 {
+		how = "from chat of the last " + plural(d.FromChatMinutes, "minute", "minutes")
+	}
+	fmt.Fprintf(w, "%s (%s%s): %s, %s, %s\n", d.Title, d.State, practice, how, plural(d.Winners, "winner", "winners"),
 		plural(len(d.Entries), "entry", "entries"))
 	if d.EnterByChat {
 		fmt.Fprintf(w, "Any chat message enters, as well as !%s.\n", d.Command)

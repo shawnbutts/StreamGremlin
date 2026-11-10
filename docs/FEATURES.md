@@ -109,7 +109,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Giveaways: equal entries, fingerprinted entry lists, checkable draws | 0045, D-069; built in M3 (ADR-0025, D-043) | F3 |
 | Giveaway entry rules | 0075, D-125, D-127; built in M3 (ADR-0026, D-044); no watch time or sub tier | F3 |
 | Giveaway extra chances, announced in chat | 0077, D-128, D-129; built in M3 for subscribers (ADR-0027, D-045); no tier or watch-time chances | F3 |
-| Giveaway draw from recent chat | 0078, D-130 | F3 |
+| Giveaway draw from recent chat | 0078, D-130; built in M3 (ADR-0028, D-046) | F3 |
 | Giveaway overlay (never required: chat carries everything) | 0076, D-126 | F3 |
 | Wheels with audited server-side draws | 0021, D-034 | Later |
 | Paid wheel spins | D-031 | Leave (won't do) |

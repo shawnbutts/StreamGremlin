@@ -890,3 +890,15 @@ Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to sl
 - **Not with subscribers only,** where everyone would hold the same.
 - **Left out:** tier chances, watch-time chances, chances for bits, and chances on the "Open a giveaway" workflow step.
 - **Built and checked against mocktwitch only,** until the live check.
+
+## D-046. Drawing from recent chat (M3 slice 4)
+
+Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to slice 4.
+
+- **Drawing from recent chat follows [ADR-0028](adr/0028-giveaway-from-chat.md):**
+  - a giveaway with a chat window of 1 to 60 minutes is entered, closed and drawn at once;
+  - everyone who chatted in the window enters, once each, through the ordinary checks, with rules and chances;
+  - nobody is told they were left out;
+  - no entry command is held.
+- **Only chat StreamGremlin received counts.** Silent viewers can't be included, and the form says so.
+- **Built and checked against mocktwitch only,** until the live check.

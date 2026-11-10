@@ -40,6 +40,7 @@ const (
 	MaxClaim     = 600
 	MaxMinutes   = 24 * 60
 	MaxChances   = 10
+	MaxFromChat  = 60
 	claimGrace   = 2 * time.Second // lets a claim typed just in time arrive
 	staleMessage = 2 * time.Minute // a message that couldn't go out by then isn't sent late
 )
@@ -101,6 +102,10 @@ type Settings struct {
 	Rules Rules `json:"rules"`
 	// EnterByChat: any chat message enters, as well as the command.
 	EnterByChat bool `json:"enter_by_chat"`
+	// FromChatMinutes, 1 to 60, draws now from everyone who chatted in
+	// that many minutes, with no entry period
+	// (docs/adr/0028-giveaway-from-chat.md). There's no entry command.
+	FromChatMinutes int `json:"from_chat_minutes"`
 	// SubscriberChances, 2 to 10, gives subscribers that many chances
 	// (docs/adr/0027-giveaway-chances.md). 0 or 1: everyone has one.
 	SubscriberChances int `json:"subscriber_chances"`
@@ -121,16 +126,19 @@ type Giveaway struct {
 	EnterByChat     bool   `json:"enter_by_chat"`
 	// SubscriberChances is how many chances a subscriber holds (1: the
 	// same as everyone).
-	SubscriberChances int        `json:"subscriber_chances"`
-	Practice          bool       `json:"practice"`
-	State             string     `json:"state"`
-	OpenedBy          string     `json:"opened_by"`
-	OpenedAt          time.Time  `json:"opened_at"`
-	ClosesAt          *time.Time `json:"closes_at,omitempty"`
-	ClosedAt          *time.Time `json:"closed_at,omitempty"`
-	EndedAt           *time.Time `json:"ended_at,omitempty"`
-	EntryCount        int        `json:"entry_count"`
-	Fingerprint       string     `json:"fingerprint,omitempty"`
+	SubscriberChances int `json:"subscriber_chances"`
+	// FromChatMinutes is the chat window it was drawn from (0: entered by
+	// command).
+	FromChatMinutes int        `json:"from_chat_minutes,omitempty"`
+	Practice        bool       `json:"practice"`
+	State           string     `json:"state"`
+	OpenedBy        string     `json:"opened_by"`
+	OpenedAt        time.Time  `json:"opened_at"`
+	ClosesAt        *time.Time `json:"closes_at,omitempty"`
+	ClosedAt        *time.Time `json:"closed_at,omitempty"`
+	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	EntryCount      int        `json:"entry_count"`
+	Fingerprint     string     `json:"fingerprint,omitempty"`
 
 	// afterSeq is the inbox's newest event when it opened: chat stored
 	// up to then came before it, even in the same millisecond.
@@ -266,7 +274,15 @@ func (st *Settings) normalise() error {
 	st.Title = strings.TrimSpace(st.Title)
 	st.Command = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(st.Command), "!"))
 	st.ClaimCommand = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(st.ClaimCommand), "!"))
-	if st.Command == "" {
+	if st.FromChatMinutes != 0 {
+		switch {
+		case st.FromChatMinutes < 1 || st.FromChatMinutes > MaxFromChat:
+			return invalid("draw from chat of the last 1 to %d minutes", MaxFromChat)
+		case st.Minutes != 0 || st.EnterByChat:
+			return invalid("a draw from recent chat has no entry period: it enters, closes and draws at once")
+		}
+		st.Command = ""
+	} else if st.Command == "" {
 		st.Command = "join"
 	}
 	if st.Winners == 0 {
@@ -275,7 +291,7 @@ func (st *Settings) normalise() error {
 	switch {
 	case st.Title == "" || utf8.RuneCountInString(st.Title) > MaxTitle:
 		return invalid("a giveaway's title is 1 to %d characters", MaxTitle)
-	case !commandName.MatchString(st.Command):
+	case st.FromChatMinutes == 0 && !commandName.MatchString(st.Command):
 		return invalid("the entry command is letters, digits or _, up to 25, like join")
 	case st.Winners < 1 || st.Winners > MaxWinners:
 		return invalid("a giveaway has 1 to %d winners", MaxWinners)
@@ -325,7 +341,10 @@ func owner(g *Giveaway) string { return "giveaway:" + g.ID }
 
 func claimsOf(g *Giveaway) []commands.Claim {
 	name := "the giveaway “" + g.Title + "”"
-	out := []commands.Claim{{Command: g.Command, Owner: owner(g), Name: name}}
+	var out []commands.Claim
+	if g.Command != "" {
+		out = append(out, commands.Claim{Command: g.Command, Owner: owner(g), Name: name})
+	}
 	if g.ClaimCommand != "" {
 		out = append(out, commands.Claim{Command: g.ClaimCommand, Owner: owner(g), Name: name})
 	}
@@ -351,11 +370,20 @@ func (s *Service) setCurrent(g *Giveaway) {
 	s.held.Store(&cs)
 }
 
-// Open opens a giveaway for entries and announces it. by says who.
+// Open opens a giveaway for entries and announces it. by says who. A
+// draw from recent chat is entered, closed and drawn before it returns.
 func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, error) {
 	if err := st.normalise(); err != nil {
 		return Giveaway{}, err
 	}
+	g, err := s.open(ctx, st, by)
+	if err != nil || g.FromChatMinutes == 0 {
+		return g, err
+	}
+	return s.fromChat(context.WithoutCancel(ctx), g)
+}
+
+func (s *Service) open(ctx context.Context, st Settings, by string) (Giveaway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.current != nil {
@@ -370,7 +398,7 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 	}
 	g := Giveaway{ID: events.NewID(), Title: st.Title, Command: st.Command, ClaimCommand: st.ClaimCommand, Winners: st.Winners,
 		ClaimSeconds: st.ClaimSeconds, SubscribersOnly: st.SubscribersOnly, Rules: st.Rules, EnterByChat: st.EnterByChat,
-		SubscriberChances: st.SubscriberChances, Practice: st.Practice,
+		SubscriberChances: st.SubscriberChances, FromChatMinutes: st.FromChatMinutes, Practice: st.Practice,
 		State: Open, OpenedBy: by, OpenedAt: now, afterSeq: head}
 	if !st.Practice {
 		// A practice giveaway hears only test chat, which no workflow
@@ -386,10 +414,10 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 	rules, _ := json.Marshal(g.Rules)
 	err = s.tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaways (id, title, command, claim_command, winners, claim_seconds,
-			subscribers_only, practice, state, opened_by, opened_at, closes_at, rules, enter_by_chat, subscriber_chances)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
+			subscribers_only, practice, state, opened_by, opened_at, closes_at, rules, enter_by_chat, subscriber_chances,
+			from_chat_minutes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?)`,
 			g.ID, g.Title, g.Command, g.ClaimCommand, g.Winners, g.ClaimSeconds, g.SubscribersOnly, g.Practice, by, ts(now),
-			tsPtr(g.ClosesAt), string(rules), g.EnterByChat, g.SubscriberChances); err != nil {
+			tsPtr(g.ClosesAt), string(rules), g.EnterByChat, g.SubscriberChances, g.FromChatMinutes); err != nil {
 			return err
 		}
 		return s.say(ctx, tx, &g, openingWords(&g))
@@ -412,7 +440,9 @@ func plural(n int, one, many string) string {
 
 func openingWords(g *Giveaway) string {
 	var b strings.Builder
-	if g.EnterByChat {
+	if g.FromChatMinutes > 0 {
+		fmt.Fprintf(&b, "🎲 Drawing %s now from everyone who chatted in the last %s", g.Title, plural(g.FromChatMinutes, "minute", "minutes"))
+	} else if g.EnterByChat {
 		fmt.Fprintf(&b, "🎉 Giveaway: %s! Say anything in chat (or type !%s) to enter", g.Title, g.Command)
 	} else {
 		fmt.Fprintf(&b, "🎉 Giveaway: %s! Type !%s in chat to enter", g.Title, g.Command)
@@ -476,10 +506,10 @@ func (s *Service) load(ctx context.Context, q interface {
 	var closes, closed, ended sql.NullString
 	var rules string
 	err := q.QueryRowContext(ctx, `SELECT id, title, command, claim_command, winners, claim_seconds, subscribers_only, practice, state,
-		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint, rules, enter_by_chat, subscriber_chances
-		FROM giveaways WHERE id = ?`, id).Scan(
+		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint, rules, enter_by_chat, subscriber_chances,
+		from_chat_minutes FROM giveaways WHERE id = ?`, id).Scan(
 		&g.ID, &g.Title, &g.Command, &g.ClaimCommand, &g.Winners, &g.ClaimSeconds, &g.SubscribersOnly, &g.Practice, &g.State,
-		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint, &rules, &g.EnterByChat, &g.SubscriberChances)
+		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint, &rules, &g.EnterByChat, &g.SubscriberChances, &g.FromChatMinutes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, ErrNotFound
 	}
@@ -607,6 +637,9 @@ func (s *Service) closeLocked(ctx context.Context, g *Giveaway) (Giveaway, error
 			return err
 		}
 		words := fmt.Sprintf("Entries for %s are closed: %s. Drawing soon!", g.Title, plural(len(list), "entry", "entries"))
+		if g.FromChatMinutes > 0 {
+			words = fmt.Sprintf("%s from chat for %s. Drawing!", plural(len(list), "entry", "entries"), g.Title)
+		}
 		if len(list) == 0 {
 			words = fmt.Sprintf("Entries for %s are closed, and no one entered.", g.Title)
 		}
@@ -936,7 +969,7 @@ func winnerFields(e Entry) map[string]any {
 func (s *Service) publicFields(g *Giveaway, extra map[string]any) map[string]any {
 	p := map[string]any{"giveaway_id": g.ID, "title": g.Title, "command": g.Command, "winners": g.Winners, "practice": g.Practice,
 		"subscribers_only": g.SubscribersOnly, "enter_by_chat": g.EnterByChat,
-		"subscriber_chances": g.SubscriberChances}
+		"subscriber_chances": g.SubscriberChances, "from_chat_minutes": g.FromChatMinutes}
 	for k, v := range extra {
 		p[k] = v
 	}

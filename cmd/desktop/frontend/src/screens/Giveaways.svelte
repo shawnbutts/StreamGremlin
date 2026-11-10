@@ -33,7 +33,7 @@
   let error = $state('');
   let now = $state(Date.now());
 
-  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false, byChat: false, subChances: 1 });
+  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false, byChat: false, subChances: 1, mode: 'command', chatMinutes: 10 });
   // Who may enter (docs/adr/0026-giveaway-entry-rules.md): each is off at 0.
   let rules = $state({ followers: false, follow_days: 0, account_days: 0, sub_months: 0, messages: 0, win_cooldown_days: 0 });
   const RULE_FIELDS = [
@@ -96,12 +96,12 @@
       () =>
         openGiveaway({
           title: form.title.trim(),
-          command: form.command,
+          ...(form.mode === 'chat'
+            ? { from_chat_minutes: Number(form.chatMinutes) || 10 }
+            : { command: form.command, minutes: Number(form.minutes) || 0, enter_by_chat: form.byChat }),
           winners: Number(form.winners),
-          minutes: Number(form.minutes) || 0,
           claim_seconds: form.claim ? Number(form.claimSeconds) : 0,
           subscribers_only: form.subs,
-          enter_by_chat: form.byChat,
           subscriber_chances: form.subs || rules.sub_months > 0 ? 1 : Number(form.subChances) || 1,
           rules: {
             followers: rules.followers,
@@ -113,7 +113,9 @@
           },
           practice: form.practice,
         }),
-      form.practice ? 'Practice giveaway open: enter with a test chat command on Events.' : 'The giveaway is open, and chat has been told how to enter.',
+      form.mode === 'chat'
+        ? 'Drawn from recent chat, and announced.'
+        : form.practice ? 'Practice giveaway open: enter with a test chat command on Events.' : 'The giveaway is open, and chat has been told how to enter.',
     );
     if (ok) form.title = '';
   }
@@ -198,7 +200,8 @@
       {#if g.practice}<span class="tag">Practice</span>{/if}
     </h2>
     <p>
-      {#if g.enter_by_chat}Viewers say anything in chat, or type <strong>!{g.command}</strong>, to enter.{:else}Viewers type
+      {#if g.from_chat_minutes}Drawn from everyone who chatted in the last {g.from_chat_minutes}
+        {g.from_chat_minutes === 1 ? 'minute' : 'minutes'}.{:else if g.enter_by_chat}Viewers say anything in chat, or type <strong>!{g.command}</strong>, to enter.{:else}Viewers type
         <strong>!{g.command}</strong> to enter.{/if}
       {#if who(g)}Open to {who(g)}.{/if}
       {#if weighted(g)}<strong>Chances:</strong> {chancesWords(g)}.{/if}
@@ -264,7 +267,11 @@
         <ul class="live-list" aria-label="Turned away">
           {#each g.refusals as r (r.login)}<li>{r.display_name}: {refusalWords(r.reason, g)}</li>{/each}
         </ul>
-        <p class="sg-muted">Each heard why in chat. Typing !{g.command} again checks again.</p>
+        {#if g.from_chat_minutes}
+          <p class="sg-muted">Drawn from chat, so they weren’t told.</p>
+        {:else}
+          <p class="sg-muted">Each heard why in chat. Typing !{g.command} again checks again.</p>
+        {/if}
       {/if}
     </details>
 
@@ -287,20 +294,40 @@
     <h2 id="open-heading">Open a giveaway</h2>
     <form class="test-form" onsubmit={submit} aria-label="Open a giveaway">
       <label class="field"><span>What’s being given away</span><input class="sg-input" bind:value={form.title} maxlength="100" placeholder="a Steam key" required /></label>
-      <label class="field"><span>Entry command</span><input class="sg-input" bind:value={form.command} maxlength="25" /></label>
+      <fieldset class="field">
+        <legend>How viewers enter</legend>
+        <label class="choice-inline"><input type="radio" name="gw-mode" value="command" bind:group={form.mode} /> They type a command</label>
+        <label class="choice-inline"><input type="radio" name="gw-mode" value="chat" bind:group={form.mode} /> Draw now from everyone who chatted recently</label>
+      </fieldset>
+      {#if form.mode === 'chat'}
+        <label class="field">
+          <span>Chatted in the last (minutes)</span>
+          <input class="sg-input" type="number" min="1" max="60" bind:value={form.chatMinutes} />
+          <span class="sg-muted field-hint">
+            Everyone StreamGremlin saw chatting then enters, once each, and winners are drawn at once. Viewers who didn’t chat can’t be
+            included, and nobody is told they were left out.
+          </span>
+        </label>
+      {:else}
+        <label class="field"><span>Entry command</span><input class="sg-input" bind:value={form.command} maxlength="25" /></label>
+      {/if}
       <label class="field"><span>Winners</span><input class="sg-input" type="number" min="1" max="20" bind:value={form.winners} /></label>
-      <label class="field">
-        <span>Close entries after (minutes)</span>
-        <input class="sg-input" type="number" min="0" max="1440" bind:value={form.minutes} />
-        <span class="sg-muted field-hint">0: when you close them.</span>
-      </label>
+      {#if form.mode === 'command'}
+        <label class="field">
+          <span>Close entries after (minutes)</span>
+          <input class="sg-input" type="number" min="0" max="1440" bind:value={form.minutes} />
+          <span class="sg-muted field-hint">0: when you close them.</span>
+        </label>
+      {/if}
       <label class="choice-inline"><input type="checkbox" bind:checked={form.claim} /> Winners must claim by typing !claim</label>
       {#if form.claim}
         <label class="field"><span>Seconds to claim</span><input class="sg-input" type="number" min="15" max="600" bind:value={form.claimSeconds} /></label>
       {/if}
-      <label class="choice-inline">
-        <input type="checkbox" bind:checked={form.byChat} /> Anyone who chats enters, as well as typing the command
-      </label>
+      {#if form.mode === 'command'}
+        <label class="choice-inline">
+          <input type="checkbox" bind:checked={form.byChat} /> Anyone who chats enters, as well as typing the command
+        </label>
+      {/if}
       <label class="field">
         <span>Chances for each subscriber</span>
         <input class="sg-input" type="number" min="1" max="10" bind:value={form.subChances} disabled={form.subs || rules.sub_months > 0} />
@@ -310,7 +337,7 @@
       </label>
       <fieldset class="field">
         <legend>Who can enter</legend>
-        <p class="sg-muted field-hint">These decide who may enter, never anyone’s chance: every entry has the same chance.</p>
+        <p class="sg-muted field-hint">These decide who may enter, never anyone’s chance.</p>
         <label class="choice-inline"><input type="checkbox" bind:checked={form.subs} /> Subscribers only</label>
         <label class="choice-inline"><input type="checkbox" bind:checked={rules.followers} /> Followers only</label>
         {#each RULE_FIELDS as f (f.key)}
@@ -324,7 +351,9 @@
       <label class="choice-inline">
         <input type="checkbox" bind:checked={form.practice} /> Practice: only test chat from Events enters, and nothing is sent to Twitch
       </label>
-      <div class="row-actions"><button type="submit" class="sg-button" disabled={busy || !form.title.trim()}>Open the giveaway</button></div>
+      <div class="row-actions"><button type="submit" class="sg-button" disabled={busy || !form.title.trim()}
+          >{form.mode === 'chat' ? 'Draw now' : 'Open the giveaway'}</button
+        ></div>
     </form>
     <p class="saved" role="status">{notice}</p>
     {#if error}<p class="error" role="alert">{error}</p>{/if}

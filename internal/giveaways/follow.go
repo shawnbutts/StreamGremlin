@@ -132,20 +132,9 @@ func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate 
 	if (r.DeliveryQuality == events.Synthetic) != g.Practice {
 		return nil
 	}
-	var p struct {
-		Command string  `json:"command"`
-		Text    string  `json:"text"`
-		Chatter chatter `json:"chatter"`
-	}
-	if json.Unmarshal(r.Payload, &p) != nil || p.Chatter.ID == "" {
+	p, platform, ok := chatOf(r)
+	if !ok {
 		return nil
-	}
-	platform := r.Source
-	if r.Actor != nil {
-		platform = r.Actor.Platform
-	}
-	if p.Chatter.DisplayName == "" {
-		p.Chatter.DisplayName = p.Chatter.Login
 	}
 	byChat := r.Type == "chat.message.received"
 	cmd := strings.ToLower(p.Command)
@@ -183,6 +172,28 @@ func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate 
 	return &candidate{g: *g, r: r, platform: platform, c: p.Chatter}
 }
 
+// chatPayload is what a chat message or command says, the parts read.
+type chatPayload struct {
+	Command string  `json:"command"`
+	Text    string  `json:"text"`
+	Chatter chatter `json:"chatter"`
+}
+
+// chatOf reads a chat record: what it says, and the chatter's platform.
+func chatOf(r events.Record) (p chatPayload, platform string, ok bool) {
+	if json.Unmarshal(r.Payload, &p) != nil || p.Chatter.ID == "" {
+		return p, "", false
+	}
+	platform = r.Source
+	if r.Actor != nil {
+		platform = r.Actor.Platform
+	}
+	if p.Chatter.DisplayName == "" {
+		p.Chatter.DisplayName = p.Chatter.Login
+	}
+	return p, platform, true
+}
+
 // admitLocked records the checked candidate: in, or turned away with the
 // reason (said in chat once, and again only when the reason changes).
 func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, reason string) error {
@@ -194,9 +205,10 @@ func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, re
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		if reason != "" {
 			_, err := tx.ExecContext(ctx, `INSERT INTO giveaway_refusals (giveaway_id, platform, user_id, login, display_name, reason,
-				refused_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (giveaway_id, platform, user_id) DO UPDATE SET reason = excluded.reason,
-				refused_at = excluded.refused_at, announced = 0 WHERE giveaway_refusals.reason != excluded.reason`,
-				g.ID, cd.platform, c.ID, c.Login, c.DisplayName, reason, ts(s.now()))
+				refused_at, announced) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (giveaway_id, platform, user_id) DO UPDATE SET
+				reason = excluded.reason, refused_at = excluded.refused_at, announced = excluded.announced
+				WHERE giveaway_refusals.reason != excluded.reason`,
+				g.ID, cd.platform, c.ID, c.Login, c.DisplayName, reason, ts(s.now()), cd.quiet)
 			return err
 		}
 		qualified := []byte("{}")
@@ -209,9 +221,9 @@ func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, re
 			chances = max(g.SubscriberChances, 1)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaway_entries (giveaway_id, seq, platform, user_id, login, display_name, event_id,
-			entered_at, qualified, chances) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ? FROM giveaway_entries
+			entered_at, qualified, chances, announced) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM giveaway_entries
 			WHERE giveaway_id = ? ON CONFLICT DO NOTHING`, g.ID, cd.platform, c.ID, c.Login, c.DisplayName, cd.r.EventID, ts(s.now()),
-			string(qualified), chances, g.ID); err != nil {
+			string(qualified), chances, cd.quiet, g.ID); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, "DELETE FROM giveaway_refusals WHERE giveaway_id = ? AND platform = ? AND user_id = ?", g.ID,

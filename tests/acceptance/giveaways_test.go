@@ -246,3 +246,68 @@ func TestGiveawayChances(t *testing.T) {
 		t.Fatalf("show:\n%s", out)
 	}
 }
+
+// Drawing from recent chat through the real engine, CLI and mocktwitch:
+// everyone who chatted enters at once (not the streamer, once each), a
+// follower rule turns someone away without telling chat, winners are
+// drawn, and the record checks out.
+func TestGiveawayFromRecentChat(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not reading chat"
+		}
+		return ""
+	})
+	said := func(text string) func() string {
+		return func() string {
+			for _, m := range tw.ChatLog() {
+				if strings.Contains(m.Text, text) {
+					return ""
+				}
+			}
+			return "nothing says " + text
+		}
+	}
+	tw.SetFollower("streamer", "ann", time.Now().AddDate(-1, 0, 0))
+	tw.SetFollower("streamer", "cat", time.Now().AddDate(-1, 0, 0))
+	tw.Say("streamer", "ann", "hi!")
+	tw.Say("streamer", "bob", "hello")
+	tw.Say("streamer", "cat", "!lurk")
+	tw.Say("streamer", "ann", "again")
+	tw.Say("streamer", "streamer", "thanks for coming")
+	eventually(t, "chat stored", func() string {
+		out, _, _ := cli(t, dir, "events")
+		if strings.Count(out, "chat.message.received") < 5 {
+			return out
+		}
+		return ""
+	})
+	out, errOut, code := cli(t, dir, "giveaways", "open", "-from-chat", "10", "-followers", "-winners", "2", "a", "badge")
+	if code != 0 || !strings.Contains(out, "Drawn from chat of the last 10 minutes.") || !strings.Contains(out, "(closed): from chat of the last 10 minutes, 2 winners, 2 entries") ||
+		!strings.Contains(out, "Turned away: 1 viewer") {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the announcement", said("🎲 Drawing a badge now from everyone who chatted in the last 10 minutes. Open to followers."))
+	eventually(t, "the winners", said("2 entries from chat for a badge. Drawing!"))
+	for _, m := range tw.ChatLog() {
+		if strings.Contains(m.Text, "@bob") || strings.Contains(m.Text, "you're in") {
+			t.Fatal("told someone who didn't ask:", m.Text)
+		}
+	}
+	cli(t, dir, "giveaways", "end")
+	list, _, _ := cli(t, dir, "giveaways")
+	id := regexp.MustCompile(`a badge \(ended, 2 entries\)\s+(\S+)`).FindStringSubmatch(list)
+	if id == nil {
+		t.Fatal(list)
+	}
+	if out, _, code := cli(t, dir, "giveaways", "verify", id[1]); code != 0 || !strings.Contains(out, "✓") {
+		t.Fatal(out)
+	}
+}

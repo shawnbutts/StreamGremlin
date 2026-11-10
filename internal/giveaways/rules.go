@@ -153,6 +153,9 @@ type candidate struct {
 	r        events.Record
 	platform string
 	c        chatter
+	// quiet: they didn't ask to enter (a draw from chat), so chat isn't
+	// told they're in or turned away.
+	quiet bool
 }
 
 // subMonths reads months subscribed from the subscriber badge's info,
@@ -281,8 +284,9 @@ func (s *Service) wonSince(ctx context.Context, g *Giveaway, platform, userID st
 }
 
 // messagesBefore counts their chat messages this stream before the one
-// that entered them: since the newest stream start in the last 48 hours,
-// or the last 12 hours when StreamGremlin didn't see one.
+// that entered them (for a draw from chat, before it opened): since the
+// newest stream start in the last 48 hours, or the last 12 hours when
+// StreamGremlin didn't see one.
 func (s *Service) messagesBefore(ctx context.Context, g *Giveaway, cd candidate) (int, error) {
 	now := s.now()
 	from, ok, err := s.inbox.StreamStartSeq(ctx, now.Add(-streamLookback), g.Practice)
@@ -294,7 +298,11 @@ func (s *Service) messagesBefore(ctx context.Context, g *Giveaway, cd candidate)
 			return 0, err
 		}
 	}
-	return s.inbox.CountChatFrom(ctx, cd.platform, cd.c.ID, from, cd.r.Seq, g.Practice)
+	before := cd.r.Seq
+	if g.FromChatMinutes > 0 {
+		before = g.afterSeq + 1 // drawn from chat: everything up to the opening
+	}
+	return s.inbox.CountChatFrom(ctx, cd.platform, cd.c.ID, from, before, g.Practice)
 }
 
 // Weighted reports whether some entries may hold more than one chance.

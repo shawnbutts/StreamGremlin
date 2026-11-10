@@ -194,6 +194,10 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - A giveaway can give each subscriber 2 to 10 chances. Chat is told the odds ("subscribers get 3 chances to everyone else's 1") instead of "the same chance", and a subscriber's "you're in" names their chances.
   - Chances are set when someone enters and kept. Draws pick a ticket, and **Check the draws** and `giveaways verify` check tickets too. Earlier giveaways check as before.
   - `giveaways open -sub-chances N`.
+- M3 slice 4, drawing from recent chat:
+  - **Draw now from everyone who chatted recently:** pick a window of 1 to 60 minutes, and everyone StreamGremlin saw chatting then enters, once each. Winners are drawn at once, with the same record and checks as any giveaway.
+  - Entry rules and subscribers' chances apply. Nobody is told they were left out; the screen lists them. Your own chat never enters.
+  - `giveaways open -from-chat N`.
 
 ### Fixed
 
