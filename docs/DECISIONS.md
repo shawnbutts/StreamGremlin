@@ -990,3 +990,36 @@ Decided 2026-11-10 under D-007. The user said "proceed" to the F4 plan:
 - **The native save dialog is built for exports** (D-115's rule).
 - **The Points screen goes in the main list after Giveaways.** Variables' shortcut moves to Ctrl/⌘+9.
 - **Built and checked against mocktwitch only,** until the live check.
+
+## D-053. Earning rules (M3, F4 slice 2)
+
+Decided 2026-11-10 under D-007. The user said "proceed" to slice 2.
+
+- **Earning follows [ADR-0033](adr/0033-earning-rules.md):** points for chatting, a first follow, subs and resubs by tier, gifted subs (to the gifter) and bits, as ledger credits that never pay twice.
+- **Off until the streamer turns it on,** and it starts from that moment: nothing that happened before pays.
+- **Chat earns only while live by default.** When it's unknown whether you're live, chat earns nothing, and the screen says so.
+- **Defaults:**
+  - chat 1, at most every 60 seconds;
+  - a first follow 50;
+  - subs 500, 1000 and 2500 by tier;
+  - each gifted sub 250;
+  - each 100 bits 10.
+- **The rules are on the Points screen** ("How viewers earn"), in the API and in the CLI.
+- **Subs, gifts and bits are checked against mocktwitch only,** because the user's channel isn't an Affiliate yet (D-030).
+
+## D-054. Giving to everyone, and exporting everyone (F4, planned)
+
+Decided 2026-11-10. The user: "at some point, i'd like to add an "export all" feature as well as a "give to all" with some rules. e.g. in chat viewer list, active chatter, sub, etc."
+
+- **A new F4 slice after time in chat:**
+  - **Give to everyone:** points to a group at once, chosen by a rule:
+    - everyone on Twitch's chatter list;
+    - everyone who chatted in the last N minutes;
+    - subscribers.
+  - **Export everyone:** every viewer's record and points history in one file, through the native save dialog.
+- **Why after time in chat:**
+  - Twitch's chatter list needs `moderator:read:chatters`, which slice 3 adds.
+  - Knowing who subscribes needs Twitch's Get Broadcaster Subscriptions (`channel:read:subscriptions`, already asked for), not a guess from past sub events.
+- **Each viewer is paid once per give,** with an operation id from the give and the viewer, so a retry never pays twice.
+- **The streamer sees who's in the group and the total before confirming.**
+

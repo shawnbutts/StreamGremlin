@@ -30,6 +30,11 @@ const pointsUsage = `usage:
   streamgremlin points undo TRANSACTION   undo a change, once
   streamgremlin points rename NAME        call your points something else, like Gold
   streamgremlin points audit              check every change balances and every balance matches its history
+  streamgremlin points earning            how viewers earn points
+  streamgremlin points earning on|off
+  streamgremlin points earning set NAME=N ...
+        chat=N every=SECONDS live-only=yes|no follow=N tier1=N tier2=N tier3=N gift=N bits=N
+        (gift is per sub gifted, bits per 100 bits; 0 turns a rule off)
 
 Nothing is ever changed or deleted, and nobody goes below zero.`
 
@@ -221,6 +226,8 @@ func pointsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "Your points are now called %s.\n", cur.Name)
 		return 0
+	case "earning":
+		return earningCmd(ctx, c, args, stdout, stderr, usage)
 	case "audit":
 		var out struct {
 			OK       bool     `json:"ok"`
@@ -239,4 +246,78 @@ func pointsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return usage()
+}
+
+func earningCmd(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, args []string, stdout, stderr io.Writer, usage func() int) int {
+	var v api.EarningView
+	if code := apiExit(c.Do(ctx, "GET", "/v1/points/earning", nil, &v), stderr); code != 0 {
+		return code
+	}
+	r := v.Rules
+	if len(args) > 0 {
+		switch args[0] {
+		case "on", "off":
+			if len(args) != 1 {
+				return usage()
+			}
+			r.On = args[0] == "on"
+		case "set":
+			if len(args) < 2 {
+				return usage()
+			}
+			for _, a := range args[1:] {
+				k, val, ok := strings.Cut(a, "=")
+				if !ok {
+					return usage()
+				}
+				if k == "live-only" {
+					if val != "yes" && val != "no" {
+						fmt.Fprintln(stderr, "live-only is yes or no.")
+						return 2
+					}
+					r.Chat.LiveOnly = val == "yes"
+					continue
+				}
+				n, err := strconv.ParseInt(val, 10, 64)
+				if err != nil {
+					fmt.Fprintf(stderr, "%s is a whole number.\n", k)
+					return 2
+				}
+				dst := map[string]*int64{"chat": &r.Chat.Amount, "follow": &r.Follow, "tier1": &r.Sub.Tier1, "tier2": &r.Sub.Tier2,
+					"tier3": &r.Sub.Tier3, "gift": &r.Gift, "bits": &r.Bits}[k]
+				switch {
+				case k == "every":
+					r.Chat.EverySeconds = int(n)
+				case dst != nil:
+					*dst = n
+				default:
+					fmt.Fprintf(stderr, "There's no rule called %s.\n", k)
+					return 2
+				}
+			}
+		default:
+			return usage()
+		}
+		if code := apiExit(c.Do(ctx, "PUT", "/v1/points/earning", r, &v), stderr); code != 0 {
+			return code
+		}
+		r = v.Rules
+	}
+	state := "off"
+	if r.On {
+		state = "on"
+	}
+	fmt.Fprintf(stdout, "Earning is %s. You're %s, as far as StreamGremlin knows.\n", state, v.Live)
+	only := ""
+	if r.Chat.LiveOnly {
+		only = ", only while live"
+	}
+	fmt.Fprintf(stdout, "  chatting       %d, at most every %ds%s\n", r.Chat.Amount, r.Chat.EverySeconds, only)
+	fmt.Fprintf(stdout, "  a first follow %d, once per viewer\n", r.Follow)
+	fmt.Fprintf(stdout, "  a sub          %d tier 1, %d tier 2, %d tier 3 (resubs too; gifted subs earn for the gifter)\n", r.Sub.Tier1, r.Sub.Tier2, r.Sub.Tier3)
+	fmt.Fprintf(stdout, "  a gifted sub   %d each, to the gifter\n", r.Gift)
+	fmt.Fprintf(stdout, "  100 bits       %d\n", r.Bits)
+	return 0
 }

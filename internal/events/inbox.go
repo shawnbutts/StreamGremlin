@@ -237,6 +237,19 @@ func (in *Inbox) LatestReal(ctx context.Context, types ...string) (rec Record, o
 	return recs[0], true, nil
 }
 
+// LatestRealUpTo is LatestReal among the events up to seq upTo.
+func (in *Inbox) LatestRealUpTo(ctx context.Context, upTo int64, types ...string) (rec Record, ok bool, err error) {
+	if len(types) == 0 {
+		return Record{}, false, nil
+	}
+	cond, args := Filter(types).where()
+	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic' AND seq <= ?"+cond+" ORDER BY seq DESC LIMIT ?", append(append([]any{upTo}, args...), 1)...)
+	if err != nil || len(recs) == 0 {
+		return Record{}, false, err
+	}
+	return recs[0], true, nil
+}
+
 // Filter limits which types a reader sees. Empty means every type. Each
 // pattern is a type ("chat.message.received") or a prefix ending in ".*"
 // ("chat.*" matches chat.message.received and chat.command.received).

@@ -1292,3 +1292,19 @@ export const undoPoints = (txId: string, requestId: string) =>
   api<{ balance: number }>('POST', `/v1/points/transactions/${vid(txId)}/undo`, { request_id: requestId });
 export const renamePoints = (name: string) => api<PointsCurrency>('PUT', '/v1/points/currency', { name });
 export const auditPoints = () => api<{ ok: boolean; problems: string[] }>('GET', '/v1/points/audit');
+
+/** How viewers earn points; an amount of 0 turns that rule off. */
+export interface EarningRules {
+  on: boolean;
+  chat: { amount: number; every_seconds: number; live_only: boolean };
+  follow: number;
+  sub: { tier1: number; tier2: number; tier3: number };
+  gift: number;
+  bits: number;
+}
+export interface EarningView {
+  rules: EarningRules;
+  live: 'live' | 'offline' | 'unknown';
+}
+export const getEarning = () => api<EarningView>('GET', '/v1/points/earning');
+export const setEarning = (rules: EarningRules) => api<EarningView>('PUT', '/v1/points/earning', rules);

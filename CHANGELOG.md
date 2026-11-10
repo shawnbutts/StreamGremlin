@@ -217,6 +217,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Steps:** "Give points", "Take points" (fails, changing nothing, when they haven't enough) and "Check points". A retried run never pays twice, and a test event never changes a real balance. A template: **Check your points** (`!points`).
   - `streamgremlin viewers` and `streamgremlin points`.
   - The Points screen sits after Giveaways, so Variables' shortcut is now Ctrl/⌘+9.
+- F4 slice 2, earning rules: viewers earn points for chatting (at most once a minute each, only while you're live, by default), a first follow (once ever), subs and resubs by tier, gifted subs (to the gifter) and bits (per 100). Off until you turn it on under **How viewers earn** on Points, and nothing that happened before pays. Never test events or your own. `streamgremlin points earning`.
 
 ### Fixed
 

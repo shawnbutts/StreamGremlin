@@ -91,3 +91,92 @@ func TestPointsThroughTheCLIAndChat(t *testing.T) {
 		t.Fatal("forgetting broke the ledger:", out)
 	}
 }
+
+// Earning rules through the real engine, CLI and mocktwitch: off until
+// turned on (and nothing before pays); a first follow once, ever; subs by
+// tier, gifted subs to the gifter (never the recipient), bits per 100, a
+// redelivered cheer paid once; chat only once live, at most once a minute;
+// and the ledger still adding up.
+func TestEarningThroughTheCLIAndTwitch(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat and events", func() string {
+		out, _, _ := cli(t, dir, "twitch")
+		if !strings.Contains(out, "Chat:       connected") || !strings.Contains(out, "✓ Channel point redemptions") {
+			return out
+		}
+		return ""
+	})
+	if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "Earning is off") || !strings.Contains(out, "unknown") {
+		t.Fatal(out)
+	}
+	tw.Follow("streamer", "early") // before earning is on: never pays
+	tw.Say("streamer", "early", "hi")
+	eventually(t, "early recorded", func() string {
+		if out, _, _ := cli(t, dir, "viewers", "early"); !strings.Contains(out, "early") {
+			return out
+		}
+		return ""
+	})
+	if out, errOut, code := cli(t, dir, "points", "earning", "set", "follow=40", "tier1=100", "tier2=200", "gift=30", "bits=5", "every=60"); code != 0 ||
+		!strings.Contains(out, "a first follow 40") {
+		t.Fatal(out, errOut)
+	}
+	if _, errOut, code := cli(t, dir, "points", "earning", "set", "follow=-1"); code == 0 || !strings.Contains(errOut, "a follow earns 0 to") {
+		t.Fatal("a negative rule:", code, errOut)
+	}
+	if out, _, code := cli(t, dir, "points", "earning", "on"); code != 0 || !strings.Contains(out, "Earning is on") {
+		t.Fatal(out)
+	}
+
+	tw.Follow("streamer", "fan")
+	tw.Follow("streamer", "fan") // again: once ever
+	tw.Subscribe("streamer", "subber", "2000", false)
+	tw.Subscribe("streamer", "lucky", "1000", true) // a gift recipient
+	tw.Gift("streamer", "gifter", "1000", 3)
+	cheer := map[string]any{"bits": 250, "message": "Cheer250", "is_anonymous": false, "user_id": tw.UserID("cheery"), "user_login": "cheery", "user_name": "Cheery"}
+	id := tw.Notify("streamer", "channel.cheer", cheer, "")
+	tw.Notify("streamer", "channel.cheer", cheer, id) // redelivered
+	tw.Say("streamer", "chatty", "before going live")
+	tw.GoLive("streamer")
+	eventually(t, "live", func() string {
+		if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "You're live") {
+			return out
+		}
+		return ""
+	})
+	tw.Say("streamer", "chatty", "one")
+	tw.Say("streamer", "chatty", "two") // within the minute
+	tw.Say("streamer", "streamer", "the streamer never earns")
+	want := map[string]string{"fan": " 40", "subber": " 200", "gifter": " 90", "cheery": " 10", "chatty": " 1"}
+	eventually(t, "earned", func() string {
+		out, _, _ := cli(t, dir, "viewers")
+		for login, n := range want {
+			found := false
+			for _, line := range strings.Split(out, "\n") {
+				if strings.Contains(strings.ToLower(line), login) && strings.Contains(line, n+" ") {
+					found = true
+				}
+			}
+			if !found {
+				return out
+			}
+		}
+		return ""
+	})
+	out, _, _ := cli(t, dir, "points")
+	if !strings.Contains(out, "5 viewers hold 341 points") {
+		t.Fatal("early, lucky or the streamer earned, or someone earned twice:", out)
+	}
+	if out, _, code := cli(t, dir, "points", "audit"); code != 0 || !strings.Contains(out, "✓") {
+		t.Fatal(out)
+	}
+	if out, _, _ := cli(t, dir, "viewers", "show", "@gifter"); !strings.Contains(out, "gifting 3 subs") {
+		t.Fatal(out)
+	}
+}

@@ -10,12 +10,15 @@
     auditPoints,
     exportViewer,
     forgetViewer,
+    getEarning,
     getPoints,
     getViewer,
     getViewers,
     renamePoints,
     saveFile,
+    setEarning,
     undoPoints,
+    type EarningRules,
     type PointsTransaction,
     type PointsView,
     type Viewer,
@@ -45,6 +48,9 @@
   let changeKey = key();
   let undoing = $state<PointsTransaction | undefined>();
   let forgetting = $state<ViewerDetail | undefined>();
+  // The earning form, read once so a refresh never undoes what's being typed.
+  let rules = $state<EarningRules | undefined>();
+  let live = $state<'live' | 'offline' | 'unknown'>('unknown');
 
   const name = $derived(view?.currency.name ?? 'points');
   const kindWords: Record<string, string> = { credit: 'earned', debit: 'spent', adjust: 'by hand', reverse: 'undo' };
@@ -54,6 +60,9 @@
       view = await getPoints();
       found = (await getViewers(query.trim())).viewers;
       if (chosen) chosen = await getViewer(chosen.id);
+      const earn = await getEarning();
+      live = earn.live;
+      if (!rules) rules = earn.rules;
       loadError = '';
     } catch (e) {
       loadError = message(e);
@@ -151,6 +160,23 @@
     }
   }
 
+  async function saveEarning(e: SubmitEvent) {
+    e.preventDefault();
+    if (!rules) return;
+    const r = $state.snapshot(rules) as EarningRules;
+    const whole = (n: unknown) => Math.max(0, Math.round(Number(n) || 0));
+    r.chat.amount = whole(r.chat.amount);
+    r.chat.every_seconds = whole(r.chat.every_seconds);
+    r.sub = { tier1: whole(r.sub.tier1), tier2: whole(r.sub.tier2), tier3: whole(r.sub.tier3) };
+    r.follow = whole(r.follow);
+    r.gift = whole(r.gift);
+    r.bits = whole(r.bits);
+    let saved: EarningRules | undefined;
+    if (await act(async () => (saved = (await setEarning(r)).rules), r.on ? 'Saved. Viewers earn from now on.' : 'Saved. Earning is off.')) rules = saved;
+  }
+
+  const liveWords = { live: 'You’re live.', offline: 'You’re offline.', unknown: 'Unknown whether you’re live: nothing has said yet.' };
+
   const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 </script>
 
@@ -192,6 +218,45 @@
         <li><button type="button" class="link-button" onclick={() => open(v)}>{v.display_name}</button>: {v.balance} {name}</li>
       {/each}
     </ol>
+  {/if}
+</section>
+
+<section class="sg-panel card" aria-labelledby="earning-heading" aria-busy={busy}>
+  <h2 id="earning-heading">How viewers earn {name}</h2>
+  <p class="sg-muted">
+    Real chat and events only, never test events or your own. It starts from now: nothing that happened before pays. Set an amount to 0 to
+    turn that one off.
+  </p>
+  {#if rules}
+    <form onsubmit={saveEarning} aria-label={`How viewers earn ${name}`}>
+      <label class="choice-inline"><input type="checkbox" bind:checked={rules.on} /> Viewers earn {name}</label>
+      <fieldset>
+        <legend>Chatting</legend>
+        <div class="row-actions">
+          <label class="field inline-field"><span>Each message</span><input class="sg-input" type="number" min="0" bind:value={rules.chat.amount} /></label>
+          <label class="field inline-field"
+            ><span>At most every (seconds)</span><input class="sg-input" type="number" min="0" bind:value={rules.chat.every_seconds} /></label
+          >
+        </div>
+        <label class="choice-inline"><input type="checkbox" bind:checked={rules.chat.live_only} /> Only while you’re live</label>
+        {#if rules.chat.live_only}
+          <p class="sg-muted" role="status">{liveWords[live]}{live === 'live' ? '' : ' Chat earns nothing until you go live.'}</p>
+        {/if}
+      </fieldset>
+      <fieldset>
+        <legend>Following, subs and bits</legend>
+        <div class="row-actions">
+          <label class="field inline-field"><span>A first follow (once each)</span><input class="sg-input" type="number" min="0" bind:value={rules.follow} /></label>
+          <label class="field inline-field"><span>Tier 1 sub</span><input class="sg-input" type="number" min="0" bind:value={rules.sub.tier1} /></label>
+          <label class="field inline-field"><span>Tier 2 sub</span><input class="sg-input" type="number" min="0" bind:value={rules.sub.tier2} /></label>
+          <label class="field inline-field"><span>Tier 3 sub</span><input class="sg-input" type="number" min="0" bind:value={rules.sub.tier3} /></label>
+          <label class="field inline-field"><span>Each sub gifted (to the gifter)</span><input class="sg-input" type="number" min="0" bind:value={rules.gift} /></label>
+          <label class="field inline-field"><span>Each 100 bits</span><input class="sg-input" type="number" min="0" bind:value={rules.bits} /></label>
+        </div>
+        <p class="sg-muted">Resubs earn the same as subs. A gifted sub earns for the gifter, not the viewer who gets it.</p>
+      </fieldset>
+      <button type="submit" class="sg-button" disabled={busy}>Save</button>
+    </form>
   {/if}
 </section>
 
@@ -283,6 +348,8 @@
 {/if}
 
 <style>
+  fieldset { border: none; padding: 0; margin: 0 0 0.75rem; }
+  legend { font-weight: 600; margin-bottom: 0.25rem; }
   .history { border-collapse: collapse; width: 100%; }
   .history th, .history td { text-align: left; padding: 0.25rem 0.75rem 0.25rem 0; vertical-align: top; }
 </style>

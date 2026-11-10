@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
@@ -49,6 +50,7 @@ var testPlayer *sounds.Player
 var (
 	testViewers *viewers.Service
 	testLedger  *points.Ledger
+	testEarning *earning.Service
 	testEvents  *events.Inbox
 )
 
@@ -130,7 +132,12 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(vs.Close)
-	testViewers, testLedger, testEvents = vs, ledger, inbox
+	earn := earning.New(earning.Options{DB: db, Inbox: inbox, Settings: set, Viewers: vs, Points: ledger})
+	if err := earn.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(earn.Close)
+	testViewers, testLedger, testEvents, testEarning = vs, ledger, inbox, earn
 	actions.Register(reg, actions.Services{Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
@@ -148,7 +155,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 )
@@ -59,6 +60,12 @@ type ViewerExportPoints struct {
 	Currency string               `json:"currency"`
 	Balance  int64                `json:"balance"`
 	History  []points.Transaction `json:"history"`
+}
+
+// EarningView is the body of GET /v1/points/earning.
+type EarningView struct {
+	Rules earning.Rules `json:"rules"`
+	Live  string        `json:"live"`
 }
 
 func pointsRoutes(d Deps) []Route {
@@ -221,6 +228,42 @@ func pointsRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, c)
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/points/earning",
+			Summary: "How viewers earn points {rules, live}: chatting, a first follow, subs by tier, gifted subs and bits. live is " +
+				"live, offline or unknown, as far as earning has read.",
+			Permission: PermPointsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				rules, err := d.Earning.Rules(r.Context())
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState()})
+			},
+		},
+		{
+			Method: "PUT", Path: "/v1/points/earning",
+			Summary: "Change how viewers earn points (the rules, as GET returns them). They apply from the next event on; what " +
+				"happened before never pays.",
+			Permission: PermPointsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in earning.Rules
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				rules, err := d.Earning.SetRules(r.Context(), in)
+				if errors.Is(err, earning.ErrInvalid) {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, err.Error())
+					return
+				}
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState()})
 			},
 		},
 		{

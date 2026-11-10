@@ -23,6 +23,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
+	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
@@ -80,6 +81,7 @@ type Host struct {
 	giveaways *giveaways.Service
 	wheels    *wheels.Service
 	viewers   *viewers.Service
+	earning   *earning.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -163,6 +165,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
 	h.viewers = viewers.New(h.db, inbox, log)
 	ledger := points.New(h.db, log)
+	h.earning = earning.New(earning.Options{DB: h.db, Inbox: inbox, Settings: set, Viewers: h.viewers, Points: ledger, Logger: log})
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
@@ -189,6 +192,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	if err := h.viewers.Start(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.earning.Start(ctx); err != nil {
 		return nil, err
 	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
@@ -222,6 +228,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Wheels:     h.wheels,
 		Viewers:    h.viewers,
 		Points:     ledger,
+		Earning:    h.earning,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -342,6 +349,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.earning != nil {
+		h.earning.Close()
 	}
 	if h.viewers != nil {
 		h.viewers.Close()

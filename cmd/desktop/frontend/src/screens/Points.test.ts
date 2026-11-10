@@ -3,7 +3,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Points from './Points.svelte';
 import { mockFetch, settle } from '../test/helpers';
-import type { PointsView, Viewer, ViewerDetail } from '../lib/api';
+import type { EarningRules, PointsView, Viewer, ViewerDetail } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -42,6 +42,15 @@ const detail = (over: Partial<ViewerDetail> = {}): ViewerDetail => ({
 });
 const view: PointsView = { currency: { id: 'points', name: 'points', allow_negative: false }, summary: { transactions: 1, viewers: 1, issued: 50 }, top: [ann] };
 
+const earning: EarningRules = {
+  on: false,
+  chat: { amount: 1, every_seconds: 60, live_only: true },
+  follow: 50,
+  sub: { tier1: 500, tier2: 1000, tier3: 2500 },
+  gift: 250,
+  bits: 10,
+};
+
 function engine(opts: { short?: boolean } = {}) {
   return mockFetch({
     '/v1/points': () => ({ status: 200, body: view }),
@@ -57,6 +66,7 @@ function engine(opts: { short?: boolean } = {}) {
     '/v1/points/currency': (_m, body) => ({ status: 200, body: { id: 'points', name: (body as { name: string }).name } }),
     '/v1/points/audit': () => ({ status: 200, body: { ok: true, problems: [] } }),
     '/desktop/save-file': () => ({ status: 200, body: { saved: '/Users/me/ann-streamgremlin.json' } }),
+    '/v1/points/earning': (m, body) => ({ status: 200, body: { rules: m === 'PUT' ? body : earning, live: 'unknown' } }),
   });
 }
 
@@ -128,5 +138,25 @@ describe('Points', () => {
     button(el, 'Check the ledger')!.click();
     await settle(30);
     expect(el.querySelector('.state-ok')?.textContent).toContain('Every change balances');
+  });
+
+  it('turns earning on and saves the rules, and says when it’s unknown whether you’re live', async () => {
+    const calls = engine();
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Unknown whether you’re live');
+    expect(el.textContent).toContain('Chat earns nothing until you go live.');
+    const on = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('Viewers earn points'))!.querySelector('input')!;
+    on.click();
+    flushSync();
+    typed(field(el, 'A first follow (once each)'), '75');
+    typed(field(el, 'Each 100 bits'), '0');
+    button(el, 'Save')!.click();
+    await settle(30);
+    const sent = calls.find((c) => c.path === '/v1/points/earning' && c.method === 'PUT')!.body as EarningRules;
+    expect(sent).toMatchObject({ on: true, follow: 75, bits: 0, chat: { amount: 1, every_seconds: 60, live_only: true } });
+    expect(el.textContent).toContain('Saved. Viewers earn from now on.');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
   });
 });

@@ -9,6 +9,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
+	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
@@ -56,6 +57,7 @@ type Deps struct {
 	Wheels        *wheels.Service
 	Viewers       *viewers.Service
 	Points        *points.Ledger
+	Earning       *earning.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time

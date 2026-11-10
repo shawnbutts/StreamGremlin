@@ -96,3 +96,43 @@ func TestViewersAndPointsThroughTheAPI(t *testing.T) {
 		t.Fatal(code)
 	}
 }
+
+// Earning rules through the API: off by default, refused when they don't
+// make sense, and once on, a real follow pays and a test follow doesn't.
+func TestEarningThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	code, out := call("GET", "/v1/points/earning", "")
+	var got EarningView
+	if err := json.Unmarshal([]byte(out), &got); code != 200 || err != nil || got.Rules.On || got.Rules.Follow != 50 || got.Live != "unknown" {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/points/earning", `{"on":true,"follow":-1}`); code != 400 || !strings.Contains(out, "a follow earns 0 to") {
+		t.Fatal(code, out)
+	}
+	got.Rules.On, got.Rules.Follow = true, 75
+	body, _ := json.Marshal(got.Rules)
+	if code, out := call("PUT", "/v1/points/earning", string(body)); code != 200 || !strings.Contains(out, `"follow":75`) {
+		t.Fatal(code, out)
+	}
+	ctx := context.Background()
+	for i, q := range []events.Quality{events.Synthetic, events.Confirmed} {
+		if _, err := testEvents.Accept(ctx, events.Envelope{Type: "audience.follow.created", Source: "twitch", Payload: []byte(`{}`),
+			DeliveryQuality: q, Actor: &events.Actor{Platform: "twitch", ID: strings.Repeat("9", i+1), Login: "fan", DisplayName: "Fan"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, out := call("GET", "/v1/points", ""); strings.Contains(out, `"issued":75`) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, out := call("GET", "/v1/points", ""); !strings.Contains(out, `"issued":75`) || !strings.Contains(out, `"viewers":1`) {
+		t.Fatal(out)
+	}
+}
