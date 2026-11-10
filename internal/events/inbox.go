@@ -295,6 +295,33 @@ func (in *Inbox) SeqBefore(ctx context.Context, t time.Time) (int64, error) {
 	return seq, nil
 }
 
+// StreamStartSeq returns the seq of the newest stream start (Twitch went
+// live, or OBS started streaming) received after since: real ones, or test
+// ones when synthetic. ok is false when there's none.
+func (in *Inbox) StreamStartSeq(ctx context.Context, since time.Time, synthetic bool) (seq int64, ok bool, err error) {
+	var n sql.NullInt64
+	err = in.db.QueryRowContext(ctx, `SELECT MAX(seq) FROM events WHERE type IN ('broadcast.channel.online', 'broadcast.stream.started')
+		AND received_at >= ? AND (delivery_quality = 'synthetic') = ?`, storage.Timestamp(since), synthetic).Scan(&n)
+	if err != nil {
+		return 0, false, fmt.Errorf("events: stream start: %w", err)
+	}
+	return n.Int64, n.Valid, nil
+}
+
+// CountChatFrom counts one account's chat messages with after < seq <
+// before, leaving out commands (text starting with "!"): real messages, or
+// test ones when synthetic.
+func (in *Inbox) CountChatFrom(ctx context.Context, platform, userID string, after, before int64, synthetic bool) (int, error) {
+	var n int
+	err := in.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE type = 'chat.message.received' AND seq > ? AND seq < ?
+		AND (delivery_quality = 'synthetic') = ? AND json_extract(actor, '$.platform') = ? AND json_extract(actor, '$.id') = ?
+		AND substr(COALESCE(json_extract(payload, '$.text'), ''), 1, 1) != '!'`, after, before, synthetic, platform, userID).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("events: count chat: %w", err)
+	}
+	return n, nil
+}
+
 // MaxSearch is the longest text Search looks for.
 const MaxSearch = 100
 

@@ -11,12 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/chat"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
 
-var followCommands = events.Filter{"chat.command.received"}
+var followChat = events.Filter{"chat.command.received", "chat.message.received"}
 
 // Start finds the unfinished giveaway, marks messages that were being sent
 // when StreamGremlin stopped as unknown (never resent), and follows chat.
@@ -66,15 +67,28 @@ func (s *Service) run(ctx context.Context) {
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
 	for ctx.Err() == nil {
-		recs, err := s.inbox.After(ctx, s.cursor, 200, followCommands)
+		recs, err := s.inbox.After(ctx, s.cursor, 200, followChat)
 		if err != nil && ctx.Err() == nil {
-			s.log.Warn("couldn't read chat commands", "err", err)
+			s.log.Warn("couldn't read chat", "err", err)
+		}
+		for _, r := range recs {
+			s.mu.Lock()
+			s.cursor = r.Seq
+			cd := s.handleLocked(ctx, r)
+			s.mu.Unlock()
+			if cd == nil {
+				continue
+			}
+			// Checked without the lock: asking Twitch never holds up the
+			// streamer's buttons.
+			q, reason := s.qualify(ctx, *cd)
+			s.mu.Lock()
+			if err := s.admitLocked(ctx, *cd, q, reason); err != nil {
+				s.log.Error("couldn't record a giveaway entry", "err", err)
+			}
+			s.mu.Unlock()
 		}
 		s.mu.Lock()
-		for _, r := range recs {
-			s.cursor = r.Seq
-			s.handleLocked(ctx, r)
-		}
 		s.timersLocked(ctx)
 		s.mu.Unlock()
 		if len(recs) == 200 {
@@ -96,24 +110,35 @@ type chatter struct {
 	DisplayName string `json:"display_name"`
 	Broadcaster bool   `json:"is_broadcaster"`
 	Subscriber  bool   `json:"is_subscriber"`
+	Badges      []struct {
+		SetID string `json:"set_id"`
+		Info  string `json:"info"`
+	} `json:"badges"`
+	// Practice is a test chatter's facts, for a practice giveaway's rules.
+	Practice *struct {
+		FollowDays  int `json:"follow_days"`
+		AccountDays int `json:"account_days"`
+	} `json:"practice"`
 }
 
-// handleLocked enters a viewer, or takes a winner's claim.
-func (s *Service) handleLocked(ctx context.Context, r events.Record) {
+// handleLocked takes a winner's claim, or returns someone asking to enter,
+// to be checked against the rules.
+func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate {
 	g := s.current
-	if g == nil || r.ReceivedAt.Before(g.OpenedAt) {
-		return
+	if g == nil || r.Seq <= g.afterSeq || r.ReceivedAt.Before(g.OpenedAt) {
+		return nil
 	}
 	// A practice giveaway hears only test chat; a live one only real chat.
 	if (r.DeliveryQuality == events.Synthetic) != g.Practice {
-		return
+		return nil
 	}
 	var p struct {
 		Command string  `json:"command"`
+		Text    string  `json:"text"`
 		Chatter chatter `json:"chatter"`
 	}
 	if json.Unmarshal(r.Payload, &p) != nil || p.Chatter.ID == "" {
-		return
+		return nil
 	}
 	platform := r.Source
 	if r.Actor != nil {
@@ -122,34 +147,69 @@ func (s *Service) handleLocked(ctx context.Context, r events.Record) {
 	if p.Chatter.DisplayName == "" {
 		p.Chatter.DisplayName = p.Chatter.Login
 	}
+	byChat := r.Type == "chat.message.received"
 	cmd := strings.ToLower(p.Command)
-	switch {
-	case cmd == g.Command && g.State == Open:
-		if g.ClosesAt != nil && !r.ReceivedAt.Before(*g.ClosesAt) {
-			return
+	if byChat {
+		// A command is read from its own event.
+		if c, ok := chat.ParseCommand(p.Text); ok {
+			cmd = c.Name
 		}
-		if err := s.enterLocked(ctx, g, r, platform, p.Chatter); err != nil {
-			s.log.Error("couldn't record a giveaway entry", "err", err)
+		if !g.EnterByChat || cmd == g.Command || (g.ClaimCommand != "" && cmd == g.ClaimCommand) {
+			return nil
 		}
-	case g.ClaimCommand != "" && cmd == g.ClaimCommand:
+	} else if g.ClaimCommand != "" && cmd == g.ClaimCommand {
 		s.claimLocked(ctx, g, r, platform, p.Chatter.ID)
+		return nil
+	} else if cmd != g.Command {
+		return nil
 	}
-}
-
-func (s *Service) enterLocked(ctx context.Context, g *Giveaway, r events.Record, platform string, c chatter) error {
-	if c.Broadcaster {
+	if g.State != Open || (g.ClosesAt != nil && !r.ReceivedAt.Before(*g.ClosesAt)) || p.Chatter.Broadcaster {
 		return nil // your own giveaway: you can't win it
 	}
+	var in int
+	var refused string
+	if err := s.db.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM giveaway_entries WHERE giveaway_id = ?1 AND platform = ?2 AND user_id = ?3),
+		COALESCE((SELECT reason FROM giveaway_refusals WHERE giveaway_id = ?1 AND platform = ?2 AND user_id = ?3), '')`,
+		g.ID, platform, p.Chatter.ID).Scan(&in, &refused); err != nil {
+		s.log.Error("couldn't read giveaway entries", "err", err)
+		return nil
+	}
+	// Someone turned away is checked again when they type the command, so
+	// a busy chat doesn't ask Twitch about every line; messages counted
+	// are only in the database, so those are checked again as they chat.
+	if in > 0 || (byChat && refused != "" && refused != ReasonMessages) {
+		return nil
+	}
+	return &candidate{g: *g, r: r, platform: platform, c: p.Chatter}
+}
+
+// admitLocked records the checked candidate: in, or turned away with the
+// reason (said in chat once, and again only when the reason changes).
+func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, reason string) error {
+	g, c := s.current, cd.c
+	// Entries may have closed, or the giveaway ended, while Twitch answered.
+	if g == nil || g.ID != cd.g.ID || g.State != Open {
+		return nil
+	}
 	return s.tx(ctx, func(tx *sql.Tx) error {
-		if g.SubscribersOnly && !c.Subscriber {
+		if reason != "" {
 			_, err := tx.ExecContext(ctx, `INSERT INTO giveaway_refusals (giveaway_id, platform, user_id, login, display_name, reason,
-				refused_at) VALUES (?, ?, ?, ?, ?, 'subscribers_only', ?) ON CONFLICT DO NOTHING`, g.ID, platform, c.ID, c.Login,
-				c.DisplayName, ts(s.now()))
+				refused_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (giveaway_id, platform, user_id) DO UPDATE SET reason = excluded.reason,
+				refused_at = excluded.refused_at, announced = 0 WHERE giveaway_refusals.reason != excluded.reason`,
+				g.ID, cd.platform, c.ID, c.Login, c.DisplayName, reason, ts(s.now()))
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO giveaway_entries (giveaway_id, seq, platform, user_id, login, display_name, event_id,
-			entered_at) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ? FROM giveaway_entries WHERE giveaway_id = ?
-			ON CONFLICT DO NOTHING`, g.ID, platform, c.ID, c.Login, c.DisplayName, r.EventID, ts(s.now()), g.ID)
+		qualified := []byte("{}")
+		if g.Rules != (Rules{}) {
+			qualified, _ = json.Marshal(q)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaway_entries (giveaway_id, seq, platform, user_id, login, display_name, event_id,
+			entered_at, qualified) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ?, ? FROM giveaway_entries WHERE giveaway_id = ?
+			ON CONFLICT DO NOTHING`, g.ID, cd.platform, c.ID, c.Login, c.DisplayName, cd.r.EventID, ts(s.now()), string(qualified), g.ID); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, "DELETE FROM giveaway_refusals WHERE giveaway_id = ? AND platform = ? AND user_id = ?", g.ID,
+			cd.platform, c.ID)
 		return err
 	})
 }
@@ -270,20 +330,27 @@ func (s *Service) ackLocked(ctx context.Context, force bool) {
 		if _, err := tx.ExecContext(ctx, "UPDATE giveaway_entries SET announced = 1 WHERE giveaway_id = ? AND announced = 0", g.ID); err != nil {
 			return err
 		}
-		names = names[:0]
-		rows, err = tx.QueryContext(ctx, "SELECT login FROM giveaway_refusals WHERE giveaway_id = ? AND announced = 0 ORDER BY refused_at", g.ID)
+		refused := map[string][]string{}
+		var reasons []string
+		rows, err = tx.QueryContext(ctx, `SELECT login, reason FROM giveaway_refusals WHERE giveaway_id = ? AND announced = 0
+			ORDER BY refused_at, login`, g.ID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			var n string
-			_ = rows.Scan(&n)
-			names = append(names, "@"+n)
+			var n, reason string
+			_ = rows.Scan(&n, &reason)
+			if refused[reason] == nil {
+				reasons = append(reasons, reason)
+			}
+			refused[reason] = append(refused[reason], "@"+n)
 		}
 		_ = rows.Close()
-		for _, batch := range batches(names, fmt.Sprintf(": %s is for subscribers only.", g.Title)) {
-			if err := s.say(ctx, tx, g, batch); err != nil {
-				return err
+		for _, reason := range reasons {
+			for _, batch := range batches(refused[reason], refusalWords(g, reason)) {
+				if err := s.say(ctx, tx, g, batch); err != nil {
+					return err
+				}
 			}
 		}
 		_, err = tx.ExecContext(ctx, "UPDATE giveaway_refusals SET announced = 1 WHERE giveaway_id = ? AND announced = 0", g.ID)

@@ -23,6 +23,14 @@ const giveawaysUsage = `usage:
       -claim 0         seconds a winner has to type !claim (15 to 600; 0: no claiming)
       -subs            subscribers only
       -practice        take only test chat, and send nothing
+      -chat            any chat message enters, as well as the command
+      Who can enter (each off at 0):
+      -followers       followers only
+      -follow-days 0   followed for at least this many days
+      -account-days 0  a Twitch account at least this many days old
+      -sub-months 0    subscribed for at least this many months
+      -messages 0      chat messages this stream before entering
+      -no-win-days 0   no giveaway win in this many days
   streamgremlin giveaways close               stop taking entries
   streamgremlin giveaways draw [-n N]         draw winners (all still wanted)
   streamgremlin giveaways set-aside DRAW      set a winner aside (by draw number) and draw again
@@ -102,6 +110,13 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fs.IntVar(&st.ClaimSeconds, "claim", 0, "seconds to claim")
 		fs.BoolVar(&st.SubscribersOnly, "subs", false, "subscribers only")
 		fs.BoolVar(&st.Practice, "practice", false, "test chat only, and send nothing")
+		fs.BoolVar(&st.EnterByChat, "chat", false, "any chat message enters, as well as the command")
+		fs.BoolVar(&st.Rules.Followers, "followers", false, "followers only")
+		fs.IntVar(&st.Rules.FollowDays, "follow-days", 0, "followed for at least this many days")
+		fs.IntVar(&st.Rules.AccountDays, "account-days", 0, "Twitch account at least this many days old")
+		fs.IntVar(&st.Rules.SubMonths, "sub-months", 0, "subscribed for at least this many months")
+		fs.IntVar(&st.Rules.Messages, "messages", 0, "chat messages this stream before entering")
+		fs.IntVar(&st.Rules.WinCooldownDays, "no-win-days", 0, "no giveaway win in this many days")
 		if err := fs.Parse(args); err != nil || fs.NArg() == 0 {
 			return usage()
 		}
@@ -226,6 +241,15 @@ func showGiveaway(w io.Writer, d giveaways.Detail, entries bool) {
 	}
 	fmt.Fprintf(w, "%s (%s%s): !%s, %s, %s\n", d.Title, d.State, practice, d.Command, plural(d.Winners, "winner", "winners"),
 		plural(len(d.Entries), "entry", "entries"))
+	if d.EnterByChat {
+		fmt.Fprintf(w, "Any chat message enters, as well as !%s.\n", d.Command)
+	}
+	if r := giveaways.Who(&d.Giveaway); r != "" {
+		fmt.Fprintf(w, "Open to %s.\n", r)
+	}
+	if len(d.Refusals) > 0 {
+		fmt.Fprintf(w, "Turned away: %s\n", plural(len(d.Refusals), "viewer", "viewers"))
+	}
 	if d.Fingerprint != "" {
 		fmt.Fprintf(w, "Entry list fingerprint (SHA-256): %s\n", d.Fingerprint)
 	}

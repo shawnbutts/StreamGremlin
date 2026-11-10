@@ -20,7 +20,7 @@
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import { eventTime } from '../lib/events';
   import { duration } from '../lib/format';
-  import { howDrawn, outcomeWords, verify } from '../lib/giveaways';
+  import { howDrawn, outcomeWords, qualifiedWords, refusalWords, verify, who } from '../lib/giveaways';
 
   let { refreshMs = 2000 }: { refreshMs?: number } = $props();
 
@@ -33,7 +33,16 @@
   let error = $state('');
   let now = $state(Date.now());
 
-  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false });
+  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false, byChat: false });
+  // Who may enter (docs/adr/0026-giveaway-entry-rules.md): each is off at 0.
+  let rules = $state({ followers: false, follow_days: 0, account_days: 0, sub_months: 0, messages: 0, win_cooldown_days: 0 });
+  const RULE_FIELDS = [
+    { key: 'follow_days', label: 'Following for at least (days)', max: 3650, hint: 'Asks Twitch when they enter.' },
+    { key: 'account_days', label: 'Twitch account at least (days old)', max: 3650, hint: 'Asks Twitch when they enter.' },
+    { key: 'sub_months', label: 'Subscribed for at least (months)', max: 120, hint: 'From the subscriber badge in chat.' },
+    { key: 'messages', label: 'Chat messages this stream first', max: 1000, hint: 'Messages StreamGremlin saw since you went live (commands don’t count).' },
+    { key: 'win_cooldown_days', label: 'No giveaway win in the last (days)', max: 365, hint: 'Counts wins in earlier giveaways.' },
+  ] as const;
   let confirm = $state<{ title: string; message: string; label: string; run: () => void } | undefined>();
   let shown = $state<GiveawayDetail | undefined>();
   let check = $state<{ id: string; problems: string[] } | undefined>();
@@ -92,6 +101,15 @@
           minutes: Number(form.minutes) || 0,
           claim_seconds: form.claim ? Number(form.claimSeconds) : 0,
           subscribers_only: form.subs,
+          enter_by_chat: form.byChat,
+          rules: {
+            followers: rules.followers,
+            follow_days: Number(rules.follow_days) || 0,
+            account_days: Number(rules.account_days) || 0,
+            sub_months: Number(rules.sub_months) || 0,
+            messages: Number(rules.messages) || 0,
+            win_cooldown_days: Number(rules.win_cooldown_days) || 0,
+          },
           practice: form.practice,
         }),
       form.practice ? 'Practice giveaway open: enter with a test chat command on Events.' : 'The giveaway is open, and chat has been told how to enter.',
@@ -178,13 +196,19 @@
       {#if g.practice}<span class="tag">Practice</span>{/if}
     </h2>
     <p>
-      Viewers type <strong>!{g.command}</strong> to enter{g.subscribers_only ? ' (subscribers only)' : ''}.
+      {#if g.enter_by_chat}Viewers say anything in chat, or type <strong>!{g.command}</strong>, to enter.{:else}Viewers type
+        <strong>!{g.command}</strong> to enter.{/if}
+      {#if who(g)}Open to {who(g)}.{/if}
       {g.entries.length} {g.entries.length === 1 ? 'entry' : 'entries'}.
       {#if g.state === 'open' && g.closes_at}Entries close in {duration((Date.parse(g.closes_at) - now) / 1000)}.{/if}
       {#if g.claim_command}Winners type <strong>!{g.claim_command}</strong> within {g.claim_seconds} seconds.{/if}
     </p>
     {#if g.practice}
-      <p class="sg-muted">Practice: only test chat commands from the Events screen enter, and nothing is sent to Twitch.</p>
+      <p class="sg-muted">
+        Practice: only test chat from the Events screen enters, and nothing is sent to Twitch.{who(g)
+          ? ' Twitch isn’t asked either: set how long a test viewer has followed and their account’s age on the test event.'
+          : ''}
+      </p>
     {/if}
     <div class="row-actions">
       {#if g.state === 'open'}
@@ -226,9 +250,19 @@
     <details>
       <summary>Entries ({g.entries.length}){g.refusals.length ? `, ${g.refusals.length} turned away` : ''}</summary>
       <ol class="live-list" aria-label="Entries">
-        {#each g.entries as e (e.seq)}<li>{e.display_name} <span class="sg-muted">{eventTime(e.entered_at)}</span></li>{/each}
+        {#each g.entries as e (e.seq)}
+          <li>
+            {e.display_name} <span class="sg-muted">{eventTime(e.entered_at)}{qualifiedWords(e) ? ` · ${qualifiedWords(e)}` : ''}</span>
+          </li>
+        {/each}
       </ol>
-      {#each g.refusals as r (r.login)}<p class="sg-muted">{r.display_name}: turned away (subscribers only)</p>{/each}
+      {#if g.refusals.length}
+        <h4>Turned away</h4>
+        <ul class="live-list" aria-label="Turned away">
+          {#each g.refusals as r (r.login)}<li>{r.display_name}: {refusalWords(r.reason, g)}</li>{/each}
+        </ul>
+        <p class="sg-muted">Each heard why in chat. Typing !{g.command} again checks again.</p>
+      {/if}
     </details>
 
     <h3>In chat</h3>
@@ -261,7 +295,22 @@
       {#if form.claim}
         <label class="field"><span>Seconds to claim</span><input class="sg-input" type="number" min="15" max="600" bind:value={form.claimSeconds} /></label>
       {/if}
-      <label class="choice-inline"><input type="checkbox" bind:checked={form.subs} /> Subscribers only</label>
+      <label class="choice-inline">
+        <input type="checkbox" bind:checked={form.byChat} /> Anyone who chats enters, as well as typing the command
+      </label>
+      <fieldset class="field">
+        <legend>Who can enter</legend>
+        <p class="sg-muted field-hint">These decide who may enter, never anyone’s chance: every entry has the same chance.</p>
+        <label class="choice-inline"><input type="checkbox" bind:checked={form.subs} /> Subscribers only</label>
+        <label class="choice-inline"><input type="checkbox" bind:checked={rules.followers} /> Followers only</label>
+        {#each RULE_FIELDS as f (f.key)}
+          <label class="field">
+            <span>{f.label}</span>
+            <input class="sg-input" type="number" min="0" max={f.max} bind:value={rules[f.key]} />
+            <span class="sg-muted field-hint">0: off. {f.hint}</span>
+          </label>
+        {/each}
+      </fieldset>
       <label class="choice-inline">
         <input type="checkbox" bind:checked={form.practice} /> Practice: only test chat from Events enters, and nothing is sent to Twitch
       </label>

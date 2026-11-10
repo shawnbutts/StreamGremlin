@@ -38,7 +38,7 @@ const entry = (seq: number, name: string): GiveawayEntry => ({
 async function detail(over: Partial<GiveawayDetail> = {}): Promise<GiveawayDetail> {
   const entries = [entry(1, 'Ann'), entry(2, 'Bob'), entry(3, 'Cat')];
   return {
-    id: 'g1', title: 'a Steam key', command: 'join', winners: 1, claim_seconds: 0, subscribers_only: false, practice: false, state: 'open',
+    id: 'g1', title: 'a Steam key', command: 'join', winners: 1, claim_seconds: 0, subscribers_only: false, rules: {}, enter_by_chat: false, practice: false, state: 'open',
     opened_by: 'the app', opened_at: new Date().toISOString(), entry_count: 3, entries, draws: [], refusals: [],
     messages: [
       { id: 1, text: '🎉 Giveaway: a Steam key! Type !join in chat to enter.', state: 'sent', created_at: '' },
@@ -67,6 +67,52 @@ describe('Giveaways', () => {
     const sent = calls.find((c) => c.method === 'POST')!.body as Record<string, unknown>;
     expect(sent).toMatchObject({ title: 'a Steam key', command: 'join', winners: 2, claim_seconds: 45, practice: false });
     expect(el.textContent).toContain('chat has been told how to enter');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('opens a giveaway with entry rules', async () => {
+    const calls = mockFetch({
+      '/v1/giveaways': (m) => (m === 'POST' ? { status: 201, body: {} } : { status: 200, body: { current: null, recent: [] } }),
+    });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('never anyone’s chance');
+    typed(field(el, 'What’s being given away'), 'a mug');
+    const box = (text: string) =>
+      Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes(text))!.querySelector('input') as HTMLInputElement;
+    box('Anyone who chats enters').click();
+    box('Followers only').click();
+    flushSync();
+    typed(field(el, 'Following for at least (days)'), '7');
+    typed(field(el, 'Twitch account at least (days old)'), '30');
+    typed(field(el, 'Chat messages this stream first'), '3');
+    (el.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(30);
+    const sent = calls.find((c) => c.method === 'POST')!.body as Record<string, unknown>;
+    expect(sent).toMatchObject({
+      title: 'a mug', enter_by_chat: true,
+      rules: { followers: true, follow_days: 7, account_days: 30, sub_months: 0, messages: 3, win_cooldown_days: 0 },
+    });
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('says who can enter, why people were turned away, and what each entry was checked against', async () => {
+    const d = await detail({ enter_by_chat: true, rules: { followers: true, follow_days: 7, account_days: 30 } });
+    d.entries[0] = { ...d.entries[0], qualified: { followed_at: '2024-03-01T00:00:00Z', account_created_at: '2019-05-06T00:00:00Z' } };
+    d.refusals = [
+      { login: 'dan', display_name: 'Dan', reason: 'follow_days' },
+      { login: 'eve', display_name: 'Eve', reason: 'unchecked' },
+    ];
+    mockFetch({ '/v1/giveaways': () => ({ status: 200, body: { current: d, recent: [] } }) });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Viewers say anything in chat, or type !join, to enter.');
+    expect(el.textContent).toContain('Open to followers of 7 days or more; Twitch accounts at least 30 days old.');
+    expect(el.textContent).toContain('Dan: following less than 7 days');
+    expect(el.textContent).toContain('Eve: Twitch couldn’t be asked; they can try again');
+    expect(el.textContent).toContain('following since');
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });
@@ -148,7 +194,7 @@ describe('Giveaways', () => {
     });
     const el = start();
     await settle(40);
-    expect(el.textContent).toContain('Practice: only test chat commands from the Events screen enter');
+    expect(el.textContent).toContain('Practice: only test chat from the Events screen enters');
     button(el, 'Show')!.click();
     await settle(30);
     expect(el.textContent).toContain('Cat: Claimed');

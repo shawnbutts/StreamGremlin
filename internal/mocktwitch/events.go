@@ -164,6 +164,9 @@ func merge(a, b map[string]any) map[string]any {
 
 // Follow: viewer follows channel.
 func (s *Server) Follow(channel, viewer string) string {
+	s.mu.Lock()
+	s.setFollowerLocked(channel, viewer, s.now())
+	s.mu.Unlock()
 	return s.Notify(channel, "channel.follow", merge(s.user(viewer), map[string]any{"followed_at": s.now().UTC().Format(time.RFC3339Nano)}), "")
 }
 
@@ -290,7 +293,12 @@ func (s *Server) usersLocked(w http.ResponseWriter, r *http.Request) {
 	}
 	data := []map[string]string{}
 	for _, id := range ids {
-		data = append(data, map[string]string{"id": id, "login": "user" + id, "display_name": "User" + id,
+		login := s.loginOfLocked(id)
+		if login == "" {
+			login = "user" + id
+		}
+		data = append(data, map[string]string{"id": id, "login": login, "display_name": login,
+			"created_at":        s.createdLocked(login).Format(time.RFC3339),
 			"profile_image_url": "https://static-cdn.jtvnw.net/jtv_user_pictures/mock-" + id + "-profile_image-300x300.png"})
 	}
 	writeJSON(w, map[string]any{"data": data})

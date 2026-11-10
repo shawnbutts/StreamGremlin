@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A giveaway through the real engine, CLI and mocktwitch chat: opened from
@@ -108,4 +109,81 @@ func TestGiveawaysThroughChatAndTheCLI(t *testing.T) {
 	if n := len(tw.ChatLog()); n != before {
 		t.Fatalf("practice sent %d messages", n-before)
 	}
+}
+
+// Entry rules through the real engine, CLI and mocktwitch: entering by
+// chatting, followers of 7 days with accounts 30 days old, checked with
+// Twitch's Get Channel Followers and Get Users; people turned away hear why
+// in chat, and again only when the reason changes. A practice giveaway's
+// rules read the test chatter's facts.
+func TestGiveawayEntryRules(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not reading chat"
+		}
+		return ""
+	})
+	said := func(text string) func() string {
+		return func() string {
+			for _, m := range tw.ChatLog() {
+				if strings.Contains(m.Text, text) {
+					return ""
+				}
+			}
+			return "nothing says " + text
+		}
+	}
+	now := time.Now()
+	tw.SetFollower("streamer", "ann", now.AddDate(0, 0, -30))
+	tw.SetFollower("streamer", "cat", now.AddDate(0, 0, -2))
+	tw.SetFollower("streamer", "dan", now.AddDate(0, 0, -30))
+	tw.SetAccountCreated("dan", now.AddDate(0, 0, -5))
+
+	if out, errOut, code := cli(t, dir, "giveaways", "open", "-chat", "-follow-days", "7", "-account-days", "30", "a", "mug"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the opening", said("Say anything in chat (or type !join) to enter. Open to followers of 7 days or more; "+
+		"Twitch accounts at least 30 days old."))
+	for _, v := range []string{"ann", "bob", "cat", "dan"} {
+		tw.Say("streamer", v, "hello!")
+	}
+	eventually(t, "ann in", said("@ann: you're in a mug! (1 entry so far)"))
+	eventually(t, "bob", said("@bob: a mug is for followers. Follow, then type !join."))
+	eventually(t, "cat", said("@cat: a mug is for followers of 7 days or more."))
+	eventually(t, "dan", said("@dan: a mug is for Twitch accounts at least 30 days old."))
+	// bob follows now: the reason changes, and chat hears the new one.
+	tw.Follow("streamer", "bob")
+	tw.Say("streamer", "bob", "!join")
+	eventually(t, "bob again", said("@bob: a mug is for followers of 7 days or more."))
+	out, _, _ := cli(t, dir, "giveaways")
+	if !strings.Contains(out, "Open to followers of 7 days or more") || !strings.Contains(out, "Turned away: 3 viewers") {
+		t.Fatalf("giveaways:\n%s", out)
+	}
+	cli(t, dir, "giveaways", "cancel")
+
+	// Practice: the test chatter's facts, never Twitch.
+	calls := tw.FollowerCalls()
+	if out, errOut, code := cli(t, dir, "giveaways", "open", "-practice", "-followers", "practice"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	cli(t, dir, "events", "simulate", "chat.command.received", "user=Fan", "command=!join", "follow_days=10")
+	cli(t, dir, "events", "simulate", "chat.command.received", "user=Stranger", "command=!join", "follow_days=-1")
+	eventually(t, "the practice entries", func() string {
+		out, _, _ := cli(t, dir, "giveaways")
+		if !strings.Contains(out, "1 entry") || !strings.Contains(out, "Turned away: 1 viewer") {
+			return out
+		}
+		return ""
+	})
+	if tw.FollowerCalls() != calls {
+		t.Fatal("a practice giveaway asked Twitch")
+	}
+	cli(t, dir, "giveaways", "cancel")
 }

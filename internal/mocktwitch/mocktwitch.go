@@ -50,6 +50,7 @@ type Server struct {
 	rw      rewardState
 	pl      pollState
 	ad      adState
+	vw      viewerState
 }
 
 type code struct {

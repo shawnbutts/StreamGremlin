@@ -73,9 +73,12 @@ func notNow(format string, a ...any) error {
 	return fmt.Errorf("%w: "+format, append([]any{ErrState}, a...)...)
 }
 
-// Twitch is what giveaways need from Twitch: sending chat.
+// Twitch is what giveaways need from Twitch: sending chat, and checking
+// entry rules.
 type Twitch interface {
 	SendChat(ctx context.Context, req twitch.SendRequest) (twitch.SendResult, error)
+	Follower(ctx context.Context, userID string) (twitch.Follow, error)
+	AccountCreated(ctx context.Context, userID string) (time.Time, error)
 }
 
 // Settings open a giveaway.
@@ -92,6 +95,10 @@ type Settings struct {
 	// Minutes, when set, closes entries by themselves after that long.
 	Minutes         int  `json:"minutes"`
 	SubscribersOnly bool `json:"subscribers_only"`
+	// Rules are who may enter (docs/adr/0026-giveaway-entry-rules.md).
+	Rules Rules `json:"rules"`
+	// EnterByChat: any chat message enters, as well as the command.
+	EnterByChat bool `json:"enter_by_chat"`
 	// Practice takes only test chat and sends nothing.
 	Practice bool `json:"practice"`
 }
@@ -105,6 +112,8 @@ type Giveaway struct {
 	Winners         int        `json:"winners"`
 	ClaimSeconds    int        `json:"claim_seconds"`
 	SubscribersOnly bool       `json:"subscribers_only"`
+	Rules           Rules      `json:"rules"`
+	EnterByChat     bool       `json:"enter_by_chat"`
 	Practice        bool       `json:"practice"`
 	State           string     `json:"state"`
 	OpenedBy        string     `json:"opened_by"`
@@ -114,6 +123,10 @@ type Giveaway struct {
 	EndedAt         *time.Time `json:"ended_at,omitempty"`
 	EntryCount      int        `json:"entry_count"`
 	Fingerprint     string     `json:"fingerprint,omitempty"`
+
+	// afterSeq is the inbox's newest event when it opened: chat stored
+	// up to then came before it, even in the same millisecond.
+	afterSeq int64
 }
 
 // Entry is one viewer in, in entry order.
@@ -124,6 +137,8 @@ type Entry struct {
 	Login       string    `json:"login"`
 	DisplayName string    `json:"display_name"`
 	EnteredAt   time.Time `json:"entered_at"`
+	// Qualified is what the entry was checked against, when rules apply.
+	Qualified *Qualified `json:"qualified,omitempty"`
 }
 
 // Draw is one winner drawn, with how.
@@ -258,6 +273,9 @@ func (st *Settings) normalise() error {
 	case st.Minutes < 0 || st.Minutes > MaxMinutes:
 		return invalid("entries close by themselves after up to %d minutes, or not at all", MaxMinutes)
 	}
+	if err := st.Rules.normalise(&st.SubscribersOnly); err != nil {
+		return err
+	}
 	if st.ClaimSeconds == 0 {
 		st.ClaimCommand = ""
 		return nil
@@ -323,9 +341,16 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 	if s.current != nil {
 		return Giveaway{}, notNow("“%s” isn't finished yet: end or cancel it first", s.current.Title)
 	}
-	now := s.now()
+	// Stored to the millisecond, as chat is: a !join in the same millisecond
+	// as the opening counts.
+	now := s.now().UTC().Truncate(time.Millisecond)
+	head, err := s.inbox.Head(ctx)
+	if err != nil {
+		return Giveaway{}, err
+	}
 	g := Giveaway{ID: events.NewID(), Title: st.Title, Command: st.Command, ClaimCommand: st.ClaimCommand, Winners: st.Winners,
-		ClaimSeconds: st.ClaimSeconds, SubscribersOnly: st.SubscribersOnly, Practice: st.Practice, State: Open, OpenedBy: by, OpenedAt: now}
+		ClaimSeconds: st.ClaimSeconds, SubscribersOnly: st.SubscribersOnly, Rules: st.Rules, EnterByChat: st.EnterByChat, Practice: st.Practice,
+		State: Open, OpenedBy: by, OpenedAt: now, afterSeq: head}
 	if !st.Practice {
 		// A practice giveaway hears only test chat, which no workflow
 		// shares with live chat, so it holds nothing.
@@ -337,11 +362,13 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 		t := now.Add(time.Duration(st.Minutes) * time.Minute)
 		g.ClosesAt = &t
 	}
-	err := s.tx(ctx, func(tx *sql.Tx) error {
+	rules, _ := json.Marshal(g.Rules)
+	err = s.tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaways (id, title, command, claim_command, winners, claim_seconds,
-			subscribers_only, practice, state, opened_by, opened_at, closes_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+			subscribers_only, practice, state, opened_by, opened_at, closes_at, rules, enter_by_chat)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)`,
 			g.ID, g.Title, g.Command, g.ClaimCommand, g.Winners, g.ClaimSeconds, g.SubscribersOnly, g.Practice, by, ts(now),
-			tsPtr(g.ClosesAt)); err != nil {
+			tsPtr(g.ClosesAt), string(rules), g.EnterByChat); err != nil {
 			return err
 		}
 		return s.say(ctx, tx, &g, openingWords(&g))
@@ -364,9 +391,13 @@ func plural(n int, one, many string) string {
 
 func openingWords(g *Giveaway) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "🎉 Giveaway: %s! Type !%s in chat to enter", g.Title, g.Command)
-	if g.SubscribersOnly {
-		b.WriteString(" (subscribers only)")
+	if g.EnterByChat {
+		fmt.Fprintf(&b, "🎉 Giveaway: %s! Say anything in chat (or type !%s) to enter", g.Title, g.Command)
+	} else {
+		fmt.Fprintf(&b, "🎉 Giveaway: %s! Type !%s in chat to enter", g.Title, g.Command)
+	}
+	if w := Who(g); w != "" {
+		fmt.Fprintf(&b, ". Open to %s", w)
 	}
 	b.WriteString(". One entry each, and every entry has the same chance")
 	if g.Winners > 1 {
@@ -421,10 +452,11 @@ func (s *Service) load(ctx context.Context, q interface {
 	var g Giveaway
 	var opened string
 	var closes, closed, ended sql.NullString
+	var rules string
 	err := q.QueryRowContext(ctx, `SELECT id, title, command, claim_command, winners, claim_seconds, subscribers_only, practice, state,
-		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint FROM giveaways WHERE id = ?`, id).Scan(
+		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint, rules, enter_by_chat FROM giveaways WHERE id = ?`, id).Scan(
 		&g.ID, &g.Title, &g.Command, &g.ClaimCommand, &g.Winners, &g.ClaimSeconds, &g.SubscribersOnly, &g.Practice, &g.State,
-		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint)
+		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint, &rules, &g.EnterByChat)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, ErrNotFound
 	}
@@ -432,6 +464,9 @@ func (s *Service) load(ctx context.Context, q interface {
 		return g, err
 	}
 	g.OpenedAt, _ = storage.ParseTimestamp(opened)
+	if err := json.Unmarshal([]byte(rules), &g.Rules); err != nil {
+		return g, fmt.Errorf("giveaways: the rules of %s: %w", id, err)
+	}
 	for _, p := range []struct {
 		src sql.NullString
 		dst **time.Time
@@ -458,7 +493,7 @@ func (s *Service) unfinished(id string) (*Giveaway, error) {
 func entriesOf(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, id string) ([]Entry, error) {
-	rows, err := q.QueryContext(ctx, `SELECT seq, platform, user_id, login, display_name, entered_at FROM giveaway_entries
+	rows, err := q.QueryContext(ctx, `SELECT seq, platform, user_id, login, display_name, entered_at, qualified FROM giveaway_entries
 		WHERE giveaway_id = ? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
@@ -467,11 +502,17 @@ func entriesOf(ctx context.Context, q interface {
 	out := []Entry{}
 	for rows.Next() {
 		var e Entry
-		var at string
-		if err := rows.Scan(&e.Seq, &e.Platform, &e.UserID, &e.Login, &e.DisplayName, &at); err != nil {
+		var at, qualified string
+		if err := rows.Scan(&e.Seq, &e.Platform, &e.UserID, &e.Login, &e.DisplayName, &at, &qualified); err != nil {
 			return nil, err
 		}
 		e.EnteredAt, _ = storage.ParseTimestamp(at)
+		if qualified != "{}" && qualified != "" {
+			var q Qualified
+			if json.Unmarshal([]byte(qualified), &q) == nil {
+				e.Qualified = &q
+			}
+		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
@@ -867,7 +908,7 @@ func winnerFields(e Entry) map[string]any {
 
 func (s *Service) publicFields(g *Giveaway, extra map[string]any) map[string]any {
 	p := map[string]any{"giveaway_id": g.ID, "title": g.Title, "command": g.Command, "winners": g.Winners, "practice": g.Practice,
-		"subscribers_only": g.SubscribersOnly}
+		"subscribers_only": g.SubscribersOnly, "enter_by_chat": g.EnterByChat}
 	for k, v := range extra {
 		p[k] = v
 	}

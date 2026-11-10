@@ -29,6 +29,17 @@ var Roles = []string{"viewer", "subscriber", "vip", "moderator", "broadcaster"}
 
 var roleField = Field{Name: "role", Label: "Role", Kind: "choice", Default: "viewer", Max: 11, Choices: Roles, Path: "chatter.role"}
 
+// practiceFields describe a test chatter for practice giveaways' entry
+// rules (docs/adr/0026-giveaway-entry-rules.md): Twitch is never asked
+// about test chat.
+var practiceFields = []Field{
+	{Name: "follow_days", Label: "Following for (days, -1 for not following)", Kind: "number", Default: "30", Max: 6},
+	{Name: "account_days", Label: "Account age (days)", Kind: "number", Default: "365", Max: 6},
+	{Name: "sub_months", Label: "Subscribed for (months, if a subscriber)", Kind: "number", Default: "1", Max: 4},
+}
+
+func withPractice(fs []Field) []Field { return append(fs, practiceFields...) }
+
 // Kind is one event type the engine knows: what it means, which sources
 // send it, and how to make a test event of it.
 type Kind struct {
@@ -57,14 +68,14 @@ func Catalog() []Kind {
 			Type: "chat.message.received", Label: "Chat message",
 			Description: "A viewer sent a message in chat.",
 			Sources:     []string{"twitch"}, Sensitive: true,
-			Fields: []Field{
+			Fields: withPractice([]Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "text", Label: "Message", Kind: "text", Default: "Hello from a test event!", Max: 500},
 				roleField,
-			},
+			}),
 			build: func(id string, v map[string]string) (any, *Actor, error) {
 				a := testViewer(v["user"])
-				ch, err := chatter(a, v["role"])
+				ch, err := practiceChatter(a, v)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -101,19 +112,19 @@ func Catalog() []Kind {
 			Type: "chat.command.received", Label: "Chat command",
 			Description: "A viewer typed a command, such as !hello, in chat.",
 			Sources:     []string{"twitch"}, Sensitive: true,
-			Fields: []Field{
+			Fields: withPractice([]Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "command", Label: "Command", Kind: "text", Default: "!hello", Max: 50},
 				{Name: "args", Label: "After the command", Kind: "text", Default: "", Max: 450},
 				roleField,
-			},
+			}),
 			build: func(id string, v map[string]string) (any, *Actor, error) {
 				cmd := strings.TrimSpace(v["command"])
 				if !strings.HasPrefix(cmd, "!") || len(cmd) < 2 || strings.ContainsAny(cmd, " \t") {
 					return nil, nil, invalid("a command starts with ! and has no spaces, like !hello")
 				}
 				a := testViewer(v["user"])
-				ch, err := chatter(a, v["role"])
+				ch, err := practiceChatter(a, v)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -381,6 +392,40 @@ func chatter(a *Actor, role string) (map[string]any, error) {
 		"is_broadcaster": role == "broadcaster", "is_moderator": role == "moderator", "is_vip": role == "vip",
 		"is_subscriber": role == "subscriber",
 	}, nil
+}
+
+// practiceChatter is a test chatter with what a practice giveaway's entry
+// rules read: chatter.practice, and a subscriber's months in the badge's
+// info, as Twitch sends it.
+func practiceChatter(a *Actor, v map[string]string) (map[string]any, error) {
+	ch, err := chatter(a, v["role"])
+	if err != nil {
+		return nil, err
+	}
+	num := func(name string, lo, hi int) (int, error) {
+		n, err := strconv.Atoi(strings.TrimSpace(v[name]))
+		if err != nil || n < lo || n > hi {
+			return 0, invalid("%s is a whole number from %d to %d", name, lo, hi)
+		}
+		return n, nil
+	}
+	follow, err := num("follow_days", -1, 36500)
+	if err != nil {
+		return nil, err
+	}
+	account, err := num("account_days", 0, 36500)
+	if err != nil {
+		return nil, err
+	}
+	months, err := num("sub_months", 0, 1200)
+	if err != nil {
+		return nil, err
+	}
+	ch["practice"] = map[string]any{"follow_days": follow, "account_days": account}
+	if ch["is_subscriber"] == true && months > 0 {
+		ch["badges"] = []any{map[string]string{"set_id": "subscriber", "id": "0", "info": strconv.Itoa(months)}}
+	}
+	return ch, nil
 }
 
 // Simulation asks for a test event.

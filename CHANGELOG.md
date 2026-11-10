@@ -184,9 +184,16 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Triggers** for a giveaway opening, closing, ending, and a winner drawn, claiming or not; **steps** to open, close, draw and end.
   - `streamgremlin giveaways`, with `open`, `close`, `draw`, `set-aside`, `end`, `cancel`, `show` and `verify`.
   - Giveaways sits in the sidebar after Overlays, so Variables' shortcut is now Ctrl/⌘+8.
+- M3 slice 2, giveaway entry rules:
+  - **Who can enter:** followers, followed for at least so many days, a Twitch account at least so many days old, subscribed for at least so many months, so many chat messages this stream first, and no giveaway win in the last so many days. Rules decide who may enter, never anyone's chance.
+  - Twitch is asked when someone enters, and never guessed: if it can't be asked, the viewer hears to try again. Anyone turned away hears why in chat, once, and again only if the reason changes. Typing `!join` again checks again.
+  - **Anyone who chats enters** is an option, as well as the command.
+  - The screen shows who was turned away and why, and what each entry was checked against. `giveaways open` takes the rules as flags.
+  - Test chat messages and commands on Events can say how long a test viewer has followed, their account's age and months subscribed, for practice giveaways.
 
 ### Fixed
 
+- A `!join` typed in the same millisecond as a giveaway opened could be missed.
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
 
 ### Changed

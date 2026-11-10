@@ -134,6 +134,9 @@ func (s *Server) sayLocked(channelLogin, chatterLogin, text string) string {
 	if s.chat.mods[c][u] {
 		badges = append(badges, map[string]string{"set_id": "moderator", "id": "1", "info": ""})
 	}
+	if b, ok := s.subBadgeLocked(c, u); ok {
+		badges = append(badges, b)
+	}
 	msgID := random(16)
 	ev := map[string]any{
 		"broadcaster_user_id": cid, "broadcaster_user_login": c, "broadcaster_user_name": channelLogin,
@@ -351,6 +354,8 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.subscribeLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/channels":
 		s.channelsLocked(w, r)
+	case r.Method == "GET" && r.URL.Path == "/helix/channels/followers":
+		s.followersLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/users":
 		s.usersLocked(w, r)
 	case r.Method == "POST" && r.URL.Path == "/helix/channels/commercial":

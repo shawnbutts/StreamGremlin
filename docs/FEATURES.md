@@ -107,7 +107,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Alert overlays with slide or pop | 0020, D-124; built in M2, one browser source each, no grouping (ADR-0017, D-028) | F2 |
 | Sounds, played by the desktop app, with volume per sound | 0042, D-057, D-066; built in M2, played in the app's window (ADR-0016, D-027) | F2 |
 | Giveaways: equal entries, fingerprinted entry lists, checkable draws | 0045, D-069; built in M3 (ADR-0025, D-043) | F3 |
-| Giveaway entry rules | 0075, D-125, D-127 | F3 |
+| Giveaway entry rules | 0075, D-125, D-127; built in M3 (ADR-0026, D-044); no watch time or sub tier | F3 |
 | Giveaway extra chances, announced in chat | 0077, D-128, D-129 | F3 |
 | Giveaway draw from recent chat | 0078, D-130 | F3 |
 | Giveaway overlay (never required: chat carries everything) | 0076, D-126 | F3 |

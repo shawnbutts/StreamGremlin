@@ -168,7 +168,7 @@ func (s *Service) streamerRaw(ctx context.Context, scope, method, path string, q
 	if st.UserID == "" || (st.State != StateConnected && st.State != StateUnknown) {
 		return errStreamerSignIn
 	}
-	if !slices.Contains(st.Scopes, scope) {
+	if scope != "" && !slices.Contains(st.Scopes, scope) {
 		return fmt.Errorf("%w (%s)", ErrNeedsPermission, scope)
 	}
 	tok, err := s.streamer.AccessToken(ctx)

@@ -71,7 +71,8 @@ func giveawayRoutes(d Deps) []Route {
 		},
 		{
 			Method: "POST", Path: "/v1/giveaways",
-			Summary: "Open a giveaway {title, command?, winners?, minutes?, claim_seconds?, claim_command?, subscribers_only?, practice?}. " +
+			Summary: "Open a giveaway {title, command?, winners?, minutes?, claim_seconds?, claim_command?, subscribers_only?, enter_by_chat?, practice?, " +
+				"rules?: {followers, follow_days, account_days, sub_months, messages, win_cooldown_days}}. " +
 				"One at a time (409). 409 command_taken when a workflow that's on answers its command.",
 			Permission: PermGiveawaysWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {

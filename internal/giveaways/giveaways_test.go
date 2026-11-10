@@ -21,7 +21,38 @@ type fakeChat struct {
 	mu   sync.Mutex
 	said []string
 	err  error
+
+	follows   map[string]time.Time // user id -> followed at
+	made      map[string]time.Time // user id -> account made
+	factsErr  error
+	factCalls int
 }
+
+func (f *fakeChat) Follower(_ context.Context, id string) (twitch.Follow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.factCalls++
+	if f.factsErr != nil {
+		return twitch.Follow{}, f.factsErr
+	}
+	at, ok := f.follows[id]
+	return twitch.Follow{Follows: ok, FollowedAt: at}, nil
+}
+
+func (f *fakeChat) AccountCreated(_ context.Context, id string) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.factCalls++
+	if f.factsErr != nil {
+		return time.Time{}, f.factsErr
+	}
+	if at, ok := f.made[id]; ok {
+		return at, nil
+	}
+	return time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), nil
+}
+
+func (f *fakeChat) calls() int { f.mu.Lock(); defer f.mu.Unlock(); return f.factCalls }
 
 func (f *fakeChat) SendChat(_ context.Context, req twitch.SendRequest) (twitch.SendResult, error) {
 	f.mu.Lock()
@@ -88,6 +119,18 @@ func (r *rig) start() {
 // say stores a chat command from a viewer, as Twitch chat (or test chat).
 func (r *rig) say(login, command string, test bool, roles ...string) {
 	r.t.Helper()
+	r.send("chat.command.received", login, "!"+command, command, test, nil, roles...)
+}
+
+// talk stores a chat message from a viewer.
+func (r *rig) talk(login, text string, test bool, extra map[string]any) {
+	r.t.Helper()
+	r.send("chat.message.received", login, text, "", test, extra)
+}
+
+// send stores chat; extra adds to the chatter (badges, practice facts).
+func (r *rig) send(typ, login, text, command string, test bool, extra map[string]any, roles ...string) {
+	r.t.Helper()
 	q := events.Confirmed
 	if test {
 		q = events.Synthetic
@@ -97,8 +140,15 @@ func (r *rig) say(login, command string, test bool, roles ...string) {
 	for _, role := range roles {
 		c["is_"+role] = true
 	}
-	p, _ := json.Marshal(map[string]any{"command": command, "chatter": c, "text": "!" + command})
-	_, err := r.inbox.Accept(context.Background(), events.Envelope{Type: "chat.command.received", Source: "twitch",
+	for k, v := range extra {
+		c[k] = v
+	}
+	payload := map[string]any{"chatter": c, "text": text}
+	if command != "" {
+		payload["command"] = command
+	}
+	p, _ := json.Marshal(payload)
+	_, err := r.inbox.Accept(context.Background(), events.Envelope{Type: typ, Source: "twitch",
 		Actor: &events.Actor{Platform: "twitch", ID: "id-" + login, Login: login}, DeliveryQuality: q, Payload: p, ReceivedAt: r.now()})
 	if err != nil {
 		r.t.Fatal(err)

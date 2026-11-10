@@ -857,3 +857,23 @@ Decided 2026-11-09 under D-007. The user said "proceed" to the plan: basic givea
 - **A live giveaway holds its chat commands** against workflows (one answer per command).
 - **No entry cost or points prizes yet:** they come with the points ledger (F4).
 - **The Giveaways screen is in the main sidebar by default.** Variables' shortcut moves from Ctrl/⌘+7 to 8.
+
+## D-044. Giveaway entry rules (M3 slice 2)
+
+Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to slice 2.
+
+- **Entry rules follow [ADR-0026](adr/0026-giveaway-entry-rules.md):**
+  - followers, and for how long;
+  - account age;
+  - months subscribed, from the chat badge;
+  - chat messages this stream;
+  - no recent win;
+  - entering by chatting.
+- **Checked when someone enters,** outside the lock, and never cached or guessed: when Twitch can't be asked, the viewer is told to try again.
+- **Refusals are said in chat once per reason.**
+- **Rules never change anyone's chance.** The form and chat say so.
+- **Left out:**
+  - **watch time,** which needs the chatter list and fits the points slice;
+  - **a subscription-tier rule;**
+  - **rules on the "Open a giveaway" workflow step.**
+- **Built and checked against mocktwitch only,** until the live check.

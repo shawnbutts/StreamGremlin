@@ -1050,6 +1050,16 @@ export const snoozeAd = (opKey: string) => api<AdRequest>('POST', '/v1/ads/snooz
 
 // Giveaways (docs/adr/0025-giveaways.md).
 
+// Who may enter (docs/adr/0026-giveaway-entry-rules.md); each is off at 0.
+export interface GiveawayRules {
+  followers?: boolean;
+  follow_days?: number;
+  account_days?: number;
+  sub_months?: number;
+  messages?: number;
+  win_cooldown_days?: number;
+}
+
 export interface GiveawaySettings {
   title: string;
   command?: string;
@@ -1058,6 +1068,8 @@ export interface GiveawaySettings {
   claim_seconds?: number;
   claim_command?: string;
   subscribers_only?: boolean;
+  rules?: GiveawayRules;
+  enter_by_chat?: boolean;
   practice?: boolean;
 }
 
@@ -1069,6 +1081,8 @@ export interface Giveaway {
   winners: number;
   claim_seconds: number;
   subscribers_only: boolean;
+  rules: GiveawayRules;
+  enter_by_chat: boolean;
   practice: boolean;
   state: 'open' | 'closed' | 'ended' | 'cancelled';
   opened_by: string;
@@ -1087,6 +1101,8 @@ export interface GiveawayEntry {
   login: string;
   display_name: string;
   entered_at: string;
+  // What the entry was checked against, when rules apply.
+  qualified?: { followed_at?: string; account_created_at?: string; sub_months?: number; messages?: number };
 }
 
 export interface GiveawayDraw {
