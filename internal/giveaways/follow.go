@@ -203,9 +203,15 @@ func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, re
 		if g.Rules != (Rules{}) {
 			qualified, _ = json.Marshal(q)
 		}
+		// Chances are set as they enter, from the chat message, and kept.
+		chances := 1
+		if c.Subscriber {
+			chances = max(g.SubscriberChances, 1)
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaway_entries (giveaway_id, seq, platform, user_id, login, display_name, event_id,
-			entered_at, qualified) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ?, ? FROM giveaway_entries WHERE giveaway_id = ?
-			ON CONFLICT DO NOTHING`, g.ID, cd.platform, c.ID, c.Login, c.DisplayName, cd.r.EventID, ts(s.now()), string(qualified), g.ID); err != nil {
+			entered_at, qualified, chances) SELECT ?, COALESCE(MAX(seq), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ? FROM giveaway_entries
+			WHERE giveaway_id = ? ON CONFLICT DO NOTHING`, g.ID, cd.platform, c.ID, c.Login, c.DisplayName, cd.r.EventID, ts(s.now()),
+			string(qualified), chances, g.ID); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, "DELETE FROM giveaway_refusals WHERE giveaway_id = ? AND platform = ? AND user_id = ?", g.ID,
@@ -308,13 +314,18 @@ func (s *Service) ackLocked(ctx context.Context, force bool) {
 	}
 	err := s.tx(ctx, func(tx *sql.Tx) error {
 		var names []string
-		rows, err := tx.QueryContext(ctx, "SELECT login FROM giveaway_entries WHERE giveaway_id = ? AND announced = 0 ORDER BY seq", g.ID)
+		rows, err := tx.QueryContext(ctx, "SELECT login, chances FROM giveaway_entries WHERE giveaway_id = ? AND announced = 0 ORDER BY seq",
+			g.ID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
 			var n string
-			_ = rows.Scan(&n)
+			var chances int
+			_ = rows.Scan(&n, &chances)
+			if chances > 1 {
+				n = fmt.Sprintf("%s (%d chances)", n, chances)
+			}
 			names = append(names, "@"+n)
 		}
 		_ = rows.Close()
@@ -453,40 +464,78 @@ func (s *Service) sendOne(ctx context.Context) bool {
 }
 
 // Fingerprint is the SHA-256 of the entry list: one line per entry, in
-// order, "<seq>\t<platform>:<user id>\n".
-func Fingerprint(entries []Entry) string {
+// order, "<seq>\t<platform>:<user id>\n". A weighted giveaway's lines
+// end with the entry's chances, "\t<chances>", so they can't change after
+// closing; unweighted lines are as they always were.
+func Fingerprint(entries []Entry, weighted bool) string {
 	h := sha256.New()
 	for _, e := range entries {
-		fmt.Fprintf(h, "%d\t%s:%s\n", e.Seq, e.Platform, e.UserID)
+		if weighted {
+			fmt.Fprintf(h, "%d\t%s:%s\t%d\n", e.Seq, e.Platform, e.UserID, e.Chances)
+		} else {
+			fmt.Fprintf(h, "%d\t%s:%s\n", e.Seq, e.Platform, e.UserID)
+		}
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// Tickets counts the tickets entries hold: their chances, at least one each.
+func Tickets(entries []Entry) int {
+	n := 0
+	for _, e := range entries {
+		n += max(e.Chances, 1)
+	}
+	return n
+}
+
+// Holder is the index of the entry holding ticket t (from 0), with each
+// entry's tickets in a row, in entry order.
+func Holder(entries []Entry, t int) int {
+	for i, e := range entries {
+		t -= max(e.Chances, 1)
+		if t < 0 {
+			return i
+		}
+	}
+	return -1
+}
+
 // Verify checks a closed giveaway's record: the entry list matches its
-// fingerprint, and each winner sits at the recorded place among the
-// entries not drawn before. It returns what doesn't hold, or nothing.
-// It can't replay the randomness: crypto/rand has no public seed.
+// fingerprint, and each winner holds the recorded ticket among the entries
+// not drawn before. It returns what doesn't hold, or nothing. It can't
+// replay the randomness: crypto/rand has no public seed.
 func Verify(d Detail) []string {
 	var bad []string
 	if d.Fingerprint == "" {
 		return []string{"entries are still open, so there's no fingerprint to check yet"}
 	}
-	if got := Fingerprint(d.Entries); got != d.Fingerprint {
+	if got := Fingerprint(d.Entries, d.Weighted()); got != d.Fingerprint {
 		bad = append(bad, fmt.Sprintf("the entry list's fingerprint is %s, not the %s recorded at closing", got, d.Fingerprint))
 	}
 	drawn := map[int]bool{}
 	for _, dr := range d.Draws {
-		var cands []int
+		var cands []Entry
 		for _, e := range d.Entries {
 			if !drawn[e.Seq] {
-				cands = append(cands, e.Seq)
+				cands = append(cands, e)
 			}
 		}
+		tickets := Tickets(cands)
+		at := -1
+		if dr.PickIndex >= 0 && dr.PickIndex < tickets {
+			at = Holder(cands, dr.PickIndex)
+		}
 		switch {
-		case len(cands) != dr.Candidates:
-			bad = append(bad, fmt.Sprintf("draw %d: %d entries weren't drawn yet, not %d", dr.N, len(cands), dr.Candidates))
-		case dr.PickIndex < 0 || dr.PickIndex >= len(cands) || cands[dr.PickIndex] != dr.EntrySeq:
-			bad = append(bad, fmt.Sprintf("draw %d: entry %d isn't number %d of those not yet drawn", dr.N, dr.EntrySeq, dr.PickIndex+1))
+		case tickets != dr.Candidates && d.Weighted():
+			bad = append(bad, fmt.Sprintf("draw %d: those not yet drawn held %d tickets, not %d", dr.N, tickets, dr.Candidates))
+		case tickets != dr.Candidates:
+			bad = append(bad, fmt.Sprintf("draw %d: %d entries weren't drawn yet, not %d", dr.N, tickets, dr.Candidates))
+		case at < 0 || cands[at].Seq != dr.EntrySeq:
+			if d.Weighted() {
+				bad = append(bad, fmt.Sprintf("draw %d: entry %d doesn't hold ticket %d of those not yet drawn", dr.N, dr.EntrySeq, dr.PickIndex+1))
+			} else {
+				bad = append(bad, fmt.Sprintf("draw %d: entry %d isn't number %d of those not yet drawn", dr.N, dr.EntrySeq, dr.PickIndex+1))
+			}
 		}
 		drawn[dr.EntrySeq] = true
 	}

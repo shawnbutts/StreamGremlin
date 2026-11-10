@@ -1070,6 +1070,8 @@ export interface GiveawaySettings {
   subscribers_only?: boolean;
   rules?: GiveawayRules;
   enter_by_chat?: boolean;
+  // Chances each subscriber holds, 2 to 10 (docs/adr/0027-giveaway-chances.md); 1: the same as everyone.
+  subscriber_chances?: number;
   practice?: boolean;
 }
 
@@ -1083,6 +1085,7 @@ export interface Giveaway {
   subscribers_only: boolean;
   rules: GiveawayRules;
   enter_by_chat: boolean;
+  subscriber_chances: number;
   practice: boolean;
   state: 'open' | 'closed' | 'ended' | 'cancelled';
   opened_by: string;
@@ -1101,6 +1104,8 @@ export interface GiveawayEntry {
   login: string;
   display_name: string;
   entered_at: string;
+  // Tickets the entry holds (1 unless subscribers were given more).
+  chances?: number;
   // What the entry was checked against, when rules apply.
   qualified?: { followed_at?: string; account_created_at?: string; sub_months?: number; messages?: number };
 }

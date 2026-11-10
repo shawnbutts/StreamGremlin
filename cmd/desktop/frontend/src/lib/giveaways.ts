@@ -3,31 +3,66 @@
 // the engine's word for it.
 import type { Giveaway, GiveawayDetail, GiveawayDraw, GiveawayEntry } from './api';
 
-/** SHA-256 of the entry list: "<seq>\t<platform>:<user id>\n" per entry. */
-export async function fingerprint(entries: GiveawayEntry[]): Promise<string> {
-  const text = entries.map((e) => `${e.seq}\t${e.platform}:${e.user_id}\n`).join('');
+/** Whether some entries may hold more than one chance. */
+export const weighted = (g: Pick<Giveaway, 'subscriber_chances'>) => (g.subscriber_chances ?? 1) > 1;
+
+const chancesOf = (e: GiveawayEntry) => Math.max(e.chances ?? 1, 1);
+
+/**
+ * SHA-256 of the entry list: "<seq>\t<platform>:<user id>\n" per entry, or
+ * with extra chances, "<seq>\t<platform>:<user id>\t<chances>\n".
+ */
+export async function fingerprint(entries: GiveawayEntry[], withChances = false): Promise<string> {
+  const text = entries
+    .map((e) => (withChances ? `${e.seq}\t${e.platform}:${e.user_id}\t${chancesOf(e)}\n` : `${e.seq}\t${e.platform}:${e.user_id}\n`))
+    .join('');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The entry holding ticket t (from 0): each entry's tickets in a row, in entry order. */
+export function holder(entries: GiveawayEntry[], t: number): GiveawayEntry | undefined {
+  for (const e of entries) {
+    t -= chancesOf(e);
+    if (t < 0) return e;
+  }
+  return undefined;
 }
 
 /** What doesn't hold in a giveaway's record, or nothing. */
 export async function verify(d: GiveawayDetail): Promise<string[]> {
   if (!d.fingerprint) return ['Entries are still open, so there’s no fingerprint to check yet.'];
+  const w = weighted(d);
   const bad: string[] = [];
-  if ((await fingerprint(d.entries)) !== d.fingerprint) bad.push('The entry list doesn’t match the fingerprint recorded when entries closed.');
+  if ((await fingerprint(d.entries, w)) !== d.fingerprint) bad.push('The entry list doesn’t match the fingerprint recorded when entries closed.');
   const drawn = new Set<number>();
   for (const dr of [...d.draws].sort((a, b) => a.n - b.n)) {
-    const cands = d.entries.filter((e) => !drawn.has(e.seq)).map((e) => e.seq);
-    if (cands.length !== dr.candidates) bad.push(`Draw ${dr.n}: ${cands.length} entries weren’t drawn yet, not ${dr.candidates}.`);
-    else if (cands[dr.pick_index] !== dr.entry_seq) bad.push(`Draw ${dr.n}: entry ${dr.entry_seq} isn’t number ${dr.pick_index + 1} of those not yet drawn.`);
+    const cands = d.entries.filter((e) => !drawn.has(e.seq));
+    const tickets = cands.reduce((n, e) => n + chancesOf(e), 0);
+    const at = dr.pick_index >= 0 ? holder(cands, dr.pick_index) : undefined;
+    if (tickets !== dr.candidates)
+      bad.push(w ? `Draw ${dr.n}: those not yet drawn held ${tickets} tickets, not ${dr.candidates}.` : `Draw ${dr.n}: ${tickets} entries weren’t drawn yet, not ${dr.candidates}.`);
+    else if (at?.seq !== dr.entry_seq)
+      bad.push(
+        w
+          ? `Draw ${dr.n}: entry ${dr.entry_seq} doesn’t hold ticket ${dr.pick_index + 1} of those not yet drawn.`
+          : `Draw ${dr.n}: entry ${dr.entry_seq} isn’t number ${dr.pick_index + 1} of those not yet drawn.`,
+      );
     drawn.add(dr.entry_seq);
   }
   return bad;
 }
 
 /** A draw in words. */
-export function howDrawn(dr: GiveawayDraw): string {
-  return `Entry ${dr.entry_seq}, number ${dr.pick_index + 1} of the ${dr.candidates} not yet drawn`;
+export function howDrawn(dr: GiveawayDraw, withChances = false): string {
+  return withChances
+    ? `Entry ${dr.entry_seq}, ticket ${dr.pick_index + 1} of the ${dr.candidates} held by those not yet drawn`
+    : `Entry ${dr.entry_seq}, number ${dr.pick_index + 1} of the ${dr.candidates} not yet drawn`;
+}
+
+/** How likely each entry is to win, as chat hears it. */
+export function chancesWords(g: Pick<Giveaway, 'subscriber_chances'>): string {
+  return weighted(g) ? `subscribers get ${g.subscriber_chances} chances to everyone else’s 1` : 'every entry has the same chance';
 }
 
 export function outcomeWords(dr: GiveawayDraw, now: number): string {

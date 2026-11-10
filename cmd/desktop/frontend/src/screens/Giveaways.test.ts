@@ -38,14 +38,14 @@ const entry = (seq: number, name: string): GiveawayEntry => ({
 async function detail(over: Partial<GiveawayDetail> = {}): Promise<GiveawayDetail> {
   const entries = [entry(1, 'Ann'), entry(2, 'Bob'), entry(3, 'Cat')];
   return {
-    id: 'g1', title: 'a Steam key', command: 'join', winners: 1, claim_seconds: 0, subscribers_only: false, rules: {}, enter_by_chat: false, practice: false, state: 'open',
+    id: 'g1', title: 'a Steam key', command: 'join', winners: 1, claim_seconds: 0, subscribers_only: false, rules: {}, enter_by_chat: false, subscriber_chances: 1, practice: false, state: 'open',
     opened_by: 'the app', opened_at: new Date().toISOString(), entry_count: 3, entries, draws: [], refusals: [],
     messages: [
       { id: 1, text: '🎉 Giveaway: a Steam key! Type !join in chat to enter.', state: 'sent', created_at: '' },
       { id: 2, text: '@ann, @bob: you’re in', state: 'failed', detail: 'sign in with your Twitch account', created_at: '' },
     ],
     ...over,
-    fingerprint: over.state && over.state !== 'open' ? await fingerprint(entries) : '',
+    fingerprint: over.state && over.state !== 'open' ? await fingerprint(entries, (over.subscriber_chances ?? 1) > 1) : '',
   };
 }
 
@@ -113,6 +113,38 @@ describe('Giveaways', () => {
     expect(el.textContent).toContain('Dan: following less than 7 days');
     expect(el.textContent).toContain('Eve: Twitch couldn’t be asked; they can try again');
     expect(el.textContent).toContain('following since');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('gives subscribers more chances, and says the odds', async () => {
+    const calls = mockFetch({
+      '/v1/giveaways': (m) => (m === 'POST' ? { status: 201, body: {} } : { status: 200, body: { current: null, recent: [] } }),
+    });
+    const el = start();
+    await settle(30);
+    typed(field(el, 'What’s being given away'), 'a hoodie');
+    typed(field(el, 'Chances for each subscriber'), '3');
+    (el.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(30);
+    expect(calls.find((c) => c.method === 'POST')!.body).toMatchObject({ title: 'a hoodie', subscriber_chances: 3 });
+  });
+
+  it('shows chances on entries and draws as tickets, and checks them', async () => {
+    const d = await detail({ state: 'closed', subscriber_chances: 3 });
+    // The fixture's entries, with Ann a subscriber, fingerprinted with chances.
+    d.entries[0] = { ...d.entries[0], chances: 3 };
+    d.fingerprint = await fingerprint(d.entries, true);
+    d.draws = [{ id: 'd1', n: 1, entry_seq: 1, pick_index: 2, candidates: 5, outcome: 'won', drawn_at: '', winner: d.entries[0] }];
+    mockFetch({ '/v1/giveaways': () => ({ status: 200, body: { current: d, recent: [] } }) });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Chances: subscribers get 3 chances to everyone else’s 1.');
+    expect(el.textContent).toContain('3 chances');
+    expect(el.textContent).toContain('Entry 1, ticket 3 of the 5 held by those not yet drawn');
+    button(el, 'Check the draws')!.click();
+    await settle(30);
+    expect(el.querySelector('[role=status].state-ok')?.textContent).toContain('matches its fingerprint');
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });

@@ -223,7 +223,7 @@ func TestAGiveawayFromOpenToEnd(t *testing.T) {
 	}
 	r.say("late", "join", false)
 	d = r.detail(g.ID)
-	if d.State != Closed || d.EntryCount != 5 || d.Fingerprint != Fingerprint(d.Entries) || len(Verify(d)) != 0 {
+	if d.State != Closed || d.EntryCount != 5 || d.Fingerprint != Fingerprint(d.Entries, false) || len(Verify(d)) != 0 {
 		t.Fatalf("%+v %v", d.Giveaway, Verify(d))
 	}
 	// Drawing again draws no one extra.
@@ -516,7 +516,7 @@ func TestBatchesFitChat(t *testing.T) {
 
 // The app and the CLI check the same fingerprint (cmd/desktop/frontend/src/lib/giveaways.test.ts).
 func TestTheFingerprintFormat(t *testing.T) {
-	got := Fingerprint([]Entry{{Seq: 1, Platform: "twitch", UserID: "u1"}, {Seq: 2, Platform: "twitch", UserID: "u2"}})
+	got := Fingerprint([]Entry{{Seq: 1, Platform: "twitch", UserID: "u1"}, {Seq: 2, Platform: "twitch", UserID: "u2"}}, false)
 	if got != "104215ce233df7bab9166cd87d6aa326afac91317413b47e82f80ad131340060" { // printf '1\ttwitch:u1\n2\ttwitch:u2\n' | shasum -a 256
 		t.Fatal(got)
 	}

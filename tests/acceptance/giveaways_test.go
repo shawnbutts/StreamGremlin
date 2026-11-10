@@ -187,3 +187,62 @@ func TestGiveawayEntryRules(t *testing.T) {
 	}
 	cli(t, dir, "giveaways", "cancel")
 }
+
+// Extra chances through the real engine, CLI and mocktwitch: subscribers
+// get 3 chances, chat says so (never "the same chance"), a subscriber's
+// "you're in" names their chances, draws pick tickets, and the record
+// checks out with "giveaways verify".
+func TestGiveawayChances(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not reading chat"
+		}
+		return ""
+	})
+	said := func(text string) func() string {
+		return func() string {
+			for _, m := range tw.ChatLog() {
+				if strings.Contains(m.Text, text) {
+					return ""
+				}
+			}
+			return "nothing says " + text
+		}
+	}
+	tw.SetSubMonths("streamer", "ann", 4)
+	if out, errOut, code := cli(t, dir, "giveaways", "open", "-sub-chances", "3", "-winners", "2", "a", "hoodie"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the opening", said("One entry each, and subscribers get 3 chances to everyone else's 1; 2 winners will be drawn."))
+	for _, v := range []string{"ann", "bob", "cat"} {
+		tw.Say("streamer", v, "!join")
+	}
+	eventually(t, "ann's chances", said("@ann (3 chances)"))
+	out, errOut, code := cli(t, dir, "giveaways", "draw")
+	if code != 0 || !strings.Contains(out, "of the 5 held by those not yet drawn") {
+		t.Fatal(out, errOut)
+	}
+	list, _, _ := cli(t, dir, "giveaways")
+	if !strings.Contains(list, "Chances: subscribers get 3 chances to everyone else's 1.") {
+		t.Fatal(list)
+	}
+	cli(t, dir, "giveaways", "end")
+	list, _, _ = cli(t, dir, "giveaways")
+	id := regexp.MustCompile(`a hoodie \(ended, 3 entries\)\s+(\S+)`).FindStringSubmatch(list)
+	if id == nil {
+		t.Fatal(list)
+	}
+	if out, _, code := cli(t, dir, "giveaways", "verify", id[1]); code != 0 || !strings.Contains(out, "picked a ticket") {
+		t.Fatal(out)
+	}
+	if out, _, _ := cli(t, dir, "giveaways", "show", id[1], "-entries"); !strings.Contains(out, "\t3\tann") {
+		t.Fatalf("show:\n%s", out)
+	}
+}

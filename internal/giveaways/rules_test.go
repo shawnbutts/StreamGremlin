@@ -111,7 +111,7 @@ func TestFollowAndAccountRules(t *testing.T) {
 		t.Fatal(closed, err)
 	}
 	d := r.detail(g.ID)
-	if fp := Fingerprint(d.Entries); fp != closed.Fingerprint {
+	if fp := Fingerprint(d.Entries, false); fp != closed.Fingerprint {
 		t.Fatal("fingerprint:", fp, closed.Fingerprint)
 	}
 	// Rules are fixed once open.

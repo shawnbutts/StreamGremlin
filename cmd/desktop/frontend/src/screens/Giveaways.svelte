@@ -20,7 +20,7 @@
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import { eventTime } from '../lib/events';
   import { duration } from '../lib/format';
-  import { howDrawn, outcomeWords, qualifiedWords, refusalWords, verify, who } from '../lib/giveaways';
+  import { chancesWords, howDrawn, outcomeWords, qualifiedWords, refusalWords, verify, weighted, who } from '../lib/giveaways';
 
   let { refreshMs = 2000 }: { refreshMs?: number } = $props();
 
@@ -33,7 +33,7 @@
   let error = $state('');
   let now = $state(Date.now());
 
-  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false, byChat: false });
+  let form = $state({ title: '', command: 'join', winners: 1, minutes: 0, claim: false, claimSeconds: 60, subs: false, practice: false, byChat: false, subChances: 1 });
   // Who may enter (docs/adr/0026-giveaway-entry-rules.md): each is off at 0.
   let rules = $state({ followers: false, follow_days: 0, account_days: 0, sub_months: 0, messages: 0, win_cooldown_days: 0 });
   const RULE_FIELDS = [
@@ -102,6 +102,7 @@
           claim_seconds: form.claim ? Number(form.claimSeconds) : 0,
           subscribers_only: form.subs,
           enter_by_chat: form.byChat,
+          subscriber_chances: form.subs || rules.sub_months > 0 ? 1 : Number(form.subChances) || 1,
           rules: {
             followers: rules.followers,
             follow_days: Number(rules.follow_days) || 0,
@@ -179,7 +180,8 @@
 
 <h1>Giveaways</h1>
 <p class="sg-muted screen-intro">
-  Viewers enter by typing a command in chat. One entry each, and every entry has the same chance. Winners are drawn by StreamGremlin
+  Viewers enter by typing a command in chat. One entry each, and every entry has the same chance unless you give subscribers more,
+  which chat is told. Winners are drawn by StreamGremlin
   with a secure random source, and every draw is recorded so it can be checked. Chat is told everything: how to enter, who’s in, and
   who won.
 </p>
@@ -199,6 +201,7 @@
       {#if g.enter_by_chat}Viewers say anything in chat, or type <strong>!{g.command}</strong>, to enter.{:else}Viewers type
         <strong>!{g.command}</strong> to enter.{/if}
       {#if who(g)}Open to {who(g)}.{/if}
+      {#if weighted(g)}<strong>Chances:</strong> {chancesWords(g)}.{/if}
       {g.entries.length} {g.entries.length === 1 ? 'entry' : 'entries'}.
       {#if g.state === 'open' && g.closes_at}Entries close in {duration((Date.parse(g.closes_at) - now) / 1000)}.{/if}
       {#if g.claim_command}Winners type <strong>!{g.claim_command}</strong> within {g.claim_seconds} seconds.{/if}
@@ -237,7 +240,7 @@
         {#each g.draws as d (d.id)}
           <li>
             <strong>{d.winner.display_name}</strong>: {outcomeWords(d, now)}
-            <span class="sg-muted">({howDrawn(d)})</span>
+            <span class="sg-muted">({howDrawn(d, weighted(g))})</span>
             {#if d.outcome === 'won' || d.outcome === 'pending_claim' || d.outcome === 'claimed'}
               <button type="button" class="button" disabled={busy} onclick={() => setAside(d)}>Set aside and draw again</button>
             {/if}
@@ -252,7 +255,7 @@
       <ol class="live-list" aria-label="Entries">
         {#each g.entries as e (e.seq)}
           <li>
-            {e.display_name} <span class="sg-muted">{eventTime(e.entered_at)}{qualifiedWords(e) ? ` · ${qualifiedWords(e)}` : ''}</span>
+            {e.display_name}{#if (e.chances ?? 1) > 1}<span class="tag">{e.chances} chances</span>{/if} <span class="sg-muted">{eventTime(e.entered_at)}{qualifiedWords(e) ? ` · ${qualifiedWords(e)}` : ''}</span>
           </li>
         {/each}
       </ol>
@@ -298,6 +301,13 @@
       <label class="choice-inline">
         <input type="checkbox" bind:checked={form.byChat} /> Anyone who chats enters, as well as typing the command
       </label>
+      <label class="field">
+        <span>Chances for each subscriber</span>
+        <input class="sg-input" type="number" min="1" max="10" bind:value={form.subChances} disabled={form.subs || rules.sub_months > 0} />
+        <span class="sg-muted field-hint">
+          1: every entry has the same chance. More gives subscribers that many tickets each, and chat is told the odds. Not with subscribers only.
+        </span>
+      </label>
       <fieldset class="field">
         <legend>Who can enter</legend>
         <p class="sg-muted field-hint">These decide who may enter, never anyone’s chance: every entry has the same chance.</p>
@@ -334,7 +344,7 @@
           {#if shown?.id === r.id}
             <ul class="live-list" aria-label="Winners">
               {#each shown.draws as d (d.id)}
-                <li><strong>{d.winner.display_name}</strong>: {outcomeWords(d, now)} <span class="sg-muted">({howDrawn(d)})</span></li>
+                <li><strong>{d.winner.display_name}</strong>: {outcomeWords(d, now)} <span class="sg-muted">({howDrawn(d, weighted(shown))})</span></li>
               {:else}
                 <li class="sg-muted">No one was drawn.</li>
               {/each}

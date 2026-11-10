@@ -24,6 +24,7 @@ const giveawaysUsage = `usage:
       -subs            subscribers only
       -practice        take only test chat, and send nothing
       -chat            any chat message enters, as well as the command
+      -sub-chances 1   chances each subscriber holds (2 to 10; 1: the same as everyone)
       Who can enter (each off at 0):
       -followers       followers only
       -follow-days 0   followed for at least this many days
@@ -38,8 +39,9 @@ const giveawaysUsage = `usage:
   streamgremlin giveaways show ID [-entries]  everything recorded about one
   streamgremlin giveaways verify ID           check its entry list and draws
 
-One entry each, and every entry has the same chance. Winners are drawn with
-a secure random source, and each draw is recorded so it can be checked.`
+One entry each, and every entry has the same chance unless subscribers are
+given more, which chat is told. Winners are drawn with a secure random
+source, and each draw is recorded so it can be checked.`
 
 func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
@@ -57,6 +59,7 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		sub, args = args[0], args[1:]
 	}
+	weighted := false // the running giveaway's, once read
 	current := func() (*giveaways.Detail, int) {
 		var v api.GiveawaysView
 		if code := apiExit(c.Do(ctx, "GET", "/v1/giveaways", nil, &v), stderr); code != 0 {
@@ -66,6 +69,7 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stderr, "No giveaway is running.")
 			return nil, 2
 		}
+		weighted = v.Current.Weighted()
 		return v.Current, 0
 	}
 	act := func(path string, body any, out any) int {
@@ -77,8 +81,7 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	}
 	printDraws := func(draws []giveaways.Draw) {
 		for _, d := range draws {
-			fmt.Fprintf(stdout, "Draw %d: %s (entry %d, number %d of the %d not yet drawn)\n", d.N, d.Winner.DisplayName, d.EntrySeq,
-				d.PickIndex+1, d.Candidates)
+			fmt.Fprintf(stdout, "Draw %d: %s (%s)\n", d.N, d.Winner.DisplayName, drawPlace(weighted, d))
 		}
 	}
 	switch sub {
@@ -111,6 +114,7 @@ func giveawaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fs.BoolVar(&st.SubscribersOnly, "subs", false, "subscribers only")
 		fs.BoolVar(&st.Practice, "practice", false, "test chat only, and send nothing")
 		fs.BoolVar(&st.EnterByChat, "chat", false, "any chat message enters, as well as the command")
+		fs.IntVar(&st.SubscriberChances, "sub-chances", 1, "chances each subscriber holds (2 to 10; 1: the same as everyone)")
 		fs.BoolVar(&st.Rules.Followers, "followers", false, "followers only")
 		fs.IntVar(&st.Rules.FollowDays, "follow-days", 0, "followed for at least this many days")
 		fs.IntVar(&st.Rules.AccountDays, "account-days", 0, "Twitch account at least this many days old")
@@ -244,6 +248,9 @@ func showGiveaway(w io.Writer, d giveaways.Detail, entries bool) {
 	if d.EnterByChat {
 		fmt.Fprintf(w, "Any chat message enters, as well as !%s.\n", d.Command)
 	}
+	if d.Weighted() {
+		fmt.Fprintf(w, "Chances: %s.\n", giveaways.ChancesWords(&d.Giveaway))
+	}
 	if r := giveaways.Who(&d.Giveaway); r != "" {
 		fmt.Fprintf(w, "Open to %s.\n", r)
 	}
@@ -258,12 +265,15 @@ func showGiveaway(w io.Writer, d giveaways.Detail, entries bool) {
 		if dr.ClaimUntil != nil {
 			words = fmt.Sprintf(words, dr.ClaimUntil.Local().Format("15:04:05"))
 		}
-		fmt.Fprintf(w, "Draw %d: %s, %s (entry %d, number %d of the %d not yet drawn)\n", dr.N, dr.Winner.DisplayName, words,
-			dr.EntrySeq, dr.PickIndex+1, dr.Candidates)
+		fmt.Fprintf(w, "Draw %d: %s, %s (%s)\n", dr.N, dr.Winner.DisplayName, words, drawPlace(d.Weighted(), dr))
 	}
 	if entries {
 		for _, e := range d.Entries {
-			fmt.Fprintf(w, "%d\t%s:%s\t%s\n", e.Seq, e.Platform, e.UserID, e.DisplayName)
+			if d.Weighted() {
+				fmt.Fprintf(w, "%d\t%s:%s\t%d\t%s\n", e.Seq, e.Platform, e.UserID, e.Chances, e.DisplayName)
+			} else {
+				fmt.Fprintf(w, "%d\t%s:%s\t%s\n", e.Seq, e.Platform, e.UserID, e.DisplayName)
+			}
 		}
 	}
 }
@@ -276,7 +286,21 @@ func verifyGiveaway(w io.Writer, d giveaways.Detail) int {
 		return 1
 	}
 	fmt.Fprintf(w, "✓ The entry list matches its fingerprint (%s entries).\n", strconv.Itoa(len(d.Entries)))
-	fmt.Fprintf(w, "✓ Each of the %d draws picked an entry that hadn't been drawn, at the recorded place.\n", len(d.Draws))
+	if d.Weighted() {
+		fmt.Fprintf(w, "✓ Each of the %d draws picked a ticket held by an entry that hadn't been drawn, at the recorded place, "+
+			"with each entry's chances as tickets in entry order.\n", len(d.Draws))
+	} else {
+		fmt.Fprintf(w, "✓ Each of the %d draws picked an entry that hadn't been drawn, at the recorded place.\n", len(d.Draws))
+	}
 	fmt.Fprintln(w, "The random picks themselves can't be replayed: they come from your system's secure random source.")
 	return 0
+}
+
+// drawPlace says where a draw's pick fell: an entry among those not yet
+// drawn, or with extra chances, a ticket among those they hold.
+func drawPlace(weighted bool, d giveaways.Draw) string {
+	if weighted {
+		return fmt.Sprintf("entry %d, ticket %d of the %d held by those not yet drawn", d.EntrySeq, d.PickIndex+1, d.Candidates)
+	}
+	return fmt.Sprintf("entry %d, number %d of the %d not yet drawn", d.EntrySeq, d.PickIndex+1, d.Candidates)
 }

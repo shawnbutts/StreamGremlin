@@ -877,3 +877,16 @@ Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to sl
   - **a subscription-tier rule;**
   - **rules on the "Open a giveaway" workflow step.**
 - **Built and checked against mocktwitch only,** until the live check.
+
+## D-045. More chances for subscribers (M3 slice 3)
+
+Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to slice 3.
+
+- **Extra chances follow [ADR-0027](adr/0027-giveaway-chances.md):**
+  - subscribers can hold 2 to 10 chances, set at entry and kept;
+  - chat and the app say the odds instead of "the same chance";
+  - draws pick a ticket with `crypto/rand`;
+  - weighted fingerprints include each entry's chances, and the checks expand tickets in entry order.
+- **Not with subscribers only,** where everyone would hold the same.
+- **Left out:** tier chances, watch-time chances, chances for bits, and chances on the "Open a giveaway" workflow step.
+- **Built and checked against mocktwitch only,** until the live check.

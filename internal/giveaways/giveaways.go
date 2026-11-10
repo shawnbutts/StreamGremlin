@@ -1,5 +1,6 @@
 // Package giveaways runs chat giveaways (docs/adr/0025-giveaways.md):
-// viewers enter with a chat command, every entry has the same chance, the
+// viewers enter with a chat command, every entry has the same chance
+// (unless subscribers were given more, said in chat), the
 // entry list is fingerprinted when entries close, and each winner is
 // drawn with crypto/rand and recorded so anyone can check the draw.
 //
@@ -38,6 +39,7 @@ const (
 	MinClaim     = 15
 	MaxClaim     = 600
 	MaxMinutes   = 24 * 60
+	MaxChances   = 10
 	claimGrace   = 2 * time.Second // lets a claim typed just in time arrive
 	staleMessage = 2 * time.Minute // a message that couldn't go out by then isn't sent late
 )
@@ -99,30 +101,36 @@ type Settings struct {
 	Rules Rules `json:"rules"`
 	// EnterByChat: any chat message enters, as well as the command.
 	EnterByChat bool `json:"enter_by_chat"`
+	// SubscriberChances, 2 to 10, gives subscribers that many chances
+	// (docs/adr/0027-giveaway-chances.md). 0 or 1: everyone has one.
+	SubscriberChances int `json:"subscriber_chances"`
 	// Practice takes only test chat and sends nothing.
 	Practice bool `json:"practice"`
 }
 
 // Giveaway is one giveaway.
 type Giveaway struct {
-	ID              string     `json:"id"`
-	Title           string     `json:"title"`
-	Command         string     `json:"command"`
-	ClaimCommand    string     `json:"claim_command,omitempty"`
-	Winners         int        `json:"winners"`
-	ClaimSeconds    int        `json:"claim_seconds"`
-	SubscribersOnly bool       `json:"subscribers_only"`
-	Rules           Rules      `json:"rules"`
-	EnterByChat     bool       `json:"enter_by_chat"`
-	Practice        bool       `json:"practice"`
-	State           string     `json:"state"`
-	OpenedBy        string     `json:"opened_by"`
-	OpenedAt        time.Time  `json:"opened_at"`
-	ClosesAt        *time.Time `json:"closes_at,omitempty"`
-	ClosedAt        *time.Time `json:"closed_at,omitempty"`
-	EndedAt         *time.Time `json:"ended_at,omitempty"`
-	EntryCount      int        `json:"entry_count"`
-	Fingerprint     string     `json:"fingerprint,omitempty"`
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	Command         string `json:"command"`
+	ClaimCommand    string `json:"claim_command,omitempty"`
+	Winners         int    `json:"winners"`
+	ClaimSeconds    int    `json:"claim_seconds"`
+	SubscribersOnly bool   `json:"subscribers_only"`
+	Rules           Rules  `json:"rules"`
+	EnterByChat     bool   `json:"enter_by_chat"`
+	// SubscriberChances is how many chances a subscriber holds (1: the
+	// same as everyone).
+	SubscriberChances int        `json:"subscriber_chances"`
+	Practice          bool       `json:"practice"`
+	State             string     `json:"state"`
+	OpenedBy          string     `json:"opened_by"`
+	OpenedAt          time.Time  `json:"opened_at"`
+	ClosesAt          *time.Time `json:"closes_at,omitempty"`
+	ClosedAt          *time.Time `json:"closed_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
+	EntryCount        int        `json:"entry_count"`
+	Fingerprint       string     `json:"fingerprint,omitempty"`
 
 	// afterSeq is the inbox's newest event when it opened: chat stored
 	// up to then came before it, even in the same millisecond.
@@ -137,6 +145,9 @@ type Entry struct {
 	Login       string    `json:"login"`
 	DisplayName string    `json:"display_name"`
 	EnteredAt   time.Time `json:"entered_at"`
+	// Chances is how many tickets the entry holds (1 unless subscribers
+	// were given more).
+	Chances int `json:"chances"`
 	// Qualified is what the entry was checked against, when rules apply.
 	Qualified *Qualified `json:"qualified,omitempty"`
 }
@@ -276,6 +287,15 @@ func (st *Settings) normalise() error {
 	if err := st.Rules.normalise(&st.SubscribersOnly); err != nil {
 		return err
 	}
+	if st.SubscriberChances == 0 {
+		st.SubscriberChances = 1
+	}
+	switch {
+	case st.SubscriberChances < 1 || st.SubscriberChances > MaxChances:
+		return invalid("subscribers get 1 to %d chances", MaxChances)
+	case st.SubscriberChances > 1 && st.SubscribersOnly:
+		return invalid("with subscribers only, everyone who enters would get the same chances: give subscribers more chances, or let anyone enter")
+	}
 	if st.ClaimSeconds == 0 {
 		st.ClaimCommand = ""
 		return nil
@@ -349,7 +369,8 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 		return Giveaway{}, err
 	}
 	g := Giveaway{ID: events.NewID(), Title: st.Title, Command: st.Command, ClaimCommand: st.ClaimCommand, Winners: st.Winners,
-		ClaimSeconds: st.ClaimSeconds, SubscribersOnly: st.SubscribersOnly, Rules: st.Rules, EnterByChat: st.EnterByChat, Practice: st.Practice,
+		ClaimSeconds: st.ClaimSeconds, SubscribersOnly: st.SubscribersOnly, Rules: st.Rules, EnterByChat: st.EnterByChat,
+		SubscriberChances: st.SubscriberChances, Practice: st.Practice,
 		State: Open, OpenedBy: by, OpenedAt: now, afterSeq: head}
 	if !st.Practice {
 		// A practice giveaway hears only test chat, which no workflow
@@ -365,10 +386,10 @@ func (s *Service) Open(ctx context.Context, st Settings, by string) (Giveaway, e
 	rules, _ := json.Marshal(g.Rules)
 	err = s.tx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO giveaways (id, title, command, claim_command, winners, claim_seconds,
-			subscribers_only, practice, state, opened_by, opened_at, closes_at, rules, enter_by_chat)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?)`,
+			subscribers_only, practice, state, opened_by, opened_at, closes_at, rules, enter_by_chat, subscriber_chances)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
 			g.ID, g.Title, g.Command, g.ClaimCommand, g.Winners, g.ClaimSeconds, g.SubscribersOnly, g.Practice, by, ts(now),
-			tsPtr(g.ClosesAt), string(rules), g.EnterByChat); err != nil {
+			tsPtr(g.ClosesAt), string(rules), g.EnterByChat, g.SubscriberChances); err != nil {
 			return err
 		}
 		return s.say(ctx, tx, &g, openingWords(&g))
@@ -399,7 +420,8 @@ func openingWords(g *Giveaway) string {
 	if w := Who(g); w != "" {
 		fmt.Fprintf(&b, ". Open to %s", w)
 	}
-	b.WriteString(". One entry each, and every entry has the same chance")
+	b.WriteString(". One entry each, and ")
+	b.WriteString(ChancesWords(g))
 	if g.Winners > 1 {
 		fmt.Fprintf(&b, "; %s will be drawn", plural(g.Winners, "winner", "winners"))
 	}
@@ -454,9 +476,10 @@ func (s *Service) load(ctx context.Context, q interface {
 	var closes, closed, ended sql.NullString
 	var rules string
 	err := q.QueryRowContext(ctx, `SELECT id, title, command, claim_command, winners, claim_seconds, subscribers_only, practice, state,
-		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint, rules, enter_by_chat FROM giveaways WHERE id = ?`, id).Scan(
+		opened_by, opened_at, closes_at, closed_at, ended_at, entry_count, fingerprint, rules, enter_by_chat, subscriber_chances
+		FROM giveaways WHERE id = ?`, id).Scan(
 		&g.ID, &g.Title, &g.Command, &g.ClaimCommand, &g.Winners, &g.ClaimSeconds, &g.SubscribersOnly, &g.Practice, &g.State,
-		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint, &rules, &g.EnterByChat)
+		&g.OpenedBy, &opened, &closes, &closed, &ended, &g.EntryCount, &g.Fingerprint, &rules, &g.EnterByChat, &g.SubscriberChances)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, ErrNotFound
 	}
@@ -493,7 +516,7 @@ func (s *Service) unfinished(id string) (*Giveaway, error) {
 func entriesOf(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, id string) ([]Entry, error) {
-	rows, err := q.QueryContext(ctx, `SELECT seq, platform, user_id, login, display_name, entered_at, qualified FROM giveaway_entries
+	rows, err := q.QueryContext(ctx, `SELECT seq, platform, user_id, login, display_name, entered_at, qualified, chances FROM giveaway_entries
 		WHERE giveaway_id = ? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
@@ -503,7 +526,7 @@ func entriesOf(ctx context.Context, q interface {
 	for rows.Next() {
 		var e Entry
 		var at, qualified string
-		if err := rows.Scan(&e.Seq, &e.Platform, &e.UserID, &e.Login, &e.DisplayName, &at, &qualified); err != nil {
+		if err := rows.Scan(&e.Seq, &e.Platform, &e.UserID, &e.Login, &e.DisplayName, &at, &qualified, &e.Chances); err != nil {
 			return nil, err
 		}
 		e.EnteredAt, _ = storage.ParseTimestamp(at)
@@ -522,7 +545,7 @@ func drawsOf(ctx context.Context, q interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, id string) ([]Draw, error) {
 	rows, err := q.QueryContext(ctx, `SELECT d.id, d.n, d.entry_seq, d.pick_index, d.candidates, d.outcome, d.claim_until, d.drawn_at,
-		d.settled_at, d.settled_by, e.platform, e.user_id, e.login, e.display_name, e.entered_at
+		d.settled_at, d.settled_by, e.platform, e.user_id, e.login, e.display_name, e.entered_at, e.chances
 		FROM giveaway_draws d JOIN giveaway_entries e ON e.giveaway_id = d.giveaway_id AND e.seq = d.entry_seq
 		WHERE d.giveaway_id = ? ORDER BY d.n`, id)
 	if err != nil {
@@ -535,7 +558,7 @@ func drawsOf(ctx context.Context, q interface {
 		var until, settled sql.NullString
 		var drawn, entered string
 		if err := rows.Scan(&d.ID, &d.N, &d.EntrySeq, &d.PickIndex, &d.Candidates, &d.Outcome, &until, &drawn, &settled, &d.SettledBy,
-			&d.Winner.Platform, &d.Winner.UserID, &d.Winner.Login, &d.Winner.DisplayName, &entered); err != nil {
+			&d.Winner.Platform, &d.Winner.UserID, &d.Winner.Login, &d.Winner.DisplayName, &entered, &d.Winner.Chances); err != nil {
 			return nil, err
 		}
 		d.Winner.Seq = d.EntrySeq
@@ -578,7 +601,7 @@ func (s *Service) closeLocked(ctx context.Context, g *Giveaway) (Giveaway, error
 		if err != nil {
 			return err
 		}
-		next.State, next.ClosedAt, next.EntryCount, next.Fingerprint = Closed, &now, len(list), Fingerprint(list)
+		next.State, next.ClosedAt, next.EntryCount, next.Fingerprint = Closed, &now, len(list), Fingerprint(list, g.Weighted())
 		if _, err := tx.ExecContext(ctx, `UPDATE giveaways SET state = 'closed', closed_at = ?, entry_count = ?, fingerprint = ?
 			WHERE id = ? AND state = 'open'`, ts(now), next.EntryCount, next.Fingerprint, g.ID); err != nil {
 			return err
@@ -665,12 +688,16 @@ func (s *Service) drawLocked(ctx context.Context, g *Giveaway, count int, prefix
 		}
 		now := s.now()
 		for i := 0; i < count && len(candidates) > 0; i++ {
-			at, err := pick(len(candidates))
+			// Each candidate holds its chances as tickets, in entry order;
+			// one ticket is picked uniformly. Unweighted, a ticket is an entry.
+			tickets := Tickets(candidates)
+			ticket, err := pick(tickets)
 			if err != nil {
 				return err
 			}
+			at := Holder(candidates, ticket)
 			e := candidates[at]
-			d := Draw{ID: events.NewID(), N: len(draws) + 1, EntrySeq: e.Seq, PickIndex: at, Candidates: len(candidates), Outcome: Won,
+			d := Draw{ID: events.NewID(), N: len(draws) + 1, EntrySeq: e.Seq, PickIndex: ticket, Candidates: tickets, Outcome: Won,
 				DrawnAt: now, Winner: e}
 			if g.ClaimSeconds > 0 {
 				d.Outcome = PendingClaim
@@ -908,7 +935,8 @@ func winnerFields(e Entry) map[string]any {
 
 func (s *Service) publicFields(g *Giveaway, extra map[string]any) map[string]any {
 	p := map[string]any{"giveaway_id": g.ID, "title": g.Title, "command": g.Command, "winners": g.Winners, "practice": g.Practice,
-		"subscribers_only": g.SubscribersOnly, "enter_by_chat": g.EnterByChat}
+		"subscribers_only": g.SubscribersOnly, "enter_by_chat": g.EnterByChat,
+		"subscriber_chances": g.SubscriberChances}
 	for k, v := range extra {
 		p[k] = v
 	}

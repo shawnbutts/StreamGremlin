@@ -11,7 +11,7 @@ import (
 )
 
 // Entry rules (docs/adr/0026-giveaway-entry-rules.md) decide who may
-// enter, never anyone's chance: every entry still has the same chance.
+// enter, never anyone's chance (extra chances are set apart, ADR-0027).
 // They're checked when someone enters, outside the database and the
 // service's lock, and nothing about a viewer is cached or guessed: when
 // Twitch can't be asked, the viewer is told to try again.
@@ -295,4 +295,17 @@ func (s *Service) messagesBefore(ctx context.Context, g *Giveaway, cd candidate)
 		}
 	}
 	return s.inbox.CountChatFrom(ctx, cd.platform, cd.c.ID, from, cd.r.Seq, g.Practice)
+}
+
+// Weighted reports whether some entries may hold more than one chance.
+func (g *Giveaway) Weighted() bool { return g.SubscriberChances > 1 }
+
+// ChancesWords says how likely each entry is to win, for chat and the
+// app: equal, or subscribers' chances in numbers. The odds are never
+// hidden or called equal when they aren't.
+func ChancesWords(g *Giveaway) string {
+	if !g.Weighted() {
+		return "every entry has the same chance"
+	}
+	return fmt.Sprintf("subscribers get %d chances to everyone else's 1", g.SubscriberChances)
 }

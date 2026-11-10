@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fingerprint, qualifiedWords, refusalWords, verify, who } from './giveaways';
+import { chancesWords, fingerprint, holder, howDrawn, qualifiedWords, refusalWords, verify, who } from './giveaways';
 import type { Giveaway, GiveawayDetail, GiveawayEntry } from './api';
 
 const entry = (seq: number): GiveawayEntry => ({ seq, platform: 'twitch', user_id: `u${seq}`, login: `v${seq}`, display_name: `V${seq}`, entered_at: '' });
@@ -40,5 +40,29 @@ describe('entry rules in words', () => {
     expect(refusalWords('something new', g({}))).toContain('try again');
     expect(qualifiedWords(entry(1))).toBe('');
     expect(qualifiedWords({ ...entry(1), qualified: { sub_months: 2, messages: 0 } })).toBe('subscribed 2 months, 0 messages');
+  });
+});
+
+describe('extra chances', () => {
+  const e = (seq: number, chances: number): GiveawayEntry => ({ ...entry(seq), chances });
+  it('matches the engine’s weighted fingerprint format', async () => {
+    // printf '1\ttwitch:u1\t3\n2\ttwitch:u2\t1\n' | shasum -a 256
+    expect(await fingerprint([e(1, 3), e(2, 1)], true)).toBe('a5af751606ed5138d5914531a4283e9fce9b5391ceeb02ad250abf3b4f8faa97');
+  });
+  it('finds a ticket’s holder, and checks ticket draws', async () => {
+    const es = [e(1, 3), e(2, 1), e(3, 2)];
+    expect([0, 1, 2, 3, 4, 5, 6].map((t) => holder(es, t)?.seq)).toEqual([1, 1, 1, 2, 3, 3, undefined]);
+    const d = {
+      entries: es, subscriber_chances: 3, fingerprint: await fingerprint(es, true),
+      draws: [
+        { id: 'a', n: 1, entry_seq: 3, pick_index: 5, candidates: 6, outcome: 'won', drawn_at: '', winner: es[2] },
+        { id: 'b', n: 2, entry_seq: 2, pick_index: 3, candidates: 4, outcome: 'won', drawn_at: '', winner: es[1] },
+      ],
+    } as unknown as GiveawayDetail;
+    expect(await verify(d)).toEqual([]);
+    d.draws[1] = { ...d.draws[1], pick_index: 2 };
+    expect((await verify(d))[0]).toContain('doesn’t hold ticket 3');
+    expect(howDrawn(d.draws[0], true)).toBe('Entry 3, ticket 6 of the 6 held by those not yet drawn');
+    expect(chancesWords({ subscriber_chances: 1 })).toBe('every entry has the same chance');
   });
 });

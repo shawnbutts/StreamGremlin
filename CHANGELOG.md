@@ -190,6 +190,10 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Anyone who chats enters** is an option, as well as the command.
   - The screen shows who was turned away and why, and what each entry was checked against. `giveaways open` takes the rules as flags.
   - Test chat messages and commands on Events can say how long a test viewer has followed, their account's age and months subscribed, for practice giveaways.
+- M3 slice 3, more chances for subscribers:
+  - A giveaway can give each subscriber 2 to 10 chances. Chat is told the odds ("subscribers get 3 chances to everyone else's 1") instead of "the same chance", and a subscriber's "you're in" names their chances.
+  - Chances are set when someone enters and kept. Draws pick a ticket, and **Check the draws** and `giveaways verify` check tickets too. Earlier giveaways check as before.
+  - `giveaways open -sub-chances N`.
 
 ### Fixed
 
