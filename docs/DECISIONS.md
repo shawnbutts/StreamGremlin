@@ -1092,3 +1092,17 @@ Decided 2026-11-10. Offered the M4 plan (read and report on an export, import wh
 - **Milestone numbers stay as they are,** so earlier references still hold: M5 is Lua and plugins, M6 YouTube.
 - **The first outside beta was planned to follow M4 (D-006).** When it happens now is still to decide.
 
+## D-062. M5 next, with custom wheel overlay themes (amends D-006, D-048)
+
+Decided 2026-11-10. Offered M5 (Lua and plugins), the first outside beta or M6 (YouTube), the user said: "1 is a good starting point.  as part of this plugin work, i'd like us to add the custom wheel overlays that we looked at before in tmp".
+
+- **M5, Lua and plugins, is next.** When the first outside beta happens is still open (D-061).
+- **Custom wheel overlay themes join M5,** from the concept in `tmp/streamgremlin-theme-starter` (its workshop wheel, neon arcade and selector board, and its theme protocol). This reverses "imported, scripted themes are not built" (D-047, ADR-0030) for wheels.
+- **Who it's for:** streamers who want their wheel to look like their stream, and people who make looks for others.
+- **What carries over from D-048 and ADR-0030:**
+  - the looks are rebuilt in StreamGremlin's own code, not copied;
+  - the server draws; a theme only animates to the result it's sent and never decides, changes or announces one;
+  - names reach a theme as text only, with no tokens, passwords or engine API.
+- **Installed themes are untrusted code,** like plugins: installing one asks first, and it runs sandboxed in its own origin, with no network.
+- **Installing, updating and removing themes is designed with plugins,** in the ownership ADR that comes before any plugin code (D-106, D-107 in the feature cut).
+
