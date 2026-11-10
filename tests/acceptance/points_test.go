@@ -4,6 +4,7 @@ package acceptance
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -215,9 +216,17 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 	if out, _, _ := cli(t, dir, "points"); !strings.Contains(out, "0 viewers hold 0 points") {
 		t.Fatal("paid while not live:", out)
 	}
-	tw.GoLive("streamer")
+	// chatty chats before going live (and is seen to), so every tick while
+	// live counts them as chatting: they never earn the quiet amount.
 	tw.Say("streamer", "chatty", "hello")
 	tw.Say("streamer", "streamer", "the streamer never earns")
+	eventually(t, "chatty recorded", func() string {
+		if out, _, _ := cli(t, dir, "viewers", "chatty"); !strings.Contains(out, "chatty") {
+			return out
+		}
+		return ""
+	})
+	tw.GoLive("streamer")
 	eventually(t, "time in chat paid", func() string {
 		out, _, _ := cli(t, dir, "viewers")
 		var chatty, lurker bool
@@ -226,9 +235,12 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 			if len(f) < 2 {
 				continue
 			}
-			n := f[1]
-			chatty = chatty || (f[0] == "chatty" && n != "0" && strings.HasSuffix(n, "0"))
-			lurker = lurker || (f[0] == "lurker" && n != "0" && n != "")
+			n, err := strconv.Atoi(f[1])
+			if err != nil || n == 0 {
+				continue
+			}
+			chatty = chatty || (f[0] == "chatty" && n%10 == 0)
+			lurker = lurker || (f[0] == "lurker" && n%3 == 0)
 		}
 		if !chatty || !lurker {
 			return out
