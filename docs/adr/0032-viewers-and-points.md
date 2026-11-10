@@ -75,8 +75,9 @@ The feature cut lists viewer records with export and delete (Spine), but they we
 - **The Points screen** (in the main list, after Giveaways; Variables moves to Ctrl/⌘+9):
   - who holds how many, and the top viewers;
   - rename;
-  - Check the ledger;
-  - find a viewer;
+  - Check the ledger.
+- **The Viewers screen** (amended by D-060: viewers moved off Points to their own screen, after Points, Ctrl/⌘+9; a top viewer on Points opens there):
+  - find a viewer, and export everyone;
   - their history with Undo (asks first);
   - give or take with a reason;
   - Export their record, through the system's save dialog;

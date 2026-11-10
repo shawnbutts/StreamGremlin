@@ -1074,3 +1074,13 @@ Decided 2026-11-10. Offered slice 7 as points prizes only (a giveaway entry cost
 - **F4 in M3 is slices 1 to 4:** viewers and the ledger, earning rules, time in chat, and giving to everyone with export. All four passed their live checks.
 - **M3 closes after a real stream on macOS and Windows,** written in docs/milestones/M3.md.
 
+## D-060. A Viewers screen of its own; M3 closes
+
+Decided 2026-11-10 under D-007. With M3's real-stream check the user said: "live check looks good.  can we move the "views" to their own screen?  there might be things other than points we want to do with them".
+
+- **M3 is done:** its closing check passed on macOS and Windows (docs/milestones/M3.md).
+- **Viewers get their own screen,** after Points in the main list, with Ctrl/⌘+9. It holds finding a viewer, their record, their points (balance, give, take, history, undo), export and forget, and Export everyone.
+- **Points keeps the points-wide parts:** who holds how many, rename, Check the ledger, Give to everyone and How viewers earn. A top viewer's name opens them on Viewers.
+- **Variables loses its default shortcut,** being tenth in the main list; it's one click in the sidebar, and moving any screen under More… gives it one again.
+- **Nothing changes in the engine:** same API, CLI and storage. What else viewers are for comes later, each with its own decision.
+

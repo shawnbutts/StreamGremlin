@@ -221,6 +221,8 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 - F4 slice 3, time in chat: every 5 minutes while you're live, viewers who chatted in the last 10 minutes earn 10, and quiet viewers in your chat (from Twitch's list of who's there) earn 3. Its own switch under **How viewers earn**, off at first. Nothing is paid while you're offline, when it's unknown whether you're live, or for time StreamGremlin was closed, and the screen says why when no one, or only chatters, were paid.
 - F4 slice 4, giving to everyone: under **Give to everyone** on Points, give everyone in chat, everyone who chatted lately, or your subscribers points at once. **See who** first, with the total; each viewer gets them once, even if it's tried again, and nothing is given if Twitch's list can't be read. Undo a whole give (nobody goes below zero; whoever has spent some is named). A workflow step, "Give points to everyone". **Export everyone** saves every viewer's record in one file. `streamgremlin points give-all`, `points gives`, `points undo-give` and `viewers export-all`.
 
+- A **Viewers** screen, after Points (Ctrl/⌘+9): find a viewer, their record, points and history, give, take, undo, export and forget, and Export everyone. These moved off the Points screen; a top viewer's name on Points opens them there. Variables no longer has a default shortcut.
+
 ### Fixed
 
 - A `!join` typed in the same millisecond as a giveaway opened could be missed.

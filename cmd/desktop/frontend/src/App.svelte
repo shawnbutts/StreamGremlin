@@ -17,6 +17,7 @@
   import Polls from './screens/Polls.svelte';
   import Wheels from './screens/Wheels.svelte';
   import Points from './screens/Points.svelte';
+  import Viewers from './screens/Viewers.svelte';
   import Giveaways from './screens/Giveaways.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
@@ -24,7 +25,7 @@
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
   // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
   // order, then "More…" with the ones the streamer moved there, then
   // Settings and Help, always last. Home, Events, Workflows, Settings and
@@ -41,6 +42,7 @@
     { id: 'overlays', label: 'Overlays' },
     { id: 'giveaways', label: 'Giveaways' },
     { id: 'points', label: 'Points' },
+    { id: 'viewers', label: 'Viewers' },
     { id: 'wheels', label: 'Wheels' },
     { id: 'rewards', label: 'Rewards' },
     { id: 'polls', label: 'Polls' },
@@ -59,6 +61,11 @@
   const moreShown = $derived(moreOpen || moreScreens.some((s) => s.id === screen));
 
   let screen = $state<Screen>('home');
+  // A viewer to open on the Viewers screen (from Points' top viewers).
+  let viewerId = $state<string | undefined>();
+  $effect(() => {
+    if (screen !== 'viewers') viewerId = undefined;
+  });
   let info = $state<EngineInfo>({ name: 'StreamGremlin', state: 'starting' });
 
   onMount(() => {
@@ -225,7 +232,16 @@
     {:else if screen === 'rewards'}
       <Rewards />
     {:else if screen === 'points'}
-      <Points />
+      <Points
+        onviewer={(id) => {
+          viewerId = id;
+          screen = 'viewers';
+        }}
+      />
+    {:else if screen === 'viewers'}
+      {#key viewerId}
+        <Viewers openId={viewerId} />
+      {/key}
     {:else if screen === 'wheels'}
       <Wheels />
     {:else if screen === 'polls'}

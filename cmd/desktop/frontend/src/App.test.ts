@@ -83,6 +83,8 @@ describe('App', () => {
       '/v1/jobs': () => ({ status: 200, body: { jobs: [] } }),
       '/v1/actions': () => ({ status: 200, body: { actions: [] } }),
       '/v1/variables': () => ({ status: 200, body: { variables: [] } }),
+      '/v1/points': () => ({ status: 200, body: { currency: { id: 'points', name: 'points', allow_negative: false }, summary: { transactions: 0, viewers: 0, issued: 0 }, top: [] } }),
+      '/v1/viewers': () => ({ status: 200, body: { viewers: [] } }),
       '/v1/timers': () => ({ status: 200, body: { timers: [] } }),
       '/v1/quotes': () => ({ status: 200, body: { quotes: [], count: 0, next: 1 } }),
       '/v1/sounds': () => ({ status: 200, body: { sounds: [], player: true } }),
@@ -124,7 +126,13 @@ describe('App', () => {
     await noViolations('giveaways');
     await keyTo('8', 'Points');
     await noViolations('points');
-    await keyTo('9', 'Variables');
+    await keyTo('9', 'Viewers');
+    await noViolations('viewers');
+    // Variables is past nine, so it's reached from the sidebar.
+    Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent === 'Variables')!.click();
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Variables');
     await noViolations('variables');
     // More… opens in place; its screens work as any other.
     const more = Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent?.includes('More…'))!;

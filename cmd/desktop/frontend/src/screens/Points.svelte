@@ -1,62 +1,43 @@
 <script lang="ts">
-  // Points (docs/adr/0032-viewers-and-points.md): who holds how many, each
-  // viewer's history, giving and taking by hand with a reason, undoing a
-  // mistake once, renaming the points, and checking the ledger adds up.
-  // Viewers are recorded from real chat and events, never test events.
+  // Points (docs/adr/0032-viewers-and-points.md): who holds how many,
+  // renaming the points, checking the ledger adds up, giving to everyone,
+  // and how viewers earn. Each viewer's record and history, and giving or
+  // taking by hand, are on the Viewers screen (D-060).
   import { onMount } from 'svelte';
   import {
     ApiError,
-    adjustPoints,
     auditPoints,
-    exportAllViewers,
-    exportViewer,
-    forgetViewer,
     getEarning,
     getGives,
     giveAll,
     previewGive,
     undoGive,
     getPoints,
-    getViewer,
-    getViewers,
     renamePoints,
-    saveFile,
     setEarning,
-    undoPoints,
     type EarningRules,
     type EarningTick,
     type GiveGroup,
     type GiveWho,
     type PointsGive,
-    type PointsTransaction,
     type PointsView,
-    type Viewer,
-    type ViewerDetail,
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import { eventTime } from '../lib/events';
 
-  let { refreshMs = 5000 }: { refreshMs?: number } = $props();
+  // onviewer opens a viewer on the Viewers screen.
+  let { refreshMs = 5000, onviewer }: { refreshMs?: number; onviewer?: (id: string) => void } = $props();
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const key = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
   let view = $state<PointsView | undefined>();
   let loadError = $state('');
-  let query = $state('');
-  let found = $state<Viewer[]>([]);
-  let chosen = $state<ViewerDetail | undefined>();
   let busy = $state(false);
   let notice = $state('');
   let error = $state('');
   let audit = $state<{ ok: boolean; problems: string[] } | undefined>();
   let renaming = $state('');
-  let amount = $state(10);
-  let reason = $state('');
-  // One request id per change, kept while that change is retried.
-  let changeKey = key();
-  let undoing = $state<PointsTransaction | undefined>();
-  let forgetting = $state<ViewerDetail | undefined>();
   // The earning form, read once so a refresh never undoes what's being typed.
   let rules = $state<EarningRules | undefined>();
   let live = $state<'live' | 'offline' | 'unknown'>('unknown');
@@ -73,13 +54,10 @@
   let undoingGive = $state<PointsGive | undefined>();
 
   const name = $derived(view?.currency.name ?? 'points');
-  const kindWords: Record<string, string> = { credit: 'earned', debit: 'spent', adjust: 'by hand', reverse: 'undo' };
 
   async function load() {
     try {
       view = await getPoints();
-      found = (await getViewers(query.trim())).viewers;
-      if (chosen) chosen = await getViewer(chosen.id);
       gives = (await getGives()).gives;
       const earn = await getEarning();
       live = earn.live;
@@ -112,57 +90,6 @@
       busy = false;
       await load();
     }
-  }
-
-  async function open(v: Viewer) {
-    error = '';
-    try {
-      chosen = await getViewer(v.id);
-      changeKey = key();
-    } catch (e) {
-      error = message(e);
-    }
-  }
-
-  async function change(sign: 1 | -1) {
-    if (!chosen) return;
-    const v = chosen;
-    const n = Math.round(Number(amount));
-    if (!(n > 0)) {
-      error = 'Type how many, above 0.';
-      return;
-    }
-    const k = changeKey;
-    if (await act(() => adjustPoints(v.id, sign * n, reason.trim(), k), sign > 0 ? `Gave ${v.display_name} ${n} ${name}.` : `Took ${n} ${name} from ${v.display_name}.`)) {
-      changeKey = key();
-      reason = '';
-    }
-  }
-
-  async function undo(t: PointsTransaction) {
-    undoing = undefined;
-    await act(() => undoPoints(t.id, key()), 'Undone.');
-  }
-
-  async function exportOne(v: ViewerDetail) {
-    busy = true;
-    error = '';
-    notice = '';
-    try {
-      const data = await exportViewer(v.id);
-      const file = `${(v.login || v.id).replace(/[^A-Za-z0-9_-]/g, '_')}-streamgremlin.json`;
-      const where = await saveFile(file, JSON.stringify(data, null, 2));
-      notice = where ? `Saved ${v.display_name}'s record to ${where}.` : 'Not saved.';
-    } catch (e) {
-      error = message(e);
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function forget(v: ViewerDetail) {
-    forgetting = undefined;
-    if (await act(() => forgetViewer(v.id), `${v.display_name} is forgotten. Their points history stays, unnamed.`)) chosen = undefined;
   }
 
   async function rename(e: SubmitEvent) {
@@ -244,31 +171,14 @@
     }
   }
 
-  async function exportAll() {
-    busy = true;
-    error = '';
-    notice = '';
-    try {
-      const data = await exportAllViewers();
-      const where = await saveFile('streamgremlin-viewers.json', JSON.stringify(data, null, 2));
-      notice = where ? `Saved every viewer's record to ${where}.` : 'Not saved.';
-    } catch (e) {
-      error = message(e);
-    } finally {
-      busy = false;
-    }
-  }
-
   const liveWords = { live: 'You’re live.', offline: 'You’re offline.', unknown: 'Unknown whether you’re live: nothing has said yet.' };
-
-  const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 </script>
 
 <h1>Points</h1>
 <p class="sg-muted screen-intro">
-  Viewers’ points: who holds how many, and every change, with why. Nothing is ever changed or deleted: a mistake is undone, once,
-  and nobody goes below zero. Workflows give and take points with “Give points” and “Take points”; a retried run never pays twice.
-  Viewers are recorded from your real chat and events, never from test events.
+  Viewers’ points: who holds how many, giving to everyone, and how viewers earn. Nothing is ever changed or deleted: a mistake is
+  undone, once, and nobody goes below zero. Give, take or undo for one viewer on the Viewers screen. Workflows give and take points with
+  “Give points” and “Take points”; a retried run never pays twice.
 </p>
 
 {#if loadError}
@@ -299,7 +209,10 @@
     <h3>Top viewers</h3>
     <ol class="live-list" aria-label="Top viewers">
       {#each view.top as v (v.id)}
-        <li><button type="button" class="link-button" onclick={() => open(v)}>{v.display_name}</button>: {v.balance} {name}</li>
+        <li>
+          {#if onviewer}<button type="button" class="link-button" onclick={() => onviewer(v.id)}>{v.display_name}</button>{:else}{v.display_name}{/if}: {v.balance}
+          {name}
+        </li>
       {/each}
     </ol>
   {/if}
@@ -429,85 +342,9 @@
   {/if}
 </section>
 
-<section class="sg-panel card" aria-labelledby="viewers-heading">
-  <h2 id="viewers-heading">Viewers</h2>
-  <label class="field">
-    <span>Find a viewer</span>
-    <input class="sg-input" type="search" bind:value={query} oninput={load} placeholder="Name" />
-  </label>
-  <div class="row-actions">
-    <button type="button" class="button" disabled={busy} onclick={exportAll}>Export everyone</button>
-  </div>
-  {#if found.length === 0}
-    <p class="sg-muted">{query.trim() ? 'No one by that name.' : 'No viewers yet: they appear as they chat, follow, subscribe or cheer.'}</p>
-  {/if}
-  <ul class="live-list" aria-label="Viewers">
-    {#each found as v (v.id)}
-      <li>
-        <button type="button" class="link-button" onclick={() => open(v)}>{v.display_name}</button>
-        <span class="sg-muted">{v.balance} {name} · last seen {eventTime(v.last_seen)}</span>
-      </li>
-    {/each}
-  </ul>
-</section>
-
-{#if chosen}
-  {@const v = chosen}
-  <section class="sg-panel card" aria-labelledby="viewer-heading" aria-busy={busy}>
-    <h2 id="viewer-heading">{v.display_name} <span class="sg-muted">{v.login ? `@${v.login}` : ''}</span></h2>
-    <p><strong>{v.balance} {name}</strong></p>
-    <p class="sg-muted">
-      First seen {eventTime(v.first_seen)}, last seen {eventTime(v.last_seen)}; {v.messages} chat {v.messages === 1 ? 'message' : 'messages'}.
-    </p>
-    <form class="row-actions" onsubmit={(e) => e.preventDefault()} aria-label={`Give or take ${name}`}>
-      <label class="field inline-field"><span>How many</span><input class="sg-input" type="number" min="1" bind:value={amount} /></label>
-      <label class="field inline-field"><span>Reason</span><input class="sg-input" bind:value={reason} maxlength="200" placeholder="optional" /></label>
-      <button type="button" class="sg-button" disabled={busy} onclick={() => change(1)}>Give</button>
-      <button type="button" class="button" disabled={busy} onclick={() => change(-1)}>Take</button>
-    </form>
-    <h3>History</h3>
-    {#if v.history.length === 0}<p class="sg-muted">No changes yet.</p>{/if}
-    <table class="history">
-      <caption class="visually-hidden">{v.display_name}'s {name} history</caption>
-      <thead><tr><th scope="col">When</th><th scope="col">Change</th><th scope="col">What</th><th scope="col">By</th><th scope="col"><span class="visually-hidden">Undo</span></th></tr></thead>
-      <tbody>
-        {#each v.history as t (t.id)}
-          <tr>
-            <td>{eventTime(t.created_at)}</td>
-            <td>{signed(t.amount)}</td>
-            <td>{kindWords[t.kind] ?? t.kind}{t.memo ? `: ${t.memo}` : ''}{t.reversed_by ? ' (undone)' : ''}</td>
-            <td>{t.by}</td>
-            <td>
-              {#if t.kind !== 'reverse' && !t.reversed_by}
-                <button type="button" class="button" disabled={busy} aria-label={`Undo ${signed(t.amount)} ${t.memo ?? ''}`} onclick={() => (undoing = t)}
-                  >Undo</button
-                >
-              {/if}
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
-    <div class="row-actions">
-      <button type="button" class="button" disabled={busy} onclick={() => exportOne(v)}>Export their record</button>
-      <button type="button" class="button button-danger" disabled={busy} onclick={() => (forgetting = v)}>Forget them</button>
-    </div>
-  </section>
-{/if}
-
 <p class="saved" role="status">{notice}</p>
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-{#if undoing}
-  {@const t = undoing}
-  <ConfirmDialog
-    title={`Undo ${signed(t.amount)} ${name}?`}
-    message={`${t.amount > 0 ? `${-t.amount} ${name} are taken back` : `${-t.amount} ${name} are given back`}. It can be undone only once.`}
-    confirmLabel="Undo"
-    onconfirm={() => undo(t)}
-    oncancel={() => (undoing = undefined)}
-  />
-{/if}
 {#if undoingGive}
   {@const g = undoingGive}
   <ConfirmDialog
@@ -518,20 +355,8 @@
     oncancel={() => (undoingGive = undefined)}
   />
 {/if}
-{#if forgetting}
-  {@const v = forgetting}
-  <ConfirmDialog
-    title={`Forget ${v.display_name}?`}
-    message={`Their account, names and activity are blanked. Their ${name} history stays, unnamed, so the ledger still adds up. If they chat again, they start afresh.`}
-    confirmLabel="Forget"
-    onconfirm={() => forget(v)}
-    oncancel={() => (forgetting = undefined)}
-  />
-{/if}
 
 <style>
   fieldset { border: none; padding: 0; margin: 0 0 0.75rem; }
   legend { font-weight: 600; margin-bottom: 0.25rem; }
-  .history { border-collapse: collapse; width: 100%; }
-  .history th, .history td { text-align: left; padding: 0.25rem 0.75rem 0.25rem 0; vertical-align: top; }
 </style>
