@@ -73,6 +73,10 @@ const (
 	// Giveaways: seeing them and their records; opening, drawing and ending.
 	PermGiveawaysRead  Permission = "giveaways.read"
 	PermGiveawaysWrite Permission = "giveaways.write"
+	// Wheels: seeing them and their spins; making, changing, deleting and
+	// spinning them.
+	PermWheelsRead  Permission = "wheels.read"
+	PermWheelsWrite Permission = "wheels.write"
 )
 
 // Principal is an authenticated caller.

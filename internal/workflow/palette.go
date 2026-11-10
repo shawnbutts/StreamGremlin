@@ -37,6 +37,8 @@ type TriggerEntry struct {
 var (
 	gwTitle  = Value{Token: "giveaway", Label: "The giveaway's title", Expr: "event.payload.title"}
 	gwWinner = Value{Token: "winner", Label: "The winner's name", Expr: "event.payload.winner.name"}
+	// Wheels (docs/adr/0030-wheels.md).
+	wheelTitle = Value{Token: "wheel", Label: "The wheel's title", Expr: "event.payload.title"}
 )
 
 var adSeconds = Value{Token: "seconds", Label: "Its length in seconds", Expr: "event.payload.duration_seconds"}
@@ -120,6 +122,14 @@ func Triggers() []TriggerEntry {
 			Help:   "A giveaway ended, or was cancelled.",
 			Match:  []MatchField{{Path: "status", Label: "Only when it", Kind: "text", Help: "ended or cancelled. Leave empty for either."}},
 			Values: []Value{gwTitle}},
+		{Type: "wheels.spin.settled", Label: "A wheel stops", Category: "Wheels",
+			Help:   "A wheel stopped on its result, as the overlay shows it. Reply in chat, or switch a scene.",
+			Match:  []MatchField{{Path: "wheel", Label: "Only for the wheel", Kind: "text", Help: "its name, like next-game. Leave empty for any."}},
+			Values: []Value{wheelTitle, {Token: "result", Label: "What it landed on", Expr: "event.payload.label"}}},
+		{Type: "wheels.spin.started", Label: "A wheel starts spinning", Category: "Wheels", More: true,
+			Help:   "A wheel started spinning. Its result isn't known yet: use \"A wheel stops\" for that.",
+			Match:  []MatchField{{Path: "wheel", Label: "Only for the wheel", Kind: "text", Help: "its name, like next-game. Leave empty for any."}},
+			Values: []Value{wheelTitle}},
 		{Type: "ads.break.started", Label: "An ad break begins", Category: "Twitch",
 			Help:  "Twitch says an ad break began, automatic or one you ran (Affiliates and Partners). The only sure sign an ad is running.",
 			Match: []MatchField{}, Values: []Value{adSeconds, {Token: "automatic", Label: "Whether Twitch ran it on its own (true or false)",

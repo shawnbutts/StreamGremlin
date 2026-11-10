@@ -30,6 +30,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
+	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -110,7 +111,12 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	}
 	t.Cleanup(adsSvc.Close)
 	gw := giveaways.New(giveaways.Options{DB: db, Inbox: inbox, Twitch: tw, AckEvery: 100 * time.Millisecond, Display: hub})
-	actions.Register(reg, actions.Services{Giveaways: gw, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
+	wh := wheels.New(wheels.Options{DB: db, Inbox: inbox, Display: hub})
+	if err := wh.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(wh.Close)
+	actions.Register(reg, actions.Services{Giveaways: gw, Wheels: wh, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -127,7 +133,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

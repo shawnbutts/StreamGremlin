@@ -226,3 +226,37 @@ html, body {
   .sg-giveaway-winner .sg-picture,
   .sg-giveaway-winner .sg-avatar { animation: none; }
 }
+
+/* The wheel overlay (docs/adr/0030-wheels.md): the title, the wheel with a
+   pointer at the top, and the result once it stops. */
+.sg-wheel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(14px * var(--sg-scale));
+}
+.sg-wheel .sg-alert { opacity: 1; transform: none; transition: none; }
+.sg-wheel-wrap {
+  position: relative;
+  width: min(60vh, 60vw);
+  aspect-ratio: 1;
+}
+.sg-wheel-svg { width: 100%; height: 100%; display: block; font-family: var(--sg-font); }
+.sg-wheel-rotor { transform-origin: 200px 200px; transform-box: view-box; }
+.sg-wheel-hub { fill: var(--sg-title); stroke: rgba(0, 0, 0, 0.4); stroke-width: 3; }
+.sg-wheel-pointer {
+  position: absolute;
+  top: -2%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: calc(16px * var(--sg-scale)) solid transparent;
+  border-right: calc(16px * var(--sg-scale)) solid transparent;
+  border-top: calc(30px * var(--sg-scale)) solid var(--sg-title);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+.sg-wheel-result { animation: sg-pop-in calc(450ms * var(--sg-pace)) cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .sg-wheel-result { animation: none; }
+}

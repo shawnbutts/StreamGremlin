@@ -15,6 +15,7 @@
   import Overlays from './screens/Overlays.svelte';
   import Rewards from './screens/Rewards.svelte';
   import Polls from './screens/Polls.svelte';
+  import Wheels from './screens/Wheels.svelte';
   import Giveaways from './screens/Giveaways.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
@@ -22,7 +23,7 @@
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
   // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
   // order, then "More…" with the ones the streamer moved there, then
   // Settings and Help, always last. Home, Events, Workflows, Settings and
@@ -38,6 +39,7 @@
     { id: 'sounds', label: 'Sounds' },
     { id: 'overlays', label: 'Overlays' },
     { id: 'giveaways', label: 'Giveaways' },
+    { id: 'wheels', label: 'Wheels' },
     { id: 'rewards', label: 'Rewards' },
     { id: 'polls', label: 'Polls' },
     { id: 'variables', label: 'Variables' },
@@ -220,6 +222,8 @@
       <Giveaways />
     {:else if screen === 'rewards'}
       <Rewards />
+    {:else if screen === 'wheels'}
+      <Wheels />
     {:else if screen === 'polls'}
       <Polls />
     {:else if screen === 'variables'}

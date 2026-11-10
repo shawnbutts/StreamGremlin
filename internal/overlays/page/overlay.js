@@ -1,5 +1,6 @@
 // StreamGremlin overlay page (docs/adr/0017-alert-overlays.md).
 import { giveawayView } from './giveaway.js';
+import { wheelView } from './wheel.js';
 
 // It shows what the engine sends and says how each alert went: started,
 // done, or why not. It decides nothing. Viewer text is only ever set with
@@ -111,6 +112,8 @@ export function start(win, opts = {}) {
   // A giveaway overlay (docs/adr/0029-giveaway-overlay.md) shows the
   // running giveaway; made when the first hello says this is one.
   let gw = null;
+  // A wheel overlay (docs/adr/0030-wheels.md) spins to each result sent.
+  let wheel = null;
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
@@ -254,6 +257,11 @@ export function start(win, opts = {}) {
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'giveaway' && !gw) {
         gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion });
       }
+      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel' && !wheel) {
+        wheel = wheelView(doc, stage, { setTimeout: later, reducedMotion });
+      }
+    } else if (wheel && msg.type === 'spin') {
+      wheel.spin(msg.body);
     } else if (gw && msg.type === 'giveaway') {
       gw.state(msg.body);
     } else if (gw && msg.type === 'draw') {

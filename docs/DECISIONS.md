@@ -933,3 +933,18 @@ Decided 2026-11-10. The user, on the theme-system concept: "use the wheel theme 
 - **Draws are server-side with `crypto/rand`,** recorded and checkable like giveaway draws (StreamWisp ADR-0021, D-034).
 - **Wedges are sized to their real odds,** so the wheel never misstates them.
 - **Designed in its own ADR** before building, including how spins are started (screen, CLI, workflow step, chat).
+
+## D-049. Wheels (M3 slice 6)
+
+Decided 2026-11-10 under D-007, building on D-048. The user said "proceed" to the plan.
+
+- **Wheels follow [ADR-0030](adr/0030-wheels.md):**
+  - named wheels of 2 to 50 weighted choices;
+  - exact odds shown everywhere, with wedges drawn at their real size;
+  - spins drawn with `crypto/rand` and recorded with the wheel as it was;
+  - a third kind of overlay that stops on the drawn number;
+  - the result announced only when the wheel stops (or at once, with none open).
+- **"Spin a wheel" waits for the result,** so chat commands and channel point rewards can spin and reply through workflows.
+- **The Wheels screen goes under More… by default.**
+- **No costs or points prizes until F4.**
+- **Built and checked against mocktwitch and a test page only,** until the live check.

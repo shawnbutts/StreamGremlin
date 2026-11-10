@@ -58,6 +58,10 @@ export function eventSummary(ev: EventRecord): string {
       return `${who} claimed ${p.title ?? 'the giveaway'}`;
     case 'giveaways.winner.forfeited':
       return `${who} didn’t claim ${p.title ?? 'the giveaway'} in time`;
+    case 'wheels.spin.started':
+      return `Wheel spinning: ${p.title ?? ''}`;
+    case 'wheels.spin.settled':
+      return `Wheel stopped: ${p.title ?? ''} landed on ${p.label ?? ''}`;
     case 'ads.break.started':
       return `Ad break began: ${num('duration_seconds')} seconds${p.is_automatic ? ' (automatic)' : ''}`;
     case 'ads.break.end_estimated':

@@ -49,8 +49,11 @@
   let error = $state('');
   let busy = $state(false);
   let newName = $state('alerts');
-  let newKind = $state<'alert' | 'giveaway'>('alert');
+  let newKind = $state<'alert' | 'giveaway' | 'wheel'>('alert');
   const isGiveaway = (o?: Overlay) => o?.kind === 'giveaway';
+  const isWheel = (o?: Overlay) => o?.kind === 'wheel';
+  // What a sample shows on each kind.
+  const sampleOf = (o?: Overlay) => (isGiveaway(o) ? 'giveaway and draw are' : isWheel(o) ? 'spin is' : 'alert is');
   let formError = $state('');
   let lookError = $state('');
   let selected = $state('');
@@ -200,8 +203,8 @@
     const name = current.name;
     const l = formLook();
     if (!l) return;
-    if (isGiveaway(current)) {
-      act(() => testOverlay(name, true), 'A sample giveaway and draw are showing in the preview, in the saved look.');
+    if (isGiveaway(current) || isWheel(current)) {
+      act(() => testOverlay(name, true), `A sample ${sampleOf(current)} showing in the preview, in the saved look.`);
       return;
     }
     act(() => testOverlay(name, true, l), changed ? 'A sample is showing in the preview, with your unsaved changes.' : 'A sample alert is showing in the preview.');
@@ -238,6 +241,7 @@
         <span class="secret-info">
           <strong>{o.name}</strong>
           {#if isGiveaway(o)}<span class="tag">Giveaway</span>{/if}
+          {#if isWheel(o)}<span class="tag">Wheel</span>{/if}
           <span class="secret-saved">
             {#if o.pages > 0}
               <span class="state-ok"><span aria-hidden="true">●</span></span>
@@ -256,10 +260,10 @@
         <button type="button" class="button" aria-label={`Copy ${o.name}'s link`} disabled={busy} onclick={() => copyLink(o)}
           >Copy link</button
         >
-        <button type="button" class="button" aria-label={`Show a sample ${isGiveaway(o) ? 'giveaway' : 'alert'} on ${o.name} in OBS`}
+        <button type="button" class="button" aria-label={`Show a sample ${isGiveaway(o) ? 'giveaway' : isWheel(o) ? 'spin' : 'alert'} on ${o.name} in OBS`}
           disabled={busy}
           onclick={() =>
-            act(() => testOverlay(o.name), `A sample ${isGiveaway(o) ? 'giveaway and draw are' : 'alert is'} showing on ${o.name} in OBS.`)}
+            act(() => testOverlay(o.name), `A sample ${sampleOf(o)} showing on ${o.name} in OBS.`)}
           >Sample in OBS</button
         >
         <button type="button" class="button" aria-label={`New link for ${o.name}`} disabled={busy} onclick={() => (replacing = o)}
@@ -309,7 +313,7 @@
             <input type="range" min="50" max="300" step="10" bind:value={look.pace} aria-valuetext={paceWords(look.pace)} />
             <span class="sg-muted field-hint">How long coming in and leaving take. Right is slower.</span>
           </label>
-          {#if !isGiveaway(current)}
+          {#if !isGiveaway(current) && !isWheel(current)}
             <label class="field">
               <span>Seconds on screen</span>
               <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
@@ -424,10 +428,10 @@
         <div class="row-actions">
           <button type="submit" class="sg-button" disabled={busy || !changed}>Save look</button>
           <button type="button" class="button" disabled={busy || !previewLoaded} onclick={previewLook}
-            >{isGiveaway(current) ? 'Preview a draw' : 'Preview an alert'}</button
+            >{isGiveaway(current) ? 'Preview a draw' : isWheel(current) ? 'Preview a spin' : 'Preview an alert'}</button
           >
         </div>
-        {#if changed && isGiveaway(current)}
+        {#if changed && (isGiveaway(current) || isWheel(current))}
           <p class="sg-muted">Save to see your changes in the preview and in OBS.</p>
         {:else if changed}
           <p class="sg-muted">Preview an alert shows your changes here. Save to use them in OBS.</p>
@@ -449,6 +453,14 @@
       <label class="choice-inline">
         <input type="radio" name="overlay-kind" value="giveaway" bind:group={newKind} /> Giveaways: the running giveaway, and a roll to each winner
       </label>
+      <label class="choice-inline">
+        <input type="radio" name="overlay-kind" value="wheel" bind:group={newKind} /> Wheels: every spin, as it's drawn
+      </label>
+      {#if newKind === 'wheel'}
+        <p class="sg-muted field-hint">
+          While it's open in OBS, a spin stops when the wheel does, so chat and workflows hear the result as viewers see it.
+        </p>
+      {/if}
       {#if newKind === 'giveaway'}
         <p class="sg-muted field-hint">
           While it's open in OBS, chat names each winner as their roll lands, about 4 seconds after the draw. A winner who must claim has that
@@ -460,8 +472,8 @@
       <span>Name</span>
       <input class="sg-input" bind:value={newName} maxlength="64" spellcheck="false" placeholder="alerts" />
       <span class="sg-muted field-hint">
-        {newKind === 'giveaway'
-          ? 'Any name, like giveaway. One is usually enough.'
+        {newKind !== 'alert'
+          ? `Any name, like ${newKind}. One is usually enough.`
           : 'Workflows show alerts on it by this name. One overlay usually does; add more for different places on screen.'}
       </span>
     </label>

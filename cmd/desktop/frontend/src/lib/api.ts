@@ -812,7 +812,7 @@ export interface OverlayLook {
 export interface Overlay {
   name: string;
   // A giveaway overlay shows the running giveaway (docs/adr/0029-giveaway-overlay.md).
-  kind: 'alert' | 'giveaway';
+  kind: 'alert' | 'giveaway' | 'wheel';
   look: OverlayLook;
   created_at: string;
   updated_at: string;
@@ -1153,3 +1153,60 @@ export const setAsideWinner = (id: string, drawId: string) =>
   api<{ draws: GiveawayDraw[] }>('POST', `/v1/giveaways/${gid(id)}/set-aside`, { draw_id: drawId });
 export const endGiveaway = (id: string) => api<Giveaway>('POST', `/v1/giveaways/${gid(id)}/end`);
 export const cancelGiveaway = (id: string) => api<Giveaway>('POST', `/v1/giveaways/${gid(id)}/cancel`);
+
+// Wheels (docs/adr/0030-wheels.md).
+
+export interface WheelChoice {
+  label: string;
+  weight: number;
+  color?: string;
+}
+
+export interface WheelOdds {
+  label: string;
+  weight: number;
+  total: number;
+  percent: number;
+}
+
+export interface Wheel {
+  name: string;
+  title: string;
+  choices: WheelChoice[];
+  spin_seconds: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  odds: WheelOdds[];
+}
+
+export interface WheelSettings {
+  title: string;
+  choices: WheelChoice[];
+  spin_seconds?: number;
+}
+
+export interface WheelSpin {
+  id: string;
+  wheel: string;
+  title: string;
+  wheel_version: number;
+  choices: WheelChoice[];
+  total: number;
+  draw: number;
+  winner: number;
+  label: string;
+  started_by: string;
+  spun_at: string;
+  seconds: number;
+  settled_at?: string;
+  display?: '' | 'shown' | 'no_audience' | 'recovered';
+}
+
+const wid = (name: string) => encodeURIComponent(name);
+export const getWheels = () => api<{ wheels: Wheel[]; spins: WheelSpin[]; pages: number }>('GET', '/v1/wheels');
+export const addWheel = (name: string, s: WheelSettings) => api<Wheel>('POST', '/v1/wheels', { name, ...s });
+export const setWheel = (name: string, s: WheelSettings) => api<Wheel>('PUT', `/v1/wheels/${wid(name)}`, s);
+export const deleteWheel = (name: string) => api<{ deleted: boolean }>('DELETE', `/v1/wheels/${wid(name)}`);
+export const spinWheel = (name: string, requestId: string) => api<WheelSpin>('POST', `/v1/wheels/${wid(name)}/spin`, { request_id: requestId });
+export const getSpin = (id: string) => api<WheelSpin>('GET', `/v1/spins/${wid(id)}`);

@@ -1,0 +1,48 @@
+{
+  "template": {
+    "id": "spin",
+    "title": "Spin a wheel from chat",
+    "category": "Chat commands",
+    "description": "!spin (mods and you) spins one of your wheels and, once it stops, says in chat where it landed. Add the wheel on the Wheels screen first; a wheel overlay in OBS shows the spin.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.wheel",
+        "hint": "The wheel's name, like next-game"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.spin",
+    "name": "Spin a wheel from chat",
+    "group": "Wheels",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "spin",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "steps": [
+      {
+        "id": "spin",
+        "action": "wheels.spin",
+        "with": {
+          "wheel": ""
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "🎡 ${steps.spin.output.?label.orValue(\"(a test: no wheel was spun)\")}"
+        }
+      }
+    ]
+  }
+}

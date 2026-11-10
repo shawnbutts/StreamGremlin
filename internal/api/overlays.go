@@ -95,7 +95,7 @@ func overlayRoutes(d Deps) []Route {
 		},
 		{
 			Method: "POST", Path: "/v1/overlays",
-			Summary:    "Add an overlay {name, kind: alert or giveaway, look?}. Answers with it and its private link. A taken name is refused (409).",
+			Summary:    "Add an overlay {name, kind: alert, giveaway or wheel, look?}. Answers with it and its private link. A taken name is refused (409).",
 			Permission: PermOverlaysWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				// A look given in part keeps the defaults for the rest.
@@ -209,7 +209,7 @@ func overlayRoutes(d Deps) []Route {
 		},
 		{
 			Method: "POST", Path: "/v1/overlays/{name}/test",
-			Summary: "Show a sample alert (or, on a giveaway overlay, a sample giveaway and draw) on an overlay in OBS, to see where it goes. Fails when the overlay isn't open in OBS (503). " +
+			Summary: "Show a sample alert (or, on a giveaway overlay, a sample giveaway and draw; on a wheel overlay, a sample spin) on an overlay in OBS, to see where it goes. Fails when the overlay isn't open in OBS (503). " +
 				"?preview=1 shows it in the app's previews only, never in OBS; with {look}, in that look, unsaved.",
 			Permission: PermOverlaysWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
@@ -218,10 +218,14 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
-				if o.Kind == overlays.KindGiveaway {
-					// A made-up giveaway and draw: previews only, or OBS too.
+				if o.Kind == overlays.KindGiveaway || o.Kind == overlays.KindWheel {
+					// A made-up giveaway and draw, or a spin: previews only, or OBS too.
 					previewsOnly := r.URL.Query().Get("preview") == "1"
-					pages, previews := d.Hub.SampleGiveaway(o.Name, previewsOnly)
+					sample := d.Hub.SampleGiveaway
+					if o.Kind == overlays.KindWheel {
+						sample = d.Hub.SampleWheel
+					}
+					pages, previews := sample(o.Name, previewsOnly)
 					if !previewsOnly && pages == 0 {
 						overlayError(w, r, d, overlays.ErrNotOpen)
 						return

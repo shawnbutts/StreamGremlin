@@ -372,3 +372,49 @@ describe('the giveaway overlay', () => {
     expect(other.stage.textContent).toBe('');
   });
 });
+
+describe('the wheel overlay', () => {
+  const hello = { type: 'hello', body: { overlay: { name: 'wheel', kind: 'wheel', look: {} }, page_version: 'v1' } };
+  const choices = [
+    { label: 'Mario', weight: 2 },
+    { label: 'Zelda', weight: 1 },
+    { label: 'Tetris', weight: 1, color: '#ff8800' },
+  ];
+  const spin = (id: string, winner: number, draw: number, extra: Record<string, unknown> = {}) => ({
+    type: 'spin',
+    body: { id, title: 'Next game', choices, winner, draw, seconds: 6, ...extra },
+  });
+
+  it('draws wedges sized to their weights, spins to the drawn number, then shows the result and goes', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello);
+    ws.fire('message', spin('s1', 0, 1));
+    const paths = stage.querySelectorAll('path');
+    expect(paths.length).toBe(3);
+    expect(stage.textContent).toContain('Next game');
+    // Mario holds 2 of 4 slots (180°); number 1 is the middle of the second slot: 135° from the top.
+    const rotor = stage.querySelector('.sg-wheel-rotor') as SVGGElement;
+    expect(rotor.style.transform).toBe(`rotate(${5 * 360 + 360 - 135}deg)`);
+    expect(stage.textContent).not.toContain('🎉');
+    c.advance(6000);
+    expect(stage.textContent).toContain('🎉 Mario');
+    c.advance(4000);
+    expect(stage.textContent).toBe('');
+  });
+
+  it('plays spins in turn, never shows a spin that doesn’t add up, and keeps labels as text', () => {
+    const { ws, c, stage } = page('', { reducedMotion: () => true });
+    ws.fire('message', hello);
+    ws.fire('message', spin('bad', 1, 0)); // number 0 is Mario's, not Zelda's
+    expect(stage.textContent).toBe('');
+    ws.fire('message', spin('s2', 2, 3, { title: '<b>x</b>' }));
+    ws.fire('message', spin('s2', 2, 3)); // a repeat is ignored
+    ws.fire('message', spin('s3', 1, 2));
+    expect(stage.textContent).toContain('🎉 Tetris');
+    expect(stage.querySelector('b')).toBeNull();
+    c.advance(4000);
+    expect(stage.textContent).toContain('🎉 Zelda');
+    c.advance(4000);
+    expect(stage.textContent).toBe('');
+  });
+});

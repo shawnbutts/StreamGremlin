@@ -238,8 +238,8 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 	if err := CheckName(name); err != nil {
 		return Overlay{}, "", err
 	}
-	if kind != KindAlert && kind != KindGiveaway {
-		return Overlay{}, "", invalid("the kind of overlay is alert or giveaway")
+	if kind != KindAlert && kind != KindGiveaway && kind != KindWheel {
+		return Overlay{}, "", invalid("the kind of overlay is alert, giveaway or wheel")
 	}
 	if err := look.Check(); err != nil {
 		return Overlay{}, "", err

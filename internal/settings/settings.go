@@ -52,13 +52,13 @@ var (
 	Densities = []string{"comfortable", "compact"}
 	// MovableScreens can go under "More…". Home, Events, Workflows,
 	// Settings and Help always stay in the sidebar.
-	MovableScreens = []string{"connections", "timers", "quotes", "sounds", "overlays", "giveaways", "rewards", "polls", "variables"}
+	MovableScreens = []string{"connections", "timers", "quotes", "sounds", "overlays", "giveaways", "wheels", "rewards", "polls", "variables"}
 )
 
 // DefaultUI is used until the streamer changes anything. Settings saved
 // before a field existed get its default.
 func DefaultUI() UI {
-	return UI{Theme: ThemeSystem, TextSize: "standard", Density: "comfortable", More: []string{"timers", "quotes", "rewards", "polls"}}
+	return UI{Theme: ThemeSystem, TextSize: "standard", Density: "comfortable", More: []string{"timers", "quotes", "wheels", "rewards", "polls"}}
 }
 
 // Check reports what's wrong with the settings, in words, and puts More in

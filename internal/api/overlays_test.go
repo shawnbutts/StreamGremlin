@@ -31,7 +31,7 @@ func TestOverlaysThroughTheAPI(t *testing.T) {
 	if code, _ := call("POST", "/v1/overlays", `{"name":"alerts"}`); code != 409 {
 		t.Fatal("a taken name:", code)
 	}
-	for _, body := range []string{`{"name":"Bad"}`, `{"name":"x","kind":"wheel"}`, `{"name":"y","look":{"position":"left"}}`} {
+	for _, body := range []string{`{"name":"Bad"}`, `{"name":"x","kind":"scoreboard"}`, `{"name":"y","look":{"position":"left"}}`} {
 		if code, out := call("POST", "/v1/overlays", body); code != 400 {
 			t.Errorf("%s: %d %s", body, code, out)
 		}

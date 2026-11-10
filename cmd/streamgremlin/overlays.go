@@ -15,9 +15,10 @@ import (
 
 const overlaysUsage = `usage:
   streamgremlin overlays [-json]          list your overlays (links aren't listed)
-  streamgremlin overlays add [-giveaway] NAME
+  streamgremlin overlays add [-giveaway | -wheel] NAME
                                           add an alert overlay (or a giveaway overlay, which shows
-                                          the running giveaway and rolls to each winner), and print its link
+                                          the running giveaway and rolls to each winner, or a wheel overlay,
+                                          which spins every wheel), and print its link
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
   streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
@@ -61,12 +62,16 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs := flag.NewFlagSet("overlays add", flag.ContinueOnError)
 			fs.SetOutput(stderr)
 			giveaway := fs.Bool("giveaway", false, "a giveaway overlay")
+			wheel := fs.Bool("wheel", false, "a wheel overlay")
 			if fs.Parse(args[1:]) != nil || fs.NArg() != 1 {
 				return usage()
 			}
 			kind := overlays.KindAlert
 			if *giveaway {
 				kind = overlays.KindGiveaway
+			}
+			if *wheel {
+				kind = overlays.KindWheel
 			}
 			var out struct {
 				Overlay overlays.Overlay `json:"overlay"`

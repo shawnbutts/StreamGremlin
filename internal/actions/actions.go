@@ -18,6 +18,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -45,6 +46,8 @@ type Services struct {
 	Ads *ads.Service
 	// Giveaways runs chat giveaways.
 	Giveaways *giveaways.Service
+	// Wheels spins wheels.
+	Wheels *wheels.Service
 }
 
 // Register adds every action to reg.
@@ -221,6 +224,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerPolls(reg, sv.Twitch)
 	registerAds(reg, sv.Ads)
 	registerGiveaways(reg, sv.Giveaways)
+	registerWheels(reg, sv.Wheels)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

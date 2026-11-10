@@ -203,6 +203,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - While it's open in OBS, chat names each winner as their roll lands, about 4 seconds after the draw. With no overlay open, nothing waits. Chat still tells viewers everything.
   - Practice giveaways show only in the app's preview. **Preview a draw** and **Sample in OBS** show a sample. Reduced motion shows the winner without the roll.
   - `overlays add -giveaway NAME`.
+- M3 slice 6, wheels:
+  - **A Wheels screen** (under More…): wheels of choices, like the next game, with a weight for each choice and the exact chance shown as you type. Spin, edit, delete, and see recent spins.
+  - **Spins are drawn by StreamGremlin** with a secure random source and recorded. **Check the spin** and `wheels verify` confirm the result from the record.
+  - **A wheel overlay** (Overlays → Wheels) spins to the result, with each wedge at its real size. While one is open in OBS, the result is announced when the wheel stops.
+  - **"Spin a wheel"** waits until the wheel stops and gives its result to the next steps, so `!spin` or a channel point reward can spin and reply. **"Say a wheel's odds"** gives them for chat. A trigger: "A wheel stops". A template, **Spin a wheel from chat** (`!spin`).
+  - `streamgremlin wheels` (add, set, delete, spin, verify) and `overlays add -wheel`.
 
 ### Fixed
 

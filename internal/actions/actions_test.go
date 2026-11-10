@@ -18,7 +18,7 @@ func TestEveryActionCanBeShownInTheEditor(t *testing.T) {
 	if len(p.Actions) < 15 || len(p.Triggers) == 0 {
 		t.Fatalf("%d actions, %d triggers", len(p.Actions), len(p.Triggers))
 	}
-	groups := map[string]bool{"General": true, "Twitch": true, "OBS": true, "Variables": true, "Workflows": true, "Timers": true, "Quotes": true, "Sounds": true, "Overlays": true, "Giveaways": true}
+	groups := map[string]bool{"General": true, "Twitch": true, "OBS": true, "Variables": true, "Workflows": true, "Timers": true, "Quotes": true, "Sounds": true, "Overlays": true, "Giveaways": true, "Wheels": true}
 	for _, a := range p.Actions {
 		if a.Label == "" || a.Description == "" || !groups[a.Group] {
 			t.Errorf("%s: label %q, group %q, description %q", a.Name, a.Label, a.Group, a.Description)

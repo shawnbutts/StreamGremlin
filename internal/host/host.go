@@ -37,6 +37,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
+	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -75,6 +76,7 @@ type Host struct {
 	firsts    *firstwords.Service
 	ads       *ads.Service
 	giveaways *giveaways.Service
+	wheels    *wheels.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -155,8 +157,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
 	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log, Display: h.hub})
+	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -175,6 +178,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.giveaways.SetCommands(h.workflows.CheckClaims)
 	h.workflows.SetOtherClaims(h.giveaways.Claims)
 	if err := h.giveaways.Start(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.wheels.Start(ctx); err != nil {
 		return nil, err
 	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
@@ -205,6 +211,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		FirstWords: h.firsts,
 		Ads:        h.ads,
 		Giveaways:  h.giveaways,
+		Wheels:     h.wheels,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -325,6 +332,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.wheels != nil {
+		h.wheels.Close() // before workflows: a spin left showing settles on the next start
 	}
 	if h.giveaways != nil {
 		h.giveaways.Close() // before workflows: no new giveaway events while runs finish

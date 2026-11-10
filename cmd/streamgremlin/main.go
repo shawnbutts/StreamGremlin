@@ -69,6 +69,7 @@ Commands:
   polls     Polls and predictions (streamgremlin polls help).
   ads       Ad breaks: ads, ads run SECONDS, ads snooze (streamgremlin ads help).
   giveaways Chat giveaways: open, close, draw, end, verify (streamgremlin giveaways help).
+  wheels    Wheels of choices: add, spin, verify (streamgremlin wheels help).
   vars      Saved variables (streamgremlin vars help).
             vars [-q TEXT] [WHERE]        list: global, viewer[:ID], workflow[:ID]
             vars set WHERE NAME VALUE     save one
@@ -145,6 +146,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return adsCmd(dir, rest, stdout, stderr)
 	case "giveaways":
 		return giveawaysCmd(dir, rest, stdout, stderr)
+	case "wheels":
+		return wheelsCmd(dir, rest, stdout, stderr)
 	case "quotes":
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":

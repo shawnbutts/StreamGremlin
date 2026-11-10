@@ -251,6 +251,20 @@ func Catalog() []Kind {
 		giveawayWinnerKind("giveaways.winner.drawn", "Giveaway winner drawn", "A giveaway's winner was drawn."),
 		giveawayWinnerKind("giveaways.winner.claimed", "Giveaway win claimed", "A giveaway's winner claimed in time."),
 		giveawayWinnerKind("giveaways.winner.forfeited", "Giveaway win not claimed", "A giveaway's winner didn't claim in time."),
+		// Wheels (docs/adr/0030-wheels.md): a spin started (no result), and
+		// stopped with its result.
+		{Type: "wheels.spin.started", Label: "Wheel spin starts", Description: "A wheel started spinning. Its result isn't known yet here.",
+			Sources: []string{"core"}, Fields: []Field{{Name: "title", Label: "Wheel", Kind: "text", Default: "Next game", Max: 100}},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"spin_id": id, "wheel": "test", "title": v["title"], "started_by": "a test"}, nil, nil
+			}},
+		{Type: "wheels.spin.settled", Label: "Wheel stops", Description: "A wheel stopped, with its result.",
+			Sources: []string{"core"}, Fields: []Field{{Name: "title", Label: "Wheel", Kind: "text", Default: "Next game", Max: 100},
+				{Name: "label", Label: "Result", Kind: "text", Default: "Mystery pick", Max: 60}},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"spin_id": id, "wheel": "test", "title": v["title"], "started_by": "a test", "label": v["label"],
+					"choice": 1, "display": "no_audience", "draw": 0, "total": 1}, nil, nil
+			}},
 		// Ads (docs/adr/0024-ads.md): asked for, refused, begun, ended (estimated).
 		adKind("ads.break.started", "Ad break begins", "Twitch says an ad break began on your channel, automatic or one you ran.",
 			[]string{"twitch"}, []Field{{Name: "duration", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3},

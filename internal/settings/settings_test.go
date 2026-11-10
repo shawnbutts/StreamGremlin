@@ -28,7 +28,7 @@ func TestUIDefaultsThenSaves(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
 	ui, err := s.UI(ctx)
-	if err != nil || !reflect.DeepEqual(ui, DefaultUI()) || !reflect.DeepEqual(ui.More, []string{"timers", "quotes", "rewards", "polls"}) {
+	if err != nil || !reflect.DeepEqual(ui, DefaultUI()) || !reflect.DeepEqual(ui.More, []string{"timers", "quotes", "wheels", "rewards", "polls"}) {
 		t.Fatalf("default: %+v, %v", ui, err)
 	}
 	want := UI{Theme: ThemeMidnight, TextSize: "large", Density: "compact", More: []string{"rewards", "connections", "rewards"}}

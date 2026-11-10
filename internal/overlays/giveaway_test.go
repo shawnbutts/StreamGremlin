@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/wheels"
 )
 
 // drain returns the types of the messages a page was sent, and the bodies.
@@ -118,5 +120,35 @@ func TestGiveawaySamples(t *testing.T) {
 	}
 	if types, _ := drain(other); len(types) != 0 {
 		t.Fatal("another overlay got the sample", types)
+	}
+}
+
+// Spins reach wheel overlays only; only OBS pages count; samples go to one
+// overlay, previews only or OBS too.
+func TestSpinsReachWheelOverlays(t *testing.T) {
+	h := NewHub(nil)
+	wh := Overlay{Name: "wheel", Kind: KindWheel}
+	page, preview := h.join(wh, false), h.join(wh, true)
+	gw := h.join(Overlay{Name: "giveaway", Kind: KindGiveaway}, false)
+	for _, c := range []*conn{page, preview, gw} {
+		drain(c)
+	}
+	if h.WheelPages() != 1 {
+		t.Fatal(h.WheelPages())
+	}
+	h.WheelSpin(wheels.SpinView{ID: "s1", Title: "Next game"})
+	for name, c := range map[string]*conn{"page": page, "preview": preview} {
+		if types, _ := drain(c); count(types, "spin") != 1 {
+			t.Fatal(name, types)
+		}
+	}
+	if types, _ := drain(gw); len(types) != 0 {
+		t.Fatal("a giveaway overlay got a spin", types)
+	}
+	if pages, previews := h.SampleWheel("wheel", true); pages != 0 || previews != 1 {
+		t.Fatal(pages, previews)
+	}
+	if types, _ := drain(page); len(types) != 0 {
+		t.Fatal("OBS got a preview sample", types)
 	}
 }

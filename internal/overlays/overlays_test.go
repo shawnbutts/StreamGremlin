@@ -139,7 +139,7 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 			t.Errorf("%q: %v", name, err)
 		}
 	}
-	if _, _, err := s.Create(ctx, "w", "wheel", DefaultLook(), now); !errors.Is(err, ErrInvalid) {
+	if _, _, err := s.Create(ctx, "w", "scoreboard", DefaultLook(), now); !errors.Is(err, ErrInvalid) {
 		t.Error(err)
 	}
 	if _, _, err := s.Create(ctx, "a", KindAlert, DefaultLook(), now); err != nil {
