@@ -171,3 +171,60 @@ func TestOverlaySounds(t *testing.T) {
 		t.Fatal(code, out)
 	}
 }
+
+// Wheel looks (docs/adr/0036-packages-plugins-and-themes.md): listed with
+// their settings; a wheel overlay takes one, settings stay with their
+// look and are replaced with another; other overlays can't have one.
+func TestWheelLooksThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	code, out := call("GET", "/v1/overlays", "")
+	var list OverlayList
+	_ = json.Unmarshal([]byte(out), &list)
+	if code != 200 || len(list.Themes) != 3 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 3 || !list.Themes[0].OddsChecked {
+		t.Fatalf("%d %s", code, out)
+	}
+	if code, out := call("POST", "/v1/overlays", `{"name":"alerts","look":{"theme":"builtin:workshop"}}`); code != 400 || !strings.Contains(out, "wheel overlays") {
+		t.Fatalf("an alert overlay with a look: %d %s", code, out)
+	}
+	if code, out := call("POST", "/v1/overlays", `{"name":"wheel","kind":"wheel"}`); code != 201 {
+		t.Fatal(code, out)
+	}
+	look := func(body string) overlays.Look {
+		t.Helper()
+		code, out := call("PUT", "/v1/overlays/wheel", body)
+		var v OverlayView
+		_ = json.Unmarshal([]byte(out), &v)
+		if code != 200 {
+			t.Fatalf("%s: %d %s", body, code, out)
+		}
+		return v.Look
+	}
+	l := look(`{"look":{"theme":"builtin:workshop","theme_settings":{"title":"Pick a game","show_title":false}}}`)
+	if l.Theme != "builtin:workshop" || l.ThemeSettings["title"] != "Pick a game" {
+		t.Fatal(l)
+	}
+	// A change that doesn't mention them keeps the settings.
+	if l := look(`{"look":{"start_volume":50}}`); l.ThemeSettings["title"] != "Pick a game" || l.StartVolume != 50 {
+		t.Fatal(l)
+	}
+	// Another look's settings replace them; Classic has none.
+	if l := look(`{"look":{"theme":"builtin:neon-arcade","theme_settings":{"accent":"#ff00ff"}}}`); l.ThemeSettings["title"] != nil || l.ThemeSettings["accent"] != "#ff00ff" {
+		t.Fatal(l)
+	}
+	if l := look(`{"look":{"theme":""}}`); l.Theme != "" || len(l.ThemeSettings) != 0 {
+		t.Fatal(l)
+	}
+	for _, body := range []string{
+		`{"look":{"theme":"builtin:disco"}}`,
+		`{"look":{"theme":"builtin:workshop","theme_settings":{"script":"alert(1)"}}}`,
+		`{"look":{"theme":"builtin:workshop","theme_settings":{"accent":"red"}}}`,
+	} {
+		if code, out := call("PUT", "/v1/overlays/wheel", body); code != 400 {
+			t.Errorf("%s: %d %s", body, code, out)
+		}
+	}
+}

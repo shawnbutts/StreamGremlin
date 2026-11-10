@@ -69,6 +69,24 @@
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const current = $derived(data?.overlays.find((o) => o.name === selected));
   const changed = $derived(!!current && !!look && JSON.stringify(look) !== JSON.stringify(current.look));
+  // A wheel overlay's look, when it isn't Classic.
+  const chosenTheme = $derived(look?.theme ? data?.themes?.find((t) => t.id === look?.theme) : undefined);
+
+  function setTheme(id: string) {
+    if (!look) return;
+    if (!id) {
+      look.theme = ''; // Classic, said outright: a missing one keeps the saved look
+      delete look.theme_settings;
+      return;
+    }
+    look.theme = id;
+    look.theme_settings = {}; // each look's own settings, from its defaults
+  }
+
+  const settingValue = (key: string, dflt: string | boolean) => look?.theme_settings?.[key] ?? dflt;
+  function setSetting(key: string, v: string | boolean) {
+    if (look) look.theme_settings = { ...(look.theme_settings ?? {}), [key]: v };
+  }
 
   // The sound library's names, for giveaway and wheel overlays' sounds.
   let soundNames = $state<string[]>([]);
@@ -298,6 +316,52 @@
     <h2 id="overlay-look-heading">{current.name}: look and preview</h2>
     <div class="overlay-edit">
       <form class="test-form overlay-look" onsubmit={saveLook}>
+        {#if isWheel(current)}
+          <fieldset class="look-group">
+            <legend>Look</legend>
+            <label class="field">
+              <span>Look</span>
+              <select class="sg-input" value={look.theme ?? ''} onchange={(e) => setTheme(e.currentTarget.value)}>
+                <option value="">Classic</option>
+                {#each data?.themes ?? [] as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+              </select>
+            </label>
+            {#if chosenTheme}
+              <p class="sg-muted field-hint">
+                {chosenTheme.description}
+                {chosenTheme.odds_checked
+                  ? 'It shows the real odds: StreamGremlin’s tests check it.'
+                  : 'StreamGremlin can’t check how this look draws the odds: the real odds are on the Wheels screen and in “Say a wheel’s odds”.'}
+              </p>
+              {#each chosenTheme.settings as s (s.key)}
+                {#if s.kind === 'switch'}
+                  <label class="choice-inline">
+                    <input type="checkbox" checked={settingValue(s.key, s.default) === true} onchange={(e) => setSetting(s.key, e.currentTarget.checked)} />
+                    {s.label}
+                  </label>
+                {:else}
+                  <label class="field">
+                    <span>{s.label}</span>
+                    <input
+                      class={s.kind === 'colour' ? 'sg-input color-input' : 'sg-input'}
+                      type={s.kind === 'colour' ? 'color' : 'text'}
+                      maxlength={s.max}
+                      placeholder={s.hint}
+                      value={String(settingValue(s.key, s.default))}
+                      oninput={(e) => setSetting(s.key, e.currentTarget.value)}
+                    />
+                  </label>
+                {/if}
+              {/each}
+              <p class="sg-muted field-hint">
+                The look runs in a sandbox: it can’t reach the internet, your accounts or StreamGremlin, and only shows the result
+                StreamGremlin drew. In OBS, leave this browser source’s “Page permissions” at “No access to OBS”: a look never needs it.
+              </p>
+            {:else}
+              <p class="sg-muted field-hint">Classic uses the colours and font below. If another look can’t show a spin, Classic shows it.</p>
+            {/if}
+          </fieldset>
+        {/if}
         {#if isGiveaway(current) || isWheel(current)}
           <fieldset class="look-group">
             <legend>Sounds</legend>

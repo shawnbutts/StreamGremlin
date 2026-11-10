@@ -222,6 +222,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 - F4 slice 4, giving to everyone: under **Give to everyone** on Points, give everyone in chat, everyone who chatted lately, or your subscribers points at once. **See who** first, with the total; each viewer gets them once, even if it's tried again, and nothing is given if Twitch's list can't be read. Undo a whole give (nobody goes below zero; whoever has spent some is named). A workflow step, "Give points to everyone". **Export everyone** saves every viewer's record in one file. `streamgremlin points give-all`, `points gives`, `points undo-give` and `viewers export-all`.
 
 - A **Viewers** screen, after Points (Ctrl/⌘+9): find a viewer, their record, points and history, give, take, undo, export and forget, and Export everyone. These moved off the Points screen; a top viewer's name on Points opens them there. Variables no longer has a default shortcut.
+- M5 slice 2, wheel looks: on **Overlays**, a wheel overlay's **Look** can be Classic, Workshop, Neon arcade or Selector board (a list that rolls to the result, with each choice's chance), with a title and an accent colour. The new looks run sandboxed, from their own address with no network, and only show the result StreamGremlin drew; if one can't show a spin, Classic does. `streamgremlin overlays look NAME -look workshop`.
 
 ### Fixed
 

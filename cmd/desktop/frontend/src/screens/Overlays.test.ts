@@ -42,6 +42,15 @@ const look: OverlayLook = {
 const fonts = ['system', 'rounded', 'serif', 'mono', 'condensed', 'handwritten', 'custom'];
 const alerts: Overlay = { name: 'alerts', kind: 'alert', look, created_at: now, updated_at: now, pages: 1, previews: 0 };
 const positions = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
+const settings = (accent: string) => [
+  { key: 'title', label: 'Title', kind: 'text' as const, default: '', max: 70, hint: "Empty: the wheel's own title" },
+  { key: 'show_title', label: 'Show the title', kind: 'switch' as const, default: true },
+  { key: 'accent', label: 'Accent colour', kind: 'colour' as const, default: accent },
+];
+const themes = [
+  { id: 'builtin:workshop', name: 'Workshop', description: 'A brass and wood frame.', odds_checked: true, settings: settings('#e8b04e') },
+  { id: 'builtin:selector-board', name: 'Selector board', description: 'A list that rolls.', odds_checked: true, settings: settings('#9cf03b') },
+];
 
 function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; noLink?: boolean } = {}) {
   const list = initial.map((o) => ({ ...o, look: { ...o.look } }));
@@ -56,11 +65,11 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
       }
       return {
         status: 200,
-        body: { overlays: list, server: 'http://127.0.0.1:7431', server_note: opts.note, positions, animations: ['slide', 'pop'], fonts, default_look: look },
+        body: { overlays: list, server: 'http://127.0.0.1:7431', server_note: opts.note, positions, animations: ['slide', 'pop'], fonts, default_look: look, themes },
       };
     },
   };
-  for (const n of ['alerts', 'corner', 'giveaway']) {
+  for (const n of ['alerts', 'corner', 'giveaway', 'wheel']) {
     routes[`/v1/overlays/${n}`] = (method, body) => {
       const i = list.findIndex((o) => o.name === n);
       if (method === 'DELETE') {
@@ -194,6 +203,48 @@ describe('Overlays', () => {
       path: '/v1/overlays/giveaway', body: { look: { start_sound: '', end_sound: 'tada', end_volume: 80 } },
     });
     await noViolations('sounds');
+  });
+
+  it('picks a wheel overlay’s look and its settings, says what it can and can’t do, and goes back to Classic', async () => {
+    const wheel: Overlay = { ...alerts, name: 'wheel', kind: 'wheel' };
+    const { calls } = engine([wheel]);
+    const el = start();
+    await settle();
+    const pick = Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === 'Look')!.querySelector('select')!;
+    expect(Array.from(pick.options).map((o) => o.textContent)).toEqual(['Classic', 'Workshop', 'Selector board']);
+    expect(el.textContent).toContain('Classic uses the colours and font below');
+    pick.value = 'builtin:workshop';
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    expect(el.textContent).toContain('It shows the real odds');
+    expect(el.textContent).toContain('“Page permissions” at “No access to OBS”');
+    const title = Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === 'Title')!.querySelector('input')!;
+    expect(title.placeholder).toBe("Empty: the wheel's own title");
+    title.value = 'Pick a game';
+    title.dispatchEvent(new Event('input', { bubbles: true }));
+    const show = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim() === 'Show the title')!.querySelector('input')!;
+    expect(show.checked).toBe(true);
+    show.click();
+    flushSync();
+    await noViolations('a look');
+    button(el, 'Save look')!.click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT')).toMatchObject({
+      path: '/v1/overlays/wheel', body: { look: { theme: 'builtin:workshop', theme_settings: { title: 'Pick a game', show_title: false } } },
+    });
+    // Another look starts from its own defaults; Classic has none.
+    pick.value = 'builtin:selector-board';
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    expect((Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === 'Title')!.querySelector('input')!).value).toBe('');
+    pick.value = '';
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    button(el, 'Save look')!.click();
+    await settle();
+    const last = calls.filter((c) => c.method === 'PUT').at(-1)!.body as { look: OverlayLook };
+    expect(last.look.theme).toBe('');
+    expect(last.look.theme_settings).toBeUndefined();
   });
 
   it('shows the link to copy by hand when the clipboard is refused', async () => {

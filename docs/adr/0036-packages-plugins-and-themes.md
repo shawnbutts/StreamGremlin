@@ -111,7 +111,7 @@ A manifest's settings are typed: `text` (up to `max`, at most 200 characters), `
 
 **The overlay page stays StreamGremlin's own** (`/o/<token>/`). For a themed wheel overlay it embeds the theme and talks to it; the theme never talks to the engine.
 
-- **A second origin.** The overlay server listens on a second loopback port that serves only theme files, at `/t/<id>/<version>/<digest>/<path>`, and nothing else: no overlay links, no WebSocket, no sounds. The same loopback Host check as overlays.
+- **A second origin.** The overlay server listens on a second loopback port (any free one; the page is told it in its hello) that serves only theme files, at `/t/<id>/<version>/<digest>/<path>` (built-in looks at `/t/builtin/<page version>/<look>/<file>`, with the files they share in `shared/`), and nothing else: no overlay links, no WebSocket, no sounds. The same loopback Host check as overlays. Every answer also carries `sandbox allow-scripts` in its policy, so a look opened outside its frame is sandboxed too, and `Access-Control-Allow-Origin: *`, because a sandboxed page's own scripts and fonts are cross-origin requests (nothing there is private).
 - **A sandboxed frame:** `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer">`. Without `allow-same-origin` the theme gets an opaque origin: no cookies or storage, and it can't read the overlay page. No popups, forms, top navigation, downloads or modals. No referrer, so the theme never learns the overlay's private link.
 - **Its policy:** `default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'none'; frame-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'`, `frame-ancestors` the overlay origin and the app's, `X-Content-Type-Options: nosniff`, and each file's type from its extension. No network: a theme can't fetch, open a WebSocket or load anything from outside its own package.
 - **Messages** are the concept's protocol (`protocolVersion` 1), adapted:
@@ -122,7 +122,7 @@ A manifest's settings are typed: `text` (up to `max`, at most 200 characters), `
   - the spin settles on the engine's clock, never on the theme's word;
   - `spin.animation.completed` is logged, never acted on;
   - chat's announcement doesn't wait on the theme.
-- **A broken theme never leaves the stream blank.** If it isn't ready within 5 seconds, reports an error for a spin, or the winner isn't in its choices, that spin is shown in the Classic look and the app's overlay preview says why.
+- **A broken theme never leaves the stream blank.** A spin that arrives before the theme says it's ready is shown in Classic. A theme that reports an error for the spin on screen is hidden, and Classic shows that spin stopped at once. A theme not ready within 5 seconds is reported. The app's preview (and OBS with `?status=1`) says which, and the engine logs it.
 - **Sounds play in the overlay page,** not the theme (ADR-0031), so they stay in time with the engine.
 - **OBS's own page API.** OBS's browser source gives pages `window.obsstudio`, with more power as the source's **Page permissions** setting rises ([obs-browser](https://github.com/obsproject/obs-browser)). Its docs don't say whether a sandboxed frame gets it. Until checked (slice 2), the Overlays screen says to leave Page permissions at the lowest level for themed overlays; StreamGremlin's own pages don't need any.
 

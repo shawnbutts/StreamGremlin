@@ -1,5 +1,6 @@
 // StreamGremlin overlay page (docs/adr/0017-alert-overlays.md).
 import { giveawayView } from './giveaway.js';
+import { themedWheelView } from './themehost.js';
 import { wheelView } from './wheel.js';
 
 // It shows what the engine sends and says how each alert went: started,
@@ -112,8 +113,14 @@ export function start(win, opts = {}) {
   // A giveaway overlay (docs/adr/0029-giveaway-overlay.md) shows the
   // running giveaway; made when the first hello says this is one.
   let gw = null;
-  // A wheel overlay (docs/adr/0030-wheels.md) spins to each result sent.
+  // A wheel overlay (docs/adr/0030-wheels.md) spins to each result sent:
+  // in Classic, drawn here, or in a look from the theme server, in a
+  // sandboxed frame (docs/adr/0036-packages-plugins-and-themes.md), which
+  // falls back to Classic for a spin it can't show.
   let wheel = null;
+  let themed = null; // the look's view, when it isn't Classic
+  let classic = null;
+  let classicStill = null; // Classic, stopped at once: for a look that fails mid-spin
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
@@ -258,6 +265,38 @@ export function start(win, opts = {}) {
     }, Math.max(500, msLeft - outMs));
   }
 
+  function classicView(still) {
+    if (still) return (classicStill ??= wheelView(doc, stage, { setTimeout: later, reducedMotion: () => true, cue }));
+    return (classic ??= wheelView(doc, stage, { setTimeout: later, reducedMotion, cue }));
+  }
+
+  // What a look says about itself: in the status line (the app's preview,
+  // or ?status=1 in OBS) and to the engine's log.
+  function report(state, detail) {
+    // Shown only in previews, or in OBS with ?status=1 (where whether OBS's
+    // page API reaches the look is worth knowing; in the app it never does).
+    setStatus(`Look: ${preview ? detail.replace(/;.*/, '') : detail}`);
+    send({ type: 'theme', status: state, detail });
+  }
+
+  // The wheel's look, from the hello: Classic, or a theme by its link.
+  function setWheel(theme) {
+    const valid = theme && typeof theme.url === 'string' && /^http:\/\/127\.0\.0\.1:\d+\/t\//.test(theme.url);
+    if (!valid) {
+      if (themed) themed.stop();
+      themed = null;
+      wheel = classicView(false);
+      return;
+    }
+    if (themed && themed.url === theme.url) {
+      themed.update(theme);
+      return;
+    }
+    if (themed) themed.stop();
+    themed = themedWheelView(win, stage, theme, { setTimeout: later, now: opts.now, reducedMotion, cue, classic: classicView, report });
+    wheel = themed;
+  }
+
   function onMessage(ev) {
     let msg;
     try {
@@ -279,9 +318,7 @@ export function start(win, opts = {}) {
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'giveaway' && !gw) {
         gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion, cue });
       }
-      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel' && !wheel) {
-        wheel = wheelView(doc, stage, { setTimeout: later, reducedMotion, cue });
-      }
+      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel') setWheel(msg.body.theme);
     } else if (wheel && msg.type === 'spin') {
       wheel.spin(msg.body);
     } else if (gw && msg.type === 'giveaway') {

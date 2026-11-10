@@ -101,6 +101,12 @@ type Look struct {
 	EndVolume   int    `json:"end_volume"`
 	CheerSound  string `json:"cheer_sound"`
 	CheerVolume int    `json:"cheer_volume"`
+
+	// Wheel overlays' look (docs/adr/0036-packages-plugins-and-themes.md):
+	// "" for Classic, or a theme's id, with that theme's settings. Unset
+	// settings take the theme's defaults.
+	Theme         string         `json:"theme"` // always sent: "" is a choice, Classic
+	ThemeSettings map[string]any `json:"theme_settings,omitempty"`
 }
 
 // Fonts offered by name. Each is a list of fonts most computers have, so
@@ -180,6 +186,15 @@ func (l Look) Check() error {
 		return invalid("a sound's volume is 0 to 100")
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
+	}
+	return l.checkTheme()
+}
+
+// checkKind reports a look that doesn't suit a kind of overlay: only
+// wheel overlays have themes.
+func (l Look) checkKind(kind string) error {
+	if l.Theme != "" && kind != KindWheel {
+		return invalid("looks other than Classic are for wheel overlays")
 	}
 	return nil
 }
@@ -266,6 +281,9 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 	if err := look.Check(); err != nil {
 		return Overlay{}, "", err
 	}
+	if err := look.checkKind(kind); err != nil {
+		return Overlay{}, "", err
+	}
 	raw, _ := json.Marshal(look)
 	token, hash := newToken()
 	var count int
@@ -342,6 +360,15 @@ func (s *Store) ByToken(ctx context.Context, token string) (Overlay, error) {
 func (s *Store) SetLook(ctx context.Context, name string, look Look, now time.Time) (Overlay, error) {
 	if err := look.Check(); err != nil {
 		return Overlay{}, err
+	}
+	if look.Theme != "" {
+		cur, err := s.Get(ctx, name)
+		if err != nil {
+			return Overlay{}, err
+		}
+		if err := look.checkKind(cur.Kind); err != nil {
+			return Overlay{}, err
+		}
 	}
 	raw, _ := json.Marshal(look)
 	o, err := scan(s.db.QueryRowContext(ctx, `UPDATE overlays SET look = ?,

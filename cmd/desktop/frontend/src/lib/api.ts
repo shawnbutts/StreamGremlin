@@ -831,6 +831,11 @@ export interface OverlayLook {
   // A moment after it lands, as the result shows: a cheer.
   cheer_sound?: string;
   cheer_volume?: number;
+  // Wheel overlays: a look other than Classic (docs/adr/0036-packages-plugins-and-themes.md),
+  // by id, with its settings; unset ones take the look's defaults.
+  // "" (Classic) is sent, not left out: a look given in part keeps the rest.
+  theme?: string;
+  theme_settings?: Record<string, string | boolean>;
 }
 
 export interface Overlay {
@@ -846,6 +851,16 @@ export interface Overlay {
   previews: number;
 }
 
+/** A look a wheel overlay can have (docs/adr/0036-packages-plugins-and-themes.md). */
+export interface OverlayTheme {
+  id: string;
+  name: string;
+  description: string;
+  // StreamGremlin's tests check it shows the real odds.
+  odds_checked: boolean;
+  settings: { key: string; label: string; kind: 'text' | 'switch' | 'colour'; default: string | boolean; max?: number; hint?: string }[];
+}
+
 export interface OverlayList {
   overlays: Overlay[];
   /** Where overlays are served; "" when the server is off. */
@@ -855,6 +870,8 @@ export interface OverlayList {
   animations: ('slide' | 'pop' | 'unfold')[];
   fonts: OverlayFont[];
   default_look: OverlayLook;
+  // Looks a wheel overlay can have besides Classic.
+  themes: OverlayTheme[];
 }
 
 const overlayPath = (name: string) => `/v1/overlays/${encodeURIComponent(name)}`;

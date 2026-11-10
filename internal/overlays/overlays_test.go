@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -148,7 +149,7 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 	l := DefaultLook()
 	l.Position, l.Animation, l.Opacity = "bottom-left", "pop", 40
 	o, err := s.SetLook(ctx, "a", l, now.Add(time.Minute))
-	if err != nil || o.Look != l || !o.UpdatedAt.After(o.CreatedAt) {
+	if err != nil || !reflect.DeepEqual(o.Look, l) || !o.UpdatedAt.After(o.CreatedAt) {
 		t.Fatal(o, err)
 	}
 	if _, err := s.SetLook(ctx, "nope", l, now); !errors.Is(err, ErrNotFound) {
@@ -162,7 +163,7 @@ func TestLooksAndNamesAreChecked(t *testing.T) {
 	fancy := DefaultLook()
 	fancy.Background2, fancy.GradientAngle, fancy.BorderWidth, fancy.TextOutline, fancy.TextShadow = "#ff00aa", 90, 3, 2, 60
 	fancy.Font, fancy.FontName, fancy.TextSize, fancy.TitleColor = "custom", "Comic Neue", 150, "#ffcc00"
-	if o, err := s.SetLook(ctx, "a", fancy, now); err != nil || o.Look != fancy {
+	if o, err := s.SetLook(ctx, "a", fancy, now); err != nil || !reflect.DeepEqual(o.Look, fancy) {
 		t.Fatal(o, err)
 	}
 }
@@ -183,7 +184,7 @@ func TestOlderLooksKeepTheirAppearance(t *testing.T) {
 	want := DefaultLook()
 	want.Position, want.Animation, want.TextColor, want.TitleColor, want.Background, want.Opacity, want.Seconds =
 		"bottom", "pop", "#112233", "#112233", "#ffffff", 70, 5
-	if err != nil || o.Look != want || o.Look.Check() != nil {
+	if err != nil || !reflect.DeepEqual(o.Look, want) || o.Look.Check() != nil {
 		t.Fatalf("%+v %v", o.Look, err)
 	}
 }

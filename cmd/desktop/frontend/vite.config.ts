@@ -5,8 +5,9 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 export default defineConfig({
   plugins: [svelte()],
   // The brand kit at the repository root is the one source of colours and
-  // icons. The overlay page is served by the engine; its tests run here.
-  server: { fs: { allow: ['..', '../../../brand-kit', '../../../internal/overlays/page'] } },
+  // icons. The overlay page and the wheel looks are served by the engine; their
+  // tests run here.
+  server: { fs: { allow: ['..', '../../../brand-kit', '../../../internal/overlays/page', '../../../internal/overlays/themes'] } },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

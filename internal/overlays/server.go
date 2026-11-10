@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -23,13 +24,23 @@ import (
 //go:embed page
 var page embed.FS
 
-// PageVersion identifies the page files this build serves (a hash of
-// them), so a page loaded from an older build can tell and reload.
+//go:embed themes
+var themeFiles embed.FS
+
+// PageVersion identifies the page and theme files this build serves (a
+// hash of them), so a page loaded from an older build can tell and reload.
 var PageVersion = func() string {
 	h := sha256.New()
-	for _, name := range []string{"page/index.html", "page/overlay.js", "page/overlay.css", "page/giveaway.js", "page/wheel.js"} {
-		b, _ := page.ReadFile(name)
-		h.Write(b)
+	for _, fsys := range []embed.FS{page, themeFiles} {
+		_ = fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			b, _ := fsys.ReadFile(name)
+			h.Write([]byte(name))
+			h.Write(b)
+			return nil
+		})
 	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }()
@@ -43,9 +54,10 @@ const Subprotocol = "streamgremlin.overlay.v1"
 var DesktopOrigins = []string{"wails://localhost", "http://wails.localhost"}
 
 // CSP keeps the page to its own script and style, the platforms' picture
-// host, and its own connection.
+// host, its own connection, and a wheel look's sandboxed frame from the
+// theme server (on this computer, at a port chosen as the engine starts).
 var CSP = "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; img-src " + strings.Join(PictureHosts, " ") +
-	"; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; base-uri 'none'; form-action 'none'; frame-ancestors " +
+	"; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; frame-src http://127.0.0.1:*; base-uri 'none'; form-action 'none'; frame-ancestors " +
 	strings.Join(DesktopOrigins, " ")
 
 // PictureHosts are where profile pictures may come from (Twitch's).
@@ -130,6 +142,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.file(w, "page/giveaway.js", "text/javascript; charset=utf-8")
 	case "wheel.js":
 		s.file(w, "page/wheel.js", "text/javascript; charset=utf-8")
+	case "themehost.js":
+		s.file(w, "page/themehost.js", "text/javascript; charset=utf-8")
 	case "ws":
 		s.connect(w, r, o)
 	default:
@@ -204,8 +218,20 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request, o Overlay) {
 			if err != nil {
 				return
 			}
-			if json.Unmarshal(b, &in) == nil && in.Type == "ack" {
+			if json.Unmarshal(b, &in) != nil {
+				continue
+			}
+			switch in.Type {
+			case "ack":
 				s.hub.ack(c, in.ID, in.Status, in.Detail)
+			case "theme":
+				// A wheel look said it's ready, or that a spin showed in
+				// Classic. Only logged; it changes nothing.
+				detail := in.Detail
+				if len(detail) > 200 {
+					detail = detail[:200]
+				}
+				s.log.Info("wheel look", "overlay", o.Name, "preview", preview, "status", in.Status, "detail", detail)
 			}
 		}
 	}()

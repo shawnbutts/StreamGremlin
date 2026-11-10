@@ -131,6 +131,8 @@ type Hub struct {
 	shown    map[string]time.Time
 	// giveaway is the running giveaway as giveaway overlays show it.
 	giveaway *GiveawayView
+	// themeOrigin is the theme server's, for wheel looks ("" when off).
+	themeOrigin string
 }
 
 // NewHub returns a Hub. now may be nil.
@@ -160,10 +162,23 @@ func (h *Hub) countLocked(name string) (pages, previews int) {
 	return pages, previews
 }
 
-// hello tells a page its overlay and look, and which version of the page
-// this engine serves: a page left over from before an update reloads.
-func hello(o Overlay, preview bool) []byte {
-	return message("hello", map[string]any{"protocol": 1, "overlay": o, "preview": preview, "page_version": PageVersion})
+// hello tells a page its overlay and look (with a wheel look's theme),
+// and which version of the page this engine serves: a page left over from
+// before an update reloads.
+func (h *Hub) hello(o Overlay, preview bool) []byte {
+	body := map[string]any{"protocol": 1, "overlay": o, "preview": preview, "page_version": PageVersion}
+	if t := themeView(o, h.themeOrigin); t != nil {
+		body["theme"] = t
+	}
+	return message("hello", body)
+}
+
+// SetThemeOrigin says where the theme server is, like
+// http://127.0.0.1:50123 ("" when it's off: wheels show Classic).
+func (h *Hub) SetThemeOrigin(origin string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.themeOrigin = origin
 }
 
 func message(kind string, body any) []byte {
@@ -197,7 +212,7 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 		h.conns[o.Name] = map[*conn]bool{}
 	}
 	h.conns[o.Name][c] = true
-	h.sendLocked(c, hello(o, preview))
+	h.sendLocked(c, h.hello(o, preview))
 	if v := h.giveaway; v != nil && giveawayFor(c, v.Practice) {
 		h.sendLocked(c, message("giveaway", v))
 	}
@@ -278,7 +293,7 @@ func (h *Hub) Changed(o Overlay) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for c := range h.conns[o.Name] {
-		h.sendLocked(c, hello(o, c.preview))
+		h.sendLocked(c, h.hello(o, c.preview))
 	}
 }
 
@@ -291,7 +306,7 @@ func (h *Hub) PreviewLook(o Overlay) int {
 	for c := range h.conns[o.Name] {
 		if c.preview {
 			n++
-			h.sendLocked(c, hello(o, true))
+			h.sendLocked(c, h.hello(o, true))
 		}
 	}
 	return n

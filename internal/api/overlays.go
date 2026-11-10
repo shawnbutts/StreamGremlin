@@ -48,6 +48,9 @@ type OverlayList struct {
 	Animations []string      `json:"animations"`
 	Fonts      []string      `json:"fonts"`
 	Default    overlays.Look `json:"default_look"`
+	// Themes are the looks a wheel overlay can have besides Classic
+	// (docs/adr/0036-packages-plugins-and-themes.md), with their settings.
+	Themes []overlays.Theme `json:"themes"`
 }
 
 // OverlayLink is an overlay's private link.
@@ -86,7 +89,8 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
-				out := OverlayList{Overlays: []OverlayView{}, Positions: overlays.Positions, Animations: overlays.Animations, Fonts: overlays.Fonts, Default: overlays.DefaultLook()}
+				out := OverlayList{Overlays: []OverlayView{}, Positions: overlays.Positions, Animations: overlays.Animations, Fonts: overlays.Fonts, Default: overlays.DefaultLook(),
+					Themes: overlays.Themes}
 				for _, o := range list {
 					out.Overlays = append(out.Overlays, view(o))
 				}
@@ -131,7 +135,7 @@ func overlayRoutes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/overlays/{name}",
-			Summary:    "Change an overlay's look {look}. Open pages change at once. Repeating it is harmless.",
+			Summary:    "Change an overlay's look {look}. A wheel overlay's look may be a theme (look.theme, from GET /v1/overlays themes) with its settings (look.theme_settings). Open pages change at once. Repeating it is harmless.",
 			Permission: PermOverlaysWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				cur, err := d.Overlays.Get(r.Context(), r.PathValue("name"))
@@ -139,8 +143,11 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
-				// A look given in part keeps the rest as it is.
+				// A look given in part keeps the rest as it is. A theme's
+				// settings are replaced, not merged: another theme's would
+				// be refused. Not given, they stay with the same theme.
 				look := cur.Look
+				look.ThemeSettings = nil
 				in := struct {
 					Look *overlays.Look `json:"look"`
 				}{Look: &look}
@@ -150,6 +157,9 @@ func overlayRoutes(d Deps) []Route {
 				if in.Look == nil {
 					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "look is required")
 					return
+				}
+				if in.Look.ThemeSettings == nil && in.Look.Theme == cur.Look.Theme {
+					in.Look.ThemeSettings = cur.Look.ThemeSettings
 				}
 				// Sounds play on giveaway and wheel overlays, and only ones in
 				// the library.

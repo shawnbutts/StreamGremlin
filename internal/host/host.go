@@ -90,6 +90,7 @@ type Host struct {
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
+	thSrv     *http.Server // wheel looks' own origin (docs/adr/0036-packages-plugins-and-themes.md)
 	ovLn      net.Listener
 	ovNote    string
 	log       *slog.Logger
@@ -322,6 +323,26 @@ func (h *Host) serveOverlays(addr string, store *overlays.Store, lib *sounds.Sto
 		ErrorLog:          slog.NewLogLogger(h.log.Handler(), slog.LevelWarn),
 	}
 	go func() { _ = h.ovSrv.Serve(ln) }()
+	// Wheel looks are served from a second origin, so a theme never shares
+	// one with the overlay page and its connection. Any free port: the
+	// page is told where in its hello.
+	tln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		h.log.Warn("wheel looks other than Classic are off: couldn't listen for them", "err", err)
+		return nil
+	}
+	_, port, _ := net.SplitHostPort(ln.Addr().String())
+	ts := overlays.NewThemeServer(h.log)
+	self := "http://" + tln.Addr().String()
+	ts.SetOrigins(self, []string{"http://127.0.0.1:" + port, "http://localhost:" + port})
+	h.hub.SetThemeOrigin(self)
+	h.thSrv = &http.Server{
+		Handler:           ts,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		ErrorLog:          slog.NewLogLogger(h.log.Handler(), slog.LevelWarn),
+	}
+	go func() { _ = h.thSrv.Serve(tln) }()
 	return nil
 }
 
@@ -395,6 +416,9 @@ func (h *Host) cleanup() {
 	}
 	if h.ovSrv != nil {
 		_ = h.ovSrv.Close()
+	}
+	if h.thSrv != nil {
+		_ = h.thSrv.Close()
 	}
 	if h.ln != nil {
 		_ = os.Remove(datadir.AddrPath(h.dataDir))

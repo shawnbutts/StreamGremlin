@@ -1120,3 +1120,14 @@ Decided 2026-11-10 under D-007. The user said "good plan. proceed" to the M5 pla
 - **Odds:** installed themes are labelled as not checked; built-in looks draw wedges to their real size, checked by tests.
 - **To check in slice 2:** OBS's browser source with the sandbox on macOS and Windows, and whether `window.obsstudio` reaches a sandboxed frame. Until then the Overlays screen says to leave Page permissions at the lowest level for themed overlays.
 
+## D-064. Built-in wheel looks (M5 slice 2)
+
+Decided 2026-11-10 under D-007, building on D-062 and D-063. The user said "proceed" to the slice 2 plan.
+
+- **A wheel overlay has a look,** following [ADR-0036](adr/0036-packages-plugins-and-themes.md): Classic (as before), Workshop, Neon arcade or Selector board, each with a title, whether to show it, and an accent colour.
+- **The three new looks run through the theme sandbox** that installed themes will use: a second loopback origin with no network, a sandboxed frame, and the checked message protocol. The engine's clock decides when a spin ends.
+- **Classic stays drawn by the overlay page** and shows any spin a look can't.
+- **The looks are StreamGremlin's own code,** drawn from the concept's designs (D-048). The wheels draw wedges at their real size; the Selector board shows each choice's chance.
+- **Whether OBS's page API reaches a sandboxed frame** is reported by the looks, in the app's preview and in OBS with `?status=1`, for the live check. The Overlays screen says to leave Page permissions at "No access to OBS".
+- **Built and checked against a browser test page and the app's tests only,** until the live check.
+

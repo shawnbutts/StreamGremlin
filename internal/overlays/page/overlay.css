@@ -261,3 +261,8 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .sg-wheel-result { animation: none; }
 }
+
+/* A wheel look from the theme server (docs/adr/0036-packages-plugins-and-themes.md):
+   a sandboxed frame over the whole page, shown only during a spin. */
+.sg-theme-frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; visibility: hidden; }
+.sg-theme-frame.on { visibility: visible; }

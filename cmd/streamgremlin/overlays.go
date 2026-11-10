@@ -27,6 +27,8 @@ const overlaysUsage = `usage:
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
                                           giveaway and wheel overlays: -start-sound drumroll -end-sound clunk
                                           -cheer-sound cheer
+                                          wheel overlays: -look workshop (or classic, neon-arcade,
+                                          selector-board) -look-title "Pick a game" -accent #e8b04e
   streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -152,8 +154,40 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.IntVar(&l.EndVolume, "end-volume", l.EndVolume, "its volume, 0 to 100")
 			fs.StringVar(&l.CheerSound, "cheer-sound", l.CheerSound, "giveaway and wheel overlays: a library sound when the result shows (none for no sound)")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
+			lookName := strings.TrimPrefix(l.Theme, "builtin:")
+			if lookName == "" {
+				lookName = "classic"
+			}
+			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade or selector-board")
+			lookTitle := fs.String("look-title", "", "wheel overlays with a look: its title (empty for the wheel's own)")
+			lookShowTitle := fs.Bool("look-show-title", true, "wheel overlays with a look: show the title")
+			accent := fs.String("accent", "", "wheel overlays with a look: its accent colour, #RRGGBB")
 			if err := fs.Parse(args[2:]); err != nil || fs.NArg() > 0 {
 				return usage()
+			}
+			theme := ""
+			if lookName != "classic" {
+				theme = "builtin:" + lookName
+			}
+			settings := map[string]any{}
+			if theme == l.Theme {
+				for k, v := range l.ThemeSettings {
+					settings[k] = v
+				}
+			}
+			fs.Visit(func(f *flag.Flag) {
+				switch f.Name {
+				case "look-title":
+					settings["title"] = *lookTitle
+				case "look-show-title":
+					settings["show_title"] = *lookShowTitle
+				case "accent":
+					settings["accent"] = *accent
+				}
+			})
+			l.Theme, l.ThemeSettings = theme, settings
+			if len(settings) == 0 {
+				l.ThemeSettings = nil
 			}
 			if l.Background2 == "none" {
 				l.Background2 = ""
@@ -172,6 +206,14 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			if code := apiExit(c.Do(ctx, "PUT", path(o.Name), map[string]any{"look": l}, &o), stderr); code != 0 {
 				return code
+			}
+			if o.Kind == overlays.KindWheel {
+				name := "Classic"
+				if t, ok := overlays.ThemeByID(o.Look.Theme); ok {
+					name = t.Name
+				}
+				fmt.Fprintf(stdout, "%s: the %s look.\n", o.Name, name)
+				return 0
 			}
 			fmt.Fprintf(stdout, "%s: %s, %s, %d seconds.\n", o.Name, o.Look.Position, o.Look.Animation, o.Look.Seconds)
 			return 0

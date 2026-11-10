@@ -1,0 +1,30 @@
+/* The Selector board look (docs/adr/0036-packages-plugins-and-themes.md).
+   Transparent around the board, so it sits over gameplay. */
+:root { --accent: #9cf03b; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #f5eec8; }
+#app { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; padding: 3vh; }
+.title { padding: 0.35em 1.4em; border: 3px solid var(--accent); border-radius: 22px; background: linear-gradient(#253b31, #071b14);
+  box-shadow: 0 0 12px #9df03b66; font-size: clamp(18px, 3.4vh, 46px); font-weight: 900; letter-spacing: 0.05em;
+  max-width: 90vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title[hidden], .title:empty { display: none; }
+.board { position: relative; width: min(85vw, 900px); height: 450px; max-height: 60vh; border: 10px ridge #3c6341; border-radius: 26px;
+  background: #091a13f2; box-shadow: 0 0 0 4px #84c640, 0 18px 36px #0009, inset 0 0 35px #000; overflow: hidden; }
+.board:empty { display: none; }
+.view { position: absolute; inset: 0; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24%, #000 76%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 24%, #000 76%, transparent); }
+.track { position: absolute; top: 50%; left: 5%; width: 90%; }
+.row { height: 82px; margin: 4px 0; display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 0 1em;
+  border-radius: 16px; border: 2px solid #5a814e; background: linear-gradient(#294239, #152e27); text-shadow: 0 2px #000;
+  font-weight: 800; font-size: 30px; }
+.row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .chance { flex: none; font-size: 0.7em; opacity: 0.85; }
+.row.current { background: linear-gradient(#fff2b6, #ddba61); border-color: #ffef78; color: #1c2513; text-shadow: none; box-shadow: 0 0 18px #ffd956; }
+.band { pointer-events: none; position: absolute; left: 0; right: 0; top: 50%; height: 92px; transform: translateY(-50%);
+  border-top: 4px solid var(--accent); border-bottom: 4px solid var(--accent); box-shadow: 0 0 22px #94fd3966; }
+.result { padding: 0.4em 1.2em; border: 3px solid #dbbf66; background: #07180ff3; border-radius: 12px; color: #fbf6c5;
+  font-size: clamp(18px, 3.4vh, 44px); font-weight: 900; box-shadow: 0 0 18px var(--accent); max-width: 90vw; overflow-wrap: anywhere; text-align: center; }
+.result[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .track { transition: none !important; } }
