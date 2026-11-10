@@ -1058,3 +1058,10 @@ Decided 2026-11-10. Offered the slice 5 plan for more currencies, the user said:
 - **Several currencies, retiring one (with moving its balances) and letting balances go below zero move to Later.** They come back when a streamer asks for them, under a new decision naming who will use them.
 - **What stays:** one currency, `points`, renamable (D-052). The ledger's schema already has a currency on every account and an `allow_negative` setting, so adding more later needs no change to what's built.
 - **F4 continues with the points shop, then points in giveaways and wheels,** using `points` only.
+
+## D-058. The points shop moves to Later (amends D-052)
+
+Decided 2026-11-10. Offered the slice 6 plan for the points shop, the user said: "let's mote that to "later" as well."
+
+- **The rewards shop and its redemption queue move to Later,** with the plan offered for it: items with cooldowns, stock and limits, `!shop` and `!buy`, a queue to mark done or refund, and workflow steps. They come back under a new decision when a streamer asks.
+- **F4 continues with points in giveaways and wheels,** then M3 closes after a real stream on macOS and Windows.

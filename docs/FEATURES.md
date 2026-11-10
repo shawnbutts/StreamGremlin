@@ -96,7 +96,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Several currencies, retire, below zero (renaming `points` is built) | 0072, D-102; moved to Later by D-057 | Later |
 | Earning rules: chat, follows, subs, bits, time in chat (not "watch time") | 0018, D-028, D-030; chat, follows, subs, gifts and bits built in M3 (ADR-0033, D-053); time in chat built in M3 (ADR-0034, D-055) | F4 |
 | Give to everyone by a rule (chatter list, recent chatters, subscribers), and export everyone | D-054; built in M3 (ADR-0035, D-056) | F4 |
-| Rewards shop and redemption queue | 0019, D-032 | F4 |
+| Rewards shop and redemption queue | 0019, D-032; moved to Later by D-058 | Later |
 | Convert between currencies | 0072 | Later |
 | Account links proven in chat (`!link`) | 0034, D-045 | YouTube |
 
