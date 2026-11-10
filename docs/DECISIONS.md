@@ -1065,3 +1065,12 @@ Decided 2026-11-10. Offered the slice 6 plan for the points shop, the user said:
 
 - **The rewards shop and its redemption queue move to Later,** with the plan offered for it: items with cooldowns, stock and limits, `!shop` and `!buy`, a queue to mark done or refund, and workflow steps. They come back under a new decision when a streamer asks.
 - **F4 continues with points in giveaways and wheels,** then M3 closes after a real stream on macOS and Windows.
+
+## D-059. Points in giveaways and wheels move to Later (amends D-052)
+
+Decided 2026-11-10. Offered slice 7 as points prizes only (a giveaway entry cost would be a wager, which StreamGremlin never runs, and paid wheel spins are already "won't do", D-031), the user said: "let's mote that to "later" as well."
+
+- **Points prizes for giveaways and wheels move to Later.** A giveaway entry cost needs its own decision if it ever comes back, since it conflicts with "StreamGremlin itself never runs a wager".
+- **F4 in M3 is slices 1 to 4:** viewers and the ledger, earning rules, time in chat, and giving to everyone with export. All four passed their live checks.
+- **M3 closes after a real stream on macOS and Windows,** written in docs/milestones/M3.md.
+
