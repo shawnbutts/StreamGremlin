@@ -253,6 +253,21 @@ export async function openInBrowser(url: string): Promise<void> {
   }
 }
 
+/**
+ * Save text to a file where the streamer chooses, with the system's own save
+ * dialog (never <a download>). Resolves to the path, or '' when cancelled.
+ */
+export async function saveFile(name: string, text: string): Promise<string> {
+  const resp = await fetch('/desktop/save-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, text }),
+  });
+  const data = await resp.json().catch(() => undefined);
+  if (!resp.ok) throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  return typeof data?.saved === 'string' ? data.saved : '';
+}
+
 export type OBSState = 'off' | 'connecting' | 'connected' | 'disconnected' | 'needs_action';
 
 export interface OBSStatus {
@@ -1219,3 +1234,61 @@ export const setWheel = (name: string, s: WheelSettings) => api<Wheel>('PUT', `/
 export const deleteWheel = (name: string) => api<{ deleted: boolean }>('DELETE', `/v1/wheels/${wid(name)}`);
 export const spinWheel = (name: string, requestId: string) => api<WheelSpin>('POST', `/v1/wheels/${wid(name)}/spin`, { request_id: requestId });
 export const getSpin = (id: string) => api<WheelSpin>('GET', `/v1/spins/${wid(id)}`);
+
+// Viewers and points (docs/adr/0032-viewers-and-points.md).
+
+export interface Viewer {
+  id: string;
+  platform: string;
+  user_id: string;
+  login: string;
+  display_name: string;
+  first_seen: string;
+  last_seen: string;
+  last_chat_at?: string;
+  messages: number;
+  forgotten_at?: string;
+  balance: number;
+}
+
+export interface PointsTransaction {
+  id: string;
+  kind: 'credit' | 'debit' | 'adjust' | 'reverse';
+  currency: string;
+  viewer: string;
+  amount: number;
+  memo?: string;
+  by: string;
+  reverses?: string;
+  reversed_by?: string;
+  created_at: string;
+}
+
+export interface ViewerDetail extends Viewer {
+  history: PointsTransaction[];
+}
+
+export interface PointsCurrency {
+  id: string;
+  name: string;
+  allow_negative: boolean;
+}
+
+export interface PointsView {
+  currency: PointsCurrency;
+  summary: { transactions: number; viewers: number; issued: number };
+  top: Viewer[];
+}
+
+const vid = (id: string) => encodeURIComponent(id);
+export const getPoints = () => api<PointsView>('GET', '/v1/points');
+export const getViewers = (q = '') => api<{ viewers: Viewer[] }>('GET', `/v1/viewers?q=${encodeURIComponent(q)}`);
+export const getViewer = (id: string) => api<ViewerDetail>('GET', `/v1/viewers/${vid(id)}`);
+export const exportViewer = (id: string) => api<unknown>('GET', `/v1/viewers/${vid(id)}/export`);
+export const forgetViewer = (id: string) => api<Viewer>('POST', `/v1/viewers/${vid(id)}/forget`);
+export const adjustPoints = (id: string, amount: number, reason: string, requestId: string) =>
+  api<{ balance: number }>('POST', `/v1/viewers/${vid(id)}/points`, { amount, reason, request_id: requestId });
+export const undoPoints = (txId: string, requestId: string) =>
+  api<{ balance: number }>('POST', `/v1/points/transactions/${vid(txId)}/undo`, { request_id: requestId });
+export const renamePoints = (name: string) => api<PointsCurrency>('PUT', '/v1/points/currency', { name });
+export const auditPoints = () => api<{ ok: boolean; problems: string[] }>('GET', '/v1/points/audit');

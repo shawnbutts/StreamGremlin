@@ -13,11 +13,13 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/templates"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
+	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -98,7 +100,8 @@ func TestEveryTemplateWorks(t *testing.T) {
 	if _, _, err := ovs.Create(ctx, "alerts", overlays.KindAlert, overlays.DefaultLook(), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	actions.Register(reg, actions.Services{Quotes: quotes.NewStore(db), Overlays: ovs, Hub: overlays.NewHub(nil)})
+	actions.Register(reg, actions.Services{Quotes: quotes.NewStore(db), Overlays: ovs, Hub: overlays.NewHub(nil),
+		Viewers: viewers.New(db, events.NewInbox(db, nil), nil), Points: points.New(db, nil)})
 	inbox := events.NewInbox(db, nil)
 	eng := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: variables.New(db)})
 	if err := eng.Start(ctx); err != nil {

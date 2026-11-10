@@ -122,9 +122,10 @@ describe('App', () => {
     await noViolations('overlays');
     await keyTo('7', 'Giveaways');
     await noViolations('giveaways');
-    await keyTo('8', 'Variables');
+    await keyTo('8', 'Points');
+    await noViolations('points');
+    await keyTo('9', 'Variables');
     await noViolations('variables');
-    await keyTo('9', 'Variables'); // no ninth main screen: nothing changes
     // More… opens in place; its screens work as any other.
     const more = Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent?.includes('More…'))!;
     expect(more.getAttribute('aria-expanded')).toBe('false');

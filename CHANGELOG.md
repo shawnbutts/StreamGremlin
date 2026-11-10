@@ -211,6 +211,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - `streamgremlin wheels` (add, set, delete, spin, verify) and `overlays add -wheel`.
 - Sounds on giveaway and wheel overlays: on the Overlays screen, pick a sound from your library to play as a roll or spin starts, and another as it lands, each with its own volume. The overlay plays them, so OBS hears them. `overlays look NAME -start-sound S -end-sound S -cheer-sound S`.
   - A third sound, **When it has stopped** (or **When the winner shows**), plays half a second after the wheel stops or the roll lands, as the result shows: for a cheer. Chat names the result at the same moment.
+- F4 slice 1, viewers and points:
+  - **Viewer records:** everyone who chats, follows, subscribes or cheers, with when they were first and last seen and how much they've chatted. Recorded from real chat and events only, never test events. Export a viewer's record (through your system's save dialog), or forget them.
+  - **Points:** a **Points** screen with who holds how many, each viewer's history, giving and taking by hand with a reason, undoing a mistake (once), renaming the points (like Gold), and **Check the ledger**. Nothing is changed or deleted, and nobody goes below zero.
+  - **Steps:** "Give points", "Take points" (fails, changing nothing, when they haven't enough) and "Check points". A retried run never pays twice, and a test event never changes a real balance. A template: **Check your points** (`!points`).
+  - `streamgremlin viewers` and `streamgremlin points`.
+  - The Points screen sits after Giveaways, so Variables' shortcut is now Ctrl/⌘+9.
 
 ### Fixed
 

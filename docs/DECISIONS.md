@@ -970,3 +970,23 @@ Decided 2026-11-10, amending D-050. After its live check the user asked: "can we
   - half a second later, as the result shows: the cheer.
   The pause before the result matches when the engine announces it, so the cheer and chat line up ([ADR-0031](adr/0031-overlay-sounds.md), amended).
 - **With reduced motion, only the cheer plays.**
+
+## D-052. Viewers and the points ledger (M3, F4 slice 1)
+
+Decided 2026-11-10 under D-007. The user said "proceed" to the F4 plan:
+1. viewers and the ledger;
+2. earning rules;
+3. time in chat;
+4. more currencies;
+5. the points shop;
+6. points in giveaways and wheels.
+
+- **Viewers and points follow [ADR-0032](adr/0032-viewers-and-points.md):**
+  - viewer records from real events only, with export and forget;
+  - an append-only, double-entry ledger with operation ids, no negatives and undo once;
+  - one currency, `points`, renamable;
+  - the steps "Give points", "Take points" and "Check points";
+  - the Points screen, the API and the CLI.
+- **The native save dialog is built for exports** (D-115's rule).
+- **The Points screen goes in the main list after Giveaways.** Variables' shortcut moves to Ctrl/⌘+9.
+- **Built and checked against mocktwitch only,** until the live check.

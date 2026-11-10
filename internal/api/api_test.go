@@ -22,6 +22,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -30,6 +31,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
+	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -42,6 +44,13 @@ var testMock *mocktwitch.Server
 
 // testPlayer is the sound player behind the latest newTestServer.
 var testPlayer *sounds.Player
+
+// testViewers and testLedger are the latest newTestServer's.
+var (
+	testViewers *viewers.Service
+	testLedger  *points.Ledger
+	testEvents  *events.Inbox
+)
 
 // testOverlays serves the overlay pages of the latest newTestServer.
 var testOverlays *httptest.Server
@@ -116,7 +125,13 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(wh.Close)
-	actions.Register(reg, actions.Services{Giveaways: gw, Wheels: wh, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
+	vs, ledger := viewers.New(db, inbox, nil), points.New(db, nil)
+	if err := vs.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(vs.Close)
+	testViewers, testLedger, testEvents = vs, ledger, inbox
+	actions.Register(reg, actions.Services{Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -133,7 +148,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

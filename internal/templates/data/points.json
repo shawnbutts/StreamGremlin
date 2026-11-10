@@ -1,0 +1,37 @@
+{
+  "template": {
+    "id": "points",
+    "title": "Check your points",
+    "category": "Chat commands",
+    "description": "!points tells a viewer how many points they have. Anyone can use it.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.points",
+    "name": "Check your points",
+    "group": "Points",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "points"
+        }
+      }
+    ],
+    "steps": [
+      {
+        "id": "p",
+        "action": "points.balance",
+        "with": {}
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "@${event.actor.display_name}, you have ${steps.p.output.balance} ${steps.p.output.currency}."
+        }
+      }
+    ]
+  }
+}

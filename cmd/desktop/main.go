@@ -70,13 +70,26 @@ func run() error {
 	// The UI asks for allow-listed pages only (desktop.AllowedURL); they open
 	// in the streamer's own browser, never inside the app.
 	openURL := func(u string) error { return app.Browser.OpenURL(u) }
+	// Exports go where the streamer chooses, with the system's own save
+	// dialog; nothing is written without it.
+	saveFile := func(name string, data []byte) (string, error) {
+		d := app.Dialog.SaveFile().SetFilename(name).CanCreateDirectories(true)
+		if win != nil {
+			d = d.AttachToWindow(win)
+		}
+		path, err := d.PromptForSingleSelection()
+		if err != nil || path == "" {
+			return "", err
+		}
+		return path, os.WriteFile(path, data, 0o600)
+	}
 	app = application.New(application.Options{
 		Name:        brand.Name,
 		Description: "Local-first stream automation",
 		Icon:        icon,
 		Logger:      log,
 		Assets: application.AssetOptions{
-			Handler:        desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) }),
+			Handler:        desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) }, saveFile),
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},

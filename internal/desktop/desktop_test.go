@@ -173,3 +173,47 @@ func TestRestartEngine(t *testing.T) {
 		t.Fatal(none.Code)
 	}
 }
+
+// Saving an export: the system's dialog decides where (the UI only
+// suggests a name); a cancel saves nothing; bad names and other methods are
+// refused; without a dialog it says so.
+func TestSaveFile(t *testing.T) {
+	var got struct {
+		name string
+		data []byte
+	}
+	answer := "/home/me/ann.json"
+	h := Handler(fstest.MapFS{}, NewState(), nil, nil, func(name string, data []byte) (string, error) {
+		got.name, got.data = name, data
+		return answer, nil
+	})
+	post := func(body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/desktop/save-file", strings.NewReader(body)))
+		return w
+	}
+	if w := post(`{"name":"ann.json","text":"{}"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"saved":"/home/me/ann.json"`) ||
+		got.name != "ann.json" || string(got.data) != "{}" {
+		t.Fatal(w.Code, w.Body.String(), got)
+	}
+	answer = ""
+	if w := post(`{"name":"ann.json","text":"{}"}`); !strings.Contains(w.Body.String(), `"cancelled":true`) {
+		t.Fatal(w.Body.String())
+	}
+	for _, bad := range []string{`{"name":"../../etc/passwd","text":"x"}`, `{"name":"","text":"x"}`, `{"name":"a/b.json","text":"x"}`, `not json`} {
+		if w := post(bad); w.Code != 400 {
+			t.Error(bad, w.Code)
+		}
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/desktop/save-file", nil))
+	if w.Code != 405 {
+		t.Fatal(w.Code)
+	}
+	w = httptest.NewRecorder()
+	Handler(fstest.MapFS{}, NewState(), nil, nil).ServeHTTP(w, httptest.NewRequest("POST", "/desktop/save-file",
+		strings.NewReader(`{"name":"a.json","text":"x"}`)))
+	if w.Code != 503 {
+		t.Fatal(w.Code)
+	}
+}

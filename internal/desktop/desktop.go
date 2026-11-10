@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -89,7 +90,16 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 's
 // it for allow-listed pages only (AllowedURL). restart stops and starts the
 // engine, for POST /desktop/restart-engine: a staged restore is applied as
 // it starts (docs/adr/0012-backups-and-retention.md).
-func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error) http.Handler {
+// SaveFunc asks where to save a file with the system's own save dialog,
+// suggesting name, and writes data there. It returns the path, or "" when
+// the streamer cancelled.
+type SaveFunc func(name string, data []byte) (string, error)
+
+func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error, save ...SaveFunc) http.Handler {
+	var saver SaveFunc
+	if len(save) > 0 {
+		saver = save[0]
+	}
 	files := http.FileServerFS(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
@@ -104,6 +114,8 @@ func Handler(assets fs.FS, state *State, open func(url string) error, restart fu
 			openURL(w, r, open)
 		case r.URL.Path == "/desktop/restart-engine":
 			restartEngine(w, r, restart)
+		case r.URL.Path == "/desktop/save-file":
+			saveFile(w, r, saver)
 		case strings.HasPrefix(r.URL.Path, "/v1/"):
 			bridge(w, r, state)
 		default:
@@ -210,4 +222,53 @@ func openURL(w http.ResponseWriter, r *http.Request, open func(string) error) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// MaxSave is the largest file the app saves (an export).
+const MaxSave = 16 << 20
+
+var saveName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$`)
+
+// saveFile saves an export where the streamer chooses, with the system's
+// own save dialog (the rule: never <a download>). The UI sends the
+// suggested name and the text; it never chooses the path.
+func saveFile(w http.ResponseWriter, r *http.Request, save SaveFunc) {
+	reply := func(status int, body any) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(body)
+	}
+	fail := func(status int, code, msg string) {
+		reply(status, map[string]any{"error": map[string]string{"code": code, "message": msg}})
+	}
+	if r.Method != http.MethodPost {
+		fail(http.StatusMethodNotAllowed, "method_not_allowed", "use POST")
+		return
+	}
+	var in struct {
+		Name string `json:"name"`
+		Text string `json:"text"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, MaxSave+4096)).Decode(&in); err != nil || len(in.Text) > MaxSave {
+		fail(http.StatusBadRequest, "invalid_request", "that can't be saved")
+		return
+	}
+	if !saveName.MatchString(in.Name) || strings.Contains(in.Name, "..") {
+		fail(http.StatusBadRequest, "invalid_request", "a file name is letters, digits, spaces and . _ -")
+		return
+	}
+	if save == nil {
+		fail(http.StatusServiceUnavailable, "unavailable", "can't save files here")
+		return
+	}
+	path, err := save(in.Name, []byte(in.Text))
+	if err != nil {
+		fail(http.StatusServiceUnavailable, "unavailable", "couldn't save it: "+err.Error())
+		return
+	}
+	if path == "" {
+		reply(http.StatusOK, map[string]any{"cancelled": true})
+		return
+	}
+	reply(http.StatusOK, map[string]any{"saved": path})
 }

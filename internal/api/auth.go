@@ -77,6 +77,13 @@ const (
 	// spinning them.
 	PermWheelsRead  Permission = "wheels.read"
 	PermWheelsWrite Permission = "wheels.write"
+	// Viewers: seeing their records and exporting them; forgetting one.
+	PermViewersRead  Permission = "viewers.read"
+	PermViewersWrite Permission = "viewers.write"
+	// Points: balances, the top list and the audit; giving, taking,
+	// undoing and renaming.
+	PermPointsRead  Permission = "points.read"
+	PermPointsWrite Permission = "points.write"
 )
 
 // Principal is an authenticated caller.

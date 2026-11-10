@@ -53,7 +53,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Settings: hide screens and connections you don't use | 0071, D-097, D-101 | Spine |
 | Help screen with the user docs built in | D-112 | Spine |
 | In-app ask dialogs, never `window.confirm` | D-099 | Spine (rule) |
-| Native save dialog for exports | D-115 | Spine (rule) |
+| Native save dialog for exports | D-115; built in M3 for viewer exports (ADR-0032) | Spine (rule) |
 | Setup links open in the system browser, allowlisted | D-098 | Spine |
 | Accessibility: axe checks in all themes and text sizes, contrast tests | 0051 | Spine, then every slice |
 | Gallery of templates, with ready-made templates for each switch feature | D-123 | Spine, with templates added in F1–F4 |
@@ -90,9 +90,9 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
-| Viewer records per platform account, with export and delete | 0016 | Spine |
+| Viewer records per platform account, with export and delete | 0016; built in M3 (ADR-0032, D-052) | Spine (built with F4) |
 | Counters and quotes | Quotes built in M2 (ADR-0014, D-025); counters are saved variables (D-024) | F1 |
-| Points ledger: append-only, double entry, no negative balances | 0017, D-029 | F4 |
+| Points ledger: append-only, double entry, no negative balances | 0017, D-029; built in M3 (ADR-0032, D-052), one renamable currency | F4 |
 | Several currencies, rename, retire | 0072, D-102 | F4 |
 | Earning rules: chat, follows, subs, bits, time in chat (not "watch time") | 0018, D-028, D-030 | F4 |
 | Rewards shop and redemption queue | 0019, D-032 | F4 |

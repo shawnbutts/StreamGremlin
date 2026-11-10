@@ -29,6 +29,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -37,6 +38,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
+	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -77,6 +79,7 @@ type Host struct {
 	ads       *ads.Service
 	giveaways *giveaways.Service
 	wheels    *wheels.Service
+	viewers   *viewers.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -158,8 +161,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
 	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log, Display: h.hub})
 	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
+	h.viewers = viewers.New(h.db, inbox, log)
+	ledger := points.New(h.db, log)
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -181,6 +186,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	if err := h.wheels.Start(ctx); err != nil {
+		return nil, err
+	}
+	if err := h.viewers.Start(ctx); err != nil {
 		return nil, err
 	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
@@ -212,6 +220,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Ads:        h.ads,
 		Giveaways:  h.giveaways,
 		Wheels:     h.wheels,
+		Viewers:    h.viewers,
+		Points:     ledger,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -332,6 +342,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
+	}
+	if h.viewers != nil {
+		h.viewers.Close()
 	}
 	if h.wheels != nil {
 		h.wheels.Close() // before workflows: a spin left showing settles on the next start
