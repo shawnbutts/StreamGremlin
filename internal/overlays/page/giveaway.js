@@ -53,6 +53,8 @@ export function giveawayView(doc, stage, opts = {}) {
   const later = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
   const now = opts.now || (() => Date.now());
   const reduced = opts.reducedMotion || (() => false);
+  // Plays the overlay's sounds: "start" as a roll starts, "end" as it lands.
+  const cue = opts.cue || (() => {});
 
   let state = null;
   const draws = [];
@@ -145,6 +147,7 @@ export function giveawayView(doc, stage, opts = {}) {
 
   function showWinner(d) {
     mount(winnerBox(d));
+    cue('end');
     later(() => {
       showing = null;
       mount(panel());
@@ -164,6 +167,7 @@ export function giveawayView(doc, stage, opts = {}) {
       showWinner(d);
       return;
     }
+    cue('start');
     const el = doc.createElement('div');
     el.className = 'sg-alert sg-giveaway sg-roll';
     const words = doc.createElement('div');

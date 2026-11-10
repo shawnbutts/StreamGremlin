@@ -418,3 +418,41 @@ describe('the wheel overlay', () => {
     expect(stage.textContent).toBe('');
   });
 });
+
+describe('giveaway and wheel overlay sounds', () => {
+  const look = { start_sound: 'drumroll', start_volume: 40, end_sound: 'tada', end_volume: 90 };
+  const hello = (kind: string) => ({ type: 'hello', body: { overlay: { name: kind, kind, look }, page_version: 'v1' } });
+
+  it('plays the start sound as a roll starts and the end sound as it lands, through the overlay’s link', () => {
+    FakeAudio.all = [];
+    const { ws, c } = page();
+    ws.fire('message', hello('giveaway'));
+    ws.fire('message', { type: 'giveaway', body: { id: 'g', title: 'a mug', state: 'closed', winners: [] } });
+    ws.fire('message', { type: 'draw', body: { id: 'd1', title: 'a mug', name: 'Ann', roll: ['Bob', 'Ann'] } });
+    expect(FakeAudio.all.map((a) => [a.src, a.volume])).toEqual([['/o/tok123/sound/drumroll', 0.4]]);
+    c.advance(3500);
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/tada']);
+    expect(FakeAudio.all[1].volume).toBe(0.9);
+  });
+
+  it('does the same for a wheel, and the app’s preview stays silent', () => {
+    FakeAudio.all = [];
+    const choices = [
+      { label: 'A', weight: 1 },
+      { label: 'B', weight: 1 },
+    ];
+    const { ws, c } = page();
+    ws.fire('message', hello('wheel'));
+    ws.fire('message', { type: 'spin', body: { id: 's1', title: 'Coin', choices, winner: 1, draw: 1, seconds: 2 } });
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll']);
+    c.advance(2000);
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/tada']);
+
+    FakeAudio.all = [];
+    const p = page('?preview=1');
+    p.ws.fire('message', hello('wheel'));
+    p.ws.fire('message', { type: 'spin', body: { id: 's2', title: 'Coin', choices, winner: 0, draw: 0, seconds: 2 } });
+    p.c.advance(2000);
+    expect(FakeAudio.all).toEqual([]);
+  });
+});

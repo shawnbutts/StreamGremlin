@@ -117,6 +117,7 @@ export function start(win, opts = {}) {
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
+  let look = null; // the overlay's look, for giveaway and wheel sounds
 
   function setStatus(text) {
     if (!status) return;
@@ -128,13 +129,32 @@ export function start(win, opts = {}) {
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
   }
 
-  function applyLook(look) {
-    if (!look) return;
+  // A giveaway or wheel overlay's sound (docs/adr/0031-overlay-sounds.md):
+  // "start" as a roll or spin starts, "end" as it lands. Played here so OBS
+  // hears it; the app's preview stays silent. A sound that won't play is
+  // skipped: chat already says everything.
+  function cue(which) {
+    if (preview || !look) return;
+    const name = which === 'start' ? look.start_sound : look.end_sound;
+    const volume = which === 'start' ? look.start_volume : look.end_volume;
+    if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) return;
+    try {
+      const audio = makeAudio(`${base}sound/${encodeURIComponent(name)}`);
+      audio.volume = clamp(volume, 0, 100, 80) / 100;
+      Promise.resolve(audio.play()).catch(() => {});
+    } catch {
+      // skipped, as above
+    }
+  }
+
+  function applyLook(l) {
+    if (!l) return;
+    look = l;
     const root = doc.documentElement;
-    for (const [k, v] of Object.entries(lookStyle(look))) root.style.setProperty(k, v);
-    pace = clamp(look.pace, 50, 300, 100) / 100;
-    const pos = POSITIONS.includes(look.position) ? look.position : 'top';
-    animation = ['pop', 'unfold'].includes(look.animation) ? look.animation : 'slide';
+    for (const [k, v] of Object.entries(lookStyle(l))) root.style.setProperty(k, v);
+    pace = clamp(l.pace, 50, 300, 100) / 100;
+    const pos = POSITIONS.includes(l.position) ? l.position : 'top';
+    animation = ['pop', 'unfold'].includes(l.animation) ? l.animation : 'slide';
     // Unfold opens toward the middle: from the right edge on the right.
     const side = animation === 'unfold' && pos.endsWith('right') ? ' side-right' : '';
     stage.className = `pos-${pos} anim-${animation}${side}`;
@@ -255,10 +275,10 @@ export function start(win, opts = {}) {
       if (version) pageVersion = version;
       applyLook(msg.body && msg.body.overlay && msg.body.overlay.look);
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'giveaway' && !gw) {
-        gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion });
+        gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion, cue });
       }
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel' && !wheel) {
-        wheel = wheelView(doc, stage, { setTimeout: later, reducedMotion });
+        wheel = wheelView(doc, stage, { setTimeout: later, reducedMotion, cue });
       }
     } else if (wheel && msg.type === 'spin') {
       wheel.spin(msg.body);

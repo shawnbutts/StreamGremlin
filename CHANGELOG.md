@@ -209,6 +209,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **A wheel overlay** (Overlays → Wheels) spins to the result, with each wedge at its real size. While one is open in OBS, the result is announced when the wheel stops.
   - **"Spin a wheel"** waits until the wheel stops and gives its result to the next steps, so `!spin` or a channel point reward can spin and reply. **"Say a wheel's odds"** gives them for chat. A trigger: "A wheel stops". A template, **Spin a wheel from chat** (`!spin`).
   - `streamgremlin wheels` (add, set, delete, spin, verify) and `overlays add -wheel`.
+- Sounds on giveaway and wheel overlays: on the Overlays screen, pick a sound from your library to play as a roll or spin starts, and another as it lands, each with its own volume. The overlay plays them, so OBS hears them. `overlays look NAME -start-sound S -end-sound S`.
 
 ### Fixed
 

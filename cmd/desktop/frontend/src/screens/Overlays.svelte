@@ -9,6 +9,7 @@
     deleteOverlay,
     getOverlayLink,
     getOverlays,
+    getSounds,
     newOverlayLink,
     setOverlayLook,
     testOverlay,
@@ -69,9 +70,15 @@
   const current = $derived(data?.overlays.find((o) => o.name === selected));
   const changed = $derived(!!current && !!look && JSON.stringify(look) !== JSON.stringify(current.look));
 
+  // The sound library's names, for giveaway and wheel overlays' sounds.
+  let soundNames = $state<string[]>([]);
+
   async function load() {
     try {
       data = await getOverlays();
+      if (data.overlays.some((o) => o.kind !== 'alert')) {
+        soundNames = (await getSounds().catch(() => ({ sounds: [] }))).sounds.map((s) => s.name);
+      }
       loadError = '';
       if (!data.overlays.some((o) => o.name === selected)) selected = data.overlays[0]?.name ?? '';
     } catch (e) {
@@ -180,6 +187,7 @@
       seconds: n(look.seconds), pace: n(look.pace ?? 100), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
       border_width: n(look.border_width), shadow: n(look.shadow), text_size: n(look.text_size),
       text_outline: n(look.text_outline), text_shadow: n(look.text_shadow),
+      start_volume: n(look.start_volume ?? 80), end_volume: n(look.end_volume ?? 80),
     };
   }
 
@@ -290,6 +298,31 @@
     <h2 id="overlay-look-heading">{current.name}: look and preview</h2>
     <div class="overlay-edit">
       <form class="test-form overlay-look" onsubmit={saveLook}>
+        {#if isGiveaway(current) || isWheel(current)}
+          <fieldset class="look-group">
+            <legend>Sounds</legend>
+            <p class="sg-muted field-hint">
+              Played by the overlay, so OBS hears them (tick “Control audio via OBS” on its browser source). Add sounds on the Sounds screen.
+            </p>
+            {#each [['start', isWheel(current) ? 'As a spin starts' : 'As a roll starts'], ['end', isWheel(current) ? 'As it stops' : 'As it lands on the winner']] as [which, label] (which)}
+              {@const nameKey = `${which}_sound` as 'start_sound' | 'end_sound'}
+              {@const volKey = `${which}_volume` as 'start_volume' | 'end_volume'}
+              <label class="field">
+                <span>{label}</span>
+                <select class="sg-input" bind:value={look[nameKey]}>
+                  <option value="">No sound</option>
+                  {#each soundNames as s (s)}<option value={s}>{s}</option>{/each}
+                </select>
+              </label>
+              {#if look[nameKey]}
+                <label class="field">
+                  <span>Volume {look[volKey] ?? 80}</span>
+                  <input type="range" min="0" max="100" step="5" bind:value={look[volKey]} />
+                </label>
+              {/if}
+            {/each}
+          </fieldset>
+        {/if}
         <fieldset class="look-group">
           <legend>Placement</legend>
           <label class="field">

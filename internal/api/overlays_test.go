@@ -136,3 +136,35 @@ func waitFor(t *testing.T, ok func() bool) {
 	}
 	t.Fatal("timed out")
 }
+
+// Giveaway and wheel overlays can play a sound from the library as a roll
+// or spin starts and lands; an alert overlay can't (its step chooses), and
+// a sound not in the library is refused.
+func TestOverlaySounds(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	if code, out := call("POST", "/v1/sounds/tada", string(testWAV)); code != 201 {
+		t.Fatal(code, out)
+	}
+	for _, body := range []string{`{"name":"wheel","kind":"wheel"}`, `{"name":"alerts","kind":"alert"}`} {
+		if code, out := call("POST", "/v1/overlays", body); code != 201 {
+			t.Fatal(code, out)
+		}
+	}
+	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"end_sound":"tada","end_volume":70}}`); code != 200 ||
+		!strings.Contains(out, `"end_sound":"tada"`) || !strings.Contains(out, `"start_volume":80`) {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"start_sound":"nope"}}`); code != 400 || !strings.Contains(out, "no sound") {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"end_volume":101}}`); code != 400 {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/overlays/alerts", `{"look":{"end_sound":"tada"}}`); code != 400 || !strings.Contains(out, "step chooses") {
+		t.Fatal(code, out)
+	}
+}

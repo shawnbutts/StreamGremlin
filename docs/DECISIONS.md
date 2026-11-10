@@ -948,3 +948,14 @@ Decided 2026-11-10 under D-007, building on D-048. The user said "proceed" to th
 - **The Wheels screen goes under More… by default.**
 - **No costs or points prizes until F4.**
 - **Built and checked against mocktwitch and a test page only,** until the live check.
+
+## D-050. Sounds on giveaway and wheel overlays
+
+Decided 2026-11-10 under D-007, building on D-038, D-047 and D-049. After the wheels live check the user asked: "can we add sounds to the overlay?"
+
+- **Sounds follow [ADR-0031](adr/0031-overlay-sounds.md):**
+  - a start sound and an end sound per giveaway or wheel overlay, each from the sound library with its own volume, kept in the overlay's look;
+  - played by the overlay page, so OBS hears them;
+  - never in the app's previews.
+- **Alert overlays keep choosing their sound on the step.**
+- **Checked against a test page only,** until the live check.

@@ -82,6 +82,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
         ? { status: 503, body: { error: { code: 'unavailable', message: "the overlay isn't open in OBS: add its link as a browser source in a scene" } } }
         : { status: 200, body: query === 'preview=1' ? { test: true, previews: 1 } : { shown: true } };
   }
+  routes['/v1/sounds'] = () => ({ status: 200, body: { sounds: [{ name: 'chime' }, { name: 'tada' }], player: true } });
   return { calls: mockFetch(routes), list };
 }
 
@@ -171,6 +172,27 @@ describe('Overlays', () => {
     expect(calls.some((c) => c.path === '/v1/overlays/giveaway/test?preview=1')).toBe(true);
     expect(el.textContent).toContain('A sample giveaway and draw are showing in the preview');
     await noViolations('a giveaway overlay');
+  });
+
+  it('picks sounds for a giveaway overlay, and saves them with its look', async () => {
+    const gw: Overlay = { ...alerts, name: 'giveaway', kind: 'giveaway', look: { ...look, start_sound: '', start_volume: 80, end_sound: '', end_volume: 80 } };
+    const { calls } = engine([gw]);
+    const el = start();
+    await settle();
+    expect(el.textContent).toContain('As a roll starts');
+    expect(el.textContent).not.toContain('Seconds on screen');
+    const pick = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('As it lands on the winner'))!.querySelector('select')!;
+    expect(Array.from(pick.options).map((o) => o.value)).toEqual(['', 'chime', 'tada']);
+    pick.value = 'tada';
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    expect(el.textContent).toContain('Volume 80');
+    button(el, 'Save look')!.click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT')).toMatchObject({
+      path: '/v1/overlays/giveaway', body: { look: { start_sound: '', end_sound: 'tada', end_volume: 80 } },
+    });
+    await noViolations('sounds');
   });
 
   it('shows the link to copy by hand when the clipboard is refused', async () => {

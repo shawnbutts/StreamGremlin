@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
 	"testing"
@@ -32,7 +33,22 @@ func TestWheelsThroughTheCLIAndChat(t *testing.T) {
 	if code != 0 {
 		t.Fatal(out, errOut)
 	}
-	page := openPage(t, linkIn(t, out))
+	link := linkIn(t, out)
+	page := openPage(t, link)
+	// A sound as the wheel stops, played by the overlay through its link.
+	tada := writeFile(t, t.TempDir(), "tada.wav", "RIFF\x24\x00\x00\x00WAVEfmt "+strings.Repeat("\x00", 64))
+	if out, errOut, code := cli(t, dir, "sounds", "add", tada); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-end-sound", "tada", "-end-volume", "70"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the sound in the overlay's look", func() string { return page.has("hello", `"end_sound":"tada"`) })
+	if res, err := http.Get(link + "sound/tada"); err != nil || res.StatusCode != 200 {
+		t.Fatal("the overlay can't fetch its sound:", err)
+	} else {
+		_ = res.Body.Close()
+	}
 
 	out, errOut, code = cli(t, dir, "wheels", "add", "next-game", "-title", "Next game", "-choice", "Mario:2", "-choice", "Zelda",
 		"-choice", "Tetris:1:#ff8800", "-seconds", "2")

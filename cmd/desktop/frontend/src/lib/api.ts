@@ -807,6 +807,12 @@ export interface OverlayLook {
   text_outline: number;
   outline_color: string;
   text_shadow: number;
+  // Giveaway and wheel overlays: a sound from the library as a roll or spin
+  // starts and as it lands ('' for none), with volumes 0 to 100.
+  start_sound?: string;
+  start_volume?: number;
+  end_sound?: string;
+  end_volume?: number;
 }
 
 export interface Overlay {

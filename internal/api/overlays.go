@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -149,6 +150,22 @@ func overlayRoutes(d Deps) []Route {
 				if in.Look == nil {
 					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "look is required")
 					return
+				}
+				// Sounds play on giveaway and wheel overlays, and only ones in
+				// the library.
+				for _, name := range []string{in.Look.StartSound, in.Look.EndSound} {
+					if name == "" {
+						continue
+					}
+					if cur.Kind == overlays.KindAlert {
+						writeError(w, http.StatusBadRequest, CodeInvalidRequest,
+							"an alert overlay plays the sound its step chooses; start and end sounds are for giveaway and wheel overlays")
+						return
+					}
+					if _, err := d.Sounds.Get(r.Context(), name); err != nil {
+						writeError(w, http.StatusBadRequest, CodeInvalidRequest, "there's no sound "+strconv.Quote(name)+" in your library")
+						return
+					}
 				}
 				o, err := d.Overlays.SetLook(r.Context(), cur.Name, *in.Look, d.Now())
 				if err != nil {

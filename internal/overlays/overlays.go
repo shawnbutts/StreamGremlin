@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
+	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
 
@@ -88,6 +89,15 @@ type Look struct {
 	TextOutline  int    `json:"text_outline"`  // around the letters, 0 to 6 px
 	OutlineColor string `json:"outline_color"` // #RRGGBB
 	TextShadow   int    `json:"text_shadow"`   // the words' drop shadow, 0 (none) to 100
+
+	// Sounds for giveaway and wheel overlays (docs/adr/0031-overlay-sounds.md),
+	// played in the page so OBS hears them: as a roll or spin starts, and as
+	// it lands. Names from the sound library ("" for none), volumes 0 to 100.
+	// Alerts choose their sound on the step instead.
+	StartSound  string `json:"start_sound"`
+	StartVolume int    `json:"start_volume"`
+	EndSound    string `json:"end_sound"`
+	EndVolume   int    `json:"end_volume"`
 }
 
 // Fonts offered by name. Each is a list of fonts most computers have, so
@@ -100,11 +110,14 @@ const FontNamePattern = `^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$`
 
 var fontNamePattern = regexp.MustCompile(FontNamePattern)
 
+var soundPattern = regexp.MustCompile(sounds.NamePattern)
+
 // DefaultLook is a new alert overlay's look.
 func DefaultLook() Look {
 	return Look{Position: "top", Animation: "slide", Seconds: 6, Pace: 100,
 		Background: "#081923", GradientAngle: 135, Opacity: 90, Radius: 16, BorderColor: "#ffffff", Shadow: 35, ShadowColor: "#000000",
-		Font: "system", TextSize: 100, TextColor: "#ffffff", TitleColor: "#ffffff", OutlineColor: "#000000"}
+		Font: "system", TextSize: 100, TextColor: "#ffffff", TitleColor: "#ffffff", OutlineColor: "#000000",
+		StartVolume: 80, EndVolume: 80}
 }
 
 func invalid(format string, a ...any) error {
@@ -156,6 +169,10 @@ func (l Look) Check() error {
 		return invalid("the letters' outline is 0 to 6 px")
 	case !between(l.Pace, 50, 300):
 		return invalid("the animation's speed is 50 to 300 percent of the usual time")
+	case (l.StartSound != "" && !soundPattern.MatchString(l.StartSound)) || (l.EndSound != "" && !soundPattern.MatchString(l.EndSound)):
+		return invalid("a sound is one from your library, by name, or none")
+	case !between(l.StartVolume, 0, 100), !between(l.EndVolume, 0, 100):
+		return invalid("a sound's volume is 0 to 100")
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
 	}
