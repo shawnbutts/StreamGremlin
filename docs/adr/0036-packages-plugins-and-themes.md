@@ -135,7 +135,7 @@ StreamGremlin can't check how an installed theme draws a wheel: it could draw eq
 
 ### Built-in looks
 
-Classic (today's wheel), Workshop, Neon arcade and Selector board are built into StreamGremlin, rebuilt in its own code (D-048), and run through the same sandbox and protocol as installed themes. They aren't packages: they can't be removed or replaced, and their ids (`builtin:…`) can't be taken.
+Workshop, Neon arcade and Selector board are built into StreamGremlin, rebuilt in its own code (D-048), and run through the same sandbox and protocol as installed themes, so the sandbox is exercised on every stream that uses them. Classic (today's wheel) stays drawn by the overlay page itself, because it's the fallback when a theme fails. None of them are packages: they can't be removed or replaced, and their ids (`builtin:…`) can't be taken.
 
 ### Screens, API and CLI (built in the slices that need them)
 
