@@ -153,13 +153,13 @@ func overlayRoutes(d Deps) []Route {
 				}
 				// Sounds play on giveaway and wheel overlays, and only ones in
 				// the library.
-				for _, name := range []string{in.Look.StartSound, in.Look.EndSound} {
+				for _, name := range []string{in.Look.StartSound, in.Look.EndSound, in.Look.CheerSound} {
 					if name == "" {
 						continue
 					}
 					if cur.Kind == overlays.KindAlert {
 						writeError(w, http.StatusBadRequest, CodeInvalidRequest,
-							"an alert overlay plays the sound its step chooses; start and end sounds are for giveaway and wheel overlays")
+							"an alert overlay plays the sound its step chooses; these sounds are for giveaway and wheel overlays")
 						return
 					}
 					if _, err := d.Sounds.Get(r.Context(), name); err != nil {

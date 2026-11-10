@@ -959,3 +959,14 @@ Decided 2026-11-10 under D-007, building on D-038, D-047 and D-049. After the wh
   - never in the app's previews.
 - **Alert overlays keep choosing their sound on the step.**
 - **Checked against a test page only,** until the live check.
+
+## D-051. A cheer when the wheel has stopped
+
+Decided 2026-11-10, amending D-050. After its live check the user asked: "can we add a "cheer" sound on stop? so an "as a spin starts", "as it stops", and a "when stopped"."
+
+- **Three sounds per giveaway or wheel overlay:**
+  - as it starts;
+  - as it stops or lands;
+  - half a second later, as the result shows: the cheer.
+  The pause before the result matches when the engine announces it, so the cheer and chat line up ([ADR-0031](adr/0031-overlay-sounds.md), amended).
+- **With reduced motion, only the cheer plays.**

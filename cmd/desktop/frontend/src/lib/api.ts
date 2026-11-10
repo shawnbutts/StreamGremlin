@@ -813,6 +813,9 @@ export interface OverlayLook {
   start_volume?: number;
   end_sound?: string;
   end_volume?: number;
+  // A moment after it lands, as the result shows: a cheer.
+  cheer_sound?: string;
+  cheer_volume?: number;
 }
 
 export interface Overlay {

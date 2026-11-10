@@ -130,13 +130,15 @@ export function start(win, opts = {}) {
   }
 
   // A giveaway or wheel overlay's sound (docs/adr/0031-overlay-sounds.md):
-  // "start" as a roll or spin starts, "end" as it lands. Played here so OBS
+  // "start" as a roll or spin starts, "end" as it lands, "cheer" as the
+  // result shows. Played here so OBS
   // hears it; the app's preview stays silent. A sound that won't play is
   // skipped: chat already says everything.
   function cue(which) {
     if (preview || !look) return;
-    const name = which === 'start' ? look.start_sound : look.end_sound;
-    const volume = which === 'start' ? look.start_volume : look.end_volume;
+    const name = look[`${which}_sound`];
+    const volume = look[`${which}_volume`];
+    if (!['start', 'end', 'cheer'].includes(which)) return;
     if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) return;
     try {
       const audio = makeAudio(`${base}sound/${encodeURIComponent(name)}`);

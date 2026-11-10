@@ -8,6 +8,8 @@ const PICTURE_PREFIX = 'https://static-cdn.jtvnw.net/';
 // The same times as the engine's (internal/overlays/giveaway.go): chat
 // names a winner as their roll lands.
 export const ROLL_MS = 3500;
+// After landing, a beat before the winner shows (with the cheer sound).
+export const LAND_MS = 500;
 export const WINNER_MS = 5000;
 // An ended giveaway stays up this long with its winners.
 export const ENDED_MS = 20000;
@@ -53,7 +55,7 @@ export function giveawayView(doc, stage, opts = {}) {
   const later = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
   const now = opts.now || (() => Date.now());
   const reduced = opts.reducedMotion || (() => false);
-  // Plays the overlay's sounds: "start" as a roll starts, "end" as it lands.
+  // Plays the overlay's sounds: "start" as a roll starts, "end" as it lands, "cheer" as the winner shows.
   const cue = opts.cue || (() => {});
 
   let state = null;
@@ -147,7 +149,7 @@ export function giveawayView(doc, stage, opts = {}) {
 
   function showWinner(d) {
     mount(winnerBox(d));
-    cue('end');
+    cue('cheer');
     later(() => {
       showing = null;
       mount(panel());
@@ -185,7 +187,14 @@ export function giveawayView(doc, stage, opts = {}) {
         // Counted back from the end, so the last tick is the winner.
         const n = names.length;
         name.textContent = names[(((n - 1 - (ticks.length - 1 - i)) % n) + n) % n];
-        if (last) showWinner(d);
+        if (last) {
+          // Landed: the stop sound now, the winner (and cheer) a beat later.
+          name.classList.add('sg-landed');
+          cue('end');
+          later(() => {
+            if (showing === d) showWinner(d);
+          }, LAND_MS);
+        }
       }, at);
     });
   }

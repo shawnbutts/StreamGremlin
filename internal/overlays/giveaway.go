@@ -11,15 +11,17 @@ import (
 // decide nothing, and they're never needed: chat carries everything.
 // Practice giveaways show only in the app's previews, never in OBS.
 
-// Roll timing, the same in the page: names roll for RollTime, then the
-// winner shows for WinnerTime. A live winner's chat message waits for
-// ChatWait after the draw, and each later winner of the same draw one
-// DrawTime more, so chat names them as the roll lands.
+// Roll timing, the same in the page: names roll for RollTime and land on
+// the winner; LandPause later the winner shows (with the cheer sound) for
+// WinnerTime. A live winner's chat message waits ChatWait after the draw,
+// and each later winner of the same draw one DrawTime more, so chat names
+// them as the winner shows.
 const (
 	RollTime   = 3500 * time.Millisecond
+	LandPause  = 500 * time.Millisecond
 	WinnerTime = 5000 * time.Millisecond
-	DrawTime   = RollTime + WinnerTime
-	ChatWait   = RollTime + 500*time.Millisecond
+	DrawTime   = RollTime + LandPause + WinnerTime
+	ChatWait   = RollTime + LandPause
 	// MaxRoll is how many names a roll shows, the winner last.
 	MaxRoll = 24
 )

@@ -7,6 +7,8 @@
   - ADR-0029 (the giveaway overlay);
   - ADR-0030 (wheels).
 
+> **Amended by D-051 (2026-11-10):** a third sound, `cheer_sound` with `cheer_volume`. The user: "can we add a "cheer" sound on stop? so an "as a spin starts", "as it stops", and a "when stopped"." The end sound plays as the roll or wheel lands. Half a second later the result shows (the winner box, or the wheel's result) with the cheer. That's the moment the engine announces the result, so chat and the cheer line up: the giveaway's chat wait stays 4 seconds (3.5 to land, then 0.5), and a wheel settles half a second after it stops. With reduced motion, only the cheer plays. `overlays look -cheer-sound/-cheer-volume`. A third picker on the Overlays screen: "When it has stopped", or "When the winner shows".
+
 ## Context
 
 After the wheels live check the user asked: "can we add sounds to the overlay?" Alert overlays already play a sound that the "Show an alert" step chooses. Giveaway and wheel overlays have no step; they play by themselves when a draw or spin comes.

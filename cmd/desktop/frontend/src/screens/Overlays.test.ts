@@ -175,11 +175,12 @@ describe('Overlays', () => {
   });
 
   it('picks sounds for a giveaway overlay, and saves them with its look', async () => {
-    const gw: Overlay = { ...alerts, name: 'giveaway', kind: 'giveaway', look: { ...look, start_sound: '', start_volume: 80, end_sound: '', end_volume: 80 } };
+    const gw: Overlay = { ...alerts, name: 'giveaway', kind: 'giveaway', look: { ...look, start_sound: '', start_volume: 80, end_sound: '', end_volume: 80, cheer_sound: '', cheer_volume: 80 } };
     const { calls } = engine([gw]);
     const el = start();
     await settle();
     expect(el.textContent).toContain('As a roll starts');
+    expect(el.textContent).toContain('When the winner shows');
     expect(el.textContent).not.toContain('Seconds on screen');
     const pick = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('As it lands on the winner'))!.querySelector('select')!;
     expect(Array.from(pick.options).map((o) => o.value)).toEqual(['', 'chime', 'tada']);

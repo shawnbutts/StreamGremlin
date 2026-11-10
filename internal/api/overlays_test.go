@@ -154,8 +154,8 @@ func TestOverlaySounds(t *testing.T) {
 			t.Fatal(code, out)
 		}
 	}
-	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"end_sound":"tada","end_volume":70}}`); code != 200 ||
-		!strings.Contains(out, `"end_sound":"tada"`) || !strings.Contains(out, `"start_volume":80`) {
+	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"end_sound":"tada","end_volume":70,"cheer_sound":"tada"}}`); code != 200 ||
+		!strings.Contains(out, `"end_sound":"tada"`) || !strings.Contains(out, `"cheer_sound":"tada"`) || !strings.Contains(out, `"start_volume":80`) {
 		t.Fatal(code, out)
 	}
 	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"start_sound":"nope"}}`); code != 400 || !strings.Contains(out, "no sound") {
@@ -164,7 +164,10 @@ func TestOverlaySounds(t *testing.T) {
 	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"end_volume":101}}`); code != 400 {
 		t.Fatal(code, out)
 	}
-	if code, out := call("PUT", "/v1/overlays/alerts", `{"look":{"end_sound":"tada"}}`); code != 400 || !strings.Contains(out, "step chooses") {
+	if code, out := call("PUT", "/v1/overlays/wheel", `{"look":{"cheer_sound":"nope"}}`); code != 400 {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/overlays/alerts", `{"look":{"cheer_sound":"tada"}}`); code != 400 || !strings.Contains(out, "step chooses") {
 		t.Fatal(code, out)
 	}
 }

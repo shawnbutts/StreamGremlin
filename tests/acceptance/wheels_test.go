@@ -40,10 +40,10 @@ func TestWheelsThroughTheCLIAndChat(t *testing.T) {
 	if out, errOut, code := cli(t, dir, "sounds", "add", tada); code != 0 {
 		t.Fatal(out, errOut)
 	}
-	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-end-sound", "tada", "-end-volume", "70"); code != 0 {
+	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-end-sound", "tada", "-end-volume", "70", "-cheer-sound", "tada"); code != 0 {
 		t.Fatal(out, errOut)
 	}
-	eventually(t, "the sound in the overlay's look", func() string { return page.has("hello", `"end_sound":"tada"`) })
+	eventually(t, "the sounds in the overlay's look", func() string { return page.has("hello", `"cheer_sound":"tada"`) })
 	if res, err := http.Get(link + "sound/tada"); err != nil || res.StatusCode != 200 {
 		t.Fatal("the overlay can't fetch its sound:", err)
 	} else {

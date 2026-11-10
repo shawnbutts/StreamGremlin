@@ -11,6 +11,9 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const PALETTE = ['#f9e6bd', '#b77a41', '#2a9d8f', '#e9c46a', '#e76f51', '#457b9d', '#8ab17d', '#c77dff'];
 // How long the result shows after the wheel stops, the same as the engine's.
 export const RESULT_MS = 4000;
+// After the wheel stops, a beat before the result shows (with the cheer
+// sound), the same as the engine's wait before it announces the result.
+export const LAND_MS = 500;
 const TURNS = 5;
 
 const clamp = (n, lo, hi, dflt) => {
@@ -100,7 +103,7 @@ export function drawWheel(doc, choices) {
 export function wheelView(doc, stage, opts = {}) {
   const later = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
   const reduced = opts.reducedMotion || (() => false);
-  // Plays the overlay's sounds: "start" as a spin starts, "end" as it stops.
+  // Plays the overlay's sounds: "start" as a spin starts, "end" as it stops, "cheer" as the result shows.
   const cue = opts.cue || (() => {});
   const queue = [];
   const seen = new Set();
@@ -157,12 +160,15 @@ export function wheelView(doc, stage, opts = {}) {
     void root.getBoundingClientRect();
     rotor.style.transition = `transform ${ms}ms cubic-bezier(0.12, 0.7, 0.12, 1)`;
     rotor.style.transform = `rotate(${end}deg)`;
-    later(() => result(choices[winner].label), ms);
+    later(() => {
+      cue('end'); // as it stops
+      later(() => result(choices[winner].label), LAND_MS);
+    }, ms);
   }
 
   function result(label) {
     if (!box) return;
-    cue('end');
+    cue('cheer');
     const r = doc.createElement('div');
     r.className = 'sg-alert sg-wheel-result in';
     const x = doc.createElement('div');

@@ -25,7 +25,8 @@ const overlaysUsage = `usage:
                                           -position bottom-left -animation unfold -seconds 8
                                           -background #6a00ff -gradient #ff0080 -corners 24 -border 2
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
-                                          giveaway and wheel overlays: -start-sound drumroll -end-sound tada
+                                          giveaway and wheel overlays: -start-sound drumroll -end-sound clunk
+                                          -cheer-sound cheer
   streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -149,6 +150,8 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.IntVar(&l.StartVolume, "start-volume", l.StartVolume, "its volume, 0 to 100")
 			fs.StringVar(&l.EndSound, "end-sound", l.EndSound, "giveaway and wheel overlays: a library sound as it lands (none for no sound)")
 			fs.IntVar(&l.EndVolume, "end-volume", l.EndVolume, "its volume, 0 to 100")
+			fs.StringVar(&l.CheerSound, "cheer-sound", l.CheerSound, "giveaway and wheel overlays: a library sound when the result shows (none for no sound)")
+			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			if err := fs.Parse(args[2:]); err != nil || fs.NArg() > 0 {
 				return usage()
 			}
@@ -160,6 +163,9 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			if l.EndSound == "none" {
 				l.EndSound = ""
+			}
+			if l.CheerSound == "none" {
+				l.CheerSound = ""
 			}
 			if l.FontName != "" && l.Font != "custom" {
 				l.Font = "custom" // naming a font means using it

@@ -208,6 +208,7 @@ html, body {
 }
 .sg-giveaway .sg-winner-line { font-weight: 700; }
 .sg-roll .sg-roll-name { min-width: 8ch; }
+.sg-roll .sg-landed { color: var(--sg-title); }
 .sg-giveaway-winner .sg-avatar {
   width: calc(76px * var(--sg-scale));
   height: calc(76px * var(--sg-scale));

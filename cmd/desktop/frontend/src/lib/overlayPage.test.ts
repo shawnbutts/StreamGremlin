@@ -317,7 +317,10 @@ describe('the giveaway overlay', () => {
     c.advance(3400);
     expect(stage.textContent).not.toContain('Winner of a mug');
     ws.fire('message', { type: 'picture', body: { id: 'd1', picture: 'https://evil.example/x.png' } });
-    c.advance(100); // 3.5 seconds: the roll lands
+    c.advance(100); // 3.5 seconds: the roll lands on Ann
+    expect(stage.querySelector('.sg-landed')?.textContent).toBe('Ann');
+    expect(stage.textContent).not.toContain('Winner of a mug');
+    c.advance(500); // a beat later, the winner shows (as chat names them)
     expect(stage.textContent).toContain('Winner of a mug');
     expect(stage.textContent).toContain('🎉 Ann');
     expect(stage.querySelector('img')).toBeNull(); // only Twitch pictures
@@ -335,9 +338,9 @@ describe('the giveaway overlay', () => {
     ws.fire('message', draw('d1', 'Ann', ['Ann', 'Bob']));
     ws.fire('message', draw('d2', 'Bob', ['Ann', 'Zed'])); // the roll's last isn't Bob: Bob still wins
     ws.fire('message', { type: 'picture', body: { id: 'd2', picture: 'https://static-cdn.jtvnw.net/bob.png' } });
-    c.advance(3500);
+    c.advance(4000);
     expect(stage.textContent).toContain('🎉 Ann');
-    c.advance(5000 + 3500);
+    c.advance(5000 + 4000);
     expect(stage.textContent).toContain('🎉 Bob');
     expect(stage.textContent).not.toContain('Zed');
     expect(stage.querySelector('img')?.getAttribute('src')).toBe('https://static-cdn.jtvnw.net/bob.png');
@@ -397,6 +400,8 @@ describe('the wheel overlay', () => {
     expect(rotor.style.transform).toBe(`rotate(${5 * 360 + 360 - 135}deg)`);
     expect(stage.textContent).not.toContain('🎉');
     c.advance(6000);
+    expect(stage.textContent).not.toContain('🎉'); // stopped; the result a beat later
+    c.advance(500);
     expect(stage.textContent).toContain('🎉 Mario');
     c.advance(4000);
     expect(stage.textContent).toBe('');
@@ -420,10 +425,10 @@ describe('the wheel overlay', () => {
 });
 
 describe('giveaway and wheel overlay sounds', () => {
-  const look = { start_sound: 'drumroll', start_volume: 40, end_sound: 'tada', end_volume: 90 };
+  const look = { start_sound: 'drumroll', start_volume: 40, end_sound: 'clunk', end_volume: 90, cheer_sound: 'cheer', cheer_volume: 60 };
   const hello = (kind: string) => ({ type: 'hello', body: { overlay: { name: kind, kind, look }, page_version: 'v1' } });
 
-  it('plays the start sound as a roll starts and the end sound as it lands, through the overlay’s link', () => {
+  it('plays the start sound as a roll starts, the end sound as it lands and the cheer as the winner shows, through the overlay’s link', () => {
     FakeAudio.all = [];
     const { ws, c } = page();
     ws.fire('message', hello('giveaway'));
@@ -431,8 +436,14 @@ describe('giveaway and wheel overlay sounds', () => {
     ws.fire('message', { type: 'draw', body: { id: 'd1', title: 'a mug', name: 'Ann', roll: ['Bob', 'Ann'] } });
     expect(FakeAudio.all.map((a) => [a.src, a.volume])).toEqual([['/o/tok123/sound/drumroll', 0.4]]);
     c.advance(3500);
-    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/tada']);
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/clunk']);
     expect(FakeAudio.all[1].volume).toBe(0.9);
+    c.advance(500);
+    expect(FakeAudio.all.map((a) => [a.src, a.volume])).toEqual([
+      ['/o/tok123/sound/drumroll', 0.4],
+      ['/o/tok123/sound/clunk', 0.9],
+      ['/o/tok123/sound/cheer', 0.6],
+    ]);
   });
 
   it('does the same for a wheel, and the app’s preview stays silent', () => {
@@ -446,13 +457,15 @@ describe('giveaway and wheel overlay sounds', () => {
     ws.fire('message', { type: 'spin', body: { id: 's1', title: 'Coin', choices, winner: 1, draw: 1, seconds: 2 } });
     expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll']);
     c.advance(2000);
-    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/tada']);
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/clunk']);
+    c.advance(500);
+    expect(FakeAudio.all.map((a) => a.src)).toEqual(['/o/tok123/sound/drumroll', '/o/tok123/sound/clunk', '/o/tok123/sound/cheer']);
 
     FakeAudio.all = [];
     const p = page('?preview=1');
     p.ws.fire('message', hello('wheel'));
     p.ws.fire('message', { type: 'spin', body: { id: 's2', title: 'Coin', choices, winner: 0, draw: 0, seconds: 2 } });
-    p.c.advance(2000);
+    p.c.advance(2500);
     expect(FakeAudio.all).toEqual([]);
   });
 });

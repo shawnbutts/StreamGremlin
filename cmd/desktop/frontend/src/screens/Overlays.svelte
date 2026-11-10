@@ -187,7 +187,7 @@
       seconds: n(look.seconds), pace: n(look.pace ?? 100), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
       border_width: n(look.border_width), shadow: n(look.shadow), text_size: n(look.text_size),
       text_outline: n(look.text_outline), text_shadow: n(look.text_shadow),
-      start_volume: n(look.start_volume ?? 80), end_volume: n(look.end_volume ?? 80),
+      start_volume: n(look.start_volume ?? 80), end_volume: n(look.end_volume ?? 80), cheer_volume: n(look.cheer_volume ?? 80),
     };
   }
 
@@ -302,11 +302,16 @@
           <fieldset class="look-group">
             <legend>Sounds</legend>
             <p class="sg-muted field-hint">
-              Played by the overlay, so OBS hears them (tick “Control audio via OBS” on its browser source). Add sounds on the Sounds screen.
+              Played by the overlay, so OBS hears them (tick “Control audio via OBS” on its browser source). The last plays half a second
+              after it stops, as the result shows: good for a cheer. Add sounds on the Sounds screen.
             </p>
-            {#each [['start', isWheel(current) ? 'As a spin starts' : 'As a roll starts'], ['end', isWheel(current) ? 'As it stops' : 'As it lands on the winner']] as [which, label] (which)}
-              {@const nameKey = `${which}_sound` as 'start_sound' | 'end_sound'}
-              {@const volKey = `${which}_volume` as 'start_volume' | 'end_volume'}
+            {#each [
+              ['start', isWheel(current) ? 'As a spin starts' : 'As a roll starts'],
+              ['end', isWheel(current) ? 'As it stops' : 'As it lands on the winner'],
+              ['cheer', isWheel(current) ? 'When it has stopped' : 'When the winner shows'],
+            ] as [which, label] (which)}
+              {@const nameKey = `${which}_sound` as 'start_sound' | 'end_sound' | 'cheer_sound'}
+              {@const volKey = `${which}_volume` as 'start_volume' | 'end_volume' | 'cheer_volume'}
               <label class="field">
                 <span>{label}</span>
                 <select class="sg-input" bind:value={look[nameKey]}>
