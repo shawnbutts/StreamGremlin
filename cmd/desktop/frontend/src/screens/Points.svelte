@@ -19,6 +19,7 @@
     setEarning,
     undoPoints,
     type EarningRules,
+    type EarningTick,
     type PointsTransaction,
     type PointsView,
     type Viewer,
@@ -51,6 +52,7 @@
   // The earning form, read once so a refresh never undoes what's being typed.
   let rules = $state<EarningRules | undefined>();
   let live = $state<'live' | 'offline' | 'unknown'>('unknown');
+  let lastTick = $state<EarningTick | undefined>();
 
   const name = $derived(view?.currency.name ?? 'points');
   const kindWords: Record<string, string> = { credit: 'earned', debit: 'spent', adjust: 'by hand', reverse: 'undo' };
@@ -62,6 +64,7 @@
       if (chosen) chosen = await getViewer(chosen.id);
       const earn = await getEarning();
       live = earn.live;
+      lastTick = earn.last_tick;
       if (!rules) rules = earn.rules;
       loadError = '';
     } catch (e) {
@@ -167,6 +170,7 @@
     const whole = (n: unknown) => Math.max(0, Math.round(Number(n) || 0));
     r.chat.amount = whole(r.chat.amount);
     r.chat.every_seconds = whole(r.chat.every_seconds);
+    r.time = { ...r.time, every_minutes: whole(r.time.every_minutes), active: whole(r.time.active), active_minutes: whole(r.time.active_minutes), quiet: whole(r.time.quiet) };
     r.sub = { tier1: whole(r.sub.tier1), tier2: whole(r.sub.tier2), tier3: whole(r.sub.tier3) };
     r.follow = whole(r.follow);
     r.gift = whole(r.gift);
@@ -241,6 +245,32 @@
         <label class="choice-inline"><input type="checkbox" bind:checked={rules.chat.live_only} /> Only while you’re live</label>
         {#if rules.chat.live_only}
           <p class="sg-muted" role="status">{liveWords[live]}{live === 'live' ? '' : ' Chat earns nothing until you go live.'}</p>
+        {/if}
+      </fieldset>
+      <fieldset>
+        <legend>Time in chat</legend>
+        <label class="choice-inline"><input type="checkbox" bind:checked={rules.time.on} /> Pay for time in chat while you’re live</label>
+        {#if rules.time.on}
+          <div class="row-actions">
+            <label class="field inline-field"
+              ><span>Every (minutes)</span><input class="sg-input" type="number" min="1" max="60" bind:value={rules.time.every_minutes} /></label
+            >
+            <label class="field inline-field"><span>If they chatted</span><input class="sg-input" type="number" min="0" bind:value={rules.time.active} /></label>
+            <label class="field inline-field"
+              ><span>In the last (minutes)</span><input class="sg-input" type="number" min="1" max="120" bind:value={rules.time.active_minutes} /></label
+            >
+            <label class="field inline-field"><span>If they’re in chat but quiet</span><input class="sg-input" type="number" min="0" bind:value={rules.time.quiet} /></label>
+          </div>
+          <p class="sg-muted">
+            Quiet viewers come from Twitch’s list of who’s in your chat, which Twitch updates a little late. Time while StreamGremlin
+            was closed is never paid: who was there can’t be known.
+          </p>
+        {/if}
+        {#if lastTick}
+          <p class="sg-muted" role="status">
+            Last paid {eventTime(lastTick.at)}: {lastTick.active} chatting, {lastTick.quiet} quiet.
+          </p>
+          {#if lastTick.note}<p class="state state-unknown"><span aria-hidden="true">?</span> Why: {lastTick.note}.</p>{/if}
         {/if}
       </fieldset>
       <fieldset>

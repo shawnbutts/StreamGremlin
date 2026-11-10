@@ -3,6 +3,7 @@ package twitch
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -44,6 +45,44 @@ func TestViewerFacts(t *testing.T) {
 		t.Fatal("Twitch down gave an answer")
 	}
 	if _, err := s.AccountCreated(ctx, bob); err == nil {
+		t.Fatal("Twitch down gave an answer")
+	}
+}
+
+// Get Chatters against mocktwitch: pages followed to the end, the streamer
+// and the bot left out, each viewer once; without the scope, Twitch
+// refusing, and Twitch down are errors, never an empty list.
+func TestChatters(t *testing.T) {
+	ctx := context.Background()
+	r, s := chatRig(t, true)
+	logins := []string{"streamer", "gremlinbot"}
+	for i := range 2100 {
+		logins = append(logins, fmt.Sprintf("viewer%d", i))
+	}
+	logins = append(logins, "viewer7") // listed twice
+	r.mock.SetChatters("streamer", logins...)
+	got, err := s.Chatters(ctx)
+	if err != nil || len(got) != 2100 || got[0].Login != "viewer0" || got[0].Platform != "twitch" || got[0].ID != r.mock.UserID("viewer0") {
+		t.Fatal(len(got), err)
+	}
+	if n := r.mock.ChattersCalls(); n != 3 {
+		t.Fatal("pages:", n)
+	}
+	r.mock.SetChatters("streamer")
+	if got, err := s.Chatters(ctx); err != nil || len(got) != 0 {
+		t.Fatal(got, err)
+	}
+	r.mock.FailChatters(403)
+	if _, err := s.Chatters(ctx); err == nil {
+		t.Fatal("a refusal gave an answer")
+	}
+	r.mock.FailChatters(401)
+	if _, err := s.Chatters(ctx); !errors.Is(err, ErrNeedsPermission) {
+		t.Fatal("401:", err)
+	}
+	r.mock.FailChatters(0)
+	r.mock.SetDown(true)
+	if _, err := s.Chatters(ctx); err == nil {
 		t.Fatal("Twitch down gave an answer")
 	}
 }

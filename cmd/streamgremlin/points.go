@@ -34,7 +34,10 @@ const pointsUsage = `usage:
   streamgremlin points earning on|off
   streamgremlin points earning set NAME=N ...
         chat=N every=SECONDS live-only=yes|no follow=N tier1=N tier2=N tier3=N gift=N bits=N
-        (gift is per sub gifted, bits per 100 bits; 0 turns a rule off)
+        time=yes|no time-every=MINUTES time-active=N time-window=MINUTES time-quiet=N
+        (gift is per sub gifted, bits per 100 bits; 0 turns a rule off. Time in chat pays, every
+        time-every minutes while you're live, time-active to viewers who chatted in the last
+        time-window minutes, and time-quiet to others on Twitch's chatter list)
 
 Nothing is ever changed or deleted, and nobody goes below zero.`
 
@@ -272,12 +275,12 @@ func earningCmd(ctx context.Context, c interface {
 				if !ok {
 					return usage()
 				}
-				if k == "live-only" {
+				if k == "live-only" || k == "time" {
 					if val != "yes" && val != "no" {
-						fmt.Fprintln(stderr, "live-only is yes or no.")
+						fmt.Fprintf(stderr, "%s is yes or no.\n", k)
 						return 2
 					}
-					r.Chat.LiveOnly = val == "yes"
+					*map[string]*bool{"live-only": &r.Chat.LiveOnly, "time": &r.Time.On}[k] = val == "yes"
 					continue
 				}
 				n, err := strconv.ParseInt(val, 10, 64)
@@ -286,10 +289,14 @@ func earningCmd(ctx context.Context, c interface {
 					return 2
 				}
 				dst := map[string]*int64{"chat": &r.Chat.Amount, "follow": &r.Follow, "tier1": &r.Sub.Tier1, "tier2": &r.Sub.Tier2,
-					"tier3": &r.Sub.Tier3, "gift": &r.Gift, "bits": &r.Bits}[k]
+					"tier3": &r.Sub.Tier3, "gift": &r.Gift, "bits": &r.Bits, "time-active": &r.Time.Active, "time-quiet": &r.Time.Quiet}[k]
 				switch {
 				case k == "every":
 					r.Chat.EverySeconds = int(n)
+				case k == "time-every":
+					r.Time.EveryMinutes = int(n)
+				case k == "time-window":
+					r.Time.ActiveMinutes = int(n)
 				case dst != nil:
 					*dst = n
 				default:
@@ -315,6 +322,19 @@ func earningCmd(ctx context.Context, c interface {
 		only = ", only while live"
 	}
 	fmt.Fprintf(stdout, "  chatting       %d, at most every %ds%s\n", r.Chat.Amount, r.Chat.EverySeconds, only)
+	if r.Time.On {
+		fmt.Fprintf(stdout, "  time in chat   every %d minutes while live: %d if they chatted in the last %d minutes, %d if they're in chat but quiet\n",
+			r.Time.EveryMinutes, r.Time.Active, r.Time.ActiveMinutes, r.Time.Quiet)
+	} else {
+		fmt.Fprintln(stdout, "  time in chat   off")
+	}
+	if t := v.LastTick; t != nil {
+		note := ""
+		if t.Note != "" {
+			note = " (" + t.Note + ")"
+		}
+		fmt.Fprintf(stdout, "    last paid at %s: %d chatting, %d quiet%s\n", t.At.Local().Format("15:04"), t.Active, t.Quiet, note)
+	}
 	fmt.Fprintf(stdout, "  a first follow %d, once per viewer\n", r.Follow)
 	fmt.Fprintf(stdout, "  a sub          %d tier 1, %d tier 2, %d tier 3 (resubs too; gifted subs earn for the gifter)\n", r.Sub.Tier1, r.Sub.Tier2, r.Sub.Tier3)
 	fmt.Fprintf(stdout, "  a gifted sub   %d each, to the gifter\n", r.Gift)

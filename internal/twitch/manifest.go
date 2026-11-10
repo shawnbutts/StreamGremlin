@@ -103,6 +103,14 @@ func TwitchManifest() Manifest {
 					"to name the broadcaster when the broadcaster authorized). Stored as audience.follow.created.",
 			},
 			{
+				Name: "chat.chatters", Support: Supported, Scopes: []string{"moderator:read:chatters"},
+				Notes: "Get Chatters (GET /helix/chat/chatters, broadcaster_id and moderator_id both your account, pages of up " +
+					"to 1000), read 2026-11-10. Twitch's reference: \"There is a delay between when users join and leave a chat " +
+					"and when the list is updated\". It doesn't say whether viewers who aren't logged in are listed, and treats " +
+					"none as known. Used for time in chat: quiet viewers on the list earn; the list is never used to guess " +
+					"who watched while StreamGremlin was closed.",
+			},
+			{
 				Name: "events.subscriptions", Support: Supported, Scopes: []string{"channel:read:subscriptions"},
 				Notes: "channel.subscribe (new subs, gift recipients with is_gift; resubs aren't included), channel.subscription.message " +
 					"(a resub shared in chat), channel.subscription.gift (anonymous gifts have null user fields). Tiers " +

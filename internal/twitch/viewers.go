@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 // Facts about one viewer, for giveaway entry rules
@@ -84,4 +86,55 @@ func viewerError(err error) error {
 		return fmt.Errorf("%w: %s", ErrNeedsPermission, he.Message)
 	}
 	return fmt.Errorf("twitch: %w", err)
+}
+
+// ChattersScope reads who's connected to the channel's chat
+// (docs/adr/0034-time-in-chat.md).
+const ChattersScope = "moderator:read:chatters"
+
+// MaxChatters is the most chatters read: 50 pages of 1000.
+const MaxChatters = 50_000
+
+// Chatters asks Twitch's Get Chatters who's connected to the streamer's
+// chat, apart from the streamer and the bot. Twitch updates the list with
+// a delay after people join and leave, so it's who was there a little
+// while ago. Each viewer is listed once.
+func (s *Service) Chatters(ctx context.Context) ([]events.Actor, error) {
+	st := s.streamer.Status()
+	skip := map[string]bool{st.UserID: true}
+	if b := s.bot.Status(); b.UserID != "" {
+		skip[b.UserID] = true
+	}
+	out := []events.Actor{}
+	after := ""
+	for {
+		var page struct {
+			Data []struct {
+				UserID    string `json:"user_id"`
+				UserLogin string `json:"user_login"`
+				UserName  string `json:"user_name"`
+			} `json:"data"`
+			Pagination struct {
+				Cursor string `json:"cursor"`
+			} `json:"pagination"`
+		}
+		q := url.Values{"moderator_id": {st.UserID}, "first": {"1000"}}
+		if after != "" {
+			q.Set("after", after)
+		}
+		if err := s.streamerRaw(ctx, ChattersScope, "GET", "/chat/chatters", q, nil, &page); err != nil {
+			return nil, viewerError(err)
+		}
+		for _, d := range page.Data {
+			if d.UserID == "" || skip[d.UserID] {
+				continue
+			}
+			skip[d.UserID] = true
+			out = append(out, events.Actor{Platform: "twitch", ID: d.UserID, Login: d.UserLogin, DisplayName: d.UserName})
+		}
+		if page.Pagination.Cursor == "" || len(out) >= MaxChatters {
+			return out, nil
+		}
+		after = page.Pagination.Cursor
+	}
 }

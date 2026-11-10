@@ -66,6 +66,8 @@ type ViewerExportPoints struct {
 type EarningView struct {
 	Rules earning.Rules `json:"rules"`
 	Live  string        `json:"live"`
+	// LastTick is the newest time-in-chat tick, if any.
+	LastTick *earning.Tick `json:"last_tick,omitempty"`
 }
 
 func pointsRoutes(d Deps) []Route {
@@ -232,8 +234,9 @@ func pointsRoutes(d Deps) []Route {
 		},
 		{
 			Method: "GET", Path: "/v1/points/earning",
-			Summary: "How viewers earn points {rules, live}: chatting, a first follow, subs by tier, gifted subs and bits. live is " +
-				"live, offline or unknown, as far as earning has read.",
+			Summary: "How viewers earn points {rules, live, last_tick}: chatting, time in chat, a first follow, subs by tier, gifted " +
+				"subs and bits. live is live, offline or unknown, as far as earning has read; last_tick is the newest time-in-chat " +
+				"payment, with a note when no one, or only chatters, were paid.",
 			Permission: PermPointsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				rules, err := d.Earning.Rules(r.Context())
@@ -241,7 +244,8 @@ func pointsRoutes(d Deps) []Route {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState()})
+				last, _ := d.Earning.LastTick(r.Context())
+				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState(), LastTick: last})
 			},
 		},
 		{
@@ -263,7 +267,8 @@ func pointsRoutes(d Deps) []Route {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState()})
+				last, _ := d.Earning.LastTick(r.Context())
+				writeJSON(w, http.StatusOK, EarningView{Rules: rules, Live: d.Earning.LiveState(), LastTick: last})
 			},
 		},
 		{

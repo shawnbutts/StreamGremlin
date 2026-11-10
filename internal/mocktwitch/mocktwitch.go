@@ -51,6 +51,7 @@ type Server struct {
 	pl      pollState
 	ad      adState
 	vw      viewerState
+	ch      chatterState
 }
 
 type code struct {

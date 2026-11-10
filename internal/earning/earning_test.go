@@ -23,6 +23,19 @@ type fixture struct {
 	vs     *viewers.Service
 	n      int
 	t0     time.Time
+	list   *fakeChatters
+	now    time.Time
+}
+
+type fakeChatters struct {
+	list  []events.Actor
+	err   error
+	calls int
+}
+
+func (c *fakeChatters) Chatters(context.Context) ([]events.Actor, error) {
+	c.calls++
+	return c.list, c.err
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -43,7 +56,11 @@ func newFixture(t *testing.T) *fixture {
 }
 
 func (f *fixture) newService() *Service {
-	return New(Options{DB: f.db, Inbox: f.in, Settings: settings.NewStore(f.db), Viewers: f.vs, Points: f.ledger})
+	if f.list == nil {
+		f.list = &fakeChatters{}
+	}
+	return New(Options{DB: f.db, Inbox: f.in, Settings: settings.NewStore(f.db), Viewers: f.vs, Points: f.ledger, Chatters: f.list,
+		Now: func() time.Time { return f.now }})
 }
 
 // event adds an event from viewer id (login "u<id>") at t0+sec seconds.

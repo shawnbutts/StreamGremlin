@@ -54,10 +54,22 @@ type Subs struct {
 	Tier3 int64 `json:"tier3"`
 }
 
+// Time is the rule for time in chat (docs/adr/0034-time-in-chat.md): each
+// interval while you're live, viewers who chatted within ActiveMinutes earn
+// Active, and viewers on Twitch's chatter list who didn't earn Quiet.
+type Time struct {
+	On            bool  `json:"on"`
+	EveryMinutes  int   `json:"every_minutes"`
+	Active        int64 `json:"active"`
+	ActiveMinutes int   `json:"active_minutes"`
+	Quiet         int64 `json:"quiet"`
+}
+
 // Rules is how viewers earn. An amount of 0 turns that rule off.
 type Rules struct {
 	On     bool  `json:"on"`
 	Chat   Chat  `json:"chat"`
+	Time   Time  `json:"time"`
 	Follow int64 `json:"follow"` // once per viewer, ever
 	Sub    Subs  `json:"sub"`    // gifted subs earn for the gifter, not the recipient
 	Gift   int64 `json:"gift"`   // per sub gifted
@@ -66,7 +78,7 @@ type Rules struct {
 
 // Defaults are the rules before the streamer changes them: off.
 func Defaults() Rules {
-	return Rules{Chat: Chat{Amount: 1, EverySeconds: 60, LiveOnly: true}, Follow: 50, Sub: Subs{500, 1000, 2500}, Gift: 250, Bits: 10}
+	return Rules{Chat: Chat{Amount: 1, EverySeconds: 60, LiveOnly: true}, Time: Time{EveryMinutes: 5, Active: 10, ActiveMinutes: 10, Quiet: 3}, Follow: 50, Sub: Subs{500, 1000, 2500}, Gift: 250, Bits: 10}
 }
 
 // Check says what's wrong with the rules, if anything.
@@ -74,11 +86,17 @@ func (r Rules) Check() error {
 	for _, a := range []struct {
 		name string
 		n    int64
-	}{{"chatting", r.Chat.Amount}, {"a follow", r.Follow}, {"a tier 1 sub", r.Sub.Tier1}, {"a tier 2 sub", r.Sub.Tier2},
+	}{{"chatting", r.Chat.Amount}, {"time in chat, chatting,", r.Time.Active}, {"time in chat, quiet,", r.Time.Quiet}, {"a follow", r.Follow}, {"a tier 1 sub", r.Sub.Tier1}, {"a tier 2 sub", r.Sub.Tier2},
 		{"a tier 3 sub", r.Sub.Tier3}, {"a gifted sub", r.Gift}, {"100 bits", r.Bits}} {
 		if a.n < 0 || a.n > MaxAward {
 			return fmt.Errorf("%w: %s earns 0 to %d", ErrInvalid, a.name, MaxAward)
 		}
+	}
+	if r.Time.EveryMinutes < 1 || r.Time.EveryMinutes > 60 {
+		return fmt.Errorf("%w: time in chat pays every 1 to 60 minutes", ErrInvalid)
+	}
+	if r.Time.ActiveMinutes < 1 || r.Time.ActiveMinutes > 120 {
+		return fmt.Errorf("%w: chatting counts for 1 to 120 minutes", ErrInvalid)
 	}
 	if r.Chat.EverySeconds < 0 || r.Chat.EverySeconds > MaxWait {
 		return fmt.Errorf("%w: the wait between chat awards is 0 to %d seconds", ErrInvalid, MaxWait)
@@ -107,13 +125,25 @@ type Options struct {
 	Settings *settings.Store
 	Viewers  *viewers.Service
 	Points   *points.Ledger
+	// Chatters is Twitch's chatter list; nil when there's no Twitch.
+	Chatters ChatterList
 	Logger   *slog.Logger
+	// Now is the clock; time.Now when nil.
+	Now func() time.Time
+}
+
+// ChatterList says who's connected to chat, apart from the streamer and
+// their bot.
+type ChatterList interface {
+	Chatters(ctx context.Context) ([]events.Actor, error)
 }
 
 // Service pays points by the rules.
 type Service struct {
 	o   Options
 	log *slog.Logger
+
+	minute time.Duration // a real minute, except in tests
 
 	mu        sync.Mutex // one reader of the inbox at a time; guards live
 	live      string     // as of the cursor
@@ -130,7 +160,10 @@ func New(o Options) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{o: o, log: log.With("component", "earning"), live: Unknown}
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	return &Service{o: o, log: log.With("component", "earning"), live: Unknown, minute: time.Minute}
 }
 
 // Rules returns the rules (the defaults, off, until saved).
@@ -152,6 +185,9 @@ func (s *Service) SetRules(ctx context.Context, r Rules) (Rules, error) {
 	return r, nil
 }
 
+// SetMinute shortens time in chat's minute, for tests. Call before Start.
+func (s *Service) SetMinute(d time.Duration) { s.minute = d }
+
 // LiveState is whether you're live as far as earning has read: live,
 // offline, or unknown when nothing has said.
 func (s *Service) LiveState() string {
@@ -171,6 +207,12 @@ func (s *Service) Start(ctx context.Context) error {
 		defer close(s.done)
 		tick := time.NewTicker(time.Second)
 		defer tick.Stop()
+		// The interval that had begun at the start is never paid: who was in
+		// chat before is unknown.
+		var last time.Time
+		if r, err := s.Rules(ctx); err == nil {
+			last = s.o.Now().Truncate(time.Duration(r.Time.EveryMinutes) * s.minute)
+		}
 		for {
 			select {
 			case <-ctx.Done():
@@ -181,6 +223,7 @@ func (s *Service) Start(ctx context.Context) error {
 			if err := s.CatchUp(ctx); err != nil && ctx.Err() == nil {
 				s.log.Warn("couldn't pay points by the rules", "err", err)
 			}
+			last = s.maybeTick(ctx, last)
 		}
 	}()
 	return nil
@@ -276,7 +319,7 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 		return nil
 	}
 	a := r.Actor
-	if !rules.On || r.DeliveryQuality != events.Confirmed || r.Source == "core" || a == nil || a.ID == "" || a.Platform == "" ||
+	if r.DeliveryQuality != events.Confirmed || r.Source == "core" || a == nil || a.ID == "" || a.Platform == "" ||
 		(r.ChannelID != "" && a.ID == r.ChannelID) {
 		return nil
 	}
@@ -291,6 +334,22 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 	}
 	_ = json.Unmarshal(r.Payload, &p)
 	if p.Chatter.Role == "broadcaster" {
+		return nil
+	}
+	if r.Type == "chat.message.received" {
+		// Who chatted when, for time in chat, even while earning is off.
+		name := a.DisplayName
+		if name == "" {
+			name = a.Login
+		}
+		if _, err := s.o.DB.ExecContext(ctx, `INSERT INTO earning_active (platform, user_id, login, display_name, last_chat_at)
+			VALUES (?, ?, ?, ?, ?) ON CONFLICT (platform, user_id) DO UPDATE SET login = excluded.login,
+			display_name = excluded.display_name, last_chat_at = max(last_chat_at, excluded.last_chat_at)`,
+			a.Platform, a.ID, a.Login, name, storage.Timestamp(r.ReceivedAt)); err != nil {
+			return err
+		}
+	}
+	if !rules.On {
 		return nil
 	}
 	tier := func() int64 {

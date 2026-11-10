@@ -40,7 +40,9 @@ var (
 		// Polls and predictions: read, start and end them (docs/adr/0023-polls-and-predictions.md).
 		"channel:manage:polls", "channel:manage:predictions",
 		// Ads: the schedule, starting a break and snoozing (docs/adr/0024-ads.md).
-		AdsReadScope, CommercialScope, AdsManageScope}
+		AdsReadScope, CommercialScope, AdsManageScope,
+		// Time in chat: who's connected to chat (docs/adr/0034-time-in-chat.md).
+		ChattersScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

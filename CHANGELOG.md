@@ -218,6 +218,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - `streamgremlin viewers` and `streamgremlin points`.
   - The Points screen sits after Giveaways, so Variables' shortcut is now Ctrl/⌘+9.
 - F4 slice 2, earning rules: viewers earn points for chatting (at most once a minute each, only while you're live, by default), a first follow (once ever), subs and resubs by tier, gifted subs (to the gifter) and bits (per 100). Off until you turn it on under **How viewers earn** on Points, and nothing that happened before pays. Never test events or your own. `streamgremlin points earning`.
+- F4 slice 3, time in chat: every 5 minutes while you're live, viewers who chatted in the last 10 minutes earn 10, and quiet viewers in your chat (from Twitch's list of who's there) earn 3. Its own switch under **How viewers earn**, off at first. Nothing is paid while you're offline, when it's unknown whether you're live, or for time StreamGremlin was closed, and the screen says why when no one, or only chatters, were paid.
 
 ### Fixed
 
@@ -228,6 +229,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - The Twitch sign-in asks for four more permissions, to read follows, subs, bits and channel point redemptions. Sign in again once to get them; chat keeps working meanwhile.
 - The Twitch sign-in also asks to manage channel point rewards. Sign in again once to make and change rewards.
+- The Twitch sign-in also asks to see who's in your chat, for time in chat. Sign in again once; until then only viewers who chat earn for time in chat.
 
 - Screen shortcuts follow the sidebar: Ctrl/⌘+1–9 for the main screens in order (at first: Home 1, Connections 2, Events 3, Workflows 4, Sounds 5, Overlays 6, Variables 7); Settings is Ctrl/⌘+comma and Help Ctrl/⌘+/.
 - A workflow's On switch shows what the engine says: a refused turn-on no longer looks on.

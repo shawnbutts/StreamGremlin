@@ -180,3 +180,75 @@ func TestEarningThroughTheCLIAndTwitch(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+// Time in chat through the real engine, CLI and mocktwitch (a minute made
+// half a second): nothing while offline; once live, a viewer who chatted
+// earns the chatting amount and a quiet viewer on Twitch's chatter list the
+// quiet one; the streamer never; and the last payment is shown.
+func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL, "-test-minute", "500ms")
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat and events", func() string {
+		out, _, _ := cli(t, dir, "twitch")
+		if !strings.Contains(out, "Chat:       connected") || !strings.Contains(out, "✓ Channel point redemptions") {
+			return out
+		}
+		return ""
+	})
+	tw.SetChatters("streamer", "streamer", "chatty", "lurker")
+	if out, errOut, code := cli(t, dir, "points", "earning", "set", "chat=0", "time=yes", "time-every=1", "time-active=10", "time-window=60",
+		"time-quiet=3"); code != 0 || !strings.Contains(out, "every 1 minutes while live: 10 if they chatted in the last 60 minutes, 3") {
+		t.Fatal(out, errOut)
+	}
+	cli(t, dir, "points", "earning", "on")
+	eventually(t, "a tick while not live", func() string {
+		if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "unknown whether you were live") {
+			return out
+		}
+		return ""
+	})
+	if out, _, _ := cli(t, dir, "points"); !strings.Contains(out, "0 viewers hold 0 points") {
+		t.Fatal("paid while not live:", out)
+	}
+	tw.GoLive("streamer")
+	tw.Say("streamer", "chatty", "hello")
+	tw.Say("streamer", "streamer", "the streamer never earns")
+	eventually(t, "time in chat paid", func() string {
+		out, _, _ := cli(t, dir, "viewers")
+		var chatty, lurker bool
+		for _, line := range strings.Split(out, "\n") {
+			f := strings.Fields(line)
+			if len(f) < 2 {
+				continue
+			}
+			n := f[1]
+			chatty = chatty || (f[0] == "chatty" && n != "0" && strings.HasSuffix(n, "0"))
+			lurker = lurker || (f[0] == "lurker" && n != "0" && n != "")
+		}
+		if !chatty || !lurker {
+			return out
+		}
+		return ""
+	})
+	out, _, _ := cli(t, dir, "viewers", "show", "@chatty")
+	if !strings.Contains(out, "time in chat, chatting") || strings.Contains(out, "+3 ") {
+		t.Fatal(out)
+	}
+	if out, _, _ := cli(t, dir, "viewers", "show", "@lurker"); !strings.Contains(out, "+3  credit: time in chat") {
+		t.Fatal(out)
+	}
+	if out, _, _ := cli(t, dir, "viewers", "streamer"); strings.Contains(out, "streamer") && !strings.Contains(out, " 0 points") {
+		t.Fatal("the streamer earned:", out)
+	}
+	if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "last paid at") {
+		t.Fatal(out)
+	}
+	if out, _, code := cli(t, dir, "points", "audit"); code != 0 || !strings.Contains(out, "✓") {
+		t.Fatal(out)
+	}
+}

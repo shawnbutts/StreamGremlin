@@ -132,7 +132,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(vs.Close)
-	earn := earning.New(earning.Options{DB: db, Inbox: inbox, Settings: set, Viewers: vs, Points: ledger})
+	earn := earning.New(earning.Options{DB: db, Inbox: inbox, Settings: set, Viewers: vs, Points: ledger, Chatters: tw})
 	if err := earn.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}

@@ -45,6 +45,7 @@ const view: PointsView = { currency: { id: 'points', name: 'points', allow_negat
 const earning: EarningRules = {
   on: false,
   chat: { amount: 1, every_seconds: 60, live_only: true },
+  time: { on: false, every_minutes: 5, active: 10, active_minutes: 10, quiet: 3 },
   follow: 50,
   sub: { tier1: 500, tier2: 1000, tier3: 2500 },
   gift: 250,
@@ -156,6 +157,36 @@ describe('Points', () => {
     const sent = calls.find((c) => c.path === '/v1/points/earning' && c.method === 'PUT')!.body as EarningRules;
     expect(sent).toMatchObject({ on: true, follow: 75, bits: 0, chat: { amount: 1, every_seconds: 60, live_only: true } });
     expect(el.textContent).toContain('Saved. Viewers earn from now on.');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('turns on time in chat, and says why quiet viewers weren’t paid', async () => {
+    const calls = mockFetch({
+      '/v1/points': () => ({ status: 200, body: view }),
+      '/v1/viewers': () => ({ status: 200, body: { viewers: [] } }),
+      '/v1/points/earning': (m, body) => ({
+        status: 200,
+        body: {
+          rules: m === 'PUT' ? body : { ...earning, on: true },
+          live: 'live',
+          last_tick: { at: now, active: 2, quiet: 0, note: 'Twitch’s chatter list couldn’t be read (sign in again), so only viewers who chatted earned' },
+        },
+      }),
+    });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('Last paid');
+    expect(el.textContent).toContain('2 chatting, 0 quiet');
+    expect(el.textContent).toContain('so only viewers who chatted earned');
+    const on = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('Pay for time in chat'))!.querySelector('input')!;
+    on.click();
+    flushSync();
+    typed(field(el, 'If they’re in chat but quiet'), '2');
+    button(el, 'Save')!.click();
+    await settle(30);
+    const sent = calls.find((c) => c.path === '/v1/points/earning' && c.method === 'PUT')!.body as EarningRules;
+    expect(sent.time).toEqual({ on: true, every_minutes: 5, active: 10, active_minutes: 10, quiet: 2 });
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });

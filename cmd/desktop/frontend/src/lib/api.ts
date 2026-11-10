@@ -1297,14 +1297,23 @@ export const auditPoints = () => api<{ ok: boolean; problems: string[] }>('GET',
 export interface EarningRules {
   on: boolean;
   chat: { amount: number; every_seconds: number; live_only: boolean };
+  time: { on: boolean; every_minutes: number; active: number; active_minutes: number; quiet: number };
   follow: number;
   sub: { tier1: number; tier2: number; tier3: number };
   gift: number;
   bits: number;
 }
+/** One time-in-chat payment: how many were paid, and why not, if not. */
+export interface EarningTick {
+  at: string;
+  active: number;
+  quiet: number;
+  note?: string;
+}
 export interface EarningView {
   rules: EarningRules;
   live: 'live' | 'offline' | 'unknown';
+  last_tick?: EarningTick;
 }
 export const getEarning = () => api<EarningView>('GET', '/v1/points/earning');
 export const setEarning = (rules: EarningRules) => api<EarningView>('PUT', '/v1/points/earning', rules);

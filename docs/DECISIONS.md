@@ -1023,3 +1023,17 @@ Decided 2026-11-10. The user: "at some point, i'd like to add an "export all" fe
 - **Each viewer is paid once per give,** with an operation id from the give and the viewer, so a retry never pays twice.
 - **The streamer sees who's in the group and the total before confirming.**
 
+## D-055. Time in chat (M3, F4 slice 3)
+
+Decided 2026-11-10 under D-007. The user said "proceed" to the slice 3 plan.
+
+- **Time in chat follows [ADR-0034](adr/0034-time-in-chat.md):**
+  - every 5 minutes while live, 10 points to viewers who chatted in the last 10 minutes and 3 to quiet viewers on Twitch's chatter list (each can be changed);
+  - nothing while offline or when it's unknown whether you're live;
+  - only chatters when the list can't be read, saying why;
+  - never for time while StreamGremlin was closed.
+- **It has its own switch, off by default,** so turning earning on in slice 2 doesn't start paying it after the update.
+- **The sign-in asks for `moderator:read:chatters`:** sign in to Twitch again once.
+- **Other bots earn** like anyone in chat. Leaving names out isn't built.
+- **A test-only engine flag, `-test-minute`,** shortens the minute against a stand-in Twitch, so the acceptance test needn't wait minutes.
+

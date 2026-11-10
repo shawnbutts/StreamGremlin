@@ -264,9 +264,14 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	debug := fs.Bool("debug", false, "log every API request")
 	twitchURL := fs.String("twitch-auth-url", os.Getenv(brand.Env("TWITCH_AUTH_URL")),
 		"a loopback stand-in for id.twitch.tv, such as mocktwitch (default $"+brand.Env("TWITCH_AUTH_URL")+")")
+	minute := fs.Duration("test-minute", 0, "for tests against a stand-in Twitch only: how long a minute of time in chat lasts")
 	store := fs.String("secret-store", os.Getenv(brand.Env("SECRET_STORE")),
 		"auto, keyring or file (default auto, or $"+brand.Env("SECRET_STORE")+")")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *minute != 0 && (*twitchURL == "" || *minute < 100*time.Millisecond || *minute > time.Minute) {
+		fmt.Fprintln(stderr, "-test-minute is for tests against a stand-in Twitch (-twitch-auth-url), from 100ms to 1m.")
 		return 2
 	}
 	kind, err := secrets.ParseKind(*store)
@@ -291,7 +296,8 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, OverlayAddr: *overlayAddr, Logger: log})
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, OverlayAddr: *overlayAddr,
+		TestMinute: *minute, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)
 		fmt.Fprintln(stderr, err)

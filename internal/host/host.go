@@ -60,7 +60,10 @@ type Options struct {
 	// brand.DefaultOverlayAddr, falling back to a free port if that is
 	// taken; "off" serves none.
 	OverlayAddr string
-	Logger      *slog.Logger
+	// TestMinute shortens time in chat's minute, for tests against a
+	// stand-in Twitch only (0: a real minute).
+	TestMinute time.Duration
+	Logger     *slog.Logger
 }
 
 // Host is a running engine.
@@ -165,7 +168,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
 	h.viewers = viewers.New(h.db, inbox, log)
 	ledger := points.New(h.db, log)
-	h.earning = earning.New(earning.Options{DB: h.db, Inbox: inbox, Settings: set, Viewers: h.viewers, Points: ledger, Logger: log})
+	h.earning = earning.New(earning.Options{DB: h.db, Inbox: inbox, Settings: set, Viewers: h.viewers, Points: ledger, Chatters: h.twitch, Logger: log})
+	if opts.TestMinute > 0 && opts.TwitchAuthURL != "" {
+		h.earning.SetMinute(opts.TestMinute)
+	}
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
