@@ -6,3 +6,4 @@ node_modules/
 # Build outputs from `go build` run inside a package folder.
 /streamgremlin
 /cmd/desktop/desktop
+/tmp
