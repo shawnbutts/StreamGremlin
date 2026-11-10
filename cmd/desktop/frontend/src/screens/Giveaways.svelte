@@ -185,7 +185,7 @@
   Viewers enter by typing a command in chat. One entry each, and every entry has the same chance unless you give subscribers more,
   which chat is told. Winners are drawn by StreamGremlin
   with a secure random source, and every draw is recorded so it can be checked. Chat is told everything: how to enter, who’s in, and
-  who won.
+  who won. To show it on stream too, add a giveaway overlay on the Overlays screen.
 </p>
 
 {#if loadError}

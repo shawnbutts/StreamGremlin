@@ -109,7 +109,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(adsSvc.Close)
-	gw := giveaways.New(giveaways.Options{DB: db, Inbox: inbox, Twitch: tw, AckEvery: 100 * time.Millisecond})
+	gw := giveaways.New(giveaways.Options{DB: db, Inbox: inbox, Twitch: tw, AckEvery: 100 * time.Millisecond, Display: hub})
 	actions.Register(reg, actions.Services{Giveaways: gw, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})

@@ -74,14 +74,14 @@ class FakeAudio {
   }
 }
 
-function page(search = '') {
+function page(search = '', extra: Record<string, unknown> = {}) {
   document.body.innerHTML = '<div id="status" hidden></div><div id="stage" class="pos-top anim-slide"></div>';
   const c = clock();
   const win = {
     document,
     location: { search, pathname: '/o/tok123/', protocol: 'http:', host: '127.0.0.1:7431' },
   };
-  const ov = start(win, { WebSocket: FakeSocket, setTimeout: c.setTimeout, Audio: (src: string) => new FakeAudio(src) });
+  const ov = start(win, { WebSocket: FakeSocket, setTimeout: c.setTimeout, Audio: (src: string) => new FakeAudio(src), ...extra });
   const ws = FakeSocket.all.at(-1)!;
   ws.fire('open');
   return { ov, ws, c, stage: document.getElementById('stage')!, status: document.getElementById('status')! };
@@ -289,5 +289,86 @@ describe('overlay page', () => {
     const { ws, status } = page();
     ws.fire('close');
     expect(status.hidden).toBe(true);
+  });
+});
+
+describe('the giveaway overlay', () => {
+  const hello = { type: 'hello', body: { overlay: { name: 'giveaway', kind: 'giveaway', look: {} }, page_version: 'v1' } };
+  const state = (extra: Record<string, unknown> = {}) => ({
+    type: 'giveaway',
+    body: {
+      id: 'g', title: 'a mug', state: 'open', how_to_enter: 'Type !join in chat to enter', chances: 'every entry has the same chance',
+      entries: 3, winners: [], ...extra,
+    },
+  });
+  const draw = (id: string, name: string, roll: string[]) => ({ type: 'draw', body: { id, giveaway: 'g', title: 'a mug', n: 1, name, roll } });
+
+  it('shows the giveaway, and rolls to the winner it was sent, landing as chat names them', () => {
+    let now = Date.parse('2026-11-10T12:00:00Z');
+    const { ws, c, stage } = page('', { now: () => now });
+    ws.fire('message', hello);
+    ws.fire('message', state({ closes_at: '2026-11-10T12:02:05Z', who: 'followers' }));
+    expect(stage.textContent).toContain('🎉 a mug');
+    expect(stage.textContent).toContain('Type !join in chat to enter');
+    expect(stage.textContent).toContain('3 entries · closes in 2:05');
+    expect(stage.textContent).toContain('Open to followers');
+    ws.fire('message', draw('d1', 'Ann', ['Bob', 'Cat', 'Ann']));
+    expect(stage.textContent).toContain('Drawing a mug…');
+    c.advance(3400);
+    expect(stage.textContent).not.toContain('Winner of a mug');
+    ws.fire('message', { type: 'picture', body: { id: 'd1', picture: 'https://evil.example/x.png' } });
+    c.advance(100); // 3.5 seconds: the roll lands
+    expect(stage.textContent).toContain('Winner of a mug');
+    expect(stage.textContent).toContain('🎉 Ann');
+    expect(stage.querySelector('img')).toBeNull(); // only Twitch pictures
+    expect(stage.querySelector('.sg-avatar')?.textContent).toBe('A');
+    now += 10000;
+    c.advance(5000);
+    expect(stage.textContent).toContain('🎉 a mug');
+    expect(stage.textContent).not.toContain('Winner of');
+  });
+
+  it('plays winners one after another, with their pictures, and lands on the winner even if the roll disagrees', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello);
+    ws.fire('message', state());
+    ws.fire('message', draw('d1', 'Ann', ['Ann', 'Bob']));
+    ws.fire('message', draw('d2', 'Bob', ['Ann', 'Zed'])); // the roll's last isn't Bob: Bob still wins
+    ws.fire('message', { type: 'picture', body: { id: 'd2', picture: 'https://static-cdn.jtvnw.net/bob.png' } });
+    c.advance(3500);
+    expect(stage.textContent).toContain('🎉 Ann');
+    c.advance(5000 + 3500);
+    expect(stage.textContent).toContain('🎉 Bob');
+    expect(stage.textContent).not.toContain('Zed');
+    expect(stage.querySelector('img')?.getAttribute('src')).toBe('https://static-cdn.jtvnw.net/bob.png');
+  });
+
+  it('shows the winner at once with reduced motion, and names stay text', () => {
+    const { ws, stage } = page('', { reducedMotion: () => true });
+    ws.fire('message', hello);
+    ws.fire('message', state({ title: '<b>bold</b>' }));
+    ws.fire('message', draw('d1', '<img src=x>', ['<img src=x>']));
+    expect(stage.textContent).toContain('🎉 <img src=x>');
+    expect(stage.querySelector('b')).toBeNull();
+    expect(stage.querySelectorAll('img').length).toBe(0);
+  });
+
+  it('says who won when it ends, then goes; a cancelled giveaway goes at once; alert overlays ignore it', () => {
+    let now = Date.parse('2026-11-10T12:00:00Z');
+    const { ws, c, stage } = page('', { now: () => now });
+    ws.fire('message', hello);
+    ws.fire('message', state({ state: 'ended', ended_at: '2026-11-10T12:00:00Z', winners: [{ draw: 1, name: 'Ann', outcome: 'claimed' }] }));
+    expect(stage.textContent).toContain('Congratulations, Ann!');
+    now += 21000;
+    c.advance(1000);
+    expect(stage.textContent).toBe('');
+    ws.fire('message', state({ state: 'cancelled' }));
+    expect(stage.textContent).toBe('');
+
+    const other = page();
+    other.ws.fire('message', { type: 'hello', body: { overlay: { name: 'alerts', kind: 'alert', look: {} }, page_version: 'v1' } });
+    other.ws.fire('message', state());
+    other.ws.fire('message', draw('d9', 'Ann', ['Ann']));
+    expect(other.stage.textContent).toBe('');
   });
 });

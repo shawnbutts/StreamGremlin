@@ -154,7 +154,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
-	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log})
+	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log, Display: h.hub})
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})

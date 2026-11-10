@@ -811,7 +811,8 @@ export interface OverlayLook {
 
 export interface Overlay {
   name: string;
-  kind: 'alert';
+  // A giveaway overlay shows the running giveaway (docs/adr/0029-giveaway-overlay.md).
+  kind: 'alert' | 'giveaway';
   look: OverlayLook;
   created_at: string;
   updated_at: string;
@@ -835,8 +836,8 @@ export interface OverlayList {
 const overlayPath = (name: string) => `/v1/overlays/${encodeURIComponent(name)}`;
 
 export const getOverlays = () => api<OverlayList>('GET', '/v1/overlays');
-export const addOverlay = (name: string, look?: OverlayLook) =>
-  api<{ overlay: Overlay; url?: string }>('POST', '/v1/overlays', { name, kind: 'alert', look });
+export const addOverlay = (name: string, look?: OverlayLook, kind: Overlay['kind'] = 'alert') =>
+  api<{ overlay: Overlay; url?: string }>('POST', '/v1/overlays', { name, kind, look });
 export const setOverlayLook = (name: string, look: OverlayLook) => api<Overlay>('PUT', overlayPath(name), { look });
 export const deleteOverlay = (name: string) => api<{ deleted: boolean }>('DELETE', overlayPath(name));
 /** The overlay's private link, to paste into OBS. */

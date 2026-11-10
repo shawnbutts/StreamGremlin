@@ -27,7 +27,7 @@ var page embed.FS
 // them), so a page loaded from an older build can tell and reload.
 var PageVersion = func() string {
 	h := sha256.New()
-	for _, name := range []string{"page/index.html", "page/overlay.js", "page/overlay.css"} {
+	for _, name := range []string{"page/index.html", "page/overlay.js", "page/overlay.css", "page/giveaway.js"} {
 		b, _ := page.ReadFile(name)
 		h.Write(b)
 	}
@@ -126,6 +126,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.file(w, "page/overlay.js", "text/javascript; charset=utf-8")
 	case "overlay.css":
 		s.file(w, "page/overlay.css", "text/css; charset=utf-8")
+	case "giveaway.js":
+		s.file(w, "page/giveaway.js", "text/javascript; charset=utf-8")
 	case "ws":
 		s.connect(w, r, o)
 	default:

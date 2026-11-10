@@ -902,3 +902,34 @@ Decided 2026-11-10 under D-007, building on D-043. The user said "proceed" to sl
   - no entry command is held.
 - **Only chat StreamGremlin received counts.** Silent viewers can't be included, and the form says so.
 - **Built and checked against mocktwitch only,** until the live check.
+
+## D-047. The giveaway overlay (M3 slice 5)
+
+Decided 2026-11-10 under D-007, building on D-043.
+
+The user was shown a theme-system concept (ChatGPT's, kept in `tmp/streamgremlin-theme-starter`) against the plan, and said: "let's stick with the existing plan for slice 5 and use the wheel theme for a dedicated wheel feature."
+
+- **The giveaway overlay follows [ADR-0029](adr/0029-giveaway-overlay.md):**
+  - a second kind of overlay on the existing overlay server;
+  - the giveaway's public state after every change;
+  - a roll that lands on the winner already drawn, with their picture;
+  - practice only in the app's previews.
+- **Chat waits about 4 seconds for the roll,** only while a giveaway overlay is open in OBS.
+- **The concept's safeguards are kept:**
+  - the overlay never picks;
+  - it always lands on the winner sent;
+  - names are text only;
+  - the state is sent again on reconnect.
+- **Its imported, scripted themes are not built.**
+- **Built and checked against mocktwitch and a test page only,** until the live check.
+
+## D-048. A dedicated wheel feature
+
+Decided 2026-11-10. The user, on the theme-system concept: "use the wheel theme for a dedicated wheel feature".
+
+- **Wheels move from Later into M3, after the giveaway slices and before F4.** The user can move them.
+- **Who it's for:** streamers who spin a wheel of choices on stream (the next game, a challenge, a mystery pick).
+- **The look starts from the concept's wheel** (`tmp/streamgremlin-theme-starter`: the workshop and neon wheels), rebuilt in StreamGremlin's own code, not copied.
+- **Draws are server-side with `crypto/rand`,** recorded and checkable like giveaway draws (StreamWisp ADR-0021, D-034).
+- **Wedges are sized to their real odds,** so the wheel never misstates them.
+- **Designed in its own ADR** before building, including how spins are started (screen, CLI, workflow step, chat).

@@ -15,14 +15,16 @@ import (
 
 const overlaysUsage = `usage:
   streamgremlin overlays [-json]          list your overlays (links aren't listed)
-  streamgremlin overlays add NAME         add an alert overlay, and print its link
+  streamgremlin overlays add [-giveaway] NAME
+                                          add an alert overlay (or a giveaway overlay, which shows
+                                          the running giveaway and rolls to each winner), and print its link
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
   streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
                                           -position bottom-left -animation unfold -seconds 8
                                           -background #6a00ff -gradient #ff0080 -corners 24 -border 2
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
-  streamgremlin overlays test NAME        show a sample alert in OBS
+  streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
 Each overlay is one browser source in OBS. Keep links private: anyone with
@@ -56,14 +58,21 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 {
 		switch args[0] {
 		case "add":
-			if len(args) != 2 {
+			fs := flag.NewFlagSet("overlays add", flag.ContinueOnError)
+			fs.SetOutput(stderr)
+			giveaway := fs.Bool("giveaway", false, "a giveaway overlay")
+			if fs.Parse(args[1:]) != nil || fs.NArg() != 1 {
 				return usage()
+			}
+			kind := overlays.KindAlert
+			if *giveaway {
+				kind = overlays.KindGiveaway
 			}
 			var out struct {
 				Overlay overlays.Overlay `json:"overlay"`
 				URL     string           `json:"url"`
 			}
-			if code := apiExit(c.Do(ctx, "POST", "/v1/overlays", map[string]string{"name": args[1], "kind": overlays.KindAlert}, &out), stderr); code != 0 {
+			if code := apiExit(c.Do(ctx, "POST", "/v1/overlays", map[string]string{"name": fs.Arg(0), "kind": kind}, &out), stderr); code != 0 {
 				return code
 			}
 			fmt.Fprintf(stdout, "Added %s.\n%s\n%s\n", out.Overlay.Name, out.URL, keepPrivate)
@@ -151,7 +160,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if code := apiExit(c.Do(ctx, "POST", path(args[1])+"/test", nil, nil), stderr); code != 0 {
 				return code
 			}
-			fmt.Fprintln(stdout, "A sample alert is showing in OBS.")
+			fmt.Fprintln(stdout, "A sample is showing in OBS.")
 			return 0
 		case "delete":
 			if len(args) != 2 {
@@ -188,7 +197,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		if o.Pages > 0 {
 			open = fmt.Sprintf("open in %d page(s)", o.Pages)
 		}
-		fmt.Fprintf(stdout, "%-24s %-6s %-13s %s\n", o.Name, o.Kind, o.Look.Position, open)
+		fmt.Fprintf(stdout, "%-24s %-8s %-13s %s\n", o.Name, o.Kind, o.Look.Position, open)
 	}
 	if list.Server == "" {
 		fmt.Fprintln(stdout, "\nThe overlay server is off.")

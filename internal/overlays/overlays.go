@@ -25,6 +25,10 @@ import (
 // Kinds of overlay.
 const KindAlert = "alert"
 
+// KindGiveaway shows the running giveaway and rolls to each winner
+// (docs/adr/0029-giveaway-overlay.md).
+const KindGiveaway = "giveaway"
+
 // MaxOverlays is how many overlays there may be.
 const MaxOverlays = 50
 
@@ -234,8 +238,8 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 	if err := CheckName(name); err != nil {
 		return Overlay{}, "", err
 	}
-	if kind != KindAlert {
-		return Overlay{}, "", invalid("the kind of overlay is alert")
+	if kind != KindAlert && kind != KindGiveaway {
+		return Overlay{}, "", invalid("the kind of overlay is alert or giveaway")
 	}
 	if err := look.Check(); err != nil {
 		return Overlay{}, "", err

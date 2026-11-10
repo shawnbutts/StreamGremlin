@@ -52,6 +52,9 @@ func registerOverlays(reg *workflow.Registry, store *overlays.Store, hub *overla
 			if err != nil {
 				return nil, err
 			}
+			if o.Kind != overlays.KindAlert {
+				return nil, fmt.Errorf("%q is a giveaway overlay: it shows giveaways by itself. Show alerts on an alert overlay", name)
+			}
 			title, _ := c.String("title", "")
 			text, _ := c.String("text", "")
 			a := overlays.Alert{Title: clip(title, overlays.MaxTitle), Text: clip(text, overlays.MaxText), Seconds: o.Look.Seconds}

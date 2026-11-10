@@ -52,6 +52,10 @@ func (f *fakeChat) AccountCreated(_ context.Context, id string) (time.Time, erro
 	return time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), nil
 }
 
+func (f *fakeChat) ProfilePicture(_ context.Context, id string) (string, error) {
+	return "https://static-cdn.jtvnw.net/jtv_user_pictures/" + id + ".png", nil
+}
+
 func (f *fakeChat) calls() int { f.mu.Lock(); defer f.mu.Unlock(); return f.factCalls }
 
 func (f *fakeChat) SendChat(_ context.Context, req twitch.SendRequest) (twitch.SendResult, error) {
@@ -75,6 +79,7 @@ type rig struct {
 	held  []commands.Claim
 	mu    sync.Mutex
 	shift time.Duration // the service's clock runs this far ahead
+	shown *fakeDisplay
 }
 
 func newRig(t *testing.T) *rig {
@@ -88,7 +93,7 @@ func newRig(t *testing.T) *rig {
 	if _, err := db.Migrate(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), chat: &fakeChat{}}
+	r := &rig{t: t, db: db, inbox: events.NewInbox(db, nil), chat: &fakeChat{}, shown: &fakeDisplay{}}
 	r.start()
 	return r
 }
@@ -102,7 +107,7 @@ func (r *rig) start() {
 	if r.svc != nil {
 		r.svc.Close()
 	}
-	r.svc = New(Options{DB: r.db, Inbox: r.inbox, Twitch: r.chat, Now: r.now, AckEvery: 50 * time.Millisecond,
+	r.svc = New(Options{DB: r.db, Inbox: r.inbox, Twitch: r.chat, Now: r.now, AckEvery: 50 * time.Millisecond, Display: r.shown,
 		Commands: func(cs []commands.Claim) error {
 			if c := commands.Conflicts(cs, r.held); len(c) > 0 {
 				return &commands.TakenError{Conflicts: c}

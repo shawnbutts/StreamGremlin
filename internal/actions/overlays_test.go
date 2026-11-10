@@ -36,6 +36,9 @@ func TestShowAnAlert(t *testing.T) {
 	if _, _, err := store.Create(ctx, "alerts", overlays.KindAlert, overlays.DefaultLook(), time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	if _, _, err := store.Create(ctx, "giveaway", overlays.KindGiveaway, overlays.DefaultLook(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := lib.Add(ctx, "chime", []byte("RIFF\x24\x00\x00\x00WAVEfmt "+strings.Repeat("\x00", 64)), 70, time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -60,6 +63,7 @@ func TestShowAnAlert(t *testing.T) {
 	}
 	for args, want := range map[*map[string]any]string{
 		{"overlay": "nope", "text": "x"}:                   `no overlay "nope"`,
+		{"overlay": "giveaway", "text": "x"}:               "is a giveaway overlay",
 		{"overlay": "alerts", "text": "x", "sound": "boo"}: `no sound "boo"`,
 		{"overlay": "alerts", "text": "x", "seconds": 1.0}: "2 to 60 seconds",
 		{"overlay": "alerts", "text": "  "}:                "text is empty",

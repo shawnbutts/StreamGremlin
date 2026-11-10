@@ -193,3 +193,36 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .sg-alert, .sg-picture, .sg-avatar, .sg-words { transition: opacity 200ms ease !important; transform: none !important; }
 }
+
+/* The giveaway overlay (docs/adr/0029-giveaway-overlay.md): a panel in the
+   overlay's look, a roll, and the winner popping in. */
+.sg-giveaway {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+.sg-giveaway .sg-line {
+  font-size: calc(20px * var(--sg-scale));
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.sg-giveaway .sg-winner-line { font-weight: 700; }
+.sg-roll .sg-roll-name { min-width: 8ch; }
+.sg-giveaway-winner .sg-avatar {
+  width: calc(76px * var(--sg-scale));
+  height: calc(76px * var(--sg-scale));
+  border-radius: 50%;
+  flex: none;
+}
+.sg-giveaway-winner .sg-picture,
+.sg-giveaway-winner .sg-avatar {
+  animation: sg-pop-in calc(450ms * var(--sg-pace)) cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes sg-pop-in {
+  from { transform: scale(0.2); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sg-giveaway-winner .sg-picture,
+  .sg-giveaway-winner .sg-avatar { animation: none; }
+}

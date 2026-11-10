@@ -1,4 +1,6 @@
 // StreamGremlin overlay page (docs/adr/0017-alert-overlays.md).
+import { giveawayView } from './giveaway.js';
+
 // It shows what the engine sends and says how each alert went: started,
 // done, or why not. It decides nothing. Viewer text is only ever set with
 // textContent, and pictures only come from Twitch's picture host.
@@ -106,6 +108,11 @@ export function start(win, opts = {}) {
   let animation = 'slide';
   let pageVersion = ''; // the engine's page this one is, from the first hello
   const reload = opts.reload || (() => win.location.reload());
+  // A giveaway overlay (docs/adr/0029-giveaway-overlay.md) shows the
+  // running giveaway; made when the first hello says this is one.
+  let gw = null;
+  const reducedMotion =
+    opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
 
   function setStatus(text) {
@@ -244,6 +251,15 @@ export function start(win, opts = {}) {
       }
       if (version) pageVersion = version;
       applyLook(msg.body && msg.body.overlay && msg.body.overlay.look);
+      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'giveaway' && !gw) {
+        gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion });
+      }
+    } else if (gw && msg.type === 'giveaway') {
+      gw.state(msg.body);
+    } else if (gw && msg.type === 'draw') {
+      gw.draw(msg.body);
+    } else if (gw && msg.type === 'picture') {
+      gw.picture(msg.body);
     } else if (msg.type === 'alert') {
       const alert = msg.body && msg.body.alert;
       if (!alert || !alert.id || seen.has(alert.id)) return;

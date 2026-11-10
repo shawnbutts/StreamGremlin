@@ -198,6 +198,11 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
   - **Draw now from everyone who chatted recently:** pick a window of 1 to 60 minutes, and everyone StreamGremlin saw chatting then enters, once each. Winners are drawn at once, with the same record and checks as any giveaway.
   - Entry rules and subscribers' chances apply. Nobody is told they were left out; the screen lists them. Your own chat never enters.
   - `giveaways open -from-chat N`.
+- M3 slice 5, the giveaway overlay:
+  - **A giveaway overlay** (Overlays → Add an overlay → Giveaways): one browser source in OBS that shows the running giveaway, with how to enter, the count, a countdown, who can enter and the odds. On each draw, names roll and land on the winner StreamGremlin drew, then their picture pops in.
+  - While it's open in OBS, chat names each winner as their roll lands, about 4 seconds after the draw. With no overlay open, nothing waits. Chat still tells viewers everything.
+  - Practice giveaways show only in the app's preview. **Preview a draw** and **Sample in OBS** show a sample. Reduced motion shows the winner without the roll.
+  - `overlays add -giveaway NAME`.
 
 ### Fixed
 

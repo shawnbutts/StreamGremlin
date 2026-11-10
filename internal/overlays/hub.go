@@ -90,6 +90,7 @@ type Result struct {
 // conn is one open page.
 type conn struct {
 	overlay string
+	kind    string
 	preview bool // the app's preview: sent everything, never an audience
 	send    chan []byte
 	kick    chan struct{} // closed to disconnect it
@@ -128,6 +129,8 @@ type Hub struct {
 	queues   map[string]*queue
 	sessions map[string]*session // by alert id
 	shown    map[string]time.Time
+	// giveaway is the running giveaway as giveaway overlays show it.
+	giveaway *GiveawayView
 }
 
 // NewHub returns a Hub. now may be nil.
@@ -187,7 +190,7 @@ func (h *Hub) kickLocked(c *conn) {
 
 // join registers a page and sends it the overlay and any alert on screen.
 func (h *Hub) join(o Overlay, preview bool) *conn {
-	c := &conn{overlay: o.Name, preview: preview, send: make(chan []byte, sendQueue), kick: make(chan struct{})}
+	c := &conn{overlay: o.Name, kind: o.Kind, preview: preview, send: make(chan []byte, sendQueue), kick: make(chan struct{})}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.conns[o.Name] == nil {
@@ -195,6 +198,9 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 	}
 	h.conns[o.Name][c] = true
 	h.sendLocked(c, hello(o, preview))
+	if v := h.giveaway; v != nil && giveawayFor(c, v.Practice) {
+		h.sendLocked(c, message("giveaway", v))
+	}
 	// An alert still on screen is sent with the time it has left. Pages
 	// skip alerts they've already played.
 	now := h.now()

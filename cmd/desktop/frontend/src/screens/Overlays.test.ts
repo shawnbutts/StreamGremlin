@@ -49,7 +49,8 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
   const routes: Parameters<typeof mockFetch>[0] = {
     '/v1/overlays': (method, body) => {
       if (method === 'POST') {
-        const o: Overlay = { name: (body as { name: string }).name, kind: 'alert', look: { ...look }, created_at: now, updated_at: now, pages: 0, previews: 0 };
+        const b = body as { name: string; kind: Overlay['kind'] };
+        const o: Overlay = { name: b.name, kind: b.kind, look: { ...look }, created_at: now, updated_at: now, pages: 0, previews: 0 };
         list.push(o);
         return { status: 201, body: { overlay: o, url: `http://127.0.0.1:7431/o/${token}/` } };
       }
@@ -59,7 +60,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
       };
     },
   };
-  for (const n of ['alerts', 'corner']) {
+  for (const n of ['alerts', 'corner', 'giveaway']) {
     routes[`/v1/overlays/${n}`] = (method, body) => {
       const i = list.findIndex((o) => o.name === n);
       if (method === 'DELETE') {
@@ -147,6 +148,29 @@ describe('Overlays', () => {
     await settle();
     expect(writeText).toHaveBeenCalledWith('http://127.0.0.1:7431/o/tok1/');
     expect(el.textContent).toContain('width 1920, height 1080');
+  });
+
+  it('adds a giveaway overlay, says what it does, and previews a draw', async () => {
+    const { calls } = engine([]);
+    const el = start();
+    await settle();
+    (el.querySelector('input[value=giveaway]') as HTMLInputElement).click();
+    flushSync();
+    expect(el.textContent).toContain('chat names each winner as their roll lands');
+    const name = el.querySelector<HTMLInputElement>('input[placeholder="alerts"]')!;
+    name.value = 'giveaway';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Add')!.click();
+    await settle(80);
+    expect(calls.find((c) => c.method === 'POST')).toMatchObject({ body: { name: 'giveaway', kind: 'giveaway' } });
+    expect(el.textContent).toContain('Giveaway');
+    expect(el.textContent).not.toContain('Seconds on screen');
+    button(el, 'Preview a draw')!.click();
+    await settle();
+    expect(calls.some((c) => c.path === '/v1/overlays/giveaway/test?preview=1')).toBe(true);
+    expect(el.textContent).toContain('A sample giveaway and draw are showing in the preview');
+    await noViolations('a giveaway overlay');
   });
 
   it('shows the link to copy by hand when the clipboard is refused', async () => {

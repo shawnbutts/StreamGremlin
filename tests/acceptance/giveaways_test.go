@@ -3,10 +3,16 @@
 package acceptance
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/coder/websocket"
 )
 
 // A giveaway through the real engine, CLI and mocktwitch chat: opened from
@@ -310,4 +316,117 @@ func TestGiveawayFromRecentChat(t *testing.T) {
 	if out, _, code := cli(t, dir, "giveaways", "verify", id[1]); code != 0 || !strings.Contains(out, "✓") {
 		t.Fatal(out)
 	}
+}
+
+// The giveaway overlay through the real engine, CLI and mocktwitch: added
+// from the CLI, opened as OBS would; it's told the giveaway and its entries,
+// then the winner with names to roll through; chat names the winner only
+// after the roll has had time to land; an alert overlay hears none of it.
+func TestGiveawayOverlay(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not reading chat"
+		}
+		return ""
+	})
+	out, errOut, code := cli(t, dir, "overlays", "add", "-giveaway", "giveaway")
+	if code != 0 {
+		t.Fatal(out, errOut)
+	}
+	gwPage := openPage(t, linkIn(t, out))
+	out, _, _ = cli(t, dir, "overlays", "add", "alerts")
+	alertPage := openPage(t, linkIn(t, out))
+	if out, errOut, code := cli(t, dir, "overlays", "test", "giveaway"); code != 0 || !strings.Contains(out, "showing in OBS") {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the sample", func() string { return gwPage.has("draw", "SampleWinner") })
+
+	if out, errOut, code := cli(t, dir, "giveaways", "open", "a", "lamp"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	tw.Say("streamer", "ann", "!join")
+	tw.Say("streamer", "bob", "!join")
+	eventually(t, "the entries on the overlay", func() string { return gwPage.has("giveaway", `"entries":2`) })
+	out, errOut, code = cli(t, dir, "giveaways", "draw")
+	if code != 0 {
+		t.Fatal(out, errOut)
+	}
+	drawn := time.Now()
+	winner := strings.ToLower(regexp.MustCompile(`Draw 1: (\w+)`).FindStringSubmatch(out)[1])
+	eventually(t, "the roll", func() string { return gwPage.has("draw", `"name":"`+winner+`"`) })
+	var named time.Time
+	eventually(t, "the winner in chat", func() string {
+		for _, m := range tw.ChatLog() {
+			if strings.Contains(m.Text, "@"+winner+" wins a lamp!") {
+				named = time.Now()
+				return ""
+			}
+		}
+		return "not yet"
+	})
+	if wait := named.Sub(drawn); wait < 3*time.Second {
+		t.Fatalf("chat named the winner %v after the draw, before the roll could land", wait)
+	}
+	if got := alertPage.has("giveaway", ""); got == "" {
+		t.Fatal("an alert overlay was told about the giveaway")
+	}
+	cli(t, dir, "giveaways", "end")
+	eventually(t, "the end on the overlay", func() string { return gwPage.has("giveaway", `"state":"ended"`) })
+}
+
+// page is an overlay page connected as OBS would, recording what it's sent.
+type page struct {
+	mu  sync.Mutex
+	got []string // "type body"
+}
+
+func openPage(t *testing.T, link string) *page {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	c, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(link, "http")+"ws",
+		&websocket.DialOptions{Subprotocols: []string{"streamgremlin.overlay.v1"}})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &page{}
+	go func() {
+		for {
+			_, b, err := c.Read(ctx)
+			if err != nil {
+				return
+			}
+			var m struct {
+				Type string          `json:"type"`
+				Body json.RawMessage `json:"body"`
+			}
+			_ = json.Unmarshal(b, &m)
+			p.mu.Lock()
+			p.got = append(p.got, m.Type+" "+string(m.Body))
+			p.mu.Unlock()
+		}
+	}()
+	return p
+}
+
+// has returns "" when the page was sent a message of typ containing text.
+func (p *page) has(typ, text string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, m := range p.got {
+		if strings.HasPrefix(m, typ+" ") && strings.Contains(m, text) {
+			return ""
+		}
+	}
+	return fmt.Sprintf("no %s with %q in %d messages", typ, text, len(p.got))
 }

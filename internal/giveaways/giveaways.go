@@ -28,6 +28,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
@@ -82,6 +83,7 @@ type Twitch interface {
 	SendChat(ctx context.Context, req twitch.SendRequest) (twitch.SendResult, error)
 	Follower(ctx context.Context, userID string) (twitch.Follow, error)
 	AccountCreated(ctx context.Context, userID string) (time.Time, error)
+	ProfilePicture(ctx context.Context, userID string) (string, error)
 }
 
 // Settings open a giveaway.
@@ -215,6 +217,8 @@ type Options struct {
 	Now      func() time.Time
 	// AckEvery is how often new entries hear they're in (5 seconds).
 	AckEvery time.Duration
+	// Display shows giveaways on giveaway overlays (nil: none).
+	Display Display
 }
 
 // Service runs giveaways.
@@ -226,6 +230,7 @@ type Service struct {
 	log      *slog.Logger
 	now      func() time.Time
 	ackEvery time.Duration
+	display  Display
 
 	mu      sync.Mutex // every change, one at a time
 	current *Giveaway  // the unfinished one, or nil
@@ -256,7 +261,7 @@ func New(o Options) *Service {
 		o.Commands = func([]commands.Claim) error { return nil }
 	}
 	return &Service{db: o.DB, inbox: o.Inbox, tw: o.Twitch, commands: o.Commands, log: o.Logger.With("component", "giveaways"),
-		now: o.Now, ackEvery: o.AckEvery, wake: make(chan struct{}, 1)}
+		now: o.Now, ackEvery: o.AckEvery, display: o.Display, wake: make(chan struct{}, 1)}
 }
 
 func ts(t time.Time) string { return storage.Timestamp(t) }
@@ -426,6 +431,7 @@ func (s *Service) open(ctx context.Context, st Settings, by string) (Giveaway, e
 		return Giveaway{}, err
 	}
 	s.setCurrent(&g)
+	s.publishLocked(ctx, &g)
 	s.emit(ctx, &g, "giveaways.giveaway.opened", "opened", nil, s.publicFields(&g, nil))
 	s.log.Info("giveaway opened", "giveaway", g.ID, "practice", g.Practice, "winners", g.Winners)
 	return g, nil
@@ -479,6 +485,12 @@ func (s *Service) tx(ctx context.Context, f func(*sql.Tx) error) error {
 
 // say queues a chat message, or keeps it as practice.
 func (s *Service) say(ctx context.Context, tx *sql.Tx, g *Giveaway, text string) error {
+	return s.sayAfter(ctx, tx, g, text, nil)
+}
+
+// sayAfter queues a chat message not to be sent before after (nil: at
+// once). Later messages wait behind it, so chat keeps its order.
+func (s *Service) sayAfter(ctx context.Context, tx *sql.Tx, g *Giveaway, text string, after *time.Time) error {
 	state := "queued"
 	if g.Practice {
 		state = "practice"
@@ -486,8 +498,8 @@ func (s *Service) say(ctx context.Context, tx *sql.Tx, g *Giveaway, text string)
 	if utf8.RuneCountInString(text) > twitch.MaxChatRunes {
 		text = string([]rune(text)[:twitch.MaxChatRunes-1]) + "…"
 	}
-	_, err := tx.ExecContext(ctx, "INSERT INTO giveaway_messages (giveaway_id, text, state, created_at) VALUES (?, ?, ?, ?)",
-		g.ID, text, state, ts(s.now()))
+	_, err := tx.ExecContext(ctx, "INSERT INTO giveaway_messages (giveaway_id, text, state, created_at, send_after) VALUES (?, ?, ?, ?, ?)",
+		g.ID, text, state, ts(s.now()), tsPtr(after))
 	if err == nil && !g.Practice {
 		select {
 		case s.wake <- struct{}{}:
@@ -649,6 +661,7 @@ func (s *Service) closeLocked(ctx context.Context, g *Giveaway) (Giveaway, error
 		return Giveaway{}, err
 	}
 	*g = next
+	s.publishLocked(ctx, g)
 	s.emit(ctx, g, "giveaways.giveaway.closed", "closed", nil, s.publicFields(g, map[string]any{"entries": g.EntryCount,
 		"fingerprint": g.Fingerprint}))
 	s.log.Info("giveaway entries closed", "giveaway", g.ID, "entries", g.EntryCount)
@@ -684,6 +697,10 @@ func (s *Service) Draw(ctx context.Context, id string, count int) ([]Draw, error
 
 func (s *Service) drawLocked(ctx context.Context, g *Giveaway, count int, prefix string) ([]Draw, error) {
 	var out []Draw
+	var pool []Entry // who could be drawn, for the overlay's roll
+	// With a giveaway overlay open in OBS, each winner's message waits for
+	// their roll to land, so chat doesn't give it away.
+	waits := s.rollWaits(g)
 	err := s.tx(ctx, func(tx *sql.Tx) error {
 		list, err := entriesOf(ctx, tx, g.ID)
 		if err != nil {
@@ -720,6 +737,7 @@ func (s *Service) drawLocked(ctx context.Context, g *Giveaway, count int, prefix
 			return notNow("everyone who entered “%s” has been drawn", g.Title)
 		}
 		now := s.now()
+		pool = append([]Entry(nil), candidates...)
 		for i := 0; i < count && len(candidates) > 0; i++ {
 			// Each candidate holds its chances as tickets, in entry order;
 			// one ticket is picked uniformly. Unweighted, a ticket is an entry.
@@ -747,7 +765,12 @@ func (s *Service) drawLocked(ctx context.Context, g *Giveaway, count int, prefix
 				words = fmt.Sprintf("%s🎉 @%s wins %s! Type !%s within %d seconds to claim it.", prefix, e.Login, g.Title, g.ClaimCommand,
 					g.ClaimSeconds)
 			}
-			if err := s.say(ctx, tx, g, words); err != nil {
+			var after *time.Time
+			if waits {
+				t := now.Add(overlays.ChatWait + time.Duration(i)*overlays.DrawTime)
+				after = &t
+			}
+			if err := s.sayAfter(ctx, tx, g, words, after); err != nil {
 				return err
 			}
 			draws = append(draws, d)
@@ -759,6 +782,8 @@ func (s *Service) drawLocked(ctx context.Context, g *Giveaway, count int, prefix
 	if err != nil {
 		return nil, err
 	}
+	s.publishLocked(ctx, g)
+	s.showDraws(ctx, *g, out, pool)
 	for _, d := range out {
 		s.emit(ctx, g, "giveaways.winner.drawn", "drawn:"+d.ID, actorOf(d.Winner), s.publicFields(g, map[string]any{"draw": d.N,
 			"pick_index": d.PickIndex, "candidates": d.Candidates, "claim_until": tsPtr(d.ClaimUntil), "winner": winnerFields(d.Winner)}))
@@ -854,6 +879,7 @@ func (s *Service) finishLocked(ctx context.Context, g *Giveaway, state, words st
 	g.State, g.EndedAt = state, &now
 	done := *g
 	s.setCurrent(nil)
+	s.publishLocked(ctx, &done)
 	extra["status"] = state
 	s.emit(ctx, &done, "giveaways.giveaway.ended", "ended", nil, s.publicFields(&done, extra))
 	s.log.Info("giveaway finished", "giveaway", g.ID, "state", state)

@@ -38,6 +38,7 @@ func (s *Service) Start(ctx context.Context) error {
 			return err
 		}
 		s.setCurrent(&g)
+		s.publishLocked(ctx, &g)
 	}
 	// Commands stored shortly before a stop are read again: entries and
 	// claims are recorded once, so nothing happens twice.
@@ -202,6 +203,7 @@ func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, re
 	if g == nil || g.ID != cd.g.ID || g.State != Open {
 		return nil
 	}
+	defer s.publishLocked(ctx, g)
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		if reason != "" {
 			_, err := tx.ExecContext(ctx, `INSERT INTO giveaway_refusals (giveaway_id, platform, user_id, login, display_name, reason,
@@ -260,6 +262,7 @@ func (s *Service) claimLocked(ctx context.Context, g *Giveaway, r events.Record,
 			s.log.Error("couldn't record a claim", "err", err)
 			return
 		}
+		s.publishLocked(ctx, g)
 		s.emit(ctx, g, "giveaways.winner.claimed", "claimed:"+d.ID, actorOf(d.Winner), s.publicFields(g, map[string]any{"draw": d.N,
 			"winner": winnerFields(d.Winner)}))
 		return
@@ -311,6 +314,7 @@ func (s *Service) forfeitLocked(ctx context.Context, g *Giveaway, now time.Time)
 			s.log.Error("couldn't record a forfeit", "err", err)
 			continue
 		}
+		s.publishLocked(ctx, g)
 		s.emit(ctx, g, "giveaways.winner.forfeited", "forfeited:"+d.ID, actorOf(d.Winner), s.publicFields(g, map[string]any{"draw": d.N,
 			"winner": winnerFields(d.Winner)}))
 	}
@@ -427,10 +431,20 @@ func (s *Service) send(ctx context.Context) {
 func (s *Service) sendOne(ctx context.Context) bool {
 	var id int64
 	var gid, text, created string
-	err := s.db.QueryRowContext(ctx, "SELECT id, giveaway_id, text, created_at FROM giveaway_messages WHERE state = 'queued' ORDER BY id LIMIT 1").
-		Scan(&id, &gid, &text, &created)
+	var after sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT id, giveaway_id, text, created_at, send_after FROM giveaway_messages WHERE state = 'queued'
+		ORDER BY id LIMIT 1`).Scan(&id, &gid, &text, &created, &after)
 	if err != nil {
 		return false
+	}
+	// A winner's message waits for the overlay's roll to land; what comes
+	// after waits behind it. Lateness counts from then.
+	if after.Valid {
+		t, _ := storage.ParseTimestamp(after.String)
+		if s.now().Before(t) {
+			return false
+		}
+		created = after.String
 	}
 	set := func(state, detail string) {
 		var sent any
