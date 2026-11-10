@@ -1084,3 +1084,11 @@ Decided 2026-11-10 under D-007. With M3's real-stream check the user said: "live
 - **Variables loses its default shortcut,** being tenth in the main list; it's one click in the sidebar, and moving any screen under More… gives it one again.
 - **Nothing changes in the engine:** same API, CLI and storage. What else viewers are for comes later, each with its own decision.
 
+## D-061. Importing from Streamer.bot moves to Later (amends D-006)
+
+Decided 2026-11-10. Offered the M4 plan (read and report on an export, import what converts exactly, more conversions, a C# report), the user said: "let's move the streamer.bot import to later as well".
+
+- **M4, importing from Streamer.bot, moves to Later** with the plan offered for it, following StreamWisp's ADR-0044. It comes back under a new decision, checked against real exports.
+- **Milestone numbers stay as they are,** so earlier references still hold: M5 is Lua and plugins, M6 YouTube.
+- **The first outside beta was planned to follow M4 (D-006).** When it happens now is still to decide.
+

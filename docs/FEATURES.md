@@ -20,7 +20,7 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (then the first outside beta), M5 Lua & plugins, M6 YouTube.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M6 YouTube.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
@@ -163,9 +163,9 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
-| Import of export strings, converting only what converts exactly; imports start disabled | 0044, D-058, D-068 | Import |
-| Type mappings for triggers, sub-actions and OBS states, limited to this cut | D-113 to D-121 | Import |
-| Import report with a C# inventory, pointing to Lua or templates | D-122 | Import |
+| Import of export strings, converting only what converts exactly; imports start disabled | 0044, D-058, D-068; moved to Later by D-061 | Later |
+| Type mappings for triggers, sub-actions and OBS states, limited to this cut | D-113 to D-121; moved to Later by D-061 | Later |
+| Import report with a C# inventory, pointing to Lua or templates | D-122; moved to Later by D-061 | Later |
 | Live inventory over Streamer.bot's WebSocket | D-058 | Later |
 | Running or converting C# | D-132 | Leave (won't do) |
 
