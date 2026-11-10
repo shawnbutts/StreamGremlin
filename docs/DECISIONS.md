@@ -1051,3 +1051,10 @@ Decided 2026-11-10 under D-007, building D-054. The user said "proceed" to the s
 - **Export everyone** through the native save dialog, forgotten viewers unnamed.
 - **Subscribers are checked against mocktwitch only,** because the user's channel isn't an Affiliate yet.
 
+## D-057. More currencies move to Later (amends D-052)
+
+Decided 2026-11-10. Offered the slice 5 plan for more currencies, the user said: "with further consideration, let's move the currency to a "Later" as well.  for now points can cover most of those usecases until a user asks for something more".
+
+- **Several currencies, retiring one (with moving its balances) and letting balances go below zero move to Later.** They come back when a streamer asks for them, under a new decision naming who will use them.
+- **What stays:** one currency, `points`, renamable (D-052). The ledger's schema already has a currency on every account and an `allow_negative` setting, so adding more later needs no change to what's built.
+- **F4 continues with the points shop, then points in giveaways and wheels,** using `points` only.

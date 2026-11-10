@@ -93,7 +93,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Viewer records per platform account, with export and delete | 0016; built in M3 (ADR-0032, D-052) | Spine (built with F4) |
 | Counters and quotes | Quotes built in M2 (ADR-0014, D-025); counters are saved variables (D-024) | F1 |
 | Points ledger: append-only, double entry, no negative balances | 0017, D-029; built in M3 (ADR-0032, D-052), one renamable currency | F4 |
-| Several currencies, rename, retire | 0072, D-102 | F4 |
+| Several currencies, retire, below zero (renaming `points` is built) | 0072, D-102; moved to Later by D-057 | Later |
 | Earning rules: chat, follows, subs, bits, time in chat (not "watch time") | 0018, D-028, D-030; chat, follows, subs, gifts and bits built in M3 (ADR-0033, D-053); time in chat built in M3 (ADR-0034, D-055) | F4 |
 | Give to everyone by a rule (chatter list, recent chatters, subscribers), and export everyone | D-054; built in M3 (ADR-0035, D-056) | F4 |
 | Rewards shop and redemption queue | 0019, D-032 | F4 |
