@@ -84,7 +84,7 @@ The concept's wheels gave every wedge the same size whatever its weight, which i
 - **Equal wedges (the concept's):** they misstate weighted odds.
 - **Waiting for the page's answer before settling:** a hung page would hold the result. A fixed time is enough.
 - **Imported, scripted wheel themes:** they would run third-party code in OBS. That's a decision of its own, alongside content packs.
-- **Costs and points prizes:** these come with the points ledger (F4), which can charge, award and refund once.
+- **Points prizes:** these could come with the points ledger (F4), which awards once. Paid spins are never built (FEATURES: "Paid wheel spins", D-031).
 
 ## Consequences
 

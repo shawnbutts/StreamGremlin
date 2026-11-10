@@ -111,7 +111,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Giveaway extra chances, announced in chat | 0077, D-128, D-129; built in M3 for subscribers (ADR-0027, D-045); no tier or watch-time chances | F3 |
 | Giveaway draw from recent chat | 0078, D-130; built in M3 (ADR-0028, D-046) | F3 |
 | Giveaway overlay (never required: chat carries everything) | 0076, D-126; built in M3 (ADR-0029, D-047) | F3 |
-| Wheels with audited server-side draws: a dedicated wheel feature, its look from the wheel concept in `tmp/streamgremlin-theme-starter` | 0021, D-034; D-048; built in M3 (ADR-0030, D-049); costs and points prizes with F4 | M3 |
+| Wheels with audited server-side draws: a dedicated wheel feature, its look from the wheel concept in `tmp/streamgremlin-theme-starter` | 0021, D-034; D-048; built in M3 (ADR-0030, D-049); points prizes possible with F4, never paid spins (D-031) | M3 |
 | Paid wheel spins | D-031 | Leave (won't do) |
 
 ## Ads and breaks
