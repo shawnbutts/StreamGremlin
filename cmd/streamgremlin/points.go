@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/api"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 )
 
@@ -20,6 +21,7 @@ const viewersUsage = `usage:
   streamgremlin viewers show ID|@NAME     one viewer, with their points history
   streamgremlin viewers export ID|@NAME   everything kept about them, as JSON
   streamgremlin viewers forget ID|@NAME   blank their account and names; their points history stays, unnamed
+  streamgremlin viewers export-all        everything kept about every viewer, as JSON (forgotten viewers unnamed)
 
 Viewers are recorded from your real chat and events, never test events.`
 
@@ -30,6 +32,11 @@ const pointsUsage = `usage:
   streamgremlin points undo TRANSACTION   undo a change, once
   streamgremlin points rename NAME        call your points something else, like Gold
   streamgremlin points audit              check every change balances and every balance matches its history
+  streamgremlin points give-all chat|subs|recent=MINUTES N [-reason R] [-yes]
+        give everyone in a group N points each: everyone in chat (Twitch's list), subscribers (Twitch's
+        list), or everyone who chatted in the last MINUTES. Without -yes, only says who'd get them.
+  streamgremlin points gives              the latest gives to groups
+  streamgremlin points undo-give ID       take a give back from everyone (never below zero)
   streamgremlin points earning            how viewers earn points
   streamgremlin points earning on|off
   streamgremlin points earning set NAME=N ...
@@ -79,6 +86,17 @@ func viewersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	if len(args) == 1 && args[0] == "export-all" {
+		var raw json.RawMessage
+		if code := apiExit(c.Do(ctx, "GET", "/v1/exports/viewers", nil, &raw), stderr); code != 0 {
+			return code
+		}
+		var pretty map[string]any
+		_ = json.Unmarshal(raw, &pretty)
+		b, _ := json.MarshalIndent(pretty, "", "  ")
+		fmt.Fprintln(stdout, string(b))
+		return 0
+	}
 	if len(args) == 2 && (args[0] == "show" || args[0] == "export" || args[0] == "forget") {
 		v, code := findViewer(ctx, c, args[1], stderr)
 		if code != 0 {
@@ -231,6 +249,44 @@ func pointsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "earning":
 		return earningCmd(ctx, c, args, stdout, stderr, usage)
+	case "give-all":
+		return giveAllCmd(ctx, c, args, stdout, stderr, usage)
+	case "gives":
+		var out struct {
+			Gives []gives.Give `json:"gives"`
+		}
+		if code := apiExit(c.Do(ctx, "GET", "/v1/points/gives", nil, &out), stderr); code != 0 {
+			return code
+		}
+		if len(out.Gives) == 0 {
+			fmt.Fprintln(stdout, "No gives to groups yet.")
+		}
+		for _, g := range out.Gives {
+			state := ""
+			if g.UndoneAt != nil {
+				state = " (undone)"
+			} else if g.PaidAt == nil {
+				state = " (not finished: give again with the same request to finish)"
+			}
+			fmt.Fprintf(stdout, "%s  %s: %d each to %s (%s)%s, by %s%s\n", g.CreatedAt.Local().Format("Jan 2 15:04"), g.ID, g.Amount,
+				plural(g.Viewers, "viewer", "viewers"), g.Words, memo(g.Memo), g.By, state)
+		}
+		return 0
+	case "undo-give":
+		if len(args) != 1 {
+			return usage()
+		}
+		var res gives.UndoResult
+		if code := apiExit(c.Do(ctx, "POST", "/v1/points/gives/"+url.PathEscape(args[0])+"/undo", nil, &res), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Took it back from %s.\n", plural(res.Undone, "viewer", "viewers"))
+		if len(res.Short) > 0 {
+			fmt.Fprintf(stdout, "%s spent some already and keep theirs (nobody goes below zero): %s. Undo again later to try them again.\n",
+				plural(len(res.Short), "viewer", "viewers"), strings.Join(res.Short, ", "))
+			return 1
+		}
+		return 0
 	case "audit":
 		var out struct {
 			OK       bool     `json:"ok"`
@@ -339,5 +395,61 @@ func earningCmd(ctx context.Context, c interface {
 	fmt.Fprintf(stdout, "  a sub          %d tier 1, %d tier 2, %d tier 3 (resubs too; gifted subs earn for the gifter)\n", r.Sub.Tier1, r.Sub.Tier2, r.Sub.Tier3)
 	fmt.Fprintf(stdout, "  a gifted sub   %d each, to the gifter\n", r.Gift)
 	fmt.Fprintf(stdout, "  100 bits       %d\n", r.Bits)
+	return 0
+}
+
+func giveAllCmd(ctx context.Context, c interface {
+	Do(context.Context, string, string, any, any) error
+}, args []string, stdout, stderr io.Writer, usage func() int) int {
+	if len(args) < 2 {
+		return usage()
+	}
+	who := gives.Who{Audience: args[0]}
+	if m, ok := strings.CutPrefix(args[0], "recent="); ok {
+		n, err := strconv.Atoi(m)
+		if err != nil {
+			fmt.Fprintln(stderr, "recent=MINUTES, like recent=15.")
+			return 2
+		}
+		who = gives.Who{Audience: gives.Recent, Minutes: n}
+	} else if args[0] == gives.Recent {
+		fmt.Fprintln(stderr, "Say how recent: recent=MINUTES, like recent=15.")
+		return 2
+	}
+	n, err := strconv.ParseInt(args[1], 10, 64)
+	if err != nil || n <= 0 {
+		fmt.Fprintln(stderr, "How many each is a whole number above 0.")
+		return 2
+	}
+	fs := flag.NewFlagSet("points give-all", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	reason := fs.String("reason", "", "why")
+	yes := fs.Bool("yes", false, "give, rather than only saying who'd get them")
+	if fs.Parse(args[2:]) != nil || fs.NArg() > 0 {
+		return usage()
+	}
+	if !*yes {
+		var g gives.Group
+		if code := apiExit(c.Do(ctx, "POST", "/v1/points/gives/preview", who, &g), stderr); code != 0 {
+			return code
+		}
+		if g.Viewers == 0 {
+			fmt.Fprintln(stdout, g.Note)
+			return 1
+		}
+		more := ""
+		if g.Viewers > len(g.Sample) {
+			more = fmt.Sprintf(" and %d more", g.Viewers-len(g.Sample))
+		}
+		fmt.Fprintf(stdout, "%s (%s): %s%s would get %d each, %d in all.\nRun again with -yes to give.\n", strings.ToUpper(who.Words()[:1])+who.Words()[1:],
+			plural(g.Viewers, "viewer", "viewers"), strings.Join(g.Sample, ", "), more, n, n*int64(g.Viewers))
+		return 0
+	}
+	var g gives.Give
+	if code := apiExit(c.Do(ctx, "POST", "/v1/points/gives", gives.Request{Who: who, Amount: n, Reason: *reason, RequestID: requestID()}, &g),
+		stderr); code != 0 {
+		return code
+	}
+	fmt.Fprintf(stdout, "Gave %s %d each, %d in all. (%s)\n", plural(g.Viewers, "viewer", "viewers"), g.Amount, g.Total, g.ID)
 	return 0
 }

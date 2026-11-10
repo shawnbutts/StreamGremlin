@@ -153,6 +153,15 @@ func (s *Service) pay(ctx context.Context, a events.Actor, op func(string) strin
 	return res.Applied, nil
 }
 
+// ChattedSince is who chatted after since, up to now, from real chat (never
+// test chat or the streamer's): for giving points to recent chatters.
+func (s *Service) ChattedSince(ctx context.Context, since time.Time) ([]events.Actor, error) {
+	if err := s.CatchUp(ctx); err != nil {
+		return nil, err
+	}
+	return s.chattedBetween(ctx, since, s.o.Now())
+}
+
 // chattedBetween is who chatted after from, up to end.
 func (s *Service) chattedBetween(ctx context.Context, from, end time.Time) ([]events.Actor, error) {
 	rows, err := s.o.DB.QueryContext(ctx, `SELECT platform, user_id, login, display_name FROM earning_active

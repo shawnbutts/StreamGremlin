@@ -138,3 +138,50 @@ func (s *Service) Chatters(ctx context.Context) ([]events.Actor, error) {
 		after = page.Pagination.Cursor
 	}
 }
+
+// SubscribersScope reads the channel's subscribers.
+const SubscribersScope = "channel:read:subscriptions"
+
+// Subscribers asks Twitch's Get Broadcaster Subscriptions for everyone
+// subscribed to the streamer's channel (docs/adr/0035-giving-to-everyone.md),
+// apart from the streamer and the bot. Twitch documents an empty list for a
+// channel with no subscribers; each viewer is listed once.
+func (s *Service) Subscribers(ctx context.Context) ([]events.Actor, error) {
+	st := s.streamer.Status()
+	skip := map[string]bool{st.UserID: true}
+	if b := s.bot.Status(); b.UserID != "" {
+		skip[b.UserID] = true
+	}
+	out := []events.Actor{}
+	after := ""
+	for {
+		var page struct {
+			Data []struct {
+				UserID    string `json:"user_id"`
+				UserLogin string `json:"user_login"`
+				UserName  string `json:"user_name"`
+			} `json:"data"`
+			Pagination struct {
+				Cursor string `json:"cursor"`
+			} `json:"pagination"`
+		}
+		q := url.Values{"first": {"100"}}
+		if after != "" {
+			q.Set("after", after)
+		}
+		if err := s.streamerRaw(ctx, SubscribersScope, "GET", "/subscriptions", q, nil, &page); err != nil {
+			return nil, viewerError(err)
+		}
+		for _, d := range page.Data {
+			if d.UserID == "" || skip[d.UserID] {
+				continue
+			}
+			skip[d.UserID] = true
+			out = append(out, events.Actor{Platform: "twitch", ID: d.UserID, Login: d.UserLogin, DisplayName: d.UserName})
+		}
+		if page.Pagination.Cursor == "" || len(out) >= MaxChatters {
+			return out, nil
+		}
+		after = page.Pagination.Cursor
+	}
+}

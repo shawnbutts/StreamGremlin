@@ -136,3 +136,79 @@ func TestEarningThroughTheAPI(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+// Giving to a group through the API: Twitch's list unreadable is 502 and
+// gives nothing; recent chatters previewed and given to, once; a repeat
+// answers the same give; the list of gives; undo; and exporting everyone,
+// forgotten viewers unnamed.
+func TestGivesThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	if code, out := call("POST", "/v1/points/gives", `{"audience":"chat","amount":5,"request_id":"r0"}`); code != 502 ||
+		!strings.Contains(out, "nothing was given") {
+		t.Fatal(code, out)
+	}
+	if code, _ := call("POST", "/v1/points/gives/preview", `{"audience":"everyone"}`); code != 400 {
+		t.Fatal(code)
+	}
+	ctx := context.Background()
+	for _, who := range []events.Actor{{Platform: "twitch", ID: "1", Login: "ann", DisplayName: "Ann"}, {Platform: "twitch", ID: "2", Login: "bob", DisplayName: "Bob"}} {
+		a := who
+		if _, err := testEvents.Accept(ctx, events.Envelope{Type: "chat.message.received", Source: "twitch", Payload: []byte(`{}`),
+			DeliveryQuality: events.Confirmed, Actor: &a}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var g struct {
+		Viewers int      `json:"viewers"`
+		Sample  []string `json:"sample"`
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for g.Viewers < 2 && time.Now().Before(deadline) {
+		_, out := call("POST", "/v1/points/gives/preview", `{"audience":"recent","minutes":5}`)
+		_ = json.Unmarshal([]byte(out), &g)
+		time.Sleep(20 * time.Millisecond)
+	}
+	if g.Viewers != 2 || len(g.Sample) != 2 {
+		t.Fatalf("%+v", g)
+	}
+	body := `{"audience":"recent","minutes":5,"amount":40,"reason":"stream end","request_id":"r1"}`
+	code, out := call("POST", "/v1/points/gives", body)
+	if code != 200 || !strings.Contains(out, `"total":80`) || !strings.Contains(out, `"applied":true`) {
+		t.Fatal(code, out)
+	}
+	var give struct {
+		ID string `json:"id"`
+	}
+	_ = json.Unmarshal([]byte(out), &give)
+	if code, out := call("POST", "/v1/points/gives", body); code != 200 || !strings.Contains(out, `"applied":false`) || !strings.Contains(out, give.ID) {
+		t.Fatal(code, out)
+	}
+	if _, out := call("GET", "/v1/points", ""); !strings.Contains(out, `"issued":80`) {
+		t.Fatal("paid twice:", out)
+	}
+	if _, out := call("GET", "/v1/points/gives", ""); !strings.Contains(out, "everyone who chatted in the last 5 minutes") {
+		t.Fatal(out)
+	}
+	if code, out := call("POST", "/v1/points/gives/"+give.ID+"/undo", ""); code != 200 || !strings.Contains(out, `"undone":2`) {
+		t.Fatal(code, out)
+	}
+	if code, _ := call("POST", "/v1/points/gives/g_nope/undo", ""); code != 404 {
+		t.Fatal(code)
+	}
+	bob, _ := testViewers.ByLogin(ctx, "bob")
+	if code, _ := call("POST", "/v1/viewers/"+bob.ID+"/forget", ""); code != 200 {
+		t.Fatal(code)
+	}
+	code, out = call("GET", "/v1/exports/viewers", "")
+	var all ViewersExport
+	if err := json.Unmarshal([]byte(out), &all); code != 200 || err != nil || all.Schema != "streamgremlin.viewers-export/v1" || len(all.Viewers) != 2 {
+		t.Fatal(code, out)
+	}
+	if strings.Contains(out, `"bob"`) || !strings.Contains(out, "Forgotten viewer") || len(all.Viewers[0].History) != 2 {
+		t.Fatal("forgotten viewers are unnamed, and history is all there:", out)
+	}
+}

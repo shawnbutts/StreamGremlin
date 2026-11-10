@@ -272,6 +272,25 @@ func (s *Service) Search(ctx context.Context, q string, limit int) ([]Viewer, er
 	return out, rows.Err()
 }
 
+// All lists every viewer, forgotten ones too (unnamed), first seen first:
+// for exporting everyone.
+func (s *Service) All(ctx context.Context) ([]Viewer, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+columns+" FROM viewers ORDER BY first_seen, id")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []Viewer{}
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // Forget blanks a viewer: their account id, names and activity. The row
 // stays, so the ledger still adds up; if the account takes part again, it
 // becomes a new, unconnected viewer.

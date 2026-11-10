@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
@@ -16,7 +17,7 @@ import (
 // Giving and taking are External: a test event never changes a real
 // balance. Each step's idempotency key is its operation id, so a retried
 // run never pays twice. Checking only reads, so it runs for tests too.
-func registerPoints(reg *workflow.Registry, vs *viewers.Service, ledger *points.Ledger) {
+func registerPoints(reg *workflow.Registry, vs *viewers.Service, ledger *points.Ledger, gv *gives.Service) {
 	unavailable := errors.New("points aren't available")
 	// who finds the viewer: "@name" or a name, or the event's viewer.
 	who := func(ctx context.Context, c workflow.Call, create bool) (viewers.Viewer, error) {
@@ -128,6 +129,49 @@ func registerPoints(reg *workflow.Registry, vs *viewers.Service, ledger *points.
 				}
 			}
 			return map[string]any{"balance": b, "viewer": v.DisplayName, "currency": cur.Name}, nil
+		},
+	})
+	reg.Add(workflow.Action{
+		Name: "points.give_all", Label: "Give points to everyone", Group: "Points", External: true,
+		Description: "Gives everyone in a group points, once each: everyone in chat (Twitch's list, which updates a little late), " +
+			"everyone who chatted lately, or subscribers. A retried run never gives twice; a test event never changes a real " +
+			"balance. Nobody in the group isn't a failure: the output says viewers 0, and why.",
+		Params: []workflow.Param{
+			{Name: "group", Label: "Who", Type: "choice", Choices: []string{gives.Chat, gives.Recent, gives.Subs}, Required: true},
+			{Name: "minutes", Label: "Chatted in the last (minutes)", Type: "number", DefaultHint: "10, for recent chatters"},
+			{Name: "amount", Label: "How many each", Type: "number", Required: true},
+			{Name: "reason", Label: "Reason", Type: "text", DefaultHint: "the group, in words"},
+		},
+		Run: func(ctx context.Context, c workflow.Call) (any, error) {
+			if gv == nil {
+				return nil, unavailable
+			}
+			amount, err := amountOf(c)
+			if err != nil {
+				return nil, err
+			}
+			group, _ := c.String("group", "")
+			w := gives.Who{Audience: group}
+			if group == gives.Recent {
+				w.Minutes = 10
+				if v, ok := c.Args["minutes"]; ok {
+					n, okn := number(v)
+					if !okn {
+						return nil, errors.New("minutes is a whole number")
+					}
+					w.Minutes = int(n)
+				}
+			}
+			reason, _ := c.String("reason", "")
+			g, err := gv.Give(ctx, gives.Request{Who: w, Amount: amount, Reason: reason, RequestID: "job:" + c.IdempotencyKey, By: by(c)})
+			if errors.Is(err, gives.ErrEmpty) {
+				return map[string]any{"viewers": 0, "total": 0, "group": w.Words(), "note": err.Error()}, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"viewers": g.Viewers, "total": g.Total, "each": g.Amount, "group": g.Words, "give": g.ID,
+				"repeated": !g.Applied}, nil
 		},
 	})
 }

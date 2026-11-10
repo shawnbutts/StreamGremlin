@@ -3,7 +3,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Points from './Points.svelte';
 import { mockFetch, settle } from '../test/helpers';
-import type { EarningRules, PointsView, Viewer, ViewerDetail } from '../lib/api';
+import type { EarningRules, PointsGive, PointsView, Viewer, ViewerDetail } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -52,7 +52,12 @@ const earning: EarningRules = {
   bits: 10,
 };
 
-function engine(opts: { short?: boolean } = {}) {
+const give: PointsGive = {
+  id: 'g_1', audience: 'chat', words: 'everyone in chat', amount: 10, memo: 'raid', by: 'the app', viewers: 3, total: 30, created_at: now,
+  paid_at: now, applied: true,
+};
+
+function engine(opts: { short?: boolean; gives?: PointsGive[]; listDown?: boolean } = {}) {
   return mockFetch({
     '/v1/points': () => ({ status: 200, body: view }),
     '/v1/viewers': () => ({ status: 200, body: { viewers: [ann] } }),
@@ -68,6 +73,18 @@ function engine(opts: { short?: boolean } = {}) {
     '/v1/points/audit': () => ({ status: 200, body: { ok: true, problems: [] } }),
     '/desktop/save-file': () => ({ status: 200, body: { saved: '/Users/me/ann-streamgremlin.json' } }),
     '/v1/points/earning': (m, body) => ({ status: 200, body: { rules: m === 'PUT' ? body : earning, live: 'unknown' } }),
+    '/v1/points/gives': (m, body) =>
+      m === 'POST'
+        ? { status: 200, body: { ...give, ...(body as object), total: 30, viewers: 3, applied: true } }
+        : { status: 200, body: { gives: opts.gives ?? [] } },
+    '/v1/points/gives/preview': (_m, body) =>
+      (body as { audience: string }).audience === 'subs'
+        ? { status: 200, body: { audience: 'subs', viewers: 0, sample: [], note: 'Twitch listed no subscribers. A channel that isn’t an Affiliate or Partner has none.' } }
+        : (body as { audience: string }).audience === 'chat' && opts.listDown
+          ? { status: 502, body: { error: { code: 'unavailable', message: 'Twitch’s list couldn’t be read, so nothing was given: Twitch is down' } } }
+          : { status: 200, body: { ...(body as object), viewers: 12, sample: ['Ann', 'Bob'] } },
+    '/v1/points/gives/g_1/undo': () => ({ status: 200, body: { give, undone: 2, short: ['Bob'] } }),
+    '/v1/exports/viewers': () => ({ status: 200, body: { schema: 'streamgremlin.viewers-export/v1', viewers: [] } }),
   });
 }
 
@@ -165,6 +182,7 @@ describe('Points', () => {
     const calls = mockFetch({
       '/v1/points': () => ({ status: 200, body: view }),
       '/v1/viewers': () => ({ status: 200, body: { viewers: [] } }),
+      '/v1/points/gives': () => ({ status: 200, body: { gives: [] } }),
       '/v1/points/earning': (m, body) => ({
         status: 200,
         body: {
@@ -189,5 +207,71 @@ describe('Points', () => {
     expect(sent.time).toEqual({ on: true, every_minutes: 5, active: 10, active_minutes: 10, quiet: 2 });
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('shows who’d get points before giving to everyone, and gives once with a request id', async () => {
+    const calls = engine();
+    const el = start();
+    await settle(30);
+    const radio = (label: string) =>
+      Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim() === label)!.querySelector('input') as HTMLInputElement;
+    radio('Everyone who chatted lately').click();
+    flushSync();
+    typed(field(el, 'In the last (minutes)'), '20');
+    typed(field(el, 'How many each'), '5');
+    typed(field(el, 'Why'), 'thanks for hanging out');
+    expect(button(el, 'Give 12 viewers 5 each')).toBeUndefined();
+    button(el, 'See who')!.click();
+    await settle(30);
+    expect(calls.find((c) => c.path === '/v1/points/gives/preview')!.body).toEqual({ audience: 'recent', minutes: 20 });
+    expect(el.textContent).toContain('12 viewers: Ann, Bob and 10 more. 5 points each, 60 in all.');
+    button(el, 'Give 12 viewers 5 each')!.click();
+    await settle(30);
+    const sent = calls.find((c) => c.path === '/v1/points/gives' && c.method === 'POST')!.body as Record<string, unknown>;
+    expect(sent).toMatchObject({ audience: 'recent', minutes: 20, amount: 5, reason: 'thanks for hanging out' });
+    expect(typeof sent.request_id).toBe('string');
+    expect(el.textContent).toContain('Gave 3 viewers');
+    // Subscribers: an empty list says why, and there's nothing to give.
+    radio('Subscribers').click();
+    el.querySelector('fieldset')!.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    button(el, 'See who')!.click();
+    await settle(30);
+    expect(el.textContent).toContain('Twitch listed no subscribers');
+    expect(Array.from(el.querySelectorAll('button')).some((b) => b.textContent?.startsWith('Give 0'))).toBe(false);
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('says plainly when Twitch’s list can’t be read, and gives nothing', async () => {
+    const calls = engine({ listDown: true });
+    const el = start();
+    await settle(30);
+    button(el, 'See who')!.click();
+    await settle(30);
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('nothing was given');
+    expect(calls.some((c) => c.path === '/v1/points/gives' && c.method === 'POST')).toBe(false);
+  });
+
+  it('undoes a give after asking, naming who keeps theirs, and exports everyone with the save dialog', async () => {
+    const calls = engine({ gives: [give] });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('10 each to 3 (everyone in chat): raid');
+    el.querySelector<HTMLButtonElement>('[aria-label="Undo the give to everyone in chat"]')!.click();
+    flushSync();
+    expect(document.body.textContent).toContain('nobody goes below zero');
+    expect(calls.some((c) => c.path.endsWith('/undo'))).toBe(false);
+    const confirm = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button')).filter((b) => b.textContent?.trim() === 'Undo');
+    confirm[confirm.length - 1].click();
+    await settle(30);
+    expect(calls.some((c) => c.path === '/v1/points/gives/g_1/undo')).toBe(true);
+    expect(el.textContent).toContain('Took it back from 2 viewers.');
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('Bob spent some already and keep theirs');
+    button(el, 'Export everyone')!.click();
+    await settle(30);
+    const save = calls.find((c) => c.path === '/desktop/save-file')!.body as { name: string; text: string };
+    expect(save.name).toBe('streamgremlin-viewers.json');
+    expect(JSON.parse(save.text).schema).toBe('streamgremlin.viewers-export/v1');
   });
 });

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
@@ -73,5 +74,53 @@ func TestPointsSteps(t *testing.T) {
 	if _, err := give.Run(ctx, workflow.Call{IdempotencyKey: "j/10", Args: map[string]any{"amount": 5.0}}); err == nil ||
 		!strings.Contains(err.Error(), "no viewer") {
 		t.Fatal(err)
+	}
+}
+
+type fakeLists struct{ chat []events.Actor }
+
+func (f fakeLists) Chatters(context.Context) ([]events.Actor, error)    { return f.chat, nil }
+func (f fakeLists) Subscribers(context.Context) ([]events.Actor, error) { return nil, nil }
+
+// "Give points to everyone": External; gives the group once each, a retried
+// run giving nothing more; nobody in the group isn't a failure.
+func TestGiveAllStep(t *testing.T) {
+	dir := t.TempDir()
+	ctx := context.Background()
+	db, err := storage.Open(ctx, filepath.Join(dir, "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Migrate(ctx, dir); err != nil {
+		t.Fatal(err)
+	}
+	vs, ledger := viewers.New(db, events.NewInbox(db, nil), nil), points.New(db, nil)
+	lists := fakeLists{chat: []events.Actor{{Platform: "twitch", ID: "1", Login: "ann"}, {Platform: "twitch", ID: "2", Login: "bob"}}}
+	gv := gives.New(gives.Options{DB: db, Viewers: vs, Points: ledger, Twitch: lists})
+	reg := workflow.NewRegistry()
+	Register(reg, Services{Viewers: vs, Points: ledger, Gives: gv})
+	if a, _ := reg.Get("points.give_all"); !a.External {
+		t.Fatal("must be External")
+	}
+	call := workflow.Call{IdempotencyKey: "j/1", WorkflowID: "twitch.raid-rain", Args: map[string]any{"group": "chat", "amount": 25.0, "reason": "raid!"}}
+	out := run(t, reg, "points.give_all", call)
+	if out["viewers"] != 2 || out["total"] != int64(50) || out["group"] != "everyone in chat" || out["repeated"] != false {
+		t.Fatal(out)
+	}
+	if again := run(t, reg, "points.give_all", call); again["repeated"] != true || again["total"] != int64(50) {
+		t.Fatal(again)
+	}
+	ann, _ := vs.ByLogin(ctx, "ann")
+	if b, _ := ledger.Balance(ctx, ann.ID, ""); b != 25 {
+		t.Fatal("paid twice:", b)
+	}
+	h, _ := ledger.History(ctx, ann.ID, 1)
+	if h[0].By != "workflow twitch.raid-rain" || h[0].Memo != "raid!" {
+		t.Fatal(h)
+	}
+	empty := workflow.Call{IdempotencyKey: "j/2", Args: map[string]any{"group": "subs", "amount": 5.0}}
+	if out := run(t, reg, "points.give_all", empty); out["viewers"] != 0 || !strings.Contains(out["note"].(string), "no subscribers") {
+		t.Fatal(out)
 	}
 }

@@ -27,6 +27,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -85,6 +86,7 @@ type Host struct {
 	wheels    *wheels.Service
 	viewers   *viewers.Service
 	earning   *earning.Service
+	gives     *gives.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -169,11 +171,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.viewers = viewers.New(h.db, inbox, log)
 	ledger := points.New(h.db, log)
 	h.earning = earning.New(earning.Options{DB: h.db, Inbox: inbox, Settings: set, Viewers: h.viewers, Points: ledger, Chatters: h.twitch, Logger: log})
+	h.gives = gives.New(gives.Options{DB: h.db, Viewers: h.viewers, Points: ledger, Twitch: h.twitch, Recent: h.earning, Logger: log})
 	if opts.TestMinute > 0 && opts.TwitchAuthURL != "" {
 		h.earning.SetMinute(opts.TestMinute)
 	}
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -235,6 +238,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Viewers:    h.viewers,
 		Points:     ledger,
 		Earning:    h.earning,
+		Gives:      h.gives,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},

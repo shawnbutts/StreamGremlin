@@ -1315,5 +1315,39 @@ export interface EarningView {
   live: 'live' | 'offline' | 'unknown';
   last_tick?: EarningTick;
 }
+/** A group to give to: everyone in chat, recent chatters, or subscribers. */
+export interface GiveWho {
+  audience: 'chat' | 'recent' | 'subs';
+  minutes?: number;
+}
+export interface GiveGroup extends GiveWho {
+  viewers: number;
+  sample: string[];
+  note?: string;
+}
+export interface PointsGive {
+  id: string;
+  audience: string;
+  minutes?: number;
+  words: string;
+  amount: number;
+  memo: string;
+  by: string;
+  viewers: number;
+  total: number;
+  created_at: string;
+  paid_at?: string;
+  undone_at?: string;
+  applied: boolean;
+}
+export const previewGive = (who: GiveWho) => api<GiveGroup>('POST', '/v1/points/gives/preview', who);
+export const giveAll = (who: GiveWho, amount: number, reason: string, requestId: string) =>
+  api<PointsGive>('POST', '/v1/points/gives', { ...who, amount, reason, request_id: requestId });
+export const getGives = () => api<{ gives: PointsGive[] }>('GET', '/v1/points/gives');
+export const undoGive = (id: string) =>
+  api<{ give: PointsGive; undone: number; short: string[] }>('POST', `/v1/points/gives/${encodeURIComponent(id)}/undo`);
+/** Everything kept about every viewer, as streamgremlin.viewers-export/v1. */
+export const exportAllViewers = () => api<unknown>('GET', '/v1/exports/viewers');
+
 export const getEarning = () => api<EarningView>('GET', '/v1/points/earning');
 export const setEarning = (rules: EarningRules) => api<EarningView>('PUT', '/v1/points/earning', rules);

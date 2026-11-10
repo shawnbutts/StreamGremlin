@@ -264,3 +264,76 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+// Giving to everyone through the real engine, CLI and mocktwitch: a
+// preview gives nothing; everyone in chat (Twitch's list, without the
+// streamer) gets the amount once; subscribers from Twitch's list; recent
+// chatters; undoing a give, never below zero; and exporting everyone.
+func TestGiveToEveryoneThroughTheCLIAndTwitch(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
+			return out
+		}
+		return ""
+	})
+	tw.SetChatters("streamer", "streamer", "ann", "bob", "cat")
+	out, errOut, code := cli(t, dir, "points", "give-all", "chat", "25")
+	if code != 0 || !strings.Contains(out, "Everyone in chat (3 viewers): ann, bob, cat would get 25 each, 75 in all") {
+		t.Fatal(out, errOut)
+	}
+	if out, _, _ := cli(t, dir, "points"); !strings.Contains(out, "0 viewers hold 0 points") {
+		t.Fatal("a preview gave:", out)
+	}
+	out, errOut, code = cli(t, dir, "points", "give-all", "chat", "25", "-reason", "raid party", "-yes")
+	if code != 0 || !strings.Contains(out, "Gave 3 viewers 25 each, 75 in all") {
+		t.Fatal(out, errOut)
+	}
+	give := regexp.MustCompile(`\((g_\w+)\)`).FindStringSubmatch(out)[1]
+
+	tw.SetSubMonths("streamer", "bob", 3)
+	tw.SetSubMonths("streamer", "dan", 1)
+	if out, errOut, code := cli(t, dir, "points", "give-all", "subs", "100", "-yes"); code != 0 || !strings.Contains(out, "Gave 2 viewers 100 each") {
+		t.Fatal(out, errOut)
+	}
+	tw.Say("streamer", "eve", "hi all")
+	eventually(t, "recent chatters", func() string {
+		if out, _, _ := cli(t, dir, "points", "give-all", "recent=10", "5"); !strings.Contains(out, "(1 viewer): eve would get 5 each") {
+			return out
+		}
+		return ""
+	})
+	if _, errOut, code := cli(t, dir, "points", "give-all", "recent", "5"); code == 0 || !strings.Contains(errOut, "recent=MINUTES") {
+		t.Fatal(code, errOut)
+	}
+	if out, _, _ := cli(t, dir, "points"); !strings.Contains(out, "4 viewers hold 275 points") {
+		t.Fatal(out)
+	}
+
+	// ann spends some of hers, then the raid party is undone: ann keeps 5.
+	if _, errOut, code := cli(t, dir, "points", "take", "@ann", "20"); code != 0 {
+		t.Fatal(errOut)
+	}
+	out, _, code = cli(t, dir, "points", "undo-give", give)
+	if code != 1 || !strings.Contains(out, "Took it back from 2 viewers") || !strings.Contains(out, "keep theirs") || !strings.Contains(out, "ann") {
+		t.Fatal(code, out)
+	}
+	if out, _, _ := cli(t, dir, "points", "gives"); !strings.Contains(out, "raid party") || !strings.Contains(out, "subscribers") {
+		t.Fatal(out)
+	}
+	if out, _, code := cli(t, dir, "points", "audit"); code != 0 || !strings.Contains(out, "✓") {
+		t.Fatal(out)
+	}
+	cli(t, dir, "viewers", "forget", "@cat")
+	out, _, code = cli(t, dir, "viewers", "export-all")
+	if code != 0 || !strings.Contains(out, `"schema": "streamgremlin.viewers-export/v1"`) || !strings.Contains(out, `"login": "dan"`) ||
+		strings.Contains(out, `"login": "cat"`) || !strings.Contains(out, "Forgotten viewer") {
+		t.Fatal(out)
+	}
+}

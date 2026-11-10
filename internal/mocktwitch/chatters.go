@@ -15,6 +15,8 @@ type chatterState struct {
 	list  map[string][]string // channel login -> viewer logins, in join order
 	err   int                 // when set, Get Chatters answers this status
 	calls int
+	// subsErr: when set, Get Broadcaster Subscriptions answers this status.
+	subsErr int
 }
 
 // SetChatters sets who's in channel's chat (none to empty it).
@@ -95,4 +97,67 @@ func (s *Server) chattersLocked(w http.ResponseWriter, r *http.Request) {
 		page["cursor"] = strconv.Itoa(end)
 	}
 	writeJSON(w, map[string]any{"data": data, "pagination": page, "total": len(all)})
+}
+
+// subscriptionsLocked answers Get Broadcaster Subscriptions from the
+// subscribers set with SetSubMonths, as Twitch's reference describes it
+// (channel:read:subscriptions; broadcaster_id must be the token's user;
+// pages of up to 100, 20 by default). The broadcaster isn't listed.
+func (s *Server) subscriptionsLocked(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	if q.Get("broadcaster_id") == "" {
+		writeErr(w, 400, "The broadcaster_id query parameter is required.")
+		return
+	}
+	g, ok := s.helixAuth(w, r, "channel:read:subscriptions")
+	if !ok {
+		return
+	}
+	if s.ch.subsErr != 0 {
+		writeErr(w, s.ch.subsErr, "mocktwitch was told to fail")
+		return
+	}
+	if q.Get("broadcaster_id") != g.userID {
+		writeErr(w, 401, "The ID in broadcaster_id must match the user ID found in the request's OAuth token.")
+		return
+	}
+	first := 20
+	if f := q.Get("first"); f != "" {
+		n, err := strconv.Atoi(f)
+		if err != nil || n < 1 || n > 100 {
+			writeErr(w, 400, "first is 1 to 100")
+			return
+		}
+		first = n
+	}
+	s.viewersInit()
+	var all []string
+	for login, months := range s.vw.subMonths[g.login] {
+		if months > 0 {
+			all = append(all, login)
+		}
+	}
+	slices.Sort(all)
+	start, _ := strconv.Atoi(q.Get("after"))
+	start = max(0, min(start, len(all)))
+	end := min(start+first, len(all))
+	data := []map[string]any{}
+	for _, login := range all[start:end] {
+		data = append(data, map[string]any{"broadcaster_id": g.userID, "broadcaster_login": g.login, "broadcaster_name": g.login,
+			"gifter_id": "", "gifter_login": "", "gifter_name": "", "is_gift": false, "plan_name": "Channel Subscription", "tier": "1000",
+			"user_id": s.userIDLocked(login), "user_login": login, "user_name": login})
+	}
+	page := map[string]any{}
+	if end < len(all) {
+		page["cursor"] = strconv.Itoa(end)
+	}
+	writeJSON(w, map[string]any{"data": data, "pagination": page, "total": len(all), "points": len(all)})
+}
+
+// FailSubscriptions makes Get Broadcaster Subscriptions answer status (0
+// to stop).
+func (s *Server) FailSubscriptions(status int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ch.subsErr = status
 }

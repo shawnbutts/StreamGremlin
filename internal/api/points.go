@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/earning"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 )
@@ -17,11 +18,15 @@ func pointsError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 	switch {
 	case errors.As(err, &short):
 		writeError(w, http.StatusConflict, CodeConflict, short.Error())
-	case errors.Is(err, points.ErrInvalid), errors.Is(err, viewers.ErrInvalid):
+	case errors.Is(err, gives.ErrList):
+		writeError(w, http.StatusBadGateway, CodeUnavailable, err.Error())
+	case errors.Is(err, gives.ErrEmpty):
+		writeError(w, http.StatusConflict, CodeConflict, err.Error())
+	case errors.Is(err, points.ErrInvalid), errors.Is(err, viewers.ErrInvalid), errors.Is(err, gives.ErrInvalid):
 		writeError(w, http.StatusBadRequest, CodeInvalidRequest, err.Error())
-	case errors.Is(err, points.ErrNotFound), errors.Is(err, viewers.ErrNotFound):
+	case errors.Is(err, points.ErrNotFound), errors.Is(err, viewers.ErrNotFound), errors.Is(err, gives.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, err.Error())
-	case errors.Is(err, points.ErrConflict), errors.Is(err, points.ErrReversed):
+	case errors.Is(err, points.ErrConflict), errors.Is(err, points.ErrReversed), errors.Is(err, gives.ErrConflict):
 		writeError(w, http.StatusConflict, CodeConflict, err.Error())
 	default:
 		internalError(w, r, d.Logger, err)
@@ -53,6 +58,21 @@ type ViewerExport struct {
 	ExportedAt time.Time          `json:"exported_at"`
 	Viewer     viewers.Viewer     `json:"viewer"`
 	Points     ViewerExportPoints `json:"points"`
+}
+
+// ViewersExport is everything StreamGremlin keeps about every viewer.
+type ViewersExport struct {
+	Schema     string                `json:"schema"`
+	ExportedAt time.Time             `json:"exported_at"`
+	Currency   string                `json:"currency"`
+	Viewers    []ViewersExportViewer `json:"viewers"`
+}
+
+// ViewersExportViewer is one viewer in an export of everyone.
+type ViewersExportViewer struct {
+	viewers.Viewer
+	Balance int64                `json:"balance"`
+	History []points.Transaction `json:"history"`
 }
 
 // ViewerExportPoints is a viewer's points in an export.
@@ -114,6 +134,32 @@ func pointsRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, ViewerDetail{ViewerView: view(r, v), History: hist})
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/exports/viewers",
+			Summary: "Everything kept about every viewer, as streamgremlin.viewers-export/v1: each record (forgotten viewers " +
+				"unnamed), balance and full points history.",
+			Permission: PermViewersRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				all, err := d.Viewers.All(r.Context())
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				cur, _ := d.Points.Currency(r.Context(), "")
+				out := ViewersExport{Schema: "streamgremlin.viewers-export/v1", ExportedAt: d.Now(), Currency: cur.Name,
+					Viewers: make([]ViewersExportViewer, 0, len(all))}
+				for _, v := range all {
+					hist, err := d.Points.History(r.Context(), v.ID, -1)
+					if err != nil {
+						pointsError(w, r, d, err)
+						return
+					}
+					b, _ := d.Points.Balance(r.Context(), v.ID, "")
+					out.Viewers = append(out.Viewers, ViewersExportViewer{Viewer: v, Balance: b, History: hist})
+				}
+				writeJSON(w, http.StatusOK, out)
 			},
 		},
 		{
@@ -230,6 +276,76 @@ func pointsRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, c)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/points/gives/preview",
+			Summary: "Who's in a group now {audience: chat|recent|subs, minutes (recent)}: how many, up to 10 names, and why " +
+				"it's empty when it is. Gives nothing. Twitch's list unreadable: 502.",
+			Permission: PermPointsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in gives.Who
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				g, err := d.Gives.Preview(r.Context(), in)
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, g)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/points/gives",
+			Summary: "Give everyone in a group points, once each {audience, minutes, amount (each), reason, request_id}. The " +
+				"group is worked out now and kept; the same request_id again finishes and returns the same give (applied " +
+				"false). Nobody in the group: 409; Twitch's list unreadable: 502. Either way, nothing was given.",
+			Permission: PermPointsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in gives.Request
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				in.By = "the app"
+				g, err := d.Gives.Give(r.Context(), in)
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, g)
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/points/gives",
+			Summary:    "The newest gives to groups first, ?limit= 1-200 (default 20).",
+			Permission: PermPointsRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				limit, err := intParam(r.URL.Query().Get("limit"), 20, 1, 200)
+				if err != nil {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "limit must be 1 to 200")
+					return
+				}
+				list, err := d.Gives.List(r.Context(), limit)
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"gives": list})
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/points/gives/{id}/undo",
+			Summary: "Take a give back from everyone, never below zero {undone, short}: short names whoever has spent some " +
+				"and keeps theirs; undoing again later tries them again. Repeating a finished undo changes nothing.",
+			Permission: PermPointsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				res, err := d.Gives.Undo(r.Context(), r.PathValue("id"))
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, res)
 			},
 		},
 		{

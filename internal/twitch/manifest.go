@@ -111,6 +111,14 @@ func TwitchManifest() Manifest {
 					"who watched while StreamGremlin was closed.",
 			},
 			{
+				Name: "subscribers.list", Support: Supported, Scopes: []string{"channel:read:subscriptions"},
+				Notes: "Get Broadcaster Subscriptions (GET /helix/subscriptions, broadcaster_id your account, pages of up to 100), " +
+					"read 2026-11-10. \"The list is empty if the broadcaster has no subscribers.\" The reference doesn't say what " +
+					"a channel that isn't an Affiliate or Partner gets, or whether the broadcaster is listed; StreamGremlin leaves " +
+					"you and your bot out, and says Twitch listed no subscribers rather than that there are none. Used to give " +
+					"points to subscribers.",
+			},
+			{
 				Name: "events.subscriptions", Support: Supported, Scopes: []string{"channel:read:subscriptions"},
 				Notes: "channel.subscribe (new subs, gift recipients with is_gift; resubs aren't included), channel.subscription.message " +
 					"(a resub shared in chat), channel.subscription.gift (anonymous gifts have null user fields). Tiers " +

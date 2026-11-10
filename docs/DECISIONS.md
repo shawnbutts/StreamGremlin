@@ -1037,3 +1037,17 @@ Decided 2026-11-10 under D-007. The user said "proceed" to the slice 3 plan.
 - **Other bots earn** like anyone in chat. Leaving names out isn't built.
 - **A test-only engine flag, `-test-minute`,** shortens the minute against a stand-in Twitch, so the acceptance test needn't wait minutes.
 
+## D-056. Giving to everyone, and exporting everyone (M3, F4 slice 4)
+
+Decided 2026-11-10 under D-007, building D-054. The user said "proceed" to the slice 4 plan.
+
+- **Giving follows [ADR-0035](adr/0035-giving-to-everyone.md):**
+  - three groups: everyone in chat (Twitch's chatter list), everyone who chatted in the last N minutes, subscribers (Twitch's subscriber list);
+  - a preview first, with how many, names and the total;
+  - each viewer paid once, even when retried;
+  - nothing given when a list can't be read.
+- **Undo applies to the whole give**, never below zero; whoever has spent some keeps theirs and is named. A single viewer's payment can still be undone from their history.
+- **A step, "Give points to everyone",** for workflows (a raid, say).
+- **Export everyone** through the native save dialog, forgotten viewers unnamed.
+- **Subscribers are checked against mocktwitch only,** because the user's channel isn't an Affiliate yet.
+

@@ -8,9 +8,14 @@
     ApiError,
     adjustPoints,
     auditPoints,
+    exportAllViewers,
     exportViewer,
     forgetViewer,
     getEarning,
+    getGives,
+    giveAll,
+    previewGive,
+    undoGive,
     getPoints,
     getViewer,
     getViewers,
@@ -20,6 +25,9 @@
     undoPoints,
     type EarningRules,
     type EarningTick,
+    type GiveGroup,
+    type GiveWho,
+    type PointsGive,
     type PointsTransaction,
     type PointsView,
     type Viewer,
@@ -53,6 +61,16 @@
   let rules = $state<EarningRules | undefined>();
   let live = $state<'live' | 'offline' | 'unknown'>('unknown');
   let lastTick = $state<EarningTick | undefined>();
+  // Giving to everyone in a group.
+  let audience = $state<GiveWho['audience']>('chat');
+  let minutes = $state(15);
+  let each = $state(10);
+  let giveReason = $state('');
+  let group = $state<GiveGroup | undefined>();
+  let groupError = $state('');
+  let giveKey = key(); // one request id per give, kept while it's retried
+  let gives = $state<PointsGive[]>([]);
+  let undoingGive = $state<PointsGive | undefined>();
 
   const name = $derived(view?.currency.name ?? 'points');
   const kindWords: Record<string, string> = { credit: 'earned', debit: 'spent', adjust: 'by hand', reverse: 'undo' };
@@ -62,6 +80,7 @@
       view = await getPoints();
       found = (await getViewers(query.trim())).viewers;
       if (chosen) chosen = await getViewer(chosen.id);
+      gives = (await getGives()).gives;
       const earn = await getEarning();
       live = earn.live;
       lastTick = earn.last_tick;
@@ -179,6 +198,67 @@
     if (await act(async () => (saved = (await setEarning(r)).rules), r.on ? 'Saved. Viewers earn from now on.' : 'Saved. Earning is off.')) rules = saved;
   }
 
+  const who = (): GiveWho => (audience === 'recent' ? { audience, minutes: Math.round(Number(minutes)) } : { audience });
+  const eachN = () => Math.round(Number(each));
+
+  // Anything changed: the group shown is no longer the one that'd be given to.
+  function changed() {
+    group = undefined;
+    groupError = '';
+    giveKey = key();
+  }
+
+  async function seeWho() {
+    busy = true;
+    groupError = '';
+    try {
+      group = await previewGive(who());
+    } catch (e) {
+      group = undefined;
+      groupError = message(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function give() {
+    if (!group || !(eachN() > 0)) return;
+    const k = giveKey;
+    let done: PointsGive | undefined;
+    if (await act(async () => (done = await giveAll(who(), eachN(), giveReason.trim(), k)), '')) {
+      notice = `Gave ${done!.viewers} ${done!.viewers === 1 ? 'viewer' : 'viewers'} ${done!.amount} ${name} each, ${done!.total} in all.`;
+      group = undefined;
+      giveReason = '';
+      giveKey = key();
+    }
+  }
+
+  async function undoAll(g: PointsGive) {
+    undoingGive = undefined;
+    let res: { undone: number; short: string[] } | undefined;
+    await act(async () => (res = await undoGive(g.id)), '');
+    if (!res) return;
+    notice = `Took it back from ${res.undone} ${res.undone === 1 ? 'viewer' : 'viewers'}.`;
+    if (res.short.length) {
+      error = `${res.short.join(', ')} spent some already and keep theirs: nobody goes below zero. Undo again later to try them again.`;
+    }
+  }
+
+  async function exportAll() {
+    busy = true;
+    error = '';
+    notice = '';
+    try {
+      const data = await exportAllViewers();
+      const where = await saveFile('streamgremlin-viewers.json', JSON.stringify(data, null, 2));
+      notice = where ? `Saved every viewer's record to ${where}.` : 'Not saved.';
+    } catch (e) {
+      error = message(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   const liveWords = { live: 'You’re live.', offline: 'You’re offline.', unknown: 'Unknown whether you’re live: nothing has said yet.' };
 
   const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -222,6 +302,65 @@
         <li><button type="button" class="link-button" onclick={() => open(v)}>{v.display_name}</button>: {v.balance} {name}</li>
       {/each}
     </ol>
+  {/if}
+</section>
+
+<section class="sg-panel card" aria-labelledby="give-all-heading" aria-busy={busy}>
+  <h2 id="give-all-heading">Give to everyone</h2>
+  <p class="sg-muted">Give everyone in a group {name} at once. See who first; each viewer gets them once, even if it’s tried again.</p>
+  <fieldset onchange={changed}>
+    <legend>Who</legend>
+    <label class="choice-inline"><input type="radio" name="audience" value="chat" bind:group={audience} /> Everyone in chat</label>
+    <label class="choice-inline"><input type="radio" name="audience" value="recent" bind:group={audience} /> Everyone who chatted lately</label>
+    <label class="choice-inline"><input type="radio" name="audience" value="subs" bind:group={audience} /> Subscribers</label>
+  </fieldset>
+  <div class="row-actions">
+    {#if audience === 'recent'}
+      <label class="field inline-field"
+        ><span>In the last (minutes)</span><input class="sg-input" type="number" min="1" max="240" bind:value={minutes} oninput={changed} /></label
+      >
+    {/if}
+    <label class="field inline-field"><span>How many each</span><input class="sg-input" type="number" min="1" bind:value={each} oninput={changed} /></label>
+    <label class="field inline-field"
+      ><span>Why</span><input class="sg-input" bind:value={giveReason} maxlength="200" placeholder="optional" oninput={changed} /></label
+    >
+  </div>
+  <p class="sg-muted">
+    {#if audience === 'chat'}Twitch’s list of who’s in your chat, which it updates a little late. You and your bot aren’t included.
+    {:else if audience === 'subs'}Twitch’s list of your subscribers.
+    {:else}Viewers who chatted, from your real chat.{/if}
+  </p>
+  <div class="row-actions">
+    <button type="button" class="button" disabled={busy} onclick={seeWho}>See who</button>
+    {#if group && group.viewers > 0}
+      <button type="button" class="sg-button" disabled={busy || !(eachN() > 0)} onclick={give}
+        >Give {group.viewers} {group.viewers === 1 ? 'viewer' : 'viewers'} {eachN()} each</button
+      >
+    {/if}
+  </div>
+  {#if groupError}
+    <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> {groupError}</p>
+  {:else if group && group.viewers === 0}
+    <p class="sg-muted" role="status">{group.note}</p>
+  {:else if group}
+    <p role="status">
+      {group.viewers} {group.viewers === 1 ? 'viewer' : 'viewers'}: {group.sample.join(', ')}{group.viewers > group.sample.length
+        ? ` and ${group.viewers - group.sample.length} more`
+        : ''}. {eachN()} {name} each, {eachN() * group.viewers} in all.
+    </p>
+  {/if}
+  {#if gives.length}
+    <h3>Recent gives</h3>
+    <ul class="live-list" aria-label="Recent gives">
+      {#each gives as g (g.id)}
+        <li>
+          {eventTime(g.created_at)}: {g.amount} each to {g.viewers} ({g.words}){g.memo ? `: ${g.memo}` : ''}{g.undone_at ? ' (undone)' : ''}
+          {#if !g.undone_at}
+            <button type="button" class="button" disabled={busy} aria-label={`Undo the give to ${g.words}`} onclick={() => (undoingGive = g)}>Undo</button>
+          {/if}
+        </li>
+      {/each}
+    </ul>
   {/if}
 </section>
 
@@ -296,6 +435,9 @@
     <span>Find a viewer</span>
     <input class="sg-input" type="search" bind:value={query} oninput={load} placeholder="Name" />
   </label>
+  <div class="row-actions">
+    <button type="button" class="button" disabled={busy} onclick={exportAll}>Export everyone</button>
+  </div>
   {#if found.length === 0}
     <p class="sg-muted">{query.trim() ? 'No one by that name.' : 'No viewers yet: they appear as they chat, follow, subscribe or cheer.'}</p>
   {/if}
@@ -364,6 +506,16 @@
     confirmLabel="Undo"
     onconfirm={() => undo(t)}
     oncancel={() => (undoing = undefined)}
+  />
+{/if}
+{#if undoingGive}
+  {@const g = undoingGive}
+  <ConfirmDialog
+    title={`Undo the give to ${g.words}?`}
+    message={`${g.amount} ${name} are taken back from each of the ${g.viewers}. Anyone who has spent some keeps theirs: nobody goes below zero.`}
+    confirmLabel="Undo"
+    onconfirm={() => undoAll(g)}
+    oncancel={() => (undoingGive = undefined)}
   />
 {/if}
 {#if forgetting}

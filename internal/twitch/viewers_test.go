@@ -86,3 +86,34 @@ func TestChatters(t *testing.T) {
 		t.Fatal("Twitch down gave an answer")
 	}
 }
+
+// Get Broadcaster Subscriptions against mocktwitch: every page of 100, the
+// streamer and the bot left out; none is an empty list; a missing
+// permission and Twitch down are errors.
+func TestSubscribers(t *testing.T) {
+	ctx := context.Background()
+	r, s := chatRig(t, true)
+	for i := range 250 {
+		r.mock.SetSubMonths("streamer", fmt.Sprintf("sub%03d", i), 1+i%5)
+	}
+	r.mock.SetSubMonths("streamer", "gremlinbot", 3)
+	r.mock.SetSubMonths("streamer", "streamer", 12)
+	r.mock.SetSubMonths("streamer", "lapsed", 0)
+	got, err := s.Subscribers(ctx)
+	if err != nil || len(got) != 250 || got[0].Login != "sub000" || got[0].ID != r.mock.UserID("sub000") {
+		t.Fatal(len(got), err)
+	}
+	r.mock.FailSubscriptions(401)
+	if _, err := s.Subscribers(ctx); !errors.Is(err, ErrNeedsPermission) {
+		t.Fatal("401:", err)
+	}
+	r.mock.FailSubscriptions(0)
+	r.mock.SetDown(true)
+	if _, err := s.Subscribers(ctx); err == nil {
+		t.Fatal("Twitch down gave an answer")
+	}
+	_, s2 := chatRig(t, false)
+	if got, err := s2.Subscribers(ctx); err != nil || len(got) != 0 {
+		t.Fatal("no subscribers:", got, err)
+	}
+}

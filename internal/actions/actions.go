@@ -12,6 +12,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
+	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/points"
@@ -53,6 +54,8 @@ type Services struct {
 	// Viewers and Points keep viewer records and the points ledger.
 	Viewers *viewers.Service
 	Points  *points.Ledger
+	// Gives gives points to groups at once.
+	Gives *gives.Service
 }
 
 // Register adds every action to reg.
@@ -230,7 +233,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerAds(reg, sv.Ads)
 	registerGiveaways(reg, sv.Giveaways)
 	registerWheels(reg, sv.Wheels)
-	registerPoints(reg, sv.Viewers, sv.Points)
+	registerPoints(reg, sv.Viewers, sv.Points, sv.Gives)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

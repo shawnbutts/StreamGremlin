@@ -358,6 +358,8 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.followersLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/chat/chatters":
 		s.chattersLocked(w, r)
+	case r.Method == "GET" && r.URL.Path == "/helix/subscriptions":
+		s.subscriptionsLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/users":
 		s.usersLocked(w, r)
 	case r.Method == "POST" && r.URL.Path == "/helix/channels/commercial":

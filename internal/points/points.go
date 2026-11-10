@@ -331,6 +331,30 @@ func scanTx(sc scanner) (Transaction, error) {
 	return t, err
 }
 
+// ByOpPrefix returns the transactions whose operation id starts with
+// prefix, oldest first: the payments of one give to many, say.
+func (l *Ledger) ByOpPrefix(ctx context.Context, prefix string) ([]Transaction, error) {
+	if prefix == "" {
+		return nil, invalid("a prefix isn't empty")
+	}
+	// A range rather than LIKE, so the op_id index is used and _ and % are plain.
+	rows, err := l.db.QueryContext(ctx, "SELECT "+txColumns+" FROM ledger_transactions t WHERE t.op_id >= ? AND t.op_id < ? ORDER BY t.rowid",
+		prefix, prefix+"\U0010FFFF")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := []Transaction{}
+	for rows.Next() {
+		t, err := scanTx(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 func (l *Ledger) byOp(ctx context.Context, opID string) (Transaction, error) {
 	t, err := scanTx(l.db.QueryRowContext(ctx, "SELECT "+txColumns+" FROM ledger_transactions t WHERE t.op_id = ?", opID))
 	if errors.Is(err, sql.ErrNoRows) {
