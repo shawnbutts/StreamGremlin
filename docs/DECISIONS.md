@@ -1106,3 +1106,17 @@ Decided 2026-11-10. Offered M5 (Lua and plugins), the first outside beta or M6 (
 - **Installed themes are untrusted code,** like plugins: installing one asks first, and it runs sandboxed in its own origin, with no network.
 - **Installing, updating and removing themes is designed with plugins,** in the ownership ADR that comes before any plugin code (D-106, D-107 in the feature cut).
 
+## D-063. Packages: what plugins and themes own (M5 slice 1)
+
+Decided 2026-11-10 under D-007. The user said "good plan. proceed" to the M5 plan, whose first slice designs ownership before any plugin code.
+
+- **Plugins and overlay themes are packages, following [ADR-0036](adr/0036-packages-plugins-and-themes.md):**
+  - one ZIP format with a strict manifest, read with limits, stored in the database (backups carry it);
+  - a fixed identity per id and version; the publisher shown as stated, not verified;
+  - installing asks first and changes nothing until used;
+  - updates keep valid settings, ask again for more, and keep two versions to roll back to;
+  - removing a theme returns its overlays to Classic; removing a plugin turns off the workflows that use it (StreamWisp D-107), and plugin workflows are offered, never added unasked (StreamWisp D-106), now recorded as coming from the plugin.
+- **Themes run sandboxed:** a second loopback origin, a sandboxed frame with no network, a checked message protocol, the engine's clock for results, and Classic for a spin a theme can't show.
+- **Odds:** installed themes are labelled as not checked; built-in looks draw wedges to their real size, checked by tests.
+- **To check in slice 2:** OBS's browser source with the sandbox on macOS and Windows, and whether `window.obsstudio` reaches a sandboxed frame. Until then the Overlays screen says to leave Page permissions at the lowest level for themed overlays.
+
