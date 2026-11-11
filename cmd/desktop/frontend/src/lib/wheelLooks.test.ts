@@ -391,6 +391,10 @@ describe('the overlay page with a wheel look', () => {
       const { fromLook, status } = page();
       fromLook('theme.ready', { apiVersion: '1', obsApi: true, obsLevel: 1 });
       expect(status.textContent).toBe('Look: Workshop ready; OBS page API reachable, at level 1 (Read access to OBS status information)');
+      // What OBS does in a sandboxed frame: the object is there, the answer never comes.
+      const q = page();
+      q.fromLook('theme.ready', { apiVersion: '1', obsApi: true, obsLevel: null });
+      expect(q.status.textContent).toBe('Look: Workshop ready; OBS page API reachable; OBS didn’t tell the look its level');
     });
   });
 

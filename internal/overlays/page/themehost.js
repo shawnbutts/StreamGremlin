@@ -31,7 +31,7 @@ export function obsReach(p) {
   const n = p.obsLevel;
   return Number.isInteger(n) && n >= 0 && n < OBS_LEVELS.length
     ? `OBS page API reachable, at level ${n} (${OBS_LEVELS[n]})`
-    : 'OBS page API reachable, at an unknown level';
+    : 'OBS page API reachable; OBS didn’t tell the look its level';
 }
 
 /**
