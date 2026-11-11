@@ -32,6 +32,7 @@ func TestWheelLooksAreChecked(t *testing.T) {
 		"a title that's too long":   look("builtin:workshop", map[string]any{"title": strings.Repeat("x", 71)}),
 		"a title with a newline":    look("builtin:workshop", map[string]any{"title": "a\nb"}),
 		"a switch that isn't":       look("builtin:neon-arcade", map[string]any{"show_title": "yes"}),
+		"sounds that aren't on/off": look("builtin:workshop", map[string]any{"sounds": "loud"}),
 		"a colour that isn't":       look("builtin:selector-board", map[string]any{"accent": "red"}),
 		"Classic with settings":     look("", map[string]any{"title": "x"}),
 		"a colour that's injection": look("builtin:workshop", map[string]any{"accent": "#fff;}body{"}),
@@ -65,7 +66,7 @@ func TestWheelLooksAreChecked(t *testing.T) {
 	// Defaults fill the gaps.
 	th, _ := ThemeByID("builtin:neon-arcade")
 	got := th.themeSettings(map[string]any{"title": "Raid wheel"})
-	if got["title"] != "Raid wheel" || got["show_title"] != true || got["accent"] != "#3cf2c8" {
+	if got["title"] != "Raid wheel" || got["show_title"] != true || got["accent"] != "#3cf2c8" || got["sounds"] != true {
 		t.Fatal(got)
 	}
 }
@@ -94,6 +95,17 @@ func TestAWheelOverlaysHelloNamesItsLook(t *testing.T) {
 	th, ok := hello(wheel)["theme"].(map[string]any)
 	if !ok || th["url"] != "http://127.0.0.1:50123/t/builtin/"+PageVersion+"/selector-board/index.html" || th["odds_checked"] != true ||
 		th["settings"].(map[string]any)["show_title"] != true {
+		t.Fatal(th)
+	}
+	// Its sounds (D-065), unless they're turned off.
+	sounds, _ := th["sounds"].(map[string]any)
+	for _, cue := range ThemeCues {
+		if sounds[cue] != "http://127.0.0.1:50123/t/builtin/"+PageVersion+"/selector-board/"+cue+".wav" {
+			t.Fatal(sounds)
+		}
+	}
+	l.ThemeSettings = map[string]any{"sounds": false}
+	if th := hello(Overlay{Name: "w", Kind: KindWheel, Look: l})["theme"].(map[string]any); th["sounds"] != nil || th["url"] == nil {
 		t.Fatal(th)
 	}
 	if _, ok := hello(Overlay{Name: "w", Kind: KindWheel, Look: DefaultLook()})["theme"]; ok {
@@ -139,7 +151,7 @@ func TestLooksAreServedSandboxedWithNoNetwork(t *testing.T) {
 		res, body := get(t, base+th.dir+"/index.html")
 		csp := res.Header.Get("Content-Security-Policy")
 		for _, want := range []string{"sandbox allow-scripts;", "connect-src 'none'", "default-src 'none'", "frame-src 'none'", "worker-src 'none'",
-			"form-action 'none'", "base-uri 'none'", "script-src 'self' " + srv.URL + ";",
+			"form-action 'none'", "base-uri 'none'", "media-src 'none'", "script-src 'self' " + srv.URL + ";",
 			"frame-ancestors http://127.0.0.1:7431 http://localhost:7431 wails://localhost http://wails.localhost"} {
 			if !strings.Contains(csp, want) {
 				t.Errorf("%s: the policy lacks %q: %s", th.ID, want, csp)
@@ -169,6 +181,25 @@ func TestLooksAreServedSandboxedWithNoNetwork(t *testing.T) {
 			}
 			if strings.HasSuffix(f, ".js") {
 				pending = append(pending, refs(t, path.Dir(f), body)...)
+			}
+		}
+		// Its sounds, for the overlay page to play (D-065).
+		for _, cue := range ThemeCues {
+			res, body := get(t, base+th.dir+"/"+cue+".wav")
+			if res.StatusCode != 200 || res.Header.Get("Content-Type") != "audio/wav" || !strings.HasPrefix(body, "RIFF") ||
+				res.Header.Get("Cross-Origin-Resource-Policy") != "cross-origin" {
+				t.Errorf("%s: %s.wav: %d %v", th.ID, cue, res.StatusCode, res.Header)
+			}
+			req, _ := http.NewRequest("GET", base+th.dir+"/"+cue+".wav", nil)
+			req.Header.Set("Range", "bytes=0-3")
+			part, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, _ := io.ReadAll(part.Body)
+			_ = part.Body.Close()
+			if part.StatusCode != http.StatusPartialContent || string(b) != "RIFF" {
+				t.Errorf("%s: %s.wav in parts: %d %q", th.ID, cue, part.StatusCode, b)
 			}
 		}
 		if !seen[th.dir+"/main.js"] || !seen[th.dir+"/theme.css"] || !seen["shared/bridge.js"] {
@@ -242,9 +273,11 @@ func TestTheThemeServerServesNothingElse(t *testing.T) {
 	}
 }
 
-// The overlay page may frame the theme server, and nothing else.
+// The overlay page may frame the theme server, and nothing else, and play
+// sounds from itself and the theme server.
 func TestTheOverlayPageMayFrameOnlyTheThemeServer(t *testing.T) {
-	if !strings.Contains(CSP, "frame-src http://127.0.0.1:*;") || strings.Count(CSP, "frame-src") != 1 {
+	if !strings.Contains(CSP, "frame-src http://127.0.0.1:*;") || strings.Count(CSP, "frame-src") != 1 ||
+		!strings.Contains(CSP, "media-src 'self' http://127.0.0.1:*;") || strings.Count(CSP, "media-src") != 1 {
 		t.Fatal(CSP)
 	}
 }

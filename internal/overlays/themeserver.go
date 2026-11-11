@@ -1,12 +1,14 @@
 package overlays
 
 import (
+	"bytes"
 	"log/slog"
 	"net/http"
 	"path"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ThemeServer serves wheel looks' files, and nothing else, from its own
@@ -40,7 +42,8 @@ func (t *ThemeServer) SetOrigins(self string, overlays []string) {
 
 // ThemeCSP is the policy on every theme file: sandboxed with scripts only
 // (no same origin, so no storage and no reading the overlay page), its
-// own files only, no connections, frames, workers, forms or base URL, and
+// own files only, no connections, frames, workers, forms or base URL, no
+// sound of its own (the overlay page plays a look's sounds, D-065), and
 // framed only by overlay pages and the app's previews.
 func (t *ThemeServer) ThemeCSP() string {
 	t.mu.RLock()
@@ -50,7 +53,7 @@ func (t *ThemeServer) ThemeCSP() string {
 		own += " " + t.self
 	}
 	return "sandbox allow-scripts; default-src 'none'; script-src " + own + "; style-src " + own + "; img-src " + own + " data:; font-src " + own +
-		"; media-src " + own + "; connect-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'" +
+		"; media-src 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'" +
 		"; frame-ancestors " + strings.Join(append(append([]string(nil), t.ancestors...), DesktopOrigins...), " ")
 }
 
@@ -105,8 +108,6 @@ func (t *ThemeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Set("Content-Type", ctype)
 	h.Set("Content-Security-Policy", t.ThemeCSP())
-	if r.Method == http.MethodHead {
-		return
-	}
-	_, _ = w.Write(b) //nolint:gosec // a built-in look's own file, embedded in the build; the request only picks which
+	// With its length, and ranges, which audio players ask for.
+	http.ServeContent(w, r, file, time.Time{}, bytes.NewReader(b))
 }

@@ -223,6 +223,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - A **Viewers** screen, after Points (Ctrl/⌘+9): find a viewer, their record, points and history, give, take, undo, export and forget, and Export everyone. These moved off the Points screen; a top viewer's name on Points opens them there. Variables no longer has a default shortcut.
 - M5 slice 2, wheel looks: on **Overlays**, a wheel overlay's **Look** can be Classic, Workshop, Neon arcade or Selector board (a list that rolls to the result, with each choice's chance), with a title and an accent colour. The new looks run sandboxed, from their own address with no network, and only show the result StreamGremlin drew; if one can't show a spin, Classic does. `streamgremlin overlays look NAME -look workshop`.
+- Wheel look sounds: Workshop, Neon arcade and Selector board each have their own start, stop and cheer sounds, made by StreamGremlin. They play for any sound you leave empty under **Sounds**, at its volume; a sound you pick still wins. Turn them off with **Play the look's sounds**, or `overlays look NAME -look-sounds=false`.
 
 ### Fixed
 

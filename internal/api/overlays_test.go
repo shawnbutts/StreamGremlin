@@ -184,7 +184,7 @@ func TestWheelLooksThroughTheAPI(t *testing.T) {
 	code, out := call("GET", "/v1/overlays", "")
 	var list OverlayList
 	_ = json.Unmarshal([]byte(out), &list)
-	if code != 200 || len(list.Themes) != 3 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 3 || !list.Themes[0].OddsChecked {
+	if code != 200 || len(list.Themes) != 3 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 4 || !list.Themes[0].OddsChecked {
 		t.Fatalf("%d %s", code, out)
 	}
 	if code, out := call("POST", "/v1/overlays", `{"name":"alerts","look":{"theme":"builtin:workshop"}}`); code != 400 || !strings.Contains(out, "wheel overlays") {

@@ -46,6 +46,7 @@ const settings = (accent: string) => [
   { key: 'title', label: 'Title', kind: 'text' as const, default: '', max: 70, hint: "Empty: the wheel's own title" },
   { key: 'show_title', label: 'Show the title', kind: 'switch' as const, default: true },
   { key: 'accent', label: 'Accent colour', kind: 'colour' as const, default: accent },
+  { key: 'sounds', label: "Play the look's sounds", kind: 'switch' as const, default: true, hint: "A sound you pick under Sounds plays instead of the look's" },
 ];
 const themes = [
   { id: 'builtin:workshop', name: 'Workshop', description: 'A brass and wood frame.', odds_checked: true, settings: settings('#e8b04e') },
@@ -245,6 +246,34 @@ describe('Overlays', () => {
     const last = calls.filter((c) => c.method === 'PUT').at(-1)!.body as { look: OverlayLook };
     expect(last.look.theme).toBe('');
     expect(last.look.theme_settings).toBeUndefined();
+  });
+
+  it('offers a look’s own sounds for the cues left empty, and turns them off', async () => {
+    const wheel: Overlay = { ...alerts, name: 'wheel', kind: 'wheel', look: { ...look, start_sound: '', end_sound: 'tada', cheer_sound: '' } };
+    const { calls } = engine([wheel]);
+    const el = start();
+    await settle();
+    const select = (label: string) =>
+      Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === label)!.querySelector('select')!;
+    const volumes = () => Array.from(el.querySelectorAll('label')).filter((l) => l.querySelector('span')?.textContent?.startsWith('Volume')).length;
+    expect(select('As a spin starts').options[0].textContent).toBe('No sound');
+    expect(volumes()).toBe(1); // only the picked one
+    select('Look').value = 'builtin:workshop';
+    select('Look').dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    expect(select('As a spin starts').options[0].textContent).toBe('Workshop’s sound');
+    expect(volumes()).toBe(3);
+    expect(el.textContent).toContain("A sound you pick under Sounds plays instead of the look's.");
+    const toggle = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim() === "Play the look's sounds")!.querySelector('input')!;
+    expect(toggle.checked).toBe(true);
+    toggle.click();
+    flushSync();
+    expect(select('As a spin starts').options[0].textContent).toBe('No sound');
+    expect(volumes()).toBe(1);
+    await noViolations('look sounds');
+    button(el, 'Save look')!.click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT')).toMatchObject({ body: { look: { theme: 'builtin:workshop', theme_settings: { sounds: false } } } });
   });
 
   it('shows the link to copy by hand when the clipboard is refused', async () => {

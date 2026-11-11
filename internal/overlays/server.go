@@ -55,8 +55,9 @@ var DesktopOrigins = []string{"wails://localhost", "http://wails.localhost"}
 
 // CSP keeps the page to its own script and style, the platforms' picture
 // host, its own connection, and a wheel look's sandboxed frame from the
-// theme server (on this computer, at a port chosen as the engine starts).
-var CSP = "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self'; img-src " + strings.Join(PictureHosts, " ") +
+// theme server (on this computer, at a port chosen as the engine starts),
+// with the look's sounds from there too (D-065).
+var CSP = "default-src 'none'; script-src 'self'; style-src 'self'; media-src 'self' http://127.0.0.1:*; img-src " + strings.Join(PictureHosts, " ") +
 	"; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; frame-src http://127.0.0.1:*; base-uri 'none'; form-action 'none'; frame-ancestors " +
 	strings.Join(DesktopOrigins, " ")
 

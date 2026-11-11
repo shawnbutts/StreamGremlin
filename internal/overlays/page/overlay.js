@@ -14,6 +14,8 @@ const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
 
 const HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
+// A wheel look's sound: a .wav file from the theme server (D-065).
+const THEME_SOUND = /^http:\/\/127\.0\.0\.1:\d+\/t\/[a-z0-9\/._-]+\.wav$/;
 
 // Font lists most computers have, so a choice looks alike on macOS and
 // Windows. "custom" uses a font installed on this computer, by name.
@@ -125,6 +127,7 @@ export function start(win, opts = {}) {
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
   let look = null; // the overlay's look, for giveaway and wheel sounds
+  let lookSounds = null; // a wheel look's own sounds, by cue
 
   function setStatus(text) {
     if (!status) return;
@@ -141,14 +144,24 @@ export function start(win, opts = {}) {
   // result shows. Played here so OBS
   // hears it; the app's preview stays silent. A sound that won't play is
   // skipped: chat already says everything.
+  //
+  // A wheel look may have its own sounds (D-065): one plays for a cue the
+  // streamer picked no sound for, at that cue's volume.
   function cue(which) {
     if (preview || !look) return;
     const name = look[`${which}_sound`];
     const volume = look[`${which}_volume`];
     if (!['start', 'end', 'cheer'].includes(which)) return;
-    if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) return;
+    let url = '';
+    if (typeof name === 'string' && name !== '') {
+      if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(name)) return;
+      url = `${base}sound/${encodeURIComponent(name)}`;
+    } else if (lookSounds && typeof lookSounds[which] === 'string' && THEME_SOUND.test(lookSounds[which])) {
+      url = lookSounds[which];
+    }
+    if (!url) return;
     try {
-      const audio = makeAudio(`${base}sound/${encodeURIComponent(name)}`);
+      const audio = makeAudio(url);
       audio.volume = clamp(volume, 0, 100, 80) / 100;
       Promise.resolve(audio.play()).catch(() => {});
     } catch {
@@ -282,6 +295,7 @@ export function start(win, opts = {}) {
   // The wheel's look, from the hello: Classic, or a theme by its link.
   function setWheel(theme) {
     const valid = theme && typeof theme.url === 'string' && /^http:\/\/127\.0\.0\.1:\d+\/t\//.test(theme.url);
+    lookSounds = valid && theme.sounds && typeof theme.sounds === 'object' ? theme.sounds : null;
     if (!valid) {
       if (themed) themed.stop();
       themed = null;

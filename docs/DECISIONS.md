@@ -1131,3 +1131,14 @@ Decided 2026-11-10 under D-007, building on D-062 and D-063. The user said "proc
 - **Whether OBS's page API reaches a sandboxed frame** is reported by the looks, in the app's preview and in OBS with `?status=1`, for the live check. The Overlays screen says to leave Page permissions at "No access to OBS".
 - **Built and checked against a browser test page and the app's tests only,** until the live check.
 
+## D-065. Sounds for the built-in wheel looks
+
+Decided 2026-11-10 under D-007, building on D-051 and D-064. The user, after the slice 2 live check: "looks good.  can you add support for the including the sounds in the themes?  you'd have to create sounds for each theme to go with them."
+
+- **Each built-in look has its own three sounds,** for the cues wheel overlays already have (D-051): as a spin starts, as it stops, and as the result shows.
+  - Workshop: a wooden ratchet winding up, a wood block and brass thunk, three rising brass bells.
+  - Neon arcade: a stepped square-wave power-up, two landing blips, a chiptune fanfare.
+  - Selector board: relays clattering over a motor, a "ka-chunk" as it locks, a rising three-tone station chime.
+- **They're synthesised by StreamGremlin's own code** (`internal/overlays/themesounds`), so every sample's origin is plain: no recordings or outside packs. A test checks the committed WAV files match what that code makes.
+- **The streamer's own sound wins.** A look's sound plays only for a cue left without one, at that cue's volume. The look's **Play the look's sounds** setting (on by default) turns them all off. On the Overlays screen, an empty sound is shown as "Workshop's sound" (and so on) while they're on.
+- **The overlay page plays them,** as it does every overlay sound (ADR-0031), so they keep to the engine's clock and the app's preview stays silent. Themes themselves can't play sound (`media-src 'none'`); the theme server serves the files with their length and ranges. The same rule will hold for installed themes in slice 3 ([ADR-0036](adr/0036-packages-plugins-and-themes.md)).

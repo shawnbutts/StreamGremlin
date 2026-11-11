@@ -185,13 +185,14 @@ describe('the overlay page with a wheel look', () => {
   const url = 'http://127.0.0.1:50123/t/builtin/workshop/v1/index.html';
   const theme = { id: 'builtin:workshop', name: 'Workshop', url, settings: { title: '', show_title: true, accent: '#e8b04e' }, odds_checked: true };
   const look = { start_sound: 'drumroll', end_sound: 'clunk', cheer_sound: 'cheer' };
-  const hello = (t: unknown = theme) => ({ type: 'hello', body: { overlay: { name: 'wheel', kind: 'wheel', look }, theme: t, page_version: 'v1' } });
+  const hello = (t: unknown = theme, lk: unknown = look) => ({ type: 'hello', body: { overlay: { name: 'wheel', kind: 'wheel', look: lk }, theme: t, page_version: 'v1' } });
   const spin = (id: string, winner = 0, draw = 1) => ({ type: 'spin', body: { id, title: 'Next game', choices, winner, draw, seconds: 6 } });
 
-  function page(search = '?status=1') {
+  function page(search = '?status=1', first: ReturnType<typeof hello> = hello()) {
     document.body.innerHTML = '<div id="status" hidden></div><div id="stage"></div>';
     const c = clock();
     const sounds: string[] = [];
+    const played: { src: string; volume: number }[] = [];
     const win = {
       document,
       location: { search, pathname: '/o/tok/', protocol: 'http:', host: '127.0.0.1:7431' },
@@ -202,17 +203,24 @@ describe('the overlay page with a wheel look', () => {
       WebSocket: FakeSocket,
       setTimeout: c.setTimeout,
       now: c.now,
-      Audio: (src: string) => ({ volume: 1, play: () => (sounds.push(src.split('/').at(-1)!), Promise.resolve()) }),
+      Audio: (src: string) => ({
+        volume: 1,
+        play() {
+          sounds.push(src.split('/').at(-1)!);
+          played.push({ src, volume: this.volume });
+          return Promise.resolve();
+        },
+      }),
     });
     const ws = FakeSocket.all.at(-1)!;
     ws.fire('open');
-    ws.fire('message', hello());
+    ws.fire('message', first);
     const frame = document.querySelector('iframe')!;
     const posted: { type: string; payload: Record<string, unknown> }[] = [];
     if (frame) (frame.contentWindow as unknown as { postMessage: unknown }).postMessage = (m: (typeof posted)[0]) => posted.push(m);
     const fromLook = (type: string, payload: unknown = {}, source: unknown = frame.contentWindow, extra: Record<string, unknown> = {}) =>
       window.dispatchEvent(new MessageEvent('message', { source: source as Window, data: { protocolVersion: 1, type, payload, ...extra } }));
-    return { ov, ws, c, frame, posted, fromLook, sounds, stage: document.getElementById('stage')!, status: document.getElementById('status')! };
+    return { ov, ws, c, frame, posted, fromLook, sounds, played, stage: document.getElementById('stage')!, status: document.getElementById('status')! };
   }
 
   it('frames the look sandboxed, with no referrer, from the theme server only', () => {
@@ -299,6 +307,41 @@ describe('the overlay page with a wheel look', () => {
     expect(document.querySelector('iframe')).toBeNull();
     ws.fire('message', spin('s9', 2, 3));
     expect(document.querySelector('.sg-wheel')).not.toBeNull();
+  });
+  it('plays the look’s own sounds for cues the streamer left empty, at their volumes, and only from the theme server', () => {
+    const base = 'http://127.0.0.1:50123/t/builtin/v1/workshop/';
+    const sounds = { start: `${base}start.wav`, end: `${base}end.wav`, cheer: `${base}cheer.wav` };
+    const own = { start_sound: '', start_volume: 30, end_sound: '', end_volume: 80, cheer_sound: 'cheer', cheer_volume: 60 };
+    const { ws, c, fromLook, played } = page('?status=1', hello({ ...theme, sounds }, own));
+    fromLook('theme.ready', {});
+    ws.fire('message', spin('s1'));
+    c.advance(6500);
+    expect(played).toEqual([
+      { src: sounds.start, volume: 0.3 },
+      { src: sounds.end, volume: 0.8 },
+      { src: '/o/tok/sound/cheer', volume: 0.6 }, // the streamer's own wins
+    ]);
+    // Sounds from anywhere but the theme server, or not .wav, never play.
+    c.advance(4000);
+    ws.fire('message', hello({ ...theme, sounds: { start: 'https://evil.example/t/a.wav', end: `${base}end.js` } }, own));
+    ws.fire('message', spin('s2'));
+    c.advance(6500);
+    expect(played.length).toBe(4); // only the cheer
+    // The look's sounds turned off: none sent, none played.
+    c.advance(4000);
+    ws.fire('message', hello(theme, own));
+    ws.fire('message', spin('s3'));
+    c.advance(6500);
+    expect(played.length).toBe(5);
+  });
+
+  it('keeps the app’s preview silent, look sounds too', () => {
+    const base = 'http://127.0.0.1:50123/t/builtin/v1/workshop/';
+    const { ws, c, fromLook, played } = page('?preview=1', hello({ ...theme, sounds: { start: `${base}start.wav` } }, {}));
+    fromLook('theme.ready', {});
+    ws.fire('message', spin('s1'));
+    c.advance(12000);
+    expect(played).toEqual([]);
   });
 });
 

@@ -84,6 +84,9 @@
   }
 
   const settingValue = (key: string, dflt: string | boolean) => look?.theme_settings?.[key] ?? dflt;
+  // A look with its own sounds plays them for any cue left at "No sound" (D-065).
+  const themeSoundsSetting = $derived(chosenTheme?.settings.find((s) => s.key === 'sounds'));
+  const themeSounds = $derived(Boolean(themeSoundsSetting && settingValue('sounds', themeSoundsSetting.default) === true));
   function setSetting(key: string, v: string | boolean) {
     if (look) look.theme_settings = { ...(look.theme_settings ?? {}), [key]: v };
   }
@@ -339,6 +342,7 @@
                     <input type="checkbox" checked={settingValue(s.key, s.default) === true} onchange={(e) => setSetting(s.key, e.currentTarget.checked)} />
                     {s.label}
                   </label>
+                  {#if s.hint}<p class="sg-muted field-hint">{s.hint}.</p>{/if}
                 {:else}
                   <label class="field">
                     <span>{s.label}</span>
@@ -368,6 +372,7 @@
             <p class="sg-muted field-hint">
               Played by the overlay, so OBS hears them (tick “Control audio via OBS” on its browser source). The last plays half a second
               after it stops, as the result shows: good for a cheer. Add sounds on the Sounds screen.
+              {#if themeSounds}{chosenTheme?.name}’s own sounds play where you leave “{chosenTheme?.name}’s sound”.{/if}
             </p>
             {#each [
               ['start', isWheel(current) ? 'As a spin starts' : 'As a roll starts'],
@@ -379,11 +384,11 @@
               <label class="field">
                 <span>{label}</span>
                 <select class="sg-input" bind:value={look[nameKey]}>
-                  <option value="">No sound</option>
+                  <option value="">{themeSounds ? `${chosenTheme?.name}’s sound` : 'No sound'}</option>
                   {#each soundNames as s (s)}<option value={s}>{s}</option>{/each}
                 </select>
               </label>
-              {#if look[nameKey]}
+              {#if look[nameKey] || themeSounds}
                 <label class="field">
                   <span>Volume {look[volKey] ?? 80}</span>
                   <input type="range" min="0" max="100" step="5" bind:value={look[volKey]} />

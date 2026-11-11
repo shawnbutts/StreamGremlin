@@ -29,6 +29,7 @@ const overlaysUsage = `usage:
                                           -cheer-sound cheer
                                           wheel overlays: -look workshop (or classic, neon-arcade,
                                           selector-board) -look-title "Pick a game" -accent #e8b04e
+                                          -look-sounds=false (its own sounds, where none is picked)
   streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -162,6 +163,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			lookTitle := fs.String("look-title", "", "wheel overlays with a look: its title (empty for the wheel's own)")
 			lookShowTitle := fs.Bool("look-show-title", true, "wheel overlays with a look: show the title")
 			accent := fs.String("accent", "", "wheel overlays with a look: its accent colour, #RRGGBB")
+			lookSounds := fs.Bool("look-sounds", true, "wheel overlays with a look: play the look's own sounds where no sound is picked")
 			if err := fs.Parse(args[2:]); err != nil || fs.NArg() > 0 {
 				return usage()
 			}
@@ -183,6 +185,8 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 					settings["show_title"] = *lookShowTitle
 				case "accent":
 					settings["accent"] = *accent
+				case "look-sounds":
+					settings["sounds"] = *lookSounds
 				}
 			})
 			l.Theme, l.ThemeSettings = theme, settings

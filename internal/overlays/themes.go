@@ -48,6 +48,8 @@ func commonSettings(accent string) []Setting {
 		{Key: "title", Label: "Title", Kind: SettingText, Default: "", Max: 70, Hint: "Empty: the wheel's own title"},
 		{Key: "show_title", Label: "Show the title", Kind: SettingSwitch, Default: true},
 		{Key: "accent", Label: "Accent colour", Kind: SettingColour, Default: accent},
+		{Key: "sounds", Label: "Play the look's sounds", Kind: SettingSwitch, Default: true,
+			Hint: "A sound you pick under Sounds plays instead of the look's"},
 	}
 }
 
@@ -145,7 +147,15 @@ type ThemeView struct {
 	URL         string         `json:"url"`
 	Settings    map[string]any `json:"settings"`
 	OddsChecked bool           `json:"odds_checked"`
+	// Sounds are the look's own sounds (D-065), by cue (start, end,
+	// cheer), when its "sounds" setting is on. The overlay page plays
+	// them, as it does the streamer's: a sound picked for a cue wins.
+	Sounds map[string]string `json:"sounds,omitempty"`
 }
+
+// ThemeCues are the moments a look's sounds play, each a file <cue>.wav
+// in the look's folder (made by internal/overlays/themesounds).
+var ThemeCues = []string{"start", "end", "cheer"}
 
 // themeView is the theme a wheel overlay shows, or nil for Classic (or
 // when themes aren't served).
@@ -157,8 +167,15 @@ func themeView(o Overlay, origin string) *ThemeView {
 	if !ok {
 		return nil
 	}
-	return &ThemeView{ID: t.ID, Name: t.Name, URL: origin + themePath(t.dir) + "index.html",
+	v := &ThemeView{ID: t.ID, Name: t.Name, URL: origin + themePath(t.dir) + "index.html",
 		Settings: t.themeSettings(o.Look.ThemeSettings), OddsChecked: t.OddsChecked}
+	if v.Settings["sounds"] == true {
+		v.Sounds = map[string]string{}
+		for _, cue := range ThemeCues {
+			v.Sounds[cue] = origin + themePath(t.dir) + cue + ".wav"
+		}
+	}
+	return v
 }
 
 // themePath is where a built-in theme's files are served: the page

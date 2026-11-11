@@ -77,14 +77,48 @@ func TestWheelLooksThroughTheCLI(t *testing.T) {
 	} else {
 		_ = res.Body.Close()
 	}
-	// The overlay page may frame the theme server.
+	// The look's own sounds (D-065): named in the hello, served from the
+	// theme server for the overlay page to play.
+	base := strings.TrimSuffix(url, "index.html")
+	for _, cue := range []string{"start", "end", "cheer"} {
+		if problem := p.has("hello", `"`+cue+`":"`+base+cue+`.wav"`); problem != "" {
+			t.Fatal(cue, problem)
+		}
+		res, err := http.Get(base + cue + ".wav")
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != 200 || res.Header.Get("Content-Type") != "audio/wav" || res.ContentLength < 1000 {
+			t.Fatalf("%s.wav: %d %v", cue, res.StatusCode, res.Header)
+		}
+	}
+	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-look", "workshop", "-look-sounds=false"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "the look's sounds off", func() string {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		last := ""
+		for _, m := range p.got {
+			if strings.HasPrefix(m, "hello ") {
+				last = m
+			}
+		}
+		// Off, and the title kept: one setting changed.
+		if !strings.Contains(last, `"sounds":false`) || strings.Contains(last, `"sounds":{`) || !strings.Contains(last, `"title":"Pick a game"`) {
+			return last
+		}
+		return ""
+	})
+	// The overlay page may frame the theme server, and play sounds from it.
 	res, err := http.Get(link)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = res.Body.Close()
-	if !strings.Contains(res.Header.Get("Content-Security-Policy"), "frame-src http://127.0.0.1:*") {
-		t.Fatal(res.Header.Get("Content-Security-Policy"))
+	if csp := res.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "frame-src http://127.0.0.1:*") || !strings.Contains(csp, "media-src 'self' http://127.0.0.1:*") {
+		t.Fatal(csp)
 	}
 	// Back to Classic: the next hello has no look.
 	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-look", "classic"); code != 0 || !strings.Contains(out, "the Classic look") {
