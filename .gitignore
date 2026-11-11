@@ -7,3 +7,5 @@ node_modules/
 /streamgremlin
 /cmd/desktop/desktop
 /tmp
+# ZIPs made from the examples for live checks.
+/examples/**/*.zip
