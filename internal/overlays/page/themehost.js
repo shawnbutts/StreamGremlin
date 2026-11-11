@@ -14,6 +14,26 @@ const MAX_MESSAGE = 16 << 10; // characters of JSON
 const MAX_PER_SECOND = 20;
 const FROM_THEME = ['theme.ready', 'spin.animation.completed', 'theme.error'];
 
+// OBS's "Page permissions" for a browser source, by the level its page
+// API reports (window.obsstudio.getControlLevel): what each lets a page do.
+export const OBS_LEVELS = [
+  'No access to OBS',
+  'Read access to OBS status information',
+  'Read access to user information',
+  'Basic access to OBS',
+  'Advanced access to OBS',
+  'Full access to OBS',
+];
+
+/** How a look's report of OBS's page API reads in the status line. */
+export function obsReach(p) {
+  if (p.obsApi !== true) return 'OBS page API not reachable';
+  const n = p.obsLevel;
+  return Number.isInteger(n) && n >= 0 && n < OBS_LEVELS.length
+    ? `OBS page API reachable, at level ${n} (${OBS_LEVELS[n]})`
+    : 'OBS page API reachable, at an unknown level';
+}
+
 /**
  * opts: setTimeout, now, reducedMotion, cue (sounds), classic (the Classic
  * wheel view, for spins the look can't show), report(status, detail).
@@ -77,7 +97,7 @@ export function themedWheelView(win, stage, theme, opts) {
     if (size > MAX_MESSAGE || !msg || typeof msg !== 'object' || msg.protocolVersion !== PROTOCOL || !FROM_THEME.includes(msg.type)) return;
     const p = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
     if (msg.type === 'theme.ready') {
-      if (!ready) report('ready', `${theme.name} ready; OBS page API ${p.obsApi === true ? 'reachable' : 'not reachable'}`);
+      if (!ready) report('ready', `${theme.name} ready; ${obsReach(p)}`);
       ready = true;
       snapshot();
     } else if (msg.type === 'theme.error') {

@@ -371,6 +371,9 @@ type ThemeView struct {
 	// cheer), when its "sounds" setting is on. The overlay page plays
 	// them, as it does the streamer's: a sound picked for a cue wins.
 	Sounds map[string]string `json:"sounds,omitempty"`
+	// AddOn: an installed look, someone else's code. The page only frames
+	// one while OBS gives the browser source no page permissions (D-067).
+	AddOn bool `json:"add_on,omitempty"`
 }
 
 // ThemeCues are the moments a look's sounds play, each a file <cue>.wav
@@ -388,7 +391,7 @@ func themeView(o Overlay, origin string, c *Catalogue) *ThemeView {
 		return nil
 	}
 	v := &ThemeView{ID: t.ID, Name: t.Name, URL: origin + t.path() + t.entry,
-		Settings: t.themeSettings(o.Look.ThemeSettings), OddsChecked: t.OddsChecked}
+		Settings: t.themeSettings(o.Look.ThemeSettings), OddsChecked: t.OddsChecked, AddOn: t.Installed()}
 	if v.Settings["sounds"] == true && len(t.cues) > 0 {
 		v.Sounds = map[string]string{}
 		dir := path.Dir(t.entry)

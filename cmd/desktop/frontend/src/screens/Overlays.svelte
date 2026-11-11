@@ -380,7 +380,9 @@
               {/each}
               <p class="sg-muted field-hint">
                 The look runs in a sandbox: it can’t reach the internet, your accounts or StreamGremlin, and only shows the result
-                StreamGremlin drew. In OBS, leave this browser source’s “Page permissions” at “No access to OBS”: a look never needs it.
+                StreamGremlin drew. In OBS, leave this browser source’s “Page permissions” at “No access to OBS”: a look never needs it,
+                and OBS would let the look use whatever it allows. An add-on look only loads at “No access to OBS”; otherwise Classic
+                shows instead.
               </p>
             {:else}
               <p class="sg-muted field-hint">Classic uses the colours and font below. If another look can’t show a spin, Classic shows it.</p>

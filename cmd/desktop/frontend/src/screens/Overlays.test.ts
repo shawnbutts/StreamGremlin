@@ -224,6 +224,7 @@ describe('Overlays', () => {
     flushSync();
     expect(el.textContent).toContain('It shows the real odds');
     expect(el.textContent).toContain('“Page permissions” at “No access to OBS”');
+    expect(el.textContent!.replace(/\s+/g, ' ')).toContain('An add-on look only loads at “No access to OBS”; otherwise Classic shows instead.');
     const title = Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === 'Title')!.querySelector('input')!;
     expect(title.placeholder).toBe("Empty: the wheel's own title");
     title.value = 'Pick a game';

@@ -88,6 +88,7 @@ describe('Add-ons', () => {
     expect(shown).toContain('can’t reach the internet');
     expect(shown).toContain('can’t check how it draws the odds');
     expect(shown).toContain('It has its own sounds.');
+    expect(shown.replace(/\s+/g, ' ')).toContain('only loads while the wheel’s browser source has “Page permissions” at “No access to OBS”');
     expect(shown).toContain('Settings: Paper.');
     expect(calls.some((c) => c.path.startsWith('/v1/packages?'))).toBe(false); // nothing installed by looking
     await noViolations('a preview');

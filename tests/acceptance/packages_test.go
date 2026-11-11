@@ -61,7 +61,7 @@ func TestInstalledLooksThroughTheCLI(t *testing.T) {
 	out, errOut, code := cli(t, dir, "packages", "install", zipPath)
 	if code != 0 || !strings.Contains(out, "Paper wheel 1.1.0: a wheel look, published by StreamGremlin examples (not verified)") ||
 		!strings.Contains(out, "It has its own sounds.") ||
-		!strings.Contains(out, "can't reach the internet") || !strings.Contains(out, "-yes") {
+		!strings.Contains(out, "can't reach the internet") || !strings.Contains(out, `"Page permissions" at "No access to OBS"`) || !strings.Contains(out, "-yes") {
 		t.Fatal(out, errOut)
 	}
 	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "No add-ons installed") {

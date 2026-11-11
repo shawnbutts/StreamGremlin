@@ -2,7 +2,7 @@
 // Each choice shows its chance, so the board never misstates the odds
 // (docs/adr/0036-packages-plugins-and-themes.md). It never picks: it
 // stops on the winner it's sent, and shows the result when told.
-import { bridge, obsApi } from '../shared/bridge.js';
+import { bridge, sayReady } from '../shared/bridge.js';
 import { HEX, chances, cleanChoices, landing } from '../shared/wheel.js';
 
 export const ROW = 90; // px per row, margin included
@@ -108,7 +108,7 @@ export function selectorTheme(win, opts = {}) {
       result.hidden = true;
     },
   });
-  send('theme.ready', { apiVersion: '1', obsApi: obsApi(win) });
+  sayReady(win, send, later);
   return { send };
 }
 

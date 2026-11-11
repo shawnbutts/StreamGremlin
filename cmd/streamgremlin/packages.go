@@ -114,6 +114,8 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout)
 		fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
 			"StreamGremlin's settings, and it only shows the result StreamGremlin drew. StreamGremlin can't check how it draws the odds.")
+		fmt.Fprintln(stdout, `In OBS, it only loads while the wheel's browser source has "Page permissions" at "No access to OBS"; `+
+			"otherwise Classic shows instead.")
 		if pv.Same {
 			fmt.Fprintln(stdout, "It's installed already.")
 			return 0

@@ -1157,3 +1157,21 @@ Decided 2026-11-10 under D-007, building on D-062 and D-063. The user: "split it
 - **An example look, Paper wheel,** is in `examples/themes/paper-wheel`: StreamGremlin's own code, for tests and the live check, and for anyone making a look.
   - **It has its own sounds** (1.1.0), made like the built-in looks' (D-065). The user: "the paper-wheel needs sounds. like paper rubbing on paper." Paper rubbing as it starts, a last rub and the pointer's paper tab patting down as it stops, and confetti with a paper party blower for the result.
 - Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.
+
+## D-067. Add-on looks only load at OBS's "No access" (M5 slice 3b, part 1)
+
+Decided 2026-11-11 under D-007, building on D-064 and D-066. The user's live check: with **Page permissions** raised, the status line said "Look: Workshop ready; OBS page API reachable". The user, on the proposal: "yes, go ahead with 1 to 3".
+
+- **OBS gives its page API to a look's sandboxed frame.** OBS's docs say `window.obsstudio` exists at every level (at "No access to OBS" it only offers `getControlLevel`), and don't say whether a frame gets the source's level. So StreamGremlin assumes a look can do whatever the browser source's Page permissions allow: at "Advanced", switch scenes; at "Full", start and stop the stream.
+- **The looks report the level OBS gives their frame** (`getControlLevel`). With `?status=1` the status line says, for example, "OBS page API reachable, at level 1 (Read access to OBS status information)", and the engine logs it.
+- **An add-on look only loads at level 0, "No access to OBS",** the level OBS starts with. The overlay page asks OBS its own level first:
+  - level 0, or not in OBS (a browser, or the app's preview): the look loads;
+  - a higher level: Classic shows instead, without the look's sounds. Why is said once: in the status line with `?status=1`, and in the engine's log;
+  - no answer within 2 seconds, or an OBS too old to say: unknown, treated as not allowed;
+  - while asking: Classic, and the look loads once OBS says 0.
+- **The built-in looks still load at any level.** They're StreamGremlin's own code and never call OBS. A look is an add-on when the engine says so, or when its link isn't on the theme server's built-in path.
+- **Overlays don't need OBS access themselves.** StreamGremlin drives OBS through obs-websocket, never through a page.
+- **The screens say it:**
+  - Overlays: leave Page permissions at "No access to OBS"; an add-on look only loads there, otherwise Classic shows;
+  - Add-ons and `packages install`: when the look will load in OBS.
+- Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.

@@ -24,7 +24,32 @@ export function bridge(win, handlers) {
   return (type, payload) => parent.postMessage({ protocolVersion: PROTOCOL, type, payload: payload || {} }, '*');
 }
 
-/** Whether OBS's page API reached this frame, for the live check. */
+/**
+ * Says the look is ready, with whether OBS's page API reached this frame
+ * and, if it did, the level OBS gives it (D-067): the browser source's
+ * Page permissions, 0 being "No access to OBS". Shown with ?status=1.
+ */
+export function sayReady(win, send, later) {
+  const obs = obsApi(win) ? win.obsstudio : null;
+  if (!obs || typeof obs.getControlLevel !== 'function') {
+    send('theme.ready', { apiVersion: '1', obsApi: Boolean(obs) });
+    return;
+  }
+  let said = false;
+  const say = (level) => {
+    if (said) return;
+    said = true;
+    send('theme.ready', { apiVersion: '1', obsApi: true, obsLevel: Number.isInteger(level) ? level : null });
+  };
+  try {
+    obs.getControlLevel(say);
+  } catch {
+    say(null);
+  }
+  later(() => say(null), 1000);
+}
+
+/** Whether OBS's page API reached this frame. */
 export function obsApi(win) {
   try {
     return typeof win.obsstudio === 'object' && win.obsstudio !== null;

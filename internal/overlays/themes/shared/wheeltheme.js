@@ -2,7 +2,7 @@
 // draws the wheel the overlay page sends, spins to the drawn number, and
 // shows the result when told. It never picks, and never decides when a
 // spin is over: the engine does. Labels are text, never markup.
-import { bridge, obsApi } from './bridge.js';
+import { bridge, sayReady } from './bridge.js';
 import { HEX, TURNS, cleanChoices, el, inkFor, landing, polar, shortLabel, spans, wedgePath } from './wheel.js';
 
 /**
@@ -135,6 +135,6 @@ export function wheelTheme(win, style, opts = {}) {
       result.hidden = true;
     },
   });
-  send('theme.ready', { apiVersion: '1', obsApi: obsApi(win) });
+  sayReady(win, send, later);
   return { send };
 }

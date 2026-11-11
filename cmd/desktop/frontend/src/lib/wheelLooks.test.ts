@@ -84,6 +84,13 @@ describe('a built-in wheel look', () => {
   it('says it’s ready, and whether OBS’s page API reached it', () => {
     expect(look('workshop').sent).toEqual([{ protocolVersion: 1, type: 'theme.ready', payload: { apiVersion: '1', obsApi: false } }]);
     expect(look('neon', { obsstudio: {} }).sent[0].payload.obsApi).toBe(true);
+    // With the level OBS gives the frame (D-067), or none if it doesn't answer.
+    const obsstudio = { getControlLevel: (cb: (n: number) => void) => cb(1) };
+    expect(look('workshop', { obsstudio }).sent[0].payload).toEqual({ apiVersion: '1', obsApi: true, obsLevel: 1 });
+    const silent = look('selector', { obsstudio: { getControlLevel: () => {} } });
+    expect(silent.sent).toEqual([]);
+    silent.c.advance(1000);
+    expect(silent.sent[0].payload).toEqual({ apiVersion: '1', obsApi: true, obsLevel: null });
   });
 
   it('draws wedges sized to their weights and spins to the drawn number, labels as text', () => {
@@ -226,12 +233,13 @@ describe('the overlay page with a wheel look', () => {
   const hello = (t: unknown = theme, lk: unknown = look) => ({ type: 'hello', body: { overlay: { name: 'wheel', kind: 'wheel', look: lk }, theme: t, page_version: 'v1' } });
   const spin = (id: string, winner = 0, draw = 1) => ({ type: 'spin', body: { id, title: 'Next game', choices, winner, draw, seconds: 6 } });
 
-  function page(search = '?status=1', first: ReturnType<typeof hello> = hello()) {
+  function page(search = '?status=1', first: ReturnType<typeof hello> = hello(), obsstudio?: unknown) {
     document.body.innerHTML = '<div id="status" hidden></div><div id="stage"></div>';
     const c = clock();
     const sounds: string[] = [];
     const played: { src: string; volume: number }[] = [];
     const win = {
+      ...(obsstudio === undefined ? {} : { obsstudio }),
       document,
       location: { search, pathname: '/o/tok/', protocol: 'http:', host: '127.0.0.1:7431' },
       addEventListener: (k: string, fn: EventListener) => window.addEventListener(k, fn),
@@ -320,6 +328,70 @@ describe('the overlay page with a wheel look', () => {
     const before = posted.length;
     c.advance(20000); // the look's own steps for s2 no longer happen
     expect(posted.slice(before).some((m) => m.type === 'winner.reveal')).toBe(false);
+  });
+
+  // D-067: OBS's page API reaches the look's sandboxed frame, with the
+  // browser source's Page permissions. An add-on look is someone else's
+  // code, so it's only framed at level 0, "No access to OBS".
+  describe('an add-on look and OBS’s Page permissions', () => {
+    const addOnUrl = `http://127.0.0.1:50123/t/paper-wheel/1.1.0/${'ab'.repeat(32)}/index.html`;
+    const addOn = {
+      id: 'paper-wheel', name: 'Paper wheel', url: addOnUrl, settings: {}, odds_checked: false, add_on: true,
+      sounds: { start: addOnUrl.replace('index.html', 'start.wav') },
+    };
+    const noSounds = { start_sound: '', end_sound: '', cheer_sound: '' };
+    const level = (n: unknown) => ({ getControlLevel: (cb: (l: unknown) => void) => cb(n) });
+
+    it('loads outside OBS, and in OBS at “No access to OBS”', () => {
+      expect(page('?status=1', hello(addOn)).frame.src).toBe(addOnUrl);
+      expect(page('?status=1', hello(addOn), level(0)).frame.src).toBe(addOnUrl);
+    });
+
+    it('above it, shows Classic, without the look’s sounds, and says why once', () => {
+      const { ws, c, stage, status, sounds } = page('?status=1', hello(addOn, noSounds), level(4));
+      expect(document.querySelector('iframe')).toBeNull();
+      const why = 'Paper wheel not loaded: this browser source’s Page permissions are “Advanced access to OBS”. Add-on looks only load at “No access to OBS”; Classic shows instead';
+      expect(ws.sent.filter((m) => m.type === 'theme')).toEqual([{ type: 'theme', status: 'refused', detail: why }]);
+      expect(status.textContent).toBe(`Look: ${why}`);
+      ws.fire('message', hello(addOn, noSounds)); // said once, not on every hello
+      expect(ws.sent.filter((m) => m.type === 'theme').length).toBe(1);
+      ws.fire('message', spin('s1'));
+      expect(stage.querySelector('.sg-wheel')).not.toBeNull();
+      c.advance(10000);
+      expect(sounds).toEqual([]);
+      // The built-in looks are StreamGremlin's own, and never call OBS: they still load.
+      ws.fire('message', hello());
+      expect(document.querySelector('iframe')!.src).toBe(url);
+    });
+
+    it('a look anywhere but the built-in path is an add-on, flag or not', () => {
+      page('?status=1', hello({ ...addOn, add_on: undefined }), level(1));
+      expect(document.querySelector('iframe')).toBeNull();
+    });
+
+    it('waits for OBS’s answer, and treats no answer, or an OBS that can’t say, as not allowed', () => {
+      let answer: (l: unknown) => void = () => {};
+      const p = page('?status=1', hello(addOn), { getControlLevel: (cb: (l: unknown) => void) => (answer = cb) });
+      expect(document.querySelector('iframe')).toBeNull();
+      expect(p.ws.sent.some((m) => m.type === 'theme')).toBe(false); // still asking
+      answer(0);
+      expect(document.querySelector('iframe')!.src).toBe(addOnUrl);
+      p.ov.stop();
+      const q = page('?status=1', hello(addOn), { getControlLevel: () => {} });
+      q.c.advance(2000);
+      expect(document.querySelector('iframe')).toBeNull();
+      expect(q.ws.sent.at(-1)).toMatchObject({ type: 'theme', status: 'refused', detail: expect.stringContaining('OBS didn’t say') });
+      q.ov.stop();
+      const r = page('?status=1', hello(addOn), {}); // an OBS without control levels
+      expect(document.querySelector('iframe')).toBeNull();
+      expect(r.ws.sent.at(-1)).toMatchObject({ type: 'theme', status: 'refused' });
+    });
+
+    it('a look says the level OBS gives its frame, and the status line names it', () => {
+      const { fromLook, status } = page();
+      fromLook('theme.ready', { apiVersion: '1', obsApi: true, obsLevel: 1 });
+      expect(status.textContent).toBe('Look: Workshop ready; OBS page API reachable, at level 1 (Read access to OBS status information)');
+    });
   });
 
   it('drops what the look may not send: other windows, other kinds, too much, too often', () => {

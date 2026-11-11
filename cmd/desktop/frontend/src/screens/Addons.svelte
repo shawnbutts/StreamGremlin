@@ -173,6 +173,10 @@
         StreamGremlin’s settings, and it only shows the result StreamGremlin drew.
         StreamGremlin can’t check how it draws the odds: the real odds stay on the Wheels screen and in “Say a wheel’s odds”.
       </p>
+      <p class="sg-muted">
+        In OBS, it only loads while the wheel’s browser source has “Page permissions” at “No access to OBS”, the setting OBS
+        starts with; otherwise Classic shows instead.
+      </p>
       {#if preview.same}
         <p class="saved">It’s installed already.</p>
         <button type="button" class="button" onclick={clearFile}>Done</button>

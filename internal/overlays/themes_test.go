@@ -93,7 +93,7 @@ func TestAWheelOverlaysHelloNamesItsLook(t *testing.T) {
 	}
 	h.SetThemeOrigin("http://127.0.0.1:50123")
 	th, ok := hello(wheel)["theme"].(map[string]any)
-	if !ok || th["url"] != "http://127.0.0.1:50123/t/builtin/"+PageVersion+"/selector-board/index.html" || th["odds_checked"] != true ||
+	if !ok || th["url"] != "http://127.0.0.1:50123/t/builtin/"+PageVersion+"/selector-board/index.html" || th["odds_checked"] != true || th["add_on"] != nil ||
 		th["settings"].(map[string]any)["show_title"] != true {
 		t.Fatal(th)
 	}
@@ -337,7 +337,7 @@ func TestInstalledThemes(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "http://127.0.0.1:50123/t/cosy-wheel/1.0.0/" + strings.Repeat("ab", 32) + "/"
-	if v := m.Body.Theme; v.URL != base+"page/index.html" || v.OddsChecked || v.Settings["paper"] != "Sky" ||
+	if v := m.Body.Theme; v.URL != base+"page/index.html" || v.OddsChecked || !v.AddOn || v.Settings["paper"] != "Sky" ||
 		len(v.Sounds) != 1 || v.Sounds["start"] != base+"page/start.wav" {
 		t.Fatal(v)
 	}

@@ -1,6 +1,6 @@
 // StreamGremlin overlay page (docs/adr/0017-alert-overlays.md).
 import { giveawayView } from './giveaway.js';
-import { themedWheelView } from './themehost.js';
+import { OBS_LEVELS, themedWheelView } from './themehost.js';
 import { wheelView } from './wheel.js';
 
 // It shows what the engine sends and says how each alert went: started,
@@ -278,6 +278,47 @@ export function start(win, opts = {}) {
     }, Math.max(500, msLeft - outMs));
   }
 
+  // What OBS lets this browser source's pages do: its "Page permissions"
+  // (D-067). They reach a look's sandboxed frame too, so an add-on look,
+  // someone else's code, is only framed at level 0, "No access to OBS".
+  // null: not in OBS (a browser, or the app's preview); 'asking' until
+  // OBS answers; 'unknown' if it can't say or doesn't in time; else 0-5.
+  let obsLevel = null;
+  let lastTheme;
+  let refused = ''; // the add-on look and level last refused, said once
+  const obs = (() => {
+    try {
+      return win.obsstudio;
+    } catch {
+      return undefined;
+    }
+  })();
+  if (obs !== undefined && obs !== null) {
+    obsLevel = 'unknown';
+    if (typeof obs.getControlLevel === 'function') {
+      obsLevel = 'asking';
+      const answer = (level) => {
+        if (obsLevel !== 'asking') return;
+        obsLevel = Number.isInteger(level) && level >= 0 && level < OBS_LEVELS.length ? level : 'unknown';
+        if (lastTheme !== undefined) setWheel(lastTheme);
+      };
+      try {
+        obs.getControlLevel(answer);
+      } catch {
+        obsLevel = 'unknown';
+      }
+      later(() => answer(undefined), 2000);
+    }
+  }
+
+  // Why an add-on look can't be framed now, or '' when it can.
+  function addOnBlocked() {
+    if (obsLevel === null || obsLevel === 0) return '';
+    if (obsLevel === 'asking') return 'asking';
+    if (obsLevel === 'unknown') return 'OBS didn’t say what this browser source’s Page permissions allow';
+    return `this browser source’s Page permissions are “${OBS_LEVELS[obsLevel]}”`;
+  }
+
   function classicView(still) {
     if (still) return (classicStill ??= wheelView(doc, stage, { setTimeout: later, reducedMotion: () => true, cue }));
     return (classic ??= wheelView(doc, stage, { setTimeout: later, reducedMotion, cue }));
@@ -294,8 +335,24 @@ export function start(win, opts = {}) {
 
   // The wheel's look, from the hello: Classic, or a theme by its link.
   function setWheel(theme) {
+    lastTheme = theme;
     const valid = theme && typeof theme.url === 'string' && /^http:\/\/127\.0\.0\.1:\d+\/t\//.test(theme.url);
-    lookSounds = valid && theme.sounds && typeof theme.sounds === 'object' ? theme.sounds : null;
+    // An add-on, unless the theme server's built-in path says otherwise.
+    const addOn = valid && (theme.add_on === true || !/^http:\/\/127\.0\.0\.1:\d+\/t\/builtin\//.test(theme.url));
+    const blocked = addOn ? addOnBlocked() : '';
+    lookSounds = valid && !blocked && theme.sounds && typeof theme.sounds === 'object' ? theme.sounds : null;
+    if (blocked) {
+      if (themed) themed.stop();
+      themed = null;
+      wheel = classicView(false);
+      const key = `${theme.url} ${obsLevel}`;
+      if (blocked !== 'asking' && refused !== key) {
+        refused = key;
+        const name = String(theme.name || 'The add-on look');
+        report('refused', `${name} not loaded: ${blocked}. Add-on looks only load at “No access to OBS”; Classic shows instead`);
+      }
+      return;
+    }
     if (!valid) {
       if (themed) themed.stop();
       themed = null;

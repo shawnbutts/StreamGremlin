@@ -15,6 +15,8 @@
 > - an installed theme's files are served only while that version is the one installed; the theme server checks the id, version and digest against what's installed;
 > - the Add-ons screen and `streamgremlin packages [install FILE [-yes] | remove ID [-yes] | history]`; `overlays look NAME -look ID -set KEY=VALUE`; `GET /v1/packages/audit` shows the audit.
 
+> **Amended by D-067 (2026-11-11):** OBS's page API (`window.obsstudio`) reaches a look's sandboxed frame; the live check showed it. A look reports the level OBS gives its frame (`obsLevel` in `theme.ready`, from `getControlLevel`). The overlay page asks OBS its own level and frames an add-on look (`add_on` in the hello, or any link off the built-in path) only at level 0, "No access to OBS"; at a higher level, an unknown one, or while asking, Classic shows, and why is reported once. Built-in looks load at any level. See "OBS's own page API" below.
+
 > **Amended by D-065 (2026-11-10):** looks can have their own sounds, played by the overlay page; a theme's policy now has `media-src 'none'`. See "Sounds play in the overlay page" below.
 
 ## Context
@@ -137,7 +139,7 @@ A manifest's settings are typed: `text` (up to `max`, at most 200 characters), `
   - chat's announcement doesn't wait on the theme.
 - **A broken theme never leaves the stream blank.** A spin that arrives before the theme says it's ready is shown in Classic. A theme that reports an error for the spin on screen is hidden, and Classic shows that spin stopped at once. A theme not ready within 5 seconds is reported. The app's preview (and OBS with `?status=1`) says which, and the engine logs it.
 - **Sounds play in the overlay page,** not the theme (ADR-0031), so they stay in time with the engine. A theme may ship its own sounds for the three cues, as `start.wav`, `end.wav` and `cheer.wav` beside its page (D-065): the hello lists their links on the theme server when the theme's **sounds** setting is on, and the overlay page plays one for any cue the streamer left without a sound, at that cue's volume. The overlay page's policy allows `media-src` from `http://127.0.0.1:*` for this, and plays only `.wav` links on the theme server. The theme's own policy has `media-src 'none'`: a theme can't play sound itself, so the streamer's volumes and the preview's silence hold.
-- **OBS's own page API.** OBS's browser source gives pages `window.obsstudio`, with more power as the source's **Page permissions** setting rises ([obs-browser](https://github.com/obsproject/obs-browser)). Its docs don't say whether a sandboxed frame gets it. Until checked (slice 2), the Overlays screen says to leave Page permissions at the lowest level for themed overlays; StreamGremlin's own pages don't need any.
+- **OBS's own page API.** OBS's browser source gives pages `window.obsstudio`, with more power as the source's **Page permissions** setting rises ([obs-browser](https://github.com/obsproject/obs-browser)): level 0 "No access" offers only `getControlLevel`; up to level 5, "Full access", which starts and stops the stream. Its docs don't say whether a sandboxed frame gets it; the live check (D-067) showed it does, so a look is assumed to have the source's level. An add-on look is framed only at level 0: the overlay page asks `getControlLevel` first, and shows Classic at any other level, an unknown one, or while waiting (2 seconds at most). The built-in looks never call it, and load at any level. StreamGremlin's own pages need no OBS access: OBS is driven through obs-websocket.
 
 ### Odds
 
@@ -173,4 +175,4 @@ Workshop, Neon arcade and Selector board are built into StreamGremlin, rebuilt i
 - One install path, one store and one audit for both kinds; slices 3 and 5 build on them.
 - A theme is limited to what a sandboxed page with no network can do. It can't use web fonts or images from the internet; everything ships in the package.
 - Migration (slice 3): `packages`, `package_versions`, `package_files`, `package_settings`, `package_audit`; slice 2 adds the overlay's look without new package tables.
-- **To check in slice 2:** that OBS's browser source runs the sandboxed frame with this policy on macOS and Windows, and whether `window.obsstudio` reaches it.
+- **Checked in slice 2 and 3a's live checks:** OBS's browser source runs the sandboxed frame with this policy on macOS and Windows; `window.obsstudio` reaches it (D-067).
