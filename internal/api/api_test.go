@@ -24,6 +24,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/mocktwitch"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -113,6 +114,9 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	}
 	t.Cleanup(fw.Close)
 	ovs, hub := overlays.NewStore(db, sec), overlays.NewHub(nil)
+	pkgs, themes := packages.NewStore(db), overlays.NewCatalogue()
+	ovs.UseThemes(themes)
+	hub.UseThemes(themes)
 	lib, player := sounds.NewStore(db), sounds.NewPlayer(nil)
 	testPlayer = player
 	testOverlays = httptest.NewServer(overlays.NewServer(ovs, hub, lib, nil))
@@ -157,7 +161,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

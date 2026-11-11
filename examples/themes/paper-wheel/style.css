@@ -1,0 +1,89 @@
+:root {
+  --paper: #f6edd9;
+  --ink: #3b2f2a;
+  --accent: #d9534f;
+}
+html,
+body {
+  margin: 0;
+  background: transparent;
+  font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe Print', cursive;
+  color: var(--ink);
+}
+#stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+}
+#stage[hidden] {
+  display: none;
+}
+h1 {
+  margin: 0;
+  padding: 6px 18px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  transform: rotate(-2deg);
+  font-size: 40px;
+}
+.wheel {
+  position: relative;
+  width: 560px;
+  height: 560px;
+}
+#rotor {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(4px 6px 0 rgb(0 0 0 / 35%));
+}
+#rotor text {
+  font: 700 9px 'Comic Sans MS', 'Chalkboard SE', cursive;
+  fill: var(--ink);
+}
+.pointer {
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 22px solid transparent;
+  border-right: 22px solid transparent;
+  border-top: 46px solid var(--accent);
+  filter: drop-shadow(2px 3px 0 rgb(0 0 0 / 35%));
+}
+#chances {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 6px 14px;
+  list-style: none;
+  max-width: 900px;
+  background: var(--paper);
+  border: 2px dashed var(--ink);
+  font-size: 20px;
+}
+#chances[hidden] {
+  display: none;
+}
+#result {
+  min-height: 1.3em;
+  margin: 0;
+  padding: 4px 20px;
+  font-size: 46px;
+  font-weight: 700;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  transform: rotate(1.5deg);
+  visibility: hidden;
+}
+#result.on {
+  visibility: visible;
+}

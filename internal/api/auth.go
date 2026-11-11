@@ -84,6 +84,10 @@ const (
 	// undoing and renaming.
 	PermPointsRead  Permission = "points.read"
 	PermPointsWrite Permission = "points.write"
+	// Packages (overlay themes): listing them and their audit; checking,
+	// installing and removing them.
+	PermPackagesRead  Permission = "packages.read"
+	PermPackagesWrite Permission = "packages.write"
 )
 
 // Principal is an authenticated caller.

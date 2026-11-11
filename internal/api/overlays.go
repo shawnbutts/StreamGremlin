@@ -90,7 +90,7 @@ func overlayRoutes(d Deps) []Route {
 					return
 				}
 				out := OverlayList{Overlays: []OverlayView{}, Positions: overlays.Positions, Animations: overlays.Animations, Fonts: overlays.Fonts, Default: overlays.DefaultLook(),
-					Themes: overlays.Themes}
+					Themes: d.Themes.All()}
 				for _, o := range list {
 					out.Overlays = append(out.Overlays, view(o))
 				}

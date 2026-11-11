@@ -52,7 +52,7 @@ var (
 	Densities = []string{"comfortable", "compact"}
 	// MovableScreens can go under "More…". Home, Events, Workflows,
 	// Settings and Help always stay in the sidebar.
-	MovableScreens = []string{"connections", "timers", "quotes", "sounds", "overlays", "giveaways", "points", "viewers", "wheels", "rewards", "polls", "variables"}
+	MovableScreens = []string{"connections", "timers", "quotes", "sounds", "overlays", "giveaways", "points", "viewers", "wheels", "rewards", "polls", "variables", "addons"}
 )
 
 // DefaultUI is used until the streamer changes anything. Settings saved

@@ -187,7 +187,7 @@ func (l Look) Check() error {
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
 	}
-	return l.checkTheme()
+	return l.checkTheme(nil)
 }
 
 // checkKind reports a look that doesn't suit a kind of overlay: only
@@ -227,7 +227,11 @@ type Overlay struct {
 type Store struct {
 	db      *storage.DB
 	secrets *secrets.Store
+	themes  *Catalogue // the looks wheel overlays may have; nil: built-in only
 }
+
+// UseThemes says which looks are installed, for checking looks.
+func (s *Store) UseThemes(c *Catalogue) { s.themes = c }
 
 // NewStore returns a Store.
 func NewStore(db *storage.DB, sec *secrets.Store) *Store { return &Store{db: db, secrets: sec} }
@@ -282,6 +286,9 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 		return Overlay{}, "", err
 	}
 	if err := look.checkKind(kind); err != nil {
+		return Overlay{}, "", err
+	}
+	if err := look.checkTheme(s.themes); err != nil {
 		return Overlay{}, "", err
 	}
 	raw, _ := json.Marshal(look)
@@ -369,6 +376,9 @@ func (s *Store) SetLook(ctx context.Context, name string, look Look, now time.Ti
 		if err := look.checkKind(cur.Kind); err != nil {
 			return Overlay{}, err
 		}
+		if err := look.checkTheme(s.themes); err != nil {
+			return Overlay{}, err
+		}
 	}
 	raw, _ := json.Marshal(look)
 	o, err := scan(s.db.QueryRowContext(ctx, `UPDATE overlays SET look = ?,
@@ -378,6 +388,47 @@ func (s *Store) SetLook(ctx context.Context, name string, look Look, now time.Ti
 		return Overlay{}, ErrNotFound
 	}
 	return o, err
+}
+
+// UsingTheme lists the overlays whose look is the theme id, by name.
+func (s *Store) UsingTheme(ctx context.Context, id string) ([]Overlay, error) {
+	all, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Overlay
+	for _, o := range all {
+		if o.Look.Theme == id && id != "" {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+// ResetTheme returns every overlay whose look is the theme id to Classic,
+// as the theme is removed, and returns them as they are now. Their other
+// look settings stay.
+func (s *Store) ResetTheme(ctx context.Context, id string, now time.Time) ([]Overlay, error) {
+	using, err := s.UsingTheme(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Overlay, 0, len(using))
+	for _, o := range using {
+		l := o.Look
+		l.Theme, l.ThemeSettings = "", nil
+		raw, _ := json.Marshal(l)
+		changed, err := scan(s.db.QueryRowContext(ctx, `UPDATE overlays SET look = ?, updated_at = ? WHERE name = ? RETURNING `+columns,
+			string(raw), storage.Timestamp(now), o.Name))
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // deleted just now
+		}
+		if err != nil {
+			return out, fmt.Errorf("overlays: back to Classic: %w", err)
+		}
+		out = append(out, changed)
+	}
+	return out, nil
 }
 
 // Link returns the token of an overlay's link. ErrNoLink means it isn't

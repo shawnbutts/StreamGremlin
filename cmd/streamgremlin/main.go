@@ -61,6 +61,10 @@ Commands:
             overlays                      list
             overlays add NAME             add one, and print its link
             overlays link|new-link|test|delete NAME, overlays look NAME [flags]
+  packages  Add-ons: wheel looks installed from a ZIP (streamgremlin packages help).
+            packages                      list
+            packages install FILE [-yes]  say what it is; -yes installs it
+            packages remove ID [-yes], packages history
   rewards   Channel point rewards (streamgremlin rewards help).
             rewards                       list
             rewards add -cost N TITLE     make one
@@ -138,6 +142,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return soundsCmd(dir, rest, stdout, stderr)
 	case "overlays":
 		return overlaysCmd(dir, rest, stdout, stderr)
+	case "packages":
+		return packagesCmd(dir, rest, stdout, stderr)
 	case "rewards":
 		return rewardsCmd(dir, rest, stdout, stderr)
 	case "first-words":

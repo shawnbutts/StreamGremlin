@@ -231,7 +231,9 @@ func TestScenesSourcesAndAttribution(t *testing.T) {
 	waitFor(t, "ours", func() bool { return s.Status().SceneSetBy == "app" })
 	r.mock.SwitchByHand("Just Chatting")
 	waitFor(t, "theirs", func() bool { st := s.Status(); return st.Scene == "Just Chatting" && st.SceneSetBy == "" })
+	// The status can change just before the event is stored: wait for both.
 	got := eventsOf(t, r.inbox, "broadcast.scene.changed")
+	waitFor(t, "both scene events", func() bool { got = eventsOf(t, r.inbox, "broadcast.scene.changed"); return len(got) >= 2 })
 	if len(got) != 2 || got[0]["changed_by"] != "streamgremlin" || got[0]["requested_by"] != "app" ||
 		got[1]["changed_by"] != "external" || got[1]["previous_scene_name"] != "Gaming" {
 		t.Fatalf("%+v", got)

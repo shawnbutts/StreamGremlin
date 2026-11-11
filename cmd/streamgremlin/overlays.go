@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,7 +30,8 @@ const overlaysUsage = `usage:
                                           -cheer-sound cheer
                                           wheel overlays: -look workshop (or classic, neon-arcade,
                                           selector-board) -look-title "Pick a game" -accent #e8b04e
-                                          -look-sounds=false (its own sounds, where none is picked)
+                                          -look-sounds=false (its own sounds, where none is picked);
+                                          an installed look: -look ID -set KEY=VALUE (see packages)
   streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -43,8 +45,9 @@ type overlayList struct {
 		Pages    int `json:"pages"`
 		Previews int `json:"previews"`
 	} `json:"overlays"`
-	Server     string `json:"server"`
-	ServerNote string `json:"server_note"`
+	Server     string           `json:"server"`
+	ServerNote string           `json:"server_note"`
+	Themes     []overlays.Theme `json:"themes"`
 }
 
 func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
@@ -156,10 +159,12 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.CheerSound, "cheer-sound", l.CheerSound, "giveaway and wheel overlays: a library sound when the result shows (none for no sound)")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			lookName := strings.TrimPrefix(l.Theme, "builtin:")
+			var sets setFlags
 			if lookName == "" {
 				lookName = "classic"
 			}
-			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade or selector-board")
+			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id")
+			fs.Var(&sets, "set", "wheel overlays with a look: one of its settings, KEY=VALUE (repeatable; see packages)")
 			lookTitle := fs.String("look-title", "", "wheel overlays with a look: its title (empty for the wheel's own)")
 			lookShowTitle := fs.Bool("look-show-title", true, "wheel overlays with a look: show the title")
 			accent := fs.String("accent", "", "wheel overlays with a look: its accent colour, #RRGGBB")
@@ -170,6 +175,15 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			theme := ""
 			if lookName != "classic" {
 				theme = "builtin:" + lookName
+				if _, ok := overlays.ThemeByID(theme); !ok {
+					theme = lookName // an installed look, by its id
+				}
+			}
+			var chosen *overlays.Theme
+			for i := range list.Themes {
+				if list.Themes[i].ID == theme {
+					chosen = &list.Themes[i]
+				}
 			}
 			settings := map[string]any{}
 			if theme == l.Theme {
@@ -189,6 +203,15 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 					settings["sounds"] = *lookSounds
 				}
 			})
+			for _, kv := range sets {
+				k, v, _ := strings.Cut(kv, "=")
+				val, err := settingValue(chosen, k, v)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					return 2
+				}
+				settings[k] = val
+			}
 			l.Theme, l.ThemeSettings = theme, settings
 			if len(settings) == 0 {
 				l.ThemeSettings = nil
@@ -213,8 +236,10 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			if o.Kind == overlays.KindWheel {
 				name := "Classic"
-				if t, ok := overlays.ThemeByID(o.Look.Theme); ok {
-					name = t.Name
+				for _, t := range list.Themes {
+					if t.ID == o.Look.Theme {
+						name = t.Name
+					}
 				}
 				fmt.Fprintf(stdout, "%s: the %s look.\n", o.Name, name)
 				return 0
@@ -273,4 +298,49 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "\n"+list.ServerNote)
 	}
 	return 0
+}
+
+// setFlags collects repeated -set KEY=VALUE flags.
+type setFlags []string
+
+func (f *setFlags) String() string { return strings.Join(*f, " ") }
+func (f *setFlags) Set(v string) error {
+	if !strings.Contains(v, "=") {
+		return fmt.Errorf("a setting is KEY=VALUE")
+	}
+	*f = append(*f, v)
+	return nil
+}
+
+// settingValue reads a -set value as its setting's kind wants it; the
+// engine checks it.
+func settingValue(t *overlays.Theme, key, v string) (any, error) {
+	if t == nil {
+		return nil, fmt.Errorf("-set is for a look other than Classic")
+	}
+	for _, s := range t.Settings {
+		if s.Key != key {
+			continue
+		}
+		switch s.Kind {
+		case overlays.SettingSwitch:
+			b, err := strconv.ParseBool(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s is on or off: true or false", key)
+			}
+			return b, nil
+		case overlays.SettingNumber:
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return nil, fmt.Errorf("%s is a whole number", key)
+			}
+			return n, nil
+		}
+		return v, nil
+	}
+	var keys []string
+	for _, s := range t.Settings {
+		keys = append(keys, s.Key)
+	}
+	return nil, fmt.Errorf("%s has no setting %q; its settings: %s", t.Name, key, strings.Join(keys, ", "))
 }

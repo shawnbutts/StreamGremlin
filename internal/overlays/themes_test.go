@@ -281,3 +281,128 @@ func TestTheOverlayPageMayFrameOnlyTheThemeServer(t *testing.T) {
 		t.Fatal(CSP)
 	}
 }
+
+// installedTheme is a theme as an installed package gives it.
+func installedTheme(files ...string) Theme {
+	return InstalledTheme("cosy-wheel", "Cosy wheel", "Warm.", "1.0.0", "Someone", strings.Repeat("ab", 32), "page/index.html",
+		[]Setting{{Key: "size", Label: "Size", Kind: SettingNumber, Default: 3, Min: 1, Max: 5},
+			{Key: "paper", Label: "Paper", Kind: SettingChoice, Default: "Cream", Options: []string{"Cream", "Sky"}}},
+		append([]string{"streamgremlin.json", "page/index.html"}, files...))
+}
+
+// Installed themes (ADR-0036): checked against what's installed, never
+// marked as checking the odds, served from their own version's path, and
+// gone back to Classic when removed.
+func TestInstalledThemes(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newStore(t)
+	c := NewCatalogue()
+	s.UseThemes(c)
+	l := DefaultLook()
+	l.Theme, l.ThemeSettings = "cosy-wheel", map[string]any{"size": float64(4), "paper": "Sky"}
+	if _, _, err := s.Create(ctx, "wheel", KindWheel, l, now); !errors.Is(err, ErrInvalid) {
+		t.Fatal("not installed:", err)
+	}
+	c.SetInstalled([]Theme{installedTheme("page/start.wav", "start.wav")})
+	if _, _, err := s.Create(ctx, "wheel", KindWheel, l, now); err != nil {
+		t.Fatal(err)
+	}
+	for name, v := range map[string]map[string]any{
+		"a number out of range": {"size": float64(9)},
+		"a fraction":            {"size": 2.5},
+		"a choice not offered":  {"paper": "Plaid"},
+		"a setting it hasn't":   {"title": "x"},
+	} {
+		bad := l
+		bad.ThemeSettings = v
+		if _, err := s.SetLook(ctx, "wheel", bad, now); !errors.Is(err, ErrInvalid) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	all := c.All()
+	if len(all) != 4 || all[3].ID != "cosy-wheel" || all[3].OddsChecked || all[3].Publisher != "Someone" || all[3].Settings[2].Key != "sounds" {
+		t.Fatal(all)
+	}
+	// The hello: its page and sounds (beside its page only), its settings.
+	h := NewHub(nil)
+	h.UseThemes(c)
+	h.SetThemeOrigin("http://127.0.0.1:50123")
+	o, _ := s.Get(ctx, "wheel")
+	var m struct {
+		Body struct {
+			Theme ThemeView `json:"theme"`
+		} `json:"body"`
+	}
+	if err := json.Unmarshal(h.hello(o, false), &m); err != nil {
+		t.Fatal(err)
+	}
+	base := "http://127.0.0.1:50123/t/cosy-wheel/1.0.0/" + strings.Repeat("ab", 32) + "/"
+	if v := m.Body.Theme; v.URL != base+"page/index.html" || v.OddsChecked || v.Settings["paper"] != "Sky" ||
+		len(v.Sounds) != 1 || v.Sounds["start"] != base+"page/start.wav" {
+		t.Fatal(v)
+	}
+	// Removed: back to Classic, other settings kept; and a hello without it.
+	o.Look.TextSize = 150
+	if _, err := s.SetLook(ctx, "wheel", o.Look, now); err != nil {
+		t.Fatal(err)
+	}
+	c.SetInstalled(nil)
+	m.Body.Theme = ThemeView{}
+	if err := json.Unmarshal(h.hello(o, false), &m); err != nil || m.Body.Theme.URL != "" {
+		t.Fatal("a hello for a theme no longer installed", m.Body.Theme)
+	}
+	reset, err := s.ResetTheme(ctx, "cosy-wheel", now)
+	if err != nil || len(reset) != 1 || reset[0].Look.Theme != "" || reset[0].Look.ThemeSettings != nil || reset[0].Look.TextSize != 150 {
+		t.Fatal(reset, err)
+	}
+	if reset, err := s.ResetTheme(ctx, "cosy-wheel", now); err != nil || len(reset) != 0 {
+		t.Fatal(reset, err)
+	}
+}
+
+func TestTheThemeServerServesOnlyTheInstalledVersion(t *testing.T) {
+	ts, srv := themeServer(t)
+	c := NewCatalogue()
+	c.SetInstalled([]Theme{installedTheme()})
+	read := map[string]string{}
+	ts.UseThemes(c, func(_ context.Context, id, version, p string) ([]byte, error) {
+		read[p] = id + "@" + version
+		switch p {
+		case "page/index.html":
+			return []byte("<!doctype html>"), nil
+		case "page/Logo.PNG":
+			return []byte("png"), nil
+		case "notes.exe":
+			return []byte("MZ"), nil
+		}
+		return nil, errors.New("no such file")
+	})
+	base := srv.URL + "/t/cosy-wheel/1.0.0/" + strings.Repeat("ab", 32) + "/"
+	res, body := get(t, base+"page/index.html")
+	csp := res.Header.Get("Content-Security-Policy")
+	if res.StatusCode != 200 || body != "<!doctype html>" || !strings.HasPrefix(csp, "sandbox allow-scripts;") || !strings.Contains(csp, "connect-src 'none'") ||
+		res.Header.Get("Content-Type") != "text/html; charset=utf-8" || read["page/index.html"] != "cosy-wheel@1.0.0" {
+		t.Fatal(res, body)
+	}
+	if res, _ := get(t, base+"page/Logo.PNG"); res.StatusCode != 200 || res.Header.Get("Content-Type") != "image/png" {
+		t.Fatal(res)
+	}
+	for _, u := range []string{
+		srv.URL + "/t/cosy-wheel/1.0.1/" + strings.Repeat("ab", 32) + "/page/index.html", // another version
+		srv.URL + "/t/cosy-wheel/1.0.0/" + strings.Repeat("cd", 32) + "/page/index.html", // another digest
+		srv.URL + "/t/other-wheel/1.0.0/" + strings.Repeat("ab", 32) + "/page/index.html",
+		base + "missing.js",
+		base + "notes.exe", // a type a theme doesn't have
+		base + "page/../page/index.html",
+		base + "page/%2e%2e/x.js",
+		base,
+	} {
+		if res, body := get(t, u); res.StatusCode != 404 || body != "" {
+			t.Errorf("%s: %d %q", u, res.StatusCode, body)
+		}
+	}
+	c.SetInstalled(nil) // removed
+	if res, _ := get(t, base+"page/index.html"); res.StatusCode != 404 {
+		t.Fatal("served after removing:", res.StatusCode)
+	}
+}

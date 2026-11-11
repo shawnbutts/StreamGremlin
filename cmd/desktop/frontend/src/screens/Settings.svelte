@@ -25,7 +25,7 @@
   ];
   const LABELS: Record<string, string> = {
     connections: 'Connections', timers: 'Timers', quotes: 'Quotes', sounds: 'Sounds', overlays: 'Overlays', giveaways: 'Giveaways', points: 'Points', viewers: 'Viewers', wheels: 'Wheels', rewards: 'Rewards', polls: 'Polls and predictions',
-    variables: 'Variables',
+    variables: 'Variables', addons: 'Add-ons',
   };
 
   let theme = $state<Theme | undefined>();

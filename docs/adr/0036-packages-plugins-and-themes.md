@@ -4,6 +4,17 @@
 - **Date:** 2026-11-10
 - **Based on:** D-062 and D-063 (the user's requests); StreamWisp's ADR-0041 (plugins), ADR-0067 (Lua plugins), D-094, D-106, D-107 and D-111 (what plugins own, decided there only after something broke); the overlay theme concept in `tmp/streamgremlin-theme-starter` (its protocol and packaging notes).
 
+> **Amended by D-066 (2026-11-10), slice 3a:**
+> - the manifest names its format in a `format` field (`"streamgremlin.package/v1"`); versions have no build metadata (`+…`), so a version is one path segment;
+> - a ZIP made by compressing a package's folder (everything in one folder, the manifest inside it) is read as that folder; Finder's `__MACOSX/` and `.DS_Store` are skipped;
+> - the built-in looks' names (`classic`, `workshop`, `neon-arcade`, `selector-board`) are reserved ids too, as the CLI takes them as they are;
+> - installing asks with the check's digest: `POST /v1/packages?digest=` installs only the package that was shown, sent again;
+> - updating and rolling back come in slice 3b; until then, installing another version of an installed id is refused, saying to remove it first; the publisher-change confirmation comes with updates, as only an installed id can have one;
+> - settings: number settings are whole numbers; a theme with `start.wav`, `end.wav` or `cheer.wav` beside its page gets StreamGremlin's "Play the look's sounds" setting (D-065), so a manifest can't name a setting `sounds`;
+> - `package_settings` is created with Lua plugins (slice 5), which have one set each; a theme's settings are each overlay's, in its look;
+> - an installed theme's files are served only while that version is the one installed; the theme server checks the id, version and digest against what's installed;
+> - the Add-ons screen and `streamgremlin packages [install FILE [-yes] | remove ID [-yes] | history]`; `overlays look NAME -look ID -set KEY=VALUE`; `GET /v1/packages/audit` shows the audit.
+
 > **Amended by D-065 (2026-11-10):** looks can have their own sounds, played by the overlay page; a theme's policy now has `media-src 'none'`. See "Sounds play in the overlay page" below.
 
 ## Context

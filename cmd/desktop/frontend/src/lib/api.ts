@@ -835,7 +835,7 @@ export interface OverlayLook {
   // by id, with its settings; unset ones take the look's defaults.
   // "" (Classic) is sent, not left out: a look given in part keeps the rest.
   theme?: string;
-  theme_settings?: Record<string, string | boolean>;
+  theme_settings?: Record<string, string | boolean | number>;
 }
 
 export interface Overlay {
@@ -858,7 +858,22 @@ export interface OverlayTheme {
   description: string;
   // StreamGremlin's tests check it shows the real odds.
   odds_checked: boolean;
-  settings: { key: string; label: string; kind: 'text' | 'switch' | 'colour'; default: string | boolean; max?: number; hint?: string }[];
+  settings: ThemeSetting[];
+  /** An installed look's version and publisher (as stated, not verified). */
+  version?: string;
+  publisher?: string;
+}
+
+/** One of a look's settings. */
+export interface ThemeSetting {
+  key: string;
+  label: string;
+  kind: 'text' | 'switch' | 'colour' | 'number' | 'choice';
+  default: string | boolean | number;
+  max?: number;
+  min?: number;
+  options?: string[];
+  hint?: string;
 }
 
 export interface OverlayList {
@@ -1368,3 +1383,69 @@ export const exportAllViewers = () => api<unknown>('GET', '/v1/exports/viewers')
 
 export const getEarning = () => api<EarningView>('GET', '/v1/points/earning');
 export const setEarning = (rules: EarningRules) => api<EarningView>('PUT', '/v1/points/earning', rules);
+
+// Packages: wheel looks installed from a ZIP (docs/adr/0036-packages-plugins-and-themes.md).
+
+export interface Package {
+  id: string;
+  kind: 'theme' | 'lua';
+  name: string;
+  version: string;
+  /** As the package states it: not verified. */
+  publisher: string;
+  description: string;
+  license: string;
+  homepage: string;
+  digest: string;
+  size: number;
+  files: number;
+  installed_at: string;
+  updated_at: string;
+  settings?: ThemeSetting[];
+}
+
+export interface InstalledPackage extends Package {
+  /** The overlays whose look it is. */
+  used_by: string[];
+}
+
+export interface PackagePreview extends Package {
+  installed?: Package;
+  /** Exactly this is installed already. */
+  same: boolean;
+  /** It has its own sounds. */
+  sounds: boolean;
+}
+
+export interface PackageAuditEntry {
+  seq: number;
+  at: string;
+  package_id: string;
+  version: string;
+  action: 'install' | 'update' | 'rollback' | 'remove' | 'refuse';
+  detail: string;
+}
+
+/** Posts a file's bytes as they are (see addSound for why bytes). */
+async function postBytes<T>(path: string, file: Blob): Promise<T> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let resp: Response;
+  try {
+    resp = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: bytes });
+  } catch {
+    throw new ApiError(0, 'unreachable', "Couldn't reach the engine.");
+  }
+  const data = await resp.json().catch(() => undefined);
+  if (!resp.ok) throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  return data as T;
+}
+
+export const getPackages = () => api<{ packages: InstalledPackage[] }>('GET', '/v1/packages');
+/** What a ZIP is and what installing it would do; stores nothing. */
+export const checkPackage = (file: Blob) => postBytes<PackagePreview>('/v1/packages/check', file);
+/** Install what was checked: digest is the one the streamer was shown. */
+export const installPackage = (file: Blob, digest: string) =>
+  postBytes<Package>(`/v1/packages?digest=${encodeURIComponent(digest)}`, file);
+export const removePackage = (id: string) =>
+  api<{ package: Package; overlays: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
+export const getPackageAudit = () => api<{ audit: PackageAuditEntry[] }>('GET', '/v1/packages/audit');

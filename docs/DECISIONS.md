@@ -1142,3 +1142,17 @@ Decided 2026-11-10 under D-007, building on D-051 and D-064. The user, after the
 - **They're synthesised by StreamGremlin's own code** (`internal/overlays/themesounds`), so every sample's origin is plain: no recordings or outside packs. A test checks the committed WAV files match what that code makes.
 - **The streamer's own sound wins.** A look's sound plays only for a cue left without one, at that cue's volume. The look's **Play the look's sounds** setting (on by default) turns them all off. On the Overlays screen, an empty sound is shown as "Workshop's sound" (and so on) while they're on.
 - **The overlay page plays them,** as it does every overlay sound (ADR-0031), so they keep to the engine's clock and the app's preview stays silent. Themes themselves can't play sound (`media-src 'none'`); the theme server serves the files with their length and ranges. The same rule will hold for installed themes in slice 3 ([ADR-0036](adr/0036-packages-plugins-and-themes.md)).
+
+## D-066. Installed wheel looks, in two slices (M5 slice 3a)
+
+Decided 2026-11-10 under D-007, building on D-062 and D-063. The user: "split it into 3a and 3b. proceed".
+
+- **Slice 3 is split.**
+  - 3a: check, install after asking, use on a wheel overlay with the look's own settings, remove (overlays back to Classic), the Add-ons screen, the CLI, and an example look.
+  - 3b: update, roll back, another publisher's id, and a deliberately hostile test look.
+- **Until 3b,** installing another version of an installed look is refused, saying to remove it first.
+- **The Add-ons screen** comes after Variables in the sidebar, and can move under More….
+- **Installing shows what it is first:** name, version, publisher "(not verified)", files and size, settings, its own sounds, and that it runs sandboxed with no network and can't have its odds checked. Install sends the ZIP again with the digest the streamer was shown, so what's installed is what they saw.
+- **A ZIP of a look's folder works,** as Finder and Explorer make them, so a streamer never has to build one by hand.
+- **An example look, Paper wheel,** is in `examples/themes/paper-wheel`: StreamGremlin's own code, for tests and the live check, and for anyone making a look.
+- Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.

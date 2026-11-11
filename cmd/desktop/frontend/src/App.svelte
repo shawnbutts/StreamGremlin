@@ -21,11 +21,12 @@
   import Giveaways from './screens/Giveaways.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
+  import Addons from './screens/Addons.svelte';
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'help' | 'settings';
+  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'addons' | 'help' | 'settings';
   // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
   // order, then "More…" with the ones the streamer moved there, then
   // Settings and Help, always last. Home, Events, Workflows, Settings and
@@ -47,6 +48,7 @@
     { id: 'rewards', label: 'Rewards' },
     { id: 'polls', label: 'Polls' },
     { id: 'variables', label: 'Variables' },
+    { id: 'addons', label: 'Add-ons' },
   ];
   const pinned: { id: Screen; label: string; key: string }[] = [
     { id: 'settings', label: 'Settings', key: ',' },
@@ -248,6 +250,8 @@
       <Polls />
     {:else if screen === 'variables'}
       <Variables />
+    {:else if screen === 'addons'}
+      <Addons />
     {:else if screen === 'help'}
       <Help
         shortcuts={[...mainScreens.filter((s) => s.key), pinned[1]].map((s) => ({ label: s.label, key: s.key! }))}

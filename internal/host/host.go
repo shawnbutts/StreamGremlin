@@ -31,6 +31,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -91,6 +92,8 @@ type Host struct {
 	hub       *overlays.Hub
 	ovSrv     *http.Server
 	thSrv     *http.Server // wheel looks' own origin (docs/adr/0036-packages-plugins-and-themes.md)
+	packages  *packages.Store
+	themes    *overlays.Catalogue
 	ovLn      net.Listener
 	ovNote    string
 	log       *slog.Logger
@@ -161,6 +164,16 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	lib, player := sounds.NewStore(h.db), sounds.NewPlayer(nil)
 	ovs := overlays.NewStore(h.db, sec)
 	h.hub = overlays.NewHub(nil)
+	// Installed themes (docs/adr/0036-packages-plugins-and-themes.md): what
+	// overlays may show, checked and served from the database.
+	h.packages, h.themes = packages.NewStore(h.db), overlays.NewCatalogue()
+	if themes, err := h.packages.Themes(ctx); err != nil {
+		log.Error("installed wheel looks couldn't be read; wheels using them show Classic", "err", err)
+	} else {
+		h.themes.SetInstalled(themes)
+	}
+	ovs.UseThemes(h.themes)
+	h.hub.UseThemes(h.themes)
 	if err := h.serveOverlays(opts.OverlayAddr, ovs, lib); err != nil {
 		return nil, err
 	}
@@ -232,6 +245,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Player:     player,
 		Overlays:   ovs,
 		Hub:        h.hub,
+		Packages:   h.packages,
+		Themes:     h.themes,
 		FirstWords: h.firsts,
 		Ads:        h.ads,
 		Giveaways:  h.giveaways,
@@ -333,6 +348,7 @@ func (h *Host) serveOverlays(addr string, store *overlays.Store, lib *sounds.Sto
 	}
 	_, port, _ := net.SplitHostPort(ln.Addr().String())
 	ts := overlays.NewThemeServer(h.log)
+	ts.UseThemes(h.themes, h.packages.File)
 	self := "http://" + tln.Addr().String()
 	ts.SetOrigins(self, []string{"http://127.0.0.1:" + port, "http://localhost:" + port})
 	h.hub.SetThemeOrigin(self)

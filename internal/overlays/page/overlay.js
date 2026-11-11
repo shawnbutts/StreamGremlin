@@ -15,7 +15,7 @@ const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
 const HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
 // A wheel look's sound: a .wav file from the theme server (D-065).
-const THEME_SOUND = /^http:\/\/127\.0\.0\.1:\d+\/t\/[a-z0-9\/._-]+\.wav$/;
+const THEME_SOUND = /^http:\/\/127\.0\.0\.1:\d+\/t\/[A-Za-z0-9\/._-]+\.wav$/;
 
 // Font lists most computers have, so a choice looks alike on macOS and
 // Windows. "custom" uses a font installed on this computer, by name.

@@ -133,6 +133,14 @@ type Hub struct {
 	giveaway *GiveawayView
 	// themeOrigin is the theme server's, for wheel looks ("" when off).
 	themeOrigin string
+	themes      *Catalogue
+}
+
+// UseThemes says which looks are installed, for wheel overlays' hellos.
+func (h *Hub) UseThemes(c *Catalogue) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.themes = c
 }
 
 // NewHub returns a Hub. now may be nil.
@@ -167,7 +175,7 @@ func (h *Hub) countLocked(name string) (pages, previews int) {
 // before an update reloads.
 func (h *Hub) hello(o Overlay, preview bool) []byte {
 	body := map[string]any{"protocol": 1, "overlay": o, "preview": preview, "page_version": PageVersion}
-	if t := themeView(o, h.themeOrigin); t != nil {
+	if t := themeView(o, h.themeOrigin, h.themes); t != nil {
 		body["theme"] = t
 	}
 	return message("hello", body)

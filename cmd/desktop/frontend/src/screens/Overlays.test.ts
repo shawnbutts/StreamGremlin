@@ -51,6 +51,11 @@ const settings = (accent: string) => [
 const themes = [
   { id: 'builtin:workshop', name: 'Workshop', description: 'A brass and wood frame.', odds_checked: true, settings: settings('#e8b04e') },
   { id: 'builtin:selector-board', name: 'Selector board', description: 'A list that rolls.', odds_checked: true, settings: settings('#9cf03b') },
+  { id: 'paper-wheel', name: 'Paper wheel', description: 'A hand-cut wheel.', odds_checked: false, version: '1.0.0', publisher: 'Someone',
+    settings: [
+      { key: 'paper', label: 'Paper', kind: 'choice' as const, default: 'Cream', options: ['Cream', 'Sky'] },
+      { key: 'outline', label: 'Outline width', kind: 'number' as const, default: 3, min: 0, max: 8 },
+    ] },
 ];
 
 function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; noLink?: boolean } = {}) {
@@ -212,7 +217,7 @@ describe('Overlays', () => {
     const el = start();
     await settle();
     const pick = Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === 'Look')!.querySelector('select')!;
-    expect(Array.from(pick.options).map((o) => o.textContent)).toEqual(['Classic', 'Workshop', 'Selector board']);
+    expect(Array.from(pick.options).map((o) => o.textContent)).toEqual(['Classic', 'Workshop', 'Selector board', 'Paper wheel (add-on)']);
     expect(el.textContent).toContain('Classic uses the colours and font below');
     pick.value = 'builtin:workshop';
     pick.dispatchEvent(new Event('change', { bubbles: true }));
@@ -246,6 +251,35 @@ describe('Overlays', () => {
     const last = calls.filter((c) => c.method === 'PUT').at(-1)!.body as { look: OverlayLook };
     expect(last.look.theme).toBe('');
     expect(last.look.theme_settings).toBeUndefined();
+  });
+
+  it('sets an installed look’s own settings, saying its odds aren’t checked and who published it', async () => {
+    const wheel: Overlay = { ...alerts, name: 'wheel', kind: 'wheel' };
+    const { calls } = engine([wheel]);
+    const el = start();
+    await settle();
+    const field = (label: string) => Array.from(el.querySelectorAll('label')).find((l) => l.querySelector('span')?.textContent === label)!;
+    const pick = field('Look').querySelector('select')!;
+    pick.value = 'paper-wheel';
+    pick.dispatchEvent(new Event('change', { bubbles: true }));
+    flushSync();
+    expect(el.textContent).toContain('An add-on: version 1.0.0, published by Someone (not verified).');
+    expect(el.textContent).toContain('StreamGremlin can’t check how this look draws the odds');
+    const paper = field('Paper').querySelector('select')!;
+    expect(Array.from(paper.options).map((o) => o.value)).toEqual(['Cream', 'Sky']);
+    paper.value = 'Sky';
+    paper.dispatchEvent(new Event('change', { bubbles: true }));
+    const outline = field('Outline width').querySelector('input')!;
+    expect(outline.type).toBe('number');
+    expect(outline.min).toBe('0');
+    expect(outline.max).toBe('8');
+    outline.value = '5';
+    outline.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    await noViolations('an installed look');
+    button(el, 'Save look')!.click();
+    await settle();
+    expect(calls.find((c) => c.method === 'PUT')).toMatchObject({ body: { look: { theme: 'paper-wheel', theme_settings: { paper: 'Sky', outline: 5 } } } });
   });
 
   it('offers a look’s own sounds for the cues left empty, and turns them off', async () => {

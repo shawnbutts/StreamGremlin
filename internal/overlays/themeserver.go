@@ -2,6 +2,7 @@ package overlays
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"path"
@@ -22,6 +23,19 @@ type ThemeServer struct {
 	mu        sync.RWMutex
 	self      string   // this server's origin, like http://127.0.0.1:50123
 	ancestors []string // the overlay pages' origins, which may frame a theme
+	themes    *Catalogue
+	files     PackageFiles
+}
+
+// PackageFiles reads one file of an installed package's version.
+type PackageFiles func(ctx context.Context, id, version, path string) ([]byte, error)
+
+// UseThemes serves installed themes' files: those of the versions c
+// lists, read with files.
+func (t *ThemeServer) UseThemes(c *Catalogue, files PackageFiles) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.themes, t.files = c, files
 }
 
 // NewThemeServer returns a ThemeServer. Call SetOrigins once it listens.
@@ -63,12 +77,20 @@ var themeTypes = map[string]string{
 	".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
 	".webp": "image/webp", ".gif": "image/gif", ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".otf": "font/otf",
 	".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".wav": "audio/wav", ".txt": "text/plain; charset=utf-8",
+	".md": "text/plain; charset=utf-8",
 }
+
+var (
+	packageVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]{1,40})?$`)
+	packageDigest  = regexp.MustCompile(`^[0-9a-f]{64}$`)
+	packagePath    = regexp.MustCompile(`^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$`)
+)
 
 var themeFile = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
 
-// ServeHTTP serves /t/builtin/<page version>/<look or shared>/<file>.
-// Anything else is 404 with nothing in it.
+// ServeHTTP serves /t/builtin/<page version>/<look or shared>/<file>, and
+// installed themes' files at /t/<id>/<version>/<digest>/<path>. Anything
+// else is 404 with nothing in it.
 func (t *ThemeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("X-Content-Type-Options", "nosniff")
@@ -86,8 +108,16 @@ func (t *ThemeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, "/t/builtin/") {
+		t.serveBuiltin(w, r)
+		return
+	}
+	t.serveInstalled(w, r)
+}
+
+func (t *ThemeServer) serveBuiltin(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/t/builtin/"), "/")
-	if !strings.HasPrefix(r.URL.Path, "/t/builtin/") || len(parts) != 3 || parts[0] != PageVersion || !themeFile.MatchString(parts[2]) {
+	if len(parts) != 3 || parts[0] != PageVersion || !themeFile.MatchString(parts[2]) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -96,8 +126,7 @@ func (t *ThemeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, th := range Themes {
 		known = known || th.dir == dir
 	}
-	ctype, ok := themeTypes[path.Ext(file)]
-	if !known || !ok {
+	if !known {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -106,8 +135,46 @@ func (t *ThemeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	t.write(w, r, file, b)
+}
+
+// serveInstalled serves /t/<id>/<version>/<digest>/<path>: a file of an
+// installed theme's version, only while it's the one installed.
+func (t *ThemeServer) serveInstalled(w http.ResponseWriter, r *http.Request) {
+	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/t/"), "/", 4)
+	t.mu.RLock()
+	themes, files := t.themes, t.files
+	t.mu.RUnlock()
+	if !strings.HasPrefix(r.URL.Path, "/t/") || len(parts) != 4 || files == nil || !installedID.MatchString(parts[0]) ||
+		!packageVersion.MatchString(parts[1]) || !packageDigest.MatchString(parts[2]) || len(parts[3]) > 200 ||
+		!packagePath.MatchString(parts[3]) || !themes.serves(parts[0], parts[1], parts[2]) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	for _, seg := range strings.Split(parts[3], "/") {
+		if seg == "." || seg == ".." {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	}
+	b, err := files(r.Context(), parts[0], parts[1], parts[3])
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	t.write(w, r, parts[3], b)
+}
+
+// write answers with a theme's file, its type from its extension.
+func (t *ThemeServer) write(w http.ResponseWriter, r *http.Request, name string, b []byte) {
+	ctype, ok := themeTypes[strings.ToLower(path.Ext(name))]
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	h := w.Header()
 	h.Set("Content-Type", ctype)
 	h.Set("Content-Security-Policy", t.ThemeCSP())
 	// With its length, and ranges, which audio players ask for.
-	http.ServeContent(w, r, file, time.Time{}, bytes.NewReader(b))
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(b))
 }

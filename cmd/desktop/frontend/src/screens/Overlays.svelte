@@ -83,11 +83,11 @@
     look.theme_settings = {}; // each look's own settings, from its defaults
   }
 
-  const settingValue = (key: string, dflt: string | boolean) => look?.theme_settings?.[key] ?? dflt;
+  const settingValue = (key: string, dflt: string | boolean | number) => look?.theme_settings?.[key] ?? dflt;
   // A look with its own sounds plays them for any cue left at "No sound" (D-065).
   const themeSoundsSetting = $derived(chosenTheme?.settings.find((s) => s.key === 'sounds'));
   const themeSounds = $derived(Boolean(themeSoundsSetting && settingValue('sounds', themeSoundsSetting.default) === true));
-  function setSetting(key: string, v: string | boolean) {
+  function setSetting(key: string, v: string | boolean | number) {
     if (look) look.theme_settings = { ...(look.theme_settings ?? {}), [key]: v };
   }
 
@@ -326,10 +326,13 @@
               <span>Look</span>
               <select class="sg-input" value={look.theme ?? ''} onchange={(e) => setTheme(e.currentTarget.value)}>
                 <option value="">Classic</option>
-                {#each data?.themes ?? [] as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+                {#each data?.themes ?? [] as t (t.id)}<option value={t.id}>{t.name}{t.publisher ? ` (add-on)` : ""}</option>{/each}
               </select>
             </label>
             {#if chosenTheme}
+              {#if chosenTheme.publisher}
+                <p class="sg-muted field-hint">An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified).</p>
+              {/if}
               <p class="sg-muted field-hint">
                 {chosenTheme.description}
                 {chosenTheme.odds_checked
@@ -337,7 +340,25 @@
                   : 'StreamGremlin can’t check how this look draws the odds: the real odds are on the Wheels screen and in “Say a wheel’s odds”.'}
               </p>
               {#each chosenTheme.settings as s (s.key)}
-                {#if s.kind === 'switch'}
+                {#if s.kind === 'choice'}
+                  <label class="field">
+                    <span>{s.label}</span>
+                    <select class="sg-input" value={String(settingValue(s.key, s.default))} onchange={(e) => setSetting(s.key, e.currentTarget.value)}>
+                      {#each s.options ?? [] as o (o)}<option value={o}>{o}</option>{/each}
+                    </select>
+                  </label>
+                  {#if s.hint}<p class="sg-muted field-hint">{s.hint}</p>{/if}
+                {:else if s.kind === 'number'}
+                  <label class="field">
+                    <span>{s.label}</span>
+                    <input class="sg-input" type="number" step="1" min={s.min ?? 0} max={s.max} value={Number(settingValue(s.key, s.default))}
+                      oninput={(e) => {
+                        const n = e.currentTarget.valueAsNumber;
+                        if (Number.isInteger(n)) setSetting(s.key, n);
+                      }} />
+                  </label>
+                  {#if s.hint}<p class="sg-muted field-hint">{s.hint}</p>{/if}
+                {:else if s.kind === 'switch'}
                   <label class="choice-inline">
                     <input type="checkbox" checked={settingValue(s.key, s.default) === true} onchange={(e) => setSetting(s.key, e.currentTarget.checked)} />
                     {s.label}

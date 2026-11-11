@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -74,12 +75,20 @@ func NewServer(opts Options, routes []Route) *Server {
 		})
 		byPath[rt.Path] = append(byPath[rt.Path], rt.Method)
 	}
+	// Other methods on a route's path are 405, saying which it takes.
+	// They're registered method by method, so /v1/x/check beside
+	// /v1/x/{id} doesn't clash.
 	for path, methods := range byPath {
 		allow := strings.Join(sorted(methods), ", ")
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Allow", allow)
-			writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "use "+allow)
-		})
+		for _, m := range []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"} {
+			if slices.Contains(methods, m) {
+				continue
+			}
+			mux.HandleFunc(m+" "+path, func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Allow", allow)
+				writeError(w, http.StatusMethodNotAllowed, CodeMethodNotAllowed, "use "+allow)
+			})
+		}
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, CodeNotFound, "no such route")

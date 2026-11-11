@@ -1,0 +1,22 @@
+{
+  "format": "streamgremlin.package/v1",
+  "id": "paper-wheel",
+  "name": "Paper wheel",
+  "version": "1.0.0",
+  "publisher": "StreamGremlin examples",
+  "description": "A hand-cut paper wheel: an example of an installed theme.",
+  "license": "MIT",
+  "kind": "theme",
+  "api": "1",
+  "theme": {
+    "for": ["wheel"],
+    "entry": "index.html",
+    "settings": [
+      { "key": "title", "label": "Title", "kind": "text", "default": "", "max": 70, "hint": "Empty: the wheel's own title" },
+      { "key": "paper", "label": "Paper", "kind": "choice", "default": "Cream", "options": ["Cream", "Sky", "Blush"] },
+      { "key": "outline", "label": "Outline width", "kind": "number", "default": 3, "min": 0, "max": 8 },
+      { "key": "accent", "label": "Pointer colour", "kind": "colour", "default": "#d9534f" },
+      { "key": "show_chances", "label": "Show each choice's chance", "kind": "switch", "default": true }
+    ]
+  }
+}
