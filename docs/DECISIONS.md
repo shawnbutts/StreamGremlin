@@ -1316,3 +1316,19 @@ Decided 2026-11-11, building slice 6 after the user's "proceed". The feature cut
 - **Rolls are made by StreamGremlin** from `crypto/rand` and recorded, append-only. The rules are recorded as the plugin's own words. The screens never call a game fair.
 - **Simpler than StreamWisp in one way:** a stake can't be changed once it's made.
 - **Dice tray 1.3.0** adds **Gamble points** (`!gamble 50`, `!gamble all`) and its template. Each gamble is a round: it pays twice the stake at the winning roll (60 by default, a setting) or more.
+
+## D-075. M7, Live: a Live screen, moderating from chat, and a Stream Deck plugin, before YouTube (amends D-006)
+
+Decided 2026-11-11, after M5 closed. The user: "i do think we need to add a few more things to make streaming easier on twitch before youtube.  first, we need a "live" screen that a stream and see and control what they need while live without having to dig though menus, etc.  i'm thinking of a screen with the chat in the middle and programable buttons down the right side or along the top.  they buttons would trigger workflows.  the chat would need some details about the viewer when hovering over their name.  pretty much everything we can get from the api.  we should also have small buttons to ban, mute, etc (whatever we can do in the api) to control the viewer in chat.  second, we need to figure out stream deck integration so streamers that have it can control the workflows, etc."
+
+Offered our own Stream Deck plugin, global hotkeys, or both, the user chose: "Our own Stream Deck plugin (Recommended)".
+
+**Who it's for:** every streamer while live (the Live screen and moderating), and streamers with a Stream Deck, many of them coming from Streamer.bot (D-001).
+
+- **A new milestone, M7. Live, comes before M6 (YouTube).** Numbers stay as they are (D-061). The plan is in [docs/milestones/M7.md](milestones/M7.md).
+- **A Live screen:** Twitch chat in the middle, with sending; buttons that run workflows, down the right side or along the top (the streamer's choice).
+- **A new trigger, "You press a button":** a button, on the Live screen or a Stream Deck, runs the workflows it starts. It has no viewer, like a timer.
+- **A viewer card** on a chatter's name, with what Twitch's documented API gives and what StreamGremlin knows. Twitch's side includes their account, since when they follow, their subscription, and whether they're a VIP, moderator or banned. StreamGremlin's side is their record, points and recent messages here. Each piece needs its own scope, so signing in again asks for it. A piece Twitch doesn't give shows as unknown, never guessed.
+- **Moderating from chat:** small buttons for what Twitch's documented moderation API allows. That means deleting a message, timing out (Twitch's "mute"), banning and unbanning, warning, a shoutout, VIP and moderator, and the chat modes. Each is checked against Twitch's docs when built, recorded, and refused ones say why. Banning asks first, in the app's dialog.
+- **Our own Stream Deck plugin,** built with Elgato's documented SDK. It pairs once with the app, then each button is set to a StreamGremlin button or workflow, picked from a list, and it can show state. It reaches the engine through the same authenticated local API as the app and CLI, with its own narrow permissions. How it pairs is designed as an ADR first (security). It installs from a file. A Marketplace listing is a later decision.
+- **The Streamer.bot WebSocket gateway stays Leave,** so Streamer.bot's Stream Deck buttons don't carry over. Streamers set their buttons again with ours. **Global hotkeys stay Later.**

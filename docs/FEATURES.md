@@ -14,13 +14,14 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **F3** | Switch feature 3: giveaways |
 | **F4** | Switch feature 4: points ledger, currencies and rewards shop, native so plugins can use it |
 | **Lua & plugins** | Lua scripts, then Lua plugins with the points API |
+| **Live** | M7: the Live screen, moderating from chat, and the Stream Deck plugin (D-075) |
 | **Import** | Import from Streamer.bot, checked against real exports |
 | **YouTube** | The YouTube milestone (D-003) |
 | **Release** | Built up across milestones, required before the first public release |
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M6 YouTube.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
@@ -76,6 +77,10 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Ad break begins trigger; get ad schedule, snooze next ad and start commercial steps; "next ad / snooze" card on Home | 0022, D-036; built in M2 (ADR-0024, D-042) | F2 |
 | Ad requests and confirmed breaks recorded separately | 0023, D-038; built in M2 (ADR-0024, D-042) | F2 |
 | Stream category for matching content packs | 0033, D-051 | Later, with packs |
+| A Live screen: chat in the middle with sending, buttons that run workflows (right side or top) | new (D-075) | Live |
+| A "You press a button" trigger, for the Live screen's buttons and the Stream Deck | new (D-075) | Live |
+| A viewer card on a chatter's name: what Twitch's API gives (account, follow, subscription, VIP, moderator, banned) and StreamGremlin's record | new (D-075) | Live |
+| Moderating from chat: delete, time out, ban and unban, warn, shoutout, VIP, moderator, chat modes, as Twitch's API allows | new (D-075) | Live |
 
 ## OBS
 
@@ -177,6 +182,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Sounds | 0042, D-057, D-066 | F2 (see Engagement) |
 | Text to speech | 0042, D-057, D-066 | Later |
 | Global hotkeys | 0042, D-057, D-066 | Later |
+| Our own Stream Deck plugin: paired once, buttons run StreamGremlin buttons or workflows and show state | new (D-075); the Streamer.bot gateway stays Leave | Live |
 | MIDI, window events, clipboard | not built | Later |
 
 ## AI
