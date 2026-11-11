@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -16,8 +17,11 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/points"
+	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -130,6 +134,11 @@ type rig struct {
 	inbox *fakeInbox
 	m     *Manager
 	now   time.Time
+	// Points: the ledger, viewers and rounds, with rolls set by the test.
+	ledger *points.Ledger
+	vs     *viewers.Service
+	rounds *rounds.Service
+	rolls  []int
 }
 
 type fakeInbox struct {
@@ -174,7 +183,13 @@ func newRig(t *testing.T) *rig {
 	}
 	r := &rig{store: packages.NewStore(db), reg: workflow.NewRegistry(), chat: &fakeChat{}, inbox: &fakeInbox{seen: map[string]bool{}},
 		now: time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)}
-	r.m = New(Options{Store: r.store, Actions: r.reg, Chat: r.chat, Inbox: r.inbox, Now: func() time.Time { return r.now }})
+	r.ledger, r.vs = points.New(db, nil), viewers.New(db, nil, nil)
+	r.rounds = rounds.New(rounds.Options{DB: db, Ledger: r.ledger, Viewers: r.vs, Now: func() time.Time { return r.now }, Roll: func(int) int {
+		v := r.rolls[0]
+		r.rolls = r.rolls[1:]
+		return v
+	}})
+	r.m = New(Options{Store: r.store, Actions: r.reg, Chat: r.chat, Inbox: r.inbox, Rounds: r.rounds, Now: func() time.Time { return r.now }})
 	t.Cleanup(r.m.Close)
 	return r
 }
@@ -227,8 +242,8 @@ func TestTheExamplePlugin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pv.Kind != "lua" || pv.Plugin == nil || len(pv.Plugin.Permissions) != 2 || pv.Plugin.Permissions[0].Name != "chat.send" ||
-		!strings.Contains(pv.Plugin.Permissions[0].What, "Send messages in your chat") || len(pv.Plugin.Actions) != 4 {
+	if pv.Kind != "lua" || pv.Plugin == nil || len(pv.Plugin.Permissions) != 3 || pv.Plugin.Permissions[0].Name != "chat.send" ||
+		!strings.Contains(pv.Plugin.Permissions[0].What, "Send messages in your chat") || len(pv.Plugin.Actions) != 5 {
 		t.Fatalf("preview: %+v", pv.Plugin)
 	}
 	for _, perms := range [][]string{nil, {"chat.send"}, {"chat.send", "chat.send"}, {"chat.send", "points.give"}} {
@@ -236,7 +251,7 @@ func TestTheExamplePlugin(t *testing.T) {
 			t.Errorf("%v: %v", perms, err)
 		}
 	}
-	r.install(t, data, "chat.send", "events.publish")
+	r.install(t, data, "chat.send", "events.publish", "points.rounds")
 
 	// Installed off: its steps are there, and fail saying so.
 	a, ok := r.reg.Get("dice-tray.roll")
@@ -324,11 +339,11 @@ func TestPluginRefusals(t *testing.T) {
 	// The example without chat.send.
 	noChat := zipFolder(t, example, func(name string, b []byte) []byte {
 		if name == "streamgremlin.json" {
-			return bytes.Replace(b, []byte(`"chat.send", "events.publish"`), []byte(`"events.publish"`), 1)
+			return bytes.Replace(b, []byte(`"chat.send", "events.publish", "points.rounds"`), []byte(`"events.publish", "points.rounds"`), 1)
 		}
 		return b
 	})
-	r.install(t, noChat, "events.publish")
+	r.install(t, noChat, "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +364,7 @@ func TestPluginRefusals(t *testing.T) {
 func TestChatLimits(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +398,7 @@ func TestPluginFailures(t *testing.T) {
 		}
 		return b
 	})
-	r.install(t, broken, "chat.send", "events.publish")
+	r.install(t, broken, "chat.send", "events.publish", "points.rounds")
 	err := r.m.SetEnabled(ctx, "dice-tray", true)
 	if !errors.Is(err, ErrLoad) || !strings.Contains(err.Error(), "syntax error") {
 		t.Fatalf("broken: %v", err)
@@ -407,7 +422,7 @@ sg.action("best", function() return 1 end)`)
 		}
 		return b
 	})
-	r.install(t, bomb, "chat.send", "events.publish")
+	r.install(t, bomb, "chat.send", "events.publish", "points.rounds")
 	r.m.opts.Lua.Memory = 32 << 20
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
@@ -432,7 +447,7 @@ sg.action("best", function() return 1 end)`)
 func TestStartLoadsPluginsLeftOn(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +480,7 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pv.Plugin.Templates) != 4 || pv.Plugin.Templates[0].Title != "!best: the session's best roll" {
+	if len(pv.Plugin.Templates) != 5 || pv.Plugin.Templates[0].Title != "!best: the session's best roll" {
 		t.Fatalf("templates: %+v", pv.Plugin.Templates)
 	}
 	for _, c := range []struct{ from, to, want string }{
@@ -496,9 +511,9 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 	}
 
 	// Installed: in the gallery, under the plugin's name, saying it's off.
-	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
 	ts, err := r.store.AddOnTemplates(ctx)
-	if err != nil || len(ts) != 4 || ts[2].ID != "dice-tray/roll" || ts[2].Category != "Dice tray" || ts[2].AddOn == nil || ts[2].AddOn.Enabled {
+	if err != nil || len(ts) != 5 || ts[3].ID != "dice-tray/roll" || ts[3].Category != "Dice tray" || ts[3].AddOn == nil || ts[3].AddOn.Enabled {
 		t.Fatalf("gallery: %+v %v", ts, err)
 	}
 }
@@ -506,7 +521,7 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 // "!roll" with nothing after it rolls the default, one die.
 func TestEmptyNumberIsTheDefault(t *testing.T) {
 	r := newRig(t)
-	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(context.Background(), "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +537,7 @@ func TestEmptyNumberIsTheDefault(t *testing.T) {
 func TestUpdatingAPlugin(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +548,7 @@ func TestUpdatingAPlugin(t *testing.T) {
 	v2 := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			s := strings.Replace(string(b), `"version": "1.2.0"`, `"version": "1.4.0"`, 1)
+			s := strings.Replace(string(b), `"version": "1.3.0"`, `"version": "1.4.0"`, 1)
 			i := strings.Index(s, `{
         "name": "roll",`)
 			j := strings.Index(s, `{
@@ -590,7 +605,7 @@ func TestUpdatingAPlugin(t *testing.T) {
 	broken := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			return bytes.Replace(b, []byte(`"version": "1.2.0"`), []byte(`"version": "1.5.0"`), 1)
+			return bytes.Replace(b, []byte(`"version": "1.3.0"`), []byte(`"version": "1.5.0"`), 1)
 		case "plugin.lua":
 			return append(b, []byte("\nlocal x = = 1\n")...)
 		}
@@ -636,7 +651,7 @@ func TestPluginEventsAndTimers(t *testing.T) {
 			return bytes.Replace(b, []byte(`"default": 60, "min": 10`), []byte(`"default": 60, "min": 1`), 1)
 		}
 		return b
-	}), "chat.send", "events.publish")
+	}), "chat.send", "events.publish", "points.rounds")
 	triggers := r.reg.AddOnTriggers()
 	if len(triggers) != 2 || triggers[0].Type != "plugin.dice_tray.round_ended" || triggers[0].AddOn != "dice-tray" ||
 		triggers[0].Category != "Dice tray" || triggers[0].Values[0].Expr != "event.payload.winner" ||
@@ -659,11 +674,11 @@ func TestPluginEventsAndTimers(t *testing.T) {
 				return ""
 			}
 		}
-		return strings.Join(r.chat.texts(), " | ")
+		return "not yet; said: " + strings.Join(r.chat.texts(), " | ")
 	})
 	eventually(t, "its event", func() string {
 		if !slices.Contains(r.inbox.types(), "plugin.dice_tray.round_ended") {
-			return strings.Join(r.inbox.types(), ",")
+			return "not yet; got: " + strings.Join(r.inbox.types(), ",")
 		}
 		return ""
 	})
@@ -735,7 +750,7 @@ func TestTimersStopWithThePlugin(t *testing.T) {
 			return bytes.Replace(b, []byte(`"default": 60, "min": 10`), []byte(`"default": 60, "min": 1`), 1)
 		}
 		return b
-	}), "chat.send", "events.publish")
+	}), "chat.send", "events.publish", "points.rounds")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -750,5 +765,123 @@ func TestTimersStopWithThePlugin(t *testing.T) {
 		if strings.Contains(m, "is over") {
 			t.Fatalf("the round closed after the plugin was turned off: %q", m)
 		}
+	}
+}
+
+// stepBy runs a step for a viewer's event, with its own key.
+func (r *rig) stepBy(t *testing.T, name, viewer, key string, args map[string]any) (map[string]any, error) {
+	t.Helper()
+	a, ok := r.reg.Get(name)
+	if !ok {
+		t.Fatalf("no step %s", name)
+	}
+	var actor any
+	if viewer != "" {
+		actor = map[string]any{"platform": "twitch", "id": "id-" + strings.ToLower(viewer), "login": strings.ToLower(viewer), "display_name": viewer}
+	}
+	out, err := a.Run(context.Background(), workflow.Call{Args: args, IdempotencyKey: key, JobID: key, WorkflowID: "gamble",
+		Event: map[string]any{"id": "e-" + key, "source": "twitch", "actor": actor}})
+	m, _ := out.(map[string]any)
+	return m, err
+}
+
+// Gambling through the example (ADR-0039): the stake taken, the roll made
+// by StreamGremlin, twice the stake back on a win, nothing more on a
+// loss; refused without enough points or without a viewer; open rounds
+// refunded when the plugin is turned off.
+func TestGamblingThroughTheExample(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	fan, err := r.vs.Ensure(ctx, events.Actor{Platform: "twitch", ID: "id-fan", Login: "fan", DisplayName: "Fan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.ledger.Credit(ctx, points.Op{ID: "seed", Viewer: fan.ID, Amount: 100, By: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	bal := func() int64 {
+		b, _ := r.ledger.Balance(ctx, fan.ID, "")
+		return b
+	}
+	r.rolls = []int{73}
+	out, err := r.stepBy(t, "dice-tray.gamble", "Fan", "j1", map[string]any{"amount": "50"})
+	if err != nil || out["won"] != true || out["balance"] != int64(150) || bal() != 150 {
+		t.Fatalf("a win: %v %v (balance %d)", out, err, bal())
+	}
+	r.rolls = []int{12}
+	if out, _ := r.stepBy(t, "dice-tray.gamble", "Fan", "j2", map[string]any{"amount": "all"}); out["won"] != false || out["stake"] != int64(150) || bal() != 0 {
+		t.Fatalf("all, lost: %v (balance %d)", out, bal())
+	}
+	if out, _ := r.stepBy(t, "dice-tray.gamble", "Fan", "j3", map[string]any{"amount": "5"}); out["ok"] != false || !strings.Contains(out["why"].(string), "Fan has 0 points, not 5") {
+		t.Errorf("not enough: %v", out)
+	}
+	if out, _ := r.stepBy(t, "dice-tray.gamble", "", "j4", map[string]any{"amount": "5"}); out["ok"] != false || !strings.Contains(out["why"].(string), "only a viewer's own command") {
+		t.Errorf("no viewer: %v", out)
+	}
+	sent := strings.Join(r.chat.texts(), "\n")
+	if !strings.Contains(sent, "Fan rolled 73 and wins 100 points! (now 150)") || !strings.Contains(sent, "Fan rolled 12 and loses 150 points. (now 0; 60 or more wins)") {
+		t.Errorf("chat:\n%s", sent)
+	}
+	list, err := r.rounds.List(ctx, "dice-tray", 10)
+	if err != nil || len(list) != 4 {
+		t.Fatalf("rounds: %d %v", len(list), err)
+	}
+	states := map[string]int{}
+	for _, rd := range list {
+		states[rd.State]++
+	}
+	if states["settled"] != 2 || states["refunded"] != 2 || list[len(list)-1].Rules != "Roll 1 to 100: 60 or more pays back twice the stake; less loses it." {
+		t.Errorf("rounds: %v %q", states, list[len(list)-1].Rules)
+	}
+	act := strings.Join(activity(t, r, "dice-tray"), "\n")
+	if !strings.Contains(act, "round.stake ok: ") || !strings.Contains(act, "staked 50") || !strings.Contains(act, "round.stake refused: ") {
+		t.Errorf("activity:\n%s", act)
+	}
+
+	// An open round is refunded when the plugin is turned off.
+	if _, err := r.ledger.Credit(ctx, points.Op{ID: "seed2", Viewer: fan.ID, Amount: 30, By: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	lim := rounds.Limits{MaxStake: 1000, MaxMultiplier: 2, MaxRoundSeconds: 30}
+	rd, err := r.rounds.Open(ctx, "dice-tray", "1.3.0", "Left open", "rules", "", lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := r.rounds.Stake(ctx, "dice-tray", rd.ID, &events.Actor{Platform: "twitch", ID: "id-fan", DisplayName: "Fan"}, 30, lim); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.m.SetEnabled(ctx, "dice-tray", false); err != nil {
+		t.Fatal(err)
+	}
+	if bal() != 30 {
+		t.Errorf("after turning off: %d", bal())
+	}
+	if problems, err := r.ledger.Audit(ctx); err != nil || len(problems) != 0 {
+		t.Errorf("ledger: %v %v", problems, err)
+	}
+}
+
+// Without points.rounds, its calls are refused.
+func TestRoundsNeedThePermission(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.install(t, zipFolder(t, example, func(name string, b []byte) []byte {
+		if name == "streamgremlin.json" {
+			b = bytes.Replace(b, []byte(`, "points.rounds"]`), []byte(`]`), 1)
+			i := bytes.Index(b, []byte(`"points": {`))
+			j := bytes.Index(b, []byte(`"events": [`))
+			return append(append([]byte{}, b[:i]...), b[j:]...)
+		}
+		return b
+	}), "chat.send", "events.publish")
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := r.stepBy(t, "dice-tray.gamble", "Fan", "j1", map[string]any{"amount": "5"}); !strings.Contains(fmt.Sprint(out["why"]), "doesn't have permission to hold points") {
+		t.Errorf("without permission: %v", out)
 	}
 }

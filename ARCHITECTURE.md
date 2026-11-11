@@ -30,7 +30,7 @@ Headless server (optional) ─────────┘                       
 - **Secrets** in the OS keyring or an AES-256-GCM file, chosen once per data folder (D-021).
 - **Adapters** declare a capability manifest and one connection state. Only `connected` means connected.
 - **Overlays** on their own loopback listener, one rotatable token per browser source, snapshots and resync, acknowledgements with a timeout. The server decides outcomes (D-033).
-- **Lua and plugins** in supervised separate processes, with limits and approved permissions (D-014, D-065). Lua workers are the app's own binary started as `__lua-worker`, so every `main` calls `lua.RunWorkerIfAsked()` first, and so does `TestMain` in any package whose tests run scripts ([ADR-0037](docs/adr/0037-lua-scripts.md)).
+- **Lua and plugins** in supervised separate processes, with limits and approved permissions (D-014, D-065). Lua workers are the app's own binary started as `__lua-worker`, so every `main` calls `lua.RunWorkerIfAsked()` first, and so does `TestMain` in any package whose tests run scripts ([ADR-0037](docs/adr/0037-lua-scripts.md)). Plugins touch points only through rounds, in `internal/rounds`, with the ledger as the record ([ADR-0039](docs/adr/0039-points-for-plugins.md)).
 - **Mocks** of every outside service, usable from tests and standalone (`mocktwitch`, `mockobs`).
 - **Acceptance tests** through the real binaries, including crashes and redelivery.
 - **Tooling.** Make targets, pinned tools in `./bin/tools`, a pinned CI container, reproducible release builds with SBOMs.

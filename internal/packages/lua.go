@@ -1,6 +1,8 @@
 package packages
 
 import (
+	"fmt"
+	"math"
 	"path"
 	"regexp"
 	"slices"
@@ -22,6 +24,10 @@ const (
 	MaxTimeout       = 30
 	PermChatSend     = "chat.send"
 	PermEvents       = "events.publish"
+	PermRounds       = "points.rounds"
+	MaxStake         = 1_000_000
+	MaxMultiplier    = 10
+	MaxRoundSeconds  = 3600
 	MaxEvents        = 20
 	MaxEventValues   = 20
 	paramTextDefault = 200
@@ -32,6 +38,31 @@ const (
 var Permissions = map[string]string{
 	PermChatSend: "Send messages in your chat, as the bot when one is signed in (at most 20 a minute)",
 	PermEvents:   "Start your workflows with its own events (at most 10 a second)",
+	PermRounds:   "Hold viewers' points in its rounds and pay them out, within the limits it states. Its odds are its own: StreamGremlin can't check them",
+}
+
+// PermissionWhat is what a permission lets this plugin do: points.rounds
+// says its limits.
+func PermissionWhat(l *Lua, perm string) string {
+	if perm != PermRounds || l.Points == nil {
+		return Permissions[perm]
+	}
+	p := l.Points
+	cur := "points"
+	if p.Currency != "" {
+		cur = p.Currency
+	}
+	return fmt.Sprintf("Hold viewers' points in its rounds and pay them out: up to %s %s from a viewer a round, paying back at most %s× their stake, "+
+		"for up to %d seconds. Its odds are its own: StreamGremlin can't check them", thousands(p.MaxStake), cur,
+		strconv.FormatFloat(p.MaxMultiplier, 'f', -1, 64), p.MaxRoundSeconds)
+}
+
+func thousands(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
 }
 
 // EventType is the event type a plugin's event has: plugin.<id>.<name>,
@@ -92,6 +123,25 @@ type Lua struct {
 	Settings    []overlays.Setting `json:"settings,omitempty"`
 	// Events it can send, to start workflows (D-073): with events.publish.
 	Events []Event `json:"events,omitempty"`
+	// Points are its rounds' limits (ADR-0039): with points.rounds.
+	Points *PointsLimits `json:"points,omitempty"`
+}
+
+// PointsLimits bound a plugin's rounds (docs/adr/0039-points-for-plugins.md).
+type PointsLimits struct {
+	Currency        string  `json:"currency"`
+	MaxStake        int64   `json:"max_stake"`
+	MaxMultiplier   float64 `json:"max_multiplier"`
+	MaxRoundSeconds int     `json:"max_round_seconds"`
+}
+
+// more reports whether next allows more than p: moving to it asks again.
+func (p *PointsLimits) more(next *PointsLimits) bool {
+	if next == nil {
+		return false
+	}
+	return p == nil || next.Currency != p.Currency || next.MaxStake > p.MaxStake || next.MaxMultiplier > p.MaxMultiplier ||
+		next.MaxRoundSeconds > p.MaxRoundSeconds
 }
 
 // Event is one kind of event a plugin sends, as plugin.<id>.<name>.
@@ -187,7 +237,33 @@ func checkLua(m Manifest) error {
 	if err := checkSettings(l.Settings); err != nil {
 		return err
 	}
-	return checkEvents(l)
+	if err := checkEvents(l); err != nil {
+		return err
+	}
+	return checkPoints(l)
+}
+
+// checkPoints: points.rounds comes with its limits, and the other way round.
+func checkPoints(l *Lua) error {
+	asks := slices.Contains(l.Permissions, PermRounds)
+	p := l.Points
+	switch {
+	case p != nil && !asks:
+		return invalid("a plugin with points limits asks for the %s permission", PermRounds)
+	case p == nil && asks:
+		return invalid("the %s permission comes with its limits: a points section with max_stake, max_multiplier and max_round_seconds", PermRounds)
+	case p == nil:
+		return nil
+	case p.Currency != "" && !namePattern.MatchString(p.Currency):
+		return invalid("points: the currency is a currency's id, or empty for points")
+	case p.MaxStake < 1 || p.MaxStake > MaxStake:
+		return invalid("points: max_stake is 1 to %d", MaxStake)
+	case p.MaxMultiplier < 1 || p.MaxMultiplier > MaxMultiplier || math.Round(p.MaxMultiplier*100) != p.MaxMultiplier*100:
+		return invalid("points: max_multiplier is 1 to %d, with up to two decimals", MaxMultiplier)
+	case p.MaxRoundSeconds < 1 || p.MaxRoundSeconds > MaxRoundSeconds:
+		return invalid("points: max_round_seconds is 1 to %d", MaxRoundSeconds)
+	}
+	return nil
 }
 
 // checkEvents: events need events.publish, and events.publish needs events.

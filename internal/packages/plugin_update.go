@@ -58,8 +58,9 @@ func (s *Store) pluginChange(ctx context.Context, id string, from, to Manifest) 
 	ch := &PluginChange{NewPermissions: []PermissionInfo{}, Permissions: append([]string{}, to.Lua.Permissions...), RemovedSteps: []Action{},
 		Workflows: []string{}}
 	for _, p := range to.Lua.Permissions {
-		if !slices.Contains(approved, p) {
-			ch.NewPermissions = append(ch.NewPermissions, PermissionInfo{Name: p, What: Permissions[p]})
+		// Higher limits on its rounds ask again too (ADR-0039).
+		if !slices.Contains(approved, p) || p == PermRounds && from.Lua.Points.more(to.Lua.Points) {
+			ch.NewPermissions = append(ch.NewPermissions, PermissionInfo{Name: p, What: PermissionWhat(to.Lua, p)})
 		}
 	}
 	ch.RemovedSteps = removedSteps(from, to)

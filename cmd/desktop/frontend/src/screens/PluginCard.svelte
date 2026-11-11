@@ -4,10 +4,12 @@
   import {
     ApiError,
     getPackageActivity,
+    getPackageRounds,
     setPackageEnabled,
     setPackageSettings,
     type InstalledPackage,
     type PluginActivity,
+    type PluginRound,
   } from '../lib/api';
   import { eventTime } from '../lib/events';
 
@@ -26,12 +28,45 @@
   let edits = $state<Record<string, unknown>>({});
   let activity = $state<PluginActivity[] | undefined>();
   let showActivity = $state(false);
+  let roundList = $state<PluginRound[] | undefined>();
+  let showRounds = $state(false);
+  const hasRounds = $derived(plugin.permissions.some((x) => x.name === 'points.rounds'));
+  const STATES: Record<PluginRound['state'], string> = { open: 'open', settling: 'paying out', settled: 'paid out', refunded: 'refunded' };
+
+  async function toggleRounds() {
+    showRounds = !showRounds;
+    if (!showRounds) return;
+    try {
+      roundList = (await getPackageRounds(p.id)).rounds;
+    } catch (e) {
+      error = message(e);
+    }
+  }
+
+  function paidBack(r: PluginRound) {
+    const names = Object.fromEntries(r.stakes.map((s) => [s.viewer, s.name]));
+    return Object.entries(r.payouts ?? {})
+      .map(([v, n]) => `${names[v] ?? v} ${n}`)
+      .join(', ');
+  }
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const value = (key: string) => (key in edits ? edits[key] : plugin.values[key]);
   const changed = $derived(Object.keys(edits).some((k) => edits[k] !== plugin.values[k]));
   const OUTCOMES: Record<PluginActivity['outcome'], string> = { ok: 'done', refused: 'refused', failed: 'failed' };
-  const CALLS: Record<string, string> = { log: 'Logged', 'chat.send': 'Chat', 'events.publish': 'Event', timer: 'Timer' };
+  const CALLS: Record<string, string> = {
+    log: 'Logged',
+    'chat.send': 'Chat',
+    'events.publish': 'Event',
+    timer: 'Timer',
+    'points.balance': 'Balance',
+    'points.rounds': 'Rounds',
+    'round.open': 'Round opened',
+    'round.stake': 'Stake',
+    'round.roll': 'Roll',
+    'round.settle': 'Paid out',
+    'round.cancel': 'Round cancelled',
+  };
 
   async function toggle(on: boolean) {
     working = true;
@@ -213,6 +248,36 @@
       </ul>
     {/if}
   </div>
+
+  {#if hasRounds}
+    <button type="button" class="button" aria-expanded={showRounds} aria-controls={`plugin-rounds-${p.id}`} onclick={toggleRounds}>
+      {showRounds ? 'Hide' : 'Show'} its rounds
+    </button>
+    <div id={`plugin-rounds-${p.id}`} hidden={!showRounds}>
+      <p class="sg-muted field-hint">
+        Each round holds viewers’ points until it pays out or gives them back. The rules are the plugin’s own words:
+        StreamGremlin can’t check them. The rolls are made and recorded by StreamGremlin.
+      </p>
+      {#if roundList && roundList.length === 0}
+        <p class="sg-muted">No rounds yet.</p>
+      {:else if roundList}
+        <ul class="activity" aria-label={`${p.name}’s rounds`}>
+          {#each roundList as r (r.id)}
+            <li>
+              <span class="sg-muted">{eventTime(r.opened_at)}</span>
+              <strong>{r.title}</strong>, {STATES[r.state]}{r.reason ? `: ${r.reason}` : ''}.
+              <span class="sg-muted">Rules, as {p.name} states them: {r.rules}</span>
+              Stakes: {r.stakes.length ? r.stakes.map((s) => `${s.name} ${s.amount}`).join(', ') : 'none'}.
+              {#if r.rolls.length}
+                Rolls by StreamGremlin: {r.rolls.map((x) => `${x.label} ${x.value} of ${x.sides}`).join(', ')}.
+              {/if}
+              {#if r.state === 'settled'}Paid back: {paidBack(r) || 'nothing'}.{/if}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
 
   <p class="saved" role="status">{saved}</p>
   {#if error}<p class="error" role="alert">{error}</p>{/if}

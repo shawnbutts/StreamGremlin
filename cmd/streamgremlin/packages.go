@@ -8,11 +8,13 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/rounds"
 )
 
 const packagesUsage = `usage:
@@ -26,6 +28,7 @@ const packagesUsage = `usage:
   streamgremlin packages on|off ID            turn a plugin on or off
   streamgremlin packages set ID KEY=VALUE...  change a plugin's settings (it starts again, fresh)
   streamgremlin packages activity ID [-json]  what a plugin has asked StreamGremlin to do
+  streamgremlin packages rounds ID [-json]    a plugin's rounds: stakes, rolls, payouts and refunds
   streamgremlin packages rollback ID [-yes] [-allow PERMISSIONS]
                                               back to the version before the installed one; a
                                               plugin's version that asks for more needs -allow
@@ -418,6 +421,53 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, " It's off: %s.", p.Plugin.Error)
 		}
 		fmt.Fprintln(stdout)
+		return 0
+	case sub == "rounds" && len(pos) == 1:
+		var out struct {
+			Rounds []rounds.Round `json:"rounds"`
+		}
+		if code := apiExit(c.Do(ctx, "GET", "/v1/packages/"+url.PathEscape(pos[0])+"/rounds", nil, &out), stderr); code != 0 {
+			return code
+		}
+		if *asJSON {
+			return printJSON(stdout, out.Rounds)
+		}
+		if len(out.Rounds) == 0 {
+			fmt.Fprintln(stdout, "No rounds yet.")
+			return 0
+		}
+		for _, rd := range out.Rounds {
+			state := rd.State
+			if rd.Reason != "" {
+				state += " (" + rd.Reason + ")"
+			}
+			fmt.Fprintf(stdout, "%s  %s  %s  %s\n", rd.OpenedAt.Local().Format("2006-01-02 15:04:05"), rd.ID, rd.Title, state)
+			fmt.Fprintf(stdout, "  Rules, as the plugin states them: %s\n", rd.Rules)
+			names := map[string]string{}
+			var stakes []string
+			for _, st := range rd.Stakes {
+				names[st.Viewer] = st.Name
+				stakes = append(stakes, fmt.Sprintf("%s %d", st.Name, st.Amount))
+			}
+			fmt.Fprintf(stdout, "  Stakes: %s\n", orNone(stakes))
+			var rolls []string
+			for _, r := range rd.Rolls {
+				rolls = append(rolls, fmt.Sprintf("%s: %d of %d", r.Label, r.Value, r.Sides))
+			}
+			fmt.Fprintf(stdout, "  Rolls, made and recorded by StreamGremlin: %s\n", orNone(rolls))
+			if rd.Payouts != nil {
+				var pays []string
+				for v, n := range rd.Payouts {
+					name := names[v]
+					if name == "" {
+						name = v
+					}
+					pays = append(pays, fmt.Sprintf("%s %d", name, n))
+				}
+				sort.Strings(pays)
+				fmt.Fprintf(stdout, "  Paid back: %s\n", orNone(pays))
+			}
+		}
 		return 0
 	case sub == "activity" && len(pos) == 1:
 		var out struct {

@@ -43,15 +43,15 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	out, _, code := cli(t, dir, "packages", "install", zipPath)
 	if code != 0 || !strings.Contains(out, "a Lua plugin, published by StreamGremlin examples (not verified)") ||
 		!strings.Contains(out, "dice-tray.roll_and_say") ||
-		!strings.Contains(out, "Templates it adds to the gallery: !best: the session's best roll, Cheer a dice round's winner, !roll: roll dice in chat, !diceround: a timed dice round.") ||
+		!strings.Contains(out, "Templates it adds to the gallery: !best: the session's best roll, Cheer a dice round's winner, !gamble: gamble points on a roll, !roll: roll dice in chat, !diceround: a timed dice round.") ||
 		!strings.Contains(out, "chat.send  Send messages in your chat") || !strings.Contains(out, "plugin.dice_tray.round_ended  A dice round ends:") ||
-		!strings.Contains(out, "-yes -allow chat.send,events.publish") {
+		!strings.Contains(out, "-yes -allow chat.send,events.publish,points.rounds") {
 		t.Fatalf("check:\n%s", out)
 	}
-	if _, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 1 || !strings.Contains(errOut, "-allow chat.send,events.publish") {
+	if _, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 1 || !strings.Contains(errOut, "-allow chat.send,events.publish,points.rounds") {
 		t.Fatalf("without -allow: %d %s", code, errOut)
 	}
-	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.2.0, off") {
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish,points.rounds"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.3.0, off") {
 		t.Fatalf("install: %d %s%s", code, out, errOut)
 	}
 
@@ -102,7 +102,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	if !strings.Contains(out, "log       ok      Dice tray ready: d6") || strings.Count(out, "chat.send ok      ") != 2 {
 		t.Fatalf("activity:\n%s", out)
 	}
-	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Lua plugin, published by StreamGremlin examples (not verified); on; permissions: chat.send, events.publish; used by Best roll (Dice tray), Roll dice (Dice tray)") {
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Lua plugin, published by StreamGremlin examples (not verified); on; permissions: chat.send, events.publish, points.rounds; used by Best roll (Dice tray), Roll dice (Dice tray)") {
 		t.Fatalf("list:\n%s", out)
 	}
 

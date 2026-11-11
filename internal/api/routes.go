@@ -22,6 +22,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
@@ -71,6 +72,8 @@ type Deps struct {
 	Lua *lua.Runner
 	// Plugins runs installed Lua plugins.
 	Plugins *plugins.Manager
+	// Rounds are plugins' rounds (ADR-0039).
+	Rounds *rounds.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time

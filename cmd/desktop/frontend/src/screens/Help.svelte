@@ -86,7 +86,9 @@
       steps it adds and asks you to allow each thing it wants to do, like sending chat. It’s installed off; turn it on with its
       switch. Its steps are marked “(add-on)” in Add a step, and any templates it brings are in the gallery in its own section.
       It runs in a separate process, can’t reach your files, the internet or your accounts, and keeps its own memory while it’s on. “What it has done” lists everything it asked StreamGremlin to do.
-      A plugin can also start your workflows with its own events: they’re under “When”, marked “(add-on)”.
+      A plugin can also start your workflows with its own events: they’re under “When”, marked “(add-on)”. One you
+      allow to hold points in rounds can take a viewer’s stake and pay it back, within the limits it states; its odds are
+      its own, and “Show its rounds” lists every stake, roll and payout.
       To update one, install its new version: it says first what changes, and asks only for permissions you haven’t allowed.
       Roll back returns to the version before.
     </dd>

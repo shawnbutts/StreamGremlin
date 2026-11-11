@@ -1,0 +1,35 @@
+{
+  "template": {
+    "id": "gamble",
+    "title": "!gamble: gamble points on a roll",
+    "description": "!gamble 50 stakes 50 points on a roll from 1 to 100 (!gamble all, everything up to 1,000): 60 or more pays back twice. The roll is made and recorded by StreamGremlin; the odds are Dice tray's, set on its card.",
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.dice-tray-gamble",
+    "name": "Gamble (Dice tray)",
+    "group": "Dice tray",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "gamble"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 10
+    },
+    "steps": [
+      {
+        "id": "gamble",
+        "action": "dice-tray.gamble",
+        "with": {
+          "amount": "${event.payload.arg_list[?0].orValue(\"\")}"
+        }
+      }
+    ]
+  }
+}

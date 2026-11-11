@@ -41,6 +41,12 @@ func TestLuaPluginsAreChecked(t *testing.T) {
 		{swap(`"chat.send"`, `"points.give"`), `permission "points.give" isn't one`},
 		{swap(`"settings":[`, `"events":[{"name":"won","label":"Won","description":"Someone won."}],"settings":[`), "asks for the events.publish permission"},
 		{swap(`"chat.send"`, `"chat.send","events.publish"`), "is for a plugin with events: it has none"},
+		{swap(`"chat.send"`, `"chat.send","points.rounds"`), "comes with its limits"},
+		{swap(`"settings":[`, `"points":{"max_stake":10,"max_multiplier":2,"max_round_seconds":60},"settings":[`), "asks for the points.rounds permission"},
+		{swap(`"chat.send"],`, `"chat.send","points.rounds"],"points":{"max_stake":0,"max_multiplier":2,"max_round_seconds":60},`), "max_stake is 1 to"},
+		{swap(`"chat.send"],`, `"chat.send","points.rounds"],"points":{"max_stake":10,"max_multiplier":11,"max_round_seconds":60},`), "max_multiplier is 1 to 10"},
+		{swap(`"chat.send"],`, `"chat.send","points.rounds"],"points":{"max_stake":10,"max_multiplier":1.555,"max_round_seconds":60},`), "two decimals"},
+		{swap(`"chat.send"],`, `"chat.send","points.rounds"],"points":{"max_stake":10,"max_multiplier":2,"max_round_seconds":3601},`), "max_round_seconds is 1 to 3600"},
 		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"Won","label":"Won","description":"d"}],`), `event "Won": a name`},
 		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"won","label":"Won","description":"d"},{"name":"won","label":"W","description":"d"}],`), `event "won" is there twice`},
 		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"won","label":"Won","description":"d","values":[{"name":"who","label":""}]}],`), `value "who"`},
@@ -84,6 +90,39 @@ func TestPluginEvents(t *testing.T) {
 	p := describe(r, now)
 	if len(p.Plugin.Events) != 1 || p.Plugin.Events[0].Type != "plugin.dice.won" || p.Plugin.Events[0].Values[0].Name != "winner" {
 		t.Errorf("info: %+v", p.Plugin.Events)
+	}
+}
+
+func TestPointsLimits(t *testing.T) {
+	r, err := ReadZip(zipOf(t, file{name: "streamgremlin.json", body: strings.Replace(fmt.Sprintf(luaManifest, ""), `"chat.send"],`,
+		`"chat.send","points.rounds"],"points":{"max_stake":1000,"max_multiplier":2.5,"max_round_seconds":60},`, 1)},
+		file{name: "plugin.lua", body: "x"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := describe(r, now)
+	if w := p.Plugin.Permissions[1].What; !strings.Contains(w, "up to 1,000 points from a viewer a round, paying back at most 2.5× their stake, for up to 60 seconds") ||
+		!strings.Contains(w, "StreamGremlin can't check them") {
+		t.Errorf("what: %s", w)
+	}
+	base := &PointsLimits{MaxStake: 100, MaxMultiplier: 2, MaxRoundSeconds: 60}
+	for _, c := range []struct {
+		next *PointsLimits
+		more bool
+	}{
+		{&PointsLimits{MaxStake: 100, MaxMultiplier: 2, MaxRoundSeconds: 60}, false},
+		{&PointsLimits{MaxStake: 50, MaxMultiplier: 1.5, MaxRoundSeconds: 30}, false},
+		{&PointsLimits{MaxStake: 101, MaxMultiplier: 2, MaxRoundSeconds: 60}, true},
+		{&PointsLimits{MaxStake: 100, MaxMultiplier: 2.01, MaxRoundSeconds: 60}, true},
+		{&PointsLimits{MaxStake: 100, MaxMultiplier: 2, MaxRoundSeconds: 61}, true},
+		{&PointsLimits{Currency: "gems", MaxStake: 100, MaxMultiplier: 2, MaxRoundSeconds: 60}, true},
+	} {
+		if base.more(c.next) != c.more {
+			t.Errorf("%+v: more %v", c.next, !c.more)
+		}
+	}
+	if !(*PointsLimits)(nil).more(base) {
+		t.Error("from none: not more")
 	}
 }
 

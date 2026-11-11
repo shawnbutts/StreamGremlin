@@ -3,6 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-11-11
 
+> **Amended by D-074 (2026-11-11), slice 6:** points, as rounds, are [ADR-0039](0039-points-for-plugins.md)'s: the `points.rounds` permission with `lua.points` limits, `sg.points.balance()` and `sg.round.open/stake/roll/settle/cancel`. Host calls can now give a value back to the script (a `reply` frame's `result`).
+
 > **Amended by D-073 (2026-11-11), slice 5c:**
 > - **Events.** A plugin declares its events in `lua.events` (name, label, description, `values` offered as `{tokens}`). It needs `events.publish`, "Start your workflows with its own events (at most 10 a second)". Each event is `plugin.<id>.<name>` (the id's `-` as `_`), source `plugin:<id>`, confirmed, caused by the event of the call that sent it.
 > - **`sg.emit(name, payload [, id])` → ok, reason** never raises an error. It's refused without the permission, for an undeclared name, past 10 a second, for an id used before, and during a call started by one of the plugin's own events, so plugins can't loop. Every emit is in the activity.
@@ -25,7 +27,7 @@ ADR-0036 decided what a plugin owns and left its script, permissions, actions an
 - **Templates** (D-071), between the two: a plugin's `templates/` in the gallery, in the add-on's own section.
 - **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps). Built: D-072.
 - **5c:** `events.publish` and its events as triggers; timers (`sg.after`). Built: D-073.
-- Slice 6 adds points (ADR-0036).
+- Slice 6 adds points (ADR-0036): [ADR-0039](0039-points-for-plugins.md), D-074.
 
 Until 5b, installing another version of an installed plugin was refused, saying to remove it first (as themes were in 3a).
 

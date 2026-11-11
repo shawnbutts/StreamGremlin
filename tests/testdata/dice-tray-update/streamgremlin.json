@@ -10,7 +10,7 @@
   "api": "1",
   "lua": {
     "script": "plugin.lua",
-    "permissions": ["chat.send", "events.publish"],
+    "permissions": ["chat.send", "events.publish", "points.rounds"],
     "timeout": 5,
     "actions": [
       {
@@ -31,11 +31,20 @@
         ]
       },
       {
+        "name": "gamble",
+        "label": "Gamble points",
+        "description": "The viewer stakes points on a roll from 1 to 100: at the winning roll or more they get twice the stake back. Says it in chat.",
+        "params": [
+          { "name": "amount", "label": "How many points (or all)", "kind": "text", "max": 20, "hint": "Empty: 10" }
+        ]
+      },
+      {
         "name": "best",
         "label": "The session's best roll",
         "description": "Who has the best roll since the plugin was turned on, and how many rolls there have been."
       }
     ],
+    "points": { "currency": "", "max_stake": 1000, "max_multiplier": 2, "max_round_seconds": 30 },
     "events": [
       {
         "name": "round_ended",
@@ -59,7 +68,8 @@
     ],
     "settings": [
       { "key": "sides", "label": "Sides on each die", "kind": "number", "default": 6, "min": 2, "max": 12 },
-      { "key": "cheer", "label": "Cheer a new best roll in chat", "kind": "switch", "default": true }
+      { "key": "cheer", "label": "Cheer a new best roll in chat", "kind": "switch", "default": true },
+      { "key": "win_at", "label": "Gamble: the roll that wins", "kind": "number", "default": 60, "min": 2, "max": 100, "hint": "A roll from 1 to 100 at this or more pays back twice the stake" }
     ]
   }
 }

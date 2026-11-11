@@ -123,6 +123,36 @@ func (p *pluginWorker) load(f frame) (done frame) {
 	sg.RawSetString("emit", L.NewFunction(p.luaEmit))
 	sg.RawSetString("after", L.NewFunction(p.luaAfter))
 	sg.RawSetString("cancel", L.NewFunction(p.luaCancel))
+	pts := L.NewTable()
+	pts.RawSetString("balance", L.NewFunction(func(L *glua.LState) int { return p.ask(L, "points.balance", map[string]any{}) }))
+	sg.RawSetString("points", pts)
+	round := L.NewTable()
+	round.RawSetString("open", L.NewFunction(func(L *glua.LState) int {
+		return p.ask(L, "round.open", map[string]any{"title": L.CheckString(1), "rules": L.CheckString(2), "id": L.OptString(3, "")})
+	}))
+	round.RawSetString("stake", L.NewFunction(func(L *glua.LState) int {
+		return p.ask(L, "round.stake", map[string]any{"round": L.CheckString(1), "amount": float64(L.CheckNumber(2))})
+	}))
+	round.RawSetString("roll", L.NewFunction(func(L *glua.LState) int {
+		return p.ask(L, "round.roll", map[string]any{"round": L.CheckString(1), "label": L.OptString(2, ""), "sides": float64(L.CheckNumber(3))})
+	}))
+	round.RawSetString("settle", L.NewFunction(func(L *glua.LState) int {
+		c := &fromLua{}
+		v, err := c.table(L.OptTable(2, L.NewTable()), 0)
+		if err != nil {
+			L.Push(glua.LNil)
+			L.Push(glua.LString("the payouts can't be sent: " + strings.TrimPrefix(err.Error(), "output: ")))
+			return 2
+		}
+		if list, isList := v.([]any); isList && len(list) == 0 {
+			v = map[string]any{}
+		}
+		return p.ask(L, "round.settle", map[string]any{"round": L.CheckString(1), "payouts": v})
+	}))
+	round.RawSetString("cancel", L.NewFunction(func(L *glua.LState) int {
+		return p.ask(L, "round.cancel", map[string]any{"round": L.CheckString(1), "reason": L.OptString(2, "")})
+	}))
+	sg.RawSetString("round", round)
 	fn, err := L.Load(strings.NewReader(f.Script), "script")
 	if err != nil {
 		done.Kind, done.Error = KindScript, friendly(err)
@@ -207,6 +237,23 @@ func (p *pluginWorker) luaEmit(L *glua.LState) int {
 	return 2
 }
 
+// ask is a host call that gives back a value: the value (true when there's
+// none), or nil and why not. Like sg.chat, it never raises.
+func (p *pluginWorker) ask(L *glua.LState, op string, args map[string]any) int {
+	reply := p.hostReply(frame{Op: op, Payload: args})
+	if !reply.OK {
+		L.Push(glua.LNil)
+		L.Push(glua.LString(reply.Reason))
+		return 2
+	}
+	if reply.Result == nil {
+		L.Push(glua.LTrue)
+	} else {
+		L.Push(toLua(L, reply.Result))
+	}
+	return 1
+}
+
 // luaAfter is sg.after(seconds, fn) → id: fn runs once, that many seconds
 // later, while the plugin stays on.
 func (p *pluginWorker) luaAfter(L *glua.LState) int {
@@ -283,12 +330,17 @@ func (p *pluginWorker) fire(f frame) (done frame) {
 
 // host asks the engine to act and waits for its answer.
 func (p *pluginWorker) host(g frame) (bool, string) {
+	r := p.hostReply(g)
+	return r.OK, r.Reason
+}
+
+func (p *pluginWorker) hostReply(g frame) frame {
 	if !p.inCall {
-		return false, "StreamGremlin can't be asked to do anything while the script loads"
+		return frame{Reason: "StreamGremlin can't be asked to do anything while the script loads"}
 	}
 	g.Type, g.ID = "host", p.callID
 	if err := p.send(g); err != nil {
-		return false, "StreamGremlin didn't answer"
+		return frame{Reason: "StreamGremlin didn't answer"}
 	}
 	reply, err := readFrame(p.in)
 	if err != nil || reply.Type != "reply" || reply.ID != p.callID {
@@ -296,7 +348,7 @@ func (p *pluginWorker) host(g frame) (bool, string) {
 		fmt.Fprintln(stderr(), "lua worker: protocol error waiting for a reply")
 		exit(1)
 	}
-	return reply.OK, reply.Reason
+	return reply
 }
 
 func (p *pluginWorker) call(f frame) (done frame) {

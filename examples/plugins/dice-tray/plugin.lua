@@ -90,6 +90,62 @@ sg.action("open_round", function(call)
   return {open = true, seconds = seconds, text = text}
 end)
 
+-- Gamble: each gamble is a round (docs/adr/0039-points-for-plugins.md).
+-- StreamGremlin takes the stake, makes and records the roll, and pays out
+-- at most twice the stake; the rules below are this plugin's own words.
+sg.action("gamble", function(call)
+  local who = roller(call)
+  local asked = string.lower(tostring(call.args.amount or ""))
+  local amount
+  if asked == "" then
+    amount = 10
+  elseif asked == "all" then
+    local balance, why = sg.points.balance()
+    if not balance then
+      sg.chat("@" .. who .. " " .. why)
+      return {ok = false, why = why}
+    end
+    amount = math.min(balance, 1000)
+  else
+    amount = tonumber(asked)
+  end
+  if amount == nil or amount < 1 or amount ~= math.floor(amount) then
+    local text = "@" .. who .. " gamble a whole number of points, like !gamble 50, or !gamble all"
+    sg.chat(text)
+    return {ok = false, text = text}
+  end
+  local win_at = sg.settings.win_at
+  local rules = string.format("Roll 1 to 100: %d or more pays back twice the stake; less loses it.", win_at)
+  -- The step's key: the same step run again is the same round.
+  local round, why = sg.round.open("Gamble", rules, call.key)
+  if not round then
+    sg.chat("@" .. who .. " no gamble: " .. why)
+    return {ok = false, why = why}
+  end
+  local stake, why2 = sg.round.stake(round, amount)
+  if not stake then
+    sg.round.cancel(round, "no stake")
+    sg.chat("@" .. who .. " no gamble: " .. why2)
+    return {ok = false, why = why2}
+  end
+  local roll = sg.round.roll(round, who .. "'s roll", 100)
+  local won = roll >= win_at
+  local payout = 0
+  if won then
+    payout = amount * 2
+  end
+  sg.round.settle(round, {[stake.viewer] = payout})
+  local now = stake.balance + payout
+  local text
+  if won then
+    text = string.format("%s rolled %d and wins %d points! (now %d)", who, roll, payout, now)
+  else
+    text = string.format("%s rolled %d and loses %d points. (now %d; %d or more wins)", who, roll, amount, now, win_at)
+  end
+  sg.chat(text)
+  return {ok = true, roll = roll, won = won, stake = amount, payout = payout, balance = now, text = text}
+end)
+
 sg.action("best", function()
   if best == nil then
     return {rolls = 0, text = "No rolls yet this session."}

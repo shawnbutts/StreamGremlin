@@ -42,7 +42,7 @@ func TestLuaPluginEventsAndTimers(t *testing.T) {
 	}
 	zipPath := filepath.Join(t.TempDir(), "dice-tray.zip")
 	zipFolder(t, filepath.Join("..", "..", "examples", "plugins", "dice-tray"), zipPath)
-	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish"); code != 0 {
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish,points.rounds"); code != 0 {
 		t.Fatal(out, errOut)
 	}
 	files := t.TempDir()

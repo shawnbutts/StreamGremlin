@@ -41,9 +41,18 @@ type HostCall struct {
 	Event map[string]any
 }
 
+// HostReply is how it went: OK with a Value for the plugin, or why not.
+type HostReply struct {
+	OK     bool
+	Reason string
+	Value  any
+}
+
 // HostFunc does what a plugin asks, saying whether it did and, if not,
 // why. It's called during the plugin's call or timer, with its context.
-type HostFunc func(ctx context.Context, c HostCall) (ok bool, reason string)
+// Ops beyond chat and emit (points.balance, round.open, …: ADR-0039) take
+// their arguments in Payload.
+type HostFunc func(ctx context.Context, c HostCall) HostReply
 
 // Plugin is a running plugin's worker: one Lua state, kept between calls,
 // one call at a time.
@@ -190,8 +199,8 @@ func (p *Plugin) run(ctx context.Context, f frame, what, name string, event map[
 	cctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	host := func(g frame) frame {
-		ok, reason := p.host(cctx, HostCall{Op: g.Op, Message: g.Message, Name: g.Name, Payload: wholeMap(g.Payload), Key: g.Key, Event: event})
-		return frame{Type: "reply", ID: g.ID, OK: ok, Reason: reason}
+		r := p.host(cctx, HostCall{Op: g.Op, Message: g.Message, Name: g.Name, Payload: wholeMap(g.Payload), Key: g.Key, Event: event})
+		return frame{Type: "reply", ID: g.ID, OK: r.OK, Reason: r.Reason, Result: r.Value}
 	}
 	log := p.log.With(what, name)
 	start := time.Now()

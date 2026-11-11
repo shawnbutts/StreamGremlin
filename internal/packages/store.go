@@ -156,7 +156,7 @@ func fromManifest(p *Package, m Manifest) {
 		info := &PluginInfo{Permissions: []PermissionInfo{}, Actions: m.Lua.Actions, Timeout: m.Lua.TimeoutSeconds(), Script: m.Lua.Script,
 			Values: overlays.FillSettings(m.Lua.Settings, nil)}
 		for _, name := range m.Lua.Permissions {
-			info.Permissions = append(info.Permissions, PermissionInfo{Name: name, What: Permissions[name]})
+			info.Permissions = append(info.Permissions, PermissionInfo{Name: name, What: PermissionWhat(m.Lua, name)})
 		}
 		info.Templates = []TemplateInfo{}
 		info.Events = []EventInfo{}

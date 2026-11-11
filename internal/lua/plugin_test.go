@@ -16,19 +16,32 @@ type hostLog struct {
 	allow bool
 }
 
-func (h *hostLog) fn(ctx context.Context, c HostCall) (bool, string) {
+func (h *hostLog) fn(ctx context.Context, c HostCall) HostReply {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.got = append(h.got, c)
-	if c.Op == "emit" {
+	switch c.Op {
+	case "emit":
 		h.calls = append(h.calls, c.Op+":"+c.Name)
-	} else {
+	case "chat":
 		h.calls = append(h.calls, c.Op+":"+c.Message)
+	default:
+		h.calls = append(h.calls, c.Op)
+		if c.Op == "round.open" {
+			return HostReply{OK: true, Value: "r_1"}
+		}
+		if c.Op == "round.stake" {
+			return HostReply{OK: true, Value: map[string]any{"viewer": "v_1", "stake": c.Payload["amount"]}}
+		}
+		if c.Op == "round.settle" {
+			return HostReply{OK: true}
+		}
+		return HostReply{Reason: "no such thing"}
 	}
 	if !h.allow {
-		return false, "it doesn't have permission to send chat"
+		return HostReply{Reason: "it doesn't have permission to send chat"}
 	}
-	return true, ""
+	return HostReply{OK: true}
 }
 
 func startPlugin(t *testing.T, script string, opts Options, h *hostLog) (*Plugin, Result, error) {
@@ -325,5 +338,38 @@ func TestPluginEmits(t *testing.T) {
 	if g.Op != "emit" || g.Name != "won" || g.Payload["winner"] != "Fan" || g.Payload["total"] != int64(12) || g.Key != "job/1" ||
 		g.Event["actor"] == nil {
 		t.Errorf("host call: %+v", g)
+	}
+}
+
+// Points host calls give back values (ADR-0039).
+func TestPluginPointsCalls(t *testing.T) {
+	h := &hostLog{allow: true}
+	p, _, err := startPlugin(t, `
+sg.action("roll", function(call)
+  local round = sg.round.open("Gamble", "Roll 1-100: 60 or more doubles.", call.key)
+  local st = sg.round.stake(round, 50)
+  local ok = sg.round.settle(round, {[st.viewer] = 100})
+  local b, why = sg.points.balance()
+  return {round = round, viewer = st.viewer, stake = st.stake, settled = ok, why = why}
+end)`, Options{}, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, le := call(t, p, "roll", nil)
+	if le != nil {
+		t.Fatal(le)
+	}
+	m := r.Value.(map[string]any)
+	if m["round"] != "r_1" || m["viewer"] != "v_1" || m["stake"] != int64(50) || m["settled"] != true || m["why"] != "no such thing" {
+		t.Errorf("values: %v", m)
+	}
+	if strings.Join(h.calls, "|") != "round.open|round.stake|round.settle|points.balance" {
+		t.Errorf("calls: %q", h.calls)
+	}
+	if g := h.got[0]; g.Payload["title"] != "Gamble" || g.Payload["id"] != "job/1" {
+		t.Errorf("open: %+v", g.Payload)
+	}
+	if g := h.got[2]; g.Payload["payouts"].(map[string]any)["v_1"] != int64(100) {
+		t.Errorf("settle: %+v", g.Payload)
 	}
 }

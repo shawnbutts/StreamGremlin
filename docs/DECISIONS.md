@@ -1293,3 +1293,26 @@ Decided 2026-11-11, building slice 5c after the user's "proceed". ADR-0036 had g
   - two templates: **!diceround** and **Cheer a dice round's winner**, which its event starts.
 
   The update test version is now `tests/testdata/dice-tray-update`, 2.0.0.
+
+## D-074. Points for plugins: rounds (M5 slice 6)
+
+Decided 2026-11-11, building slice 6 after the user's "proceed". The feature cut has "Points API for plugins: award, charge, refund, and escrow for rounds, with odds 'stated by the plugin'" (StreamWisp ADR-0054, D-081). The design is [ADR-0039](adr/0039-points-for-plugins.md). In short:
+
+- **Awarding, charging and refunding happen only inside rounds,** as StreamWisp decided: a plugin can't give or take points any other way. A new permission, **`points.rounds`**, comes with limits in the manifest's `lua.points`:
+  - the currency;
+  - `max_stake` per viewer per round;
+  - `max_multiplier`, the most a payout can be over the stake;
+  - `max_round_seconds`.
+
+  The install check states them in words, and says the odds are the plugin's own. An update that raises a limit asks again.
+- **A stake is always the viewer behind the call:** the actor of the event that ran the step. One stake per viewer per round. A timer has no viewer, so it can't stake.
+- **The ledger is the record.** Stakes, payouts and refunds each have an operation id made from the plugin, the round and the viewer, so nothing is taken or paid twice. Refunds undo the stakes the ledger holds.
+- **Settling is recorded before paying,** and finished at startup if a stop interrupted it.
+- **Open rounds are refunded:**
+  - when the plugin's worker starts (its memory is gone);
+  - when it's turned off, fails, is updated or removed;
+  - past `max_round_seconds`, checked every 5 seconds;
+  - at startup, for rounds open when StreamGremlin stopped.
+- **Rolls are made by StreamGremlin** from `crypto/rand` and recorded, append-only. The rules are recorded as the plugin's own words. The screens never call a game fair.
+- **Simpler than StreamWisp in one way:** a stake can't be changed once it's made.
+- **Dice tray 1.3.0** adds **Gamble points** (`!gamble 50`, `!gamble all`) and its template. Each gamble is a round: it pays twice the stake at the winning roll (60 by default, a setting) or more.

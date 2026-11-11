@@ -89,6 +89,30 @@ func pluginRoutes(d Deps) []Route {
 			},
 		},
 		{
+			Method: "GET", Path: "/v1/packages/{id}/rounds",
+			Summary: "A Lua plugin's rounds (docs/adr/0039-points-for-plugins.md), newest first: each with its title, state (open, " +
+				"settling, settled, refunded and why), the rules as the plugin stated them, every stake, every roll StreamGremlin made, and " +
+				"the payouts. Kept after the plugin is removed. ?limit= 1-200 (20).",
+			Permission: PermPackagesRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				limit, err := intParam(r.URL.Query().Get("limit"), 20, 1, 200)
+				if err != nil {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "limit is 1 to 200")
+					return
+				}
+				if d.Rounds == nil {
+					writeError(w, http.StatusServiceUnavailable, CodeUnavailable, "rounds aren't available")
+					return
+				}
+				list, err := d.Rounds.List(r.Context(), r.PathValue("id"), limit)
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"rounds": list})
+			},
+		},
+		{
 			Method: "GET", Path: "/v1/packages/{id}/activity",
 			Summary: "What a Lua plugin has asked StreamGremlin to do, newest first: each chat message (sent, refused and why, or " +
 				"failed) and each line it logged. The last 1,000 are kept. ?limit= 1-1000 (100).",

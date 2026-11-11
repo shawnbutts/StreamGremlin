@@ -21,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -59,6 +60,8 @@ type Options struct {
 	Chat    Chat
 	// Inbox takes plugins' events (D-073); without it they're refused.
 	Inbox Inbox
+	// Rounds keeps plugins' rounds (ADR-0039); without it they're refused.
+	Rounds *rounds.Service
 	// Lua configures the workers (tests point Command at themselves).
 	Lua    lua.Options
 	Logger *slog.Logger
@@ -74,6 +77,7 @@ type Manager struct {
 	running map[string]*running
 	actions map[string][]string // registered step names, by plugin
 	closed  bool
+	sweep   chan struct{} // closed to stop sweeping rounds
 }
 
 // running is a plugin that's on.
@@ -85,7 +89,8 @@ type running struct {
 	chat    []time.Time // sends in the last minute
 	emits   []time.Time // events in the last second
 	events  map[string]bool
-	timer   *time.Timer // for the plugin's next timer
+	limits  *rounds.Limits // its rounds', when it has points.rounds
+	timer   *time.Timer    // for the plugin's next timer
 	stopped bool
 }
 
@@ -99,7 +104,7 @@ func New(opts Options) *Manager {
 		log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	opts.Lua.Logger = log
-	return &Manager{opts: opts, log: log, running: map[string]*running{}, actions: map[string][]string{}}
+	return &Manager{opts: opts, log: log, running: map[string]*running{}, actions: map[string][]string{}, sweep: make(chan struct{})}
 }
 
 // Errors.
@@ -117,6 +122,13 @@ func (m *Manager) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if m.opts.Rounds != nil {
+		// Rounds a stop interrupted: paid if settling, else refunded.
+		if err := m.opts.Rounds.Recover(ctx); err != nil {
+			return err
+		}
+		go m.sweepRounds() //nolint:gosec // G118: it outlives Start, until Close; not request-scoped
+	}
 	for i, p := range ps {
 		m.register(p, ms[i])
 	}
@@ -130,9 +142,46 @@ func (m *Manager) Start(ctx context.Context) error {
 	return nil
 }
 
+// sweepRounds refunds rounds past their time.
+func (m *Manager) sweepRounds() {
+	t := time.NewTicker(rounds.SweepEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-m.sweep:
+			return
+		case <-t.C:
+			if n, err := m.opts.Rounds.Sweep(context.Background()); err != nil {
+				m.log.Error("plugin rounds not swept", "err", err)
+			} else if n > 0 {
+				m.log.Info("plugin rounds past their time refunded", "rounds", n)
+			}
+		}
+	}
+}
+
+// refund gives back the stakes in a plugin's open rounds: it stopped, so
+// it can't finish them.
+func (m *Manager) refund(ctx context.Context, id, why string) {
+	if m.opts.Rounds == nil {
+		return
+	}
+	n, err := m.opts.Rounds.RefundOpen(context.WithoutCancel(ctx), id, why)
+	switch {
+	case err != nil:
+		m.log.Error("plugin rounds not refunded", "plugin", id, "err", err)
+	case n > 0:
+		m.log.Info("plugin rounds refunded", "plugin", id, "rounds", n, "why", why)
+		m.activity(ctx, id, "", "points.rounds", "ok", fmt.Sprintf("%d open rounds refunded: %s", n, why))
+	}
+}
+
 // Close stops every worker.
 func (m *Manager) Close() {
 	m.mu.Lock()
+	if !m.closed {
+		close(m.sweep)
+	}
 	m.closed = true
 	all := m.running
 	m.running = map[string]*running{}
@@ -295,6 +344,7 @@ func (m *Manager) SetEnabled(ctx context.Context, id string, on bool) error {
 	}
 	if !on {
 		m.stop(id)
+		m.refund(ctx, id, "the plugin was turned off")
 		return m.opts.Store.SetEnabled(ctx, id, false, m.opts.Now())
 	}
 	if p.Plugin.Enabled && m.isRunning(id) {
@@ -348,6 +398,11 @@ func (m *Manager) start(ctx context.Context, id string) error {
 	for _, e := range man.Lua.Events {
 		r.events[e.Name] = true
 	}
+	if pl := man.Lua.Points; pl != nil {
+		r.limits = &rounds.Limits{Currency: pl.Currency, MaxStake: pl.MaxStake, MaxMultiplier: pl.MaxMultiplier, MaxRoundSeconds: pl.MaxRoundSeconds}
+	}
+	// A new worker has none of the old one's memory: its rounds can't finish.
+	m.refund(ctx, id, "the plugin started again, without its memory")
 	plugin, res, err := lua.StartPlugin(m.opts.Lua, spec, m.host(id, p.Version, r))
 	m.logLines(ctx, id, p.Version, res.Log, res.LogDropped)
 	if err != nil {
@@ -469,6 +524,7 @@ func (m *Manager) alive(ctx context.Context, id string, r *running) (*lua.Plugin
 	if !r.plugin.Dead() {
 		return r.plugin, nil
 	}
+	m.refund(ctx, id, "its worker stopped, and its memory with it")
 	plugin, res, err := lua.StartPlugin(m.opts.Lua, r.spec, m.host(id, r.spec.Version, r))
 	m.logLines(ctx, id, r.spec.Version, res.Log, res.LogDropped)
 	if err != nil {
@@ -495,6 +551,7 @@ func (m *Manager) crashed(ctx context.Context, id string, r *running, why string
 	m.log.Warn("plugin worker stopped", "plugin", id, "why", why, "in_the_last_10_minutes", n)
 	if n >= MaxCrashes {
 		m.stop(id)
+		m.refund(ctx, id, "the plugin failed")
 		_ = m.opts.Store.Fail(ctx, id, fmt.Sprintf("its worker stopped %d times in 10 minutes (last: %s)", n, why), now)
 	}
 }
@@ -521,7 +578,105 @@ func (m *Manager) activity(ctx context.Context, id, version, call, outcome, deta
 // host does what a plugin asks, within its approved permissions, and
 // records it.
 func (m *Manager) host(id, version string, r *running) lua.HostFunc {
-	return func(ctx context.Context, c lua.HostCall) (bool, string) {
+	return func(ctx context.Context, c lua.HostCall) lua.HostReply {
+		if strings.HasPrefix(c.Op, "round.") || strings.HasPrefix(c.Op, "points.") {
+			return m.points(ctx, id, version, r, c)
+		}
+		ok, why := m.hostCall(ctx, id, version, r, c)
+		return lua.HostReply{OK: ok, Reason: why}
+	}
+}
+
+// points does a plugin's points and rounds calls (ADR-0039), each in its
+// activity: "refused" with why when it may not.
+func (m *Manager) points(ctx context.Context, id, version string, r *running, c lua.HostCall) lua.HostReply {
+	value, detail, err := m.pointsCall(ctx, id, version, r, c)
+	outcome, why := "ok", ""
+	switch {
+	case errors.Is(err, rounds.ErrRefused):
+		outcome, why = "refused", strings.TrimPrefix(err.Error(), rounds.ErrRefused.Error()+": ")
+	case err != nil:
+		outcome, why = "failed", err.Error()
+		m.log.Error("plugin points call failed", "plugin", id, "op", c.Op, "err", err)
+	}
+	if why != "" {
+		detail = strings.TrimSpace(detail + " (" + why + ")")
+	}
+	m.activity(ctx, id, version, c.Op, outcome, detail)
+	if outcome != "ok" {
+		return lua.HostReply{Reason: why}
+	}
+	return lua.HostReply{OK: true, Value: value}
+}
+
+func (m *Manager) pointsCall(ctx context.Context, id, version string, r *running, c lua.HostCall) (any, string, error) {
+	switch {
+	case !slices.Contains(r.spec.Permissions, packages.PermRounds) || r.limits == nil:
+		return nil, "", fmt.Errorf("%w: it doesn't have permission to hold points in rounds", rounds.ErrRefused)
+	case m.opts.Rounds == nil:
+		return nil, "", errors.New("points aren't available")
+	}
+	a, lim, svc := c.Payload, *r.limits, m.opts.Rounds
+	text := func(k string) string { s, _ := a[k].(string); return s }
+	whole := func(k string) int64 {
+		switch n := a[k].(type) {
+		case int64:
+			return n
+		case float64:
+			if n == float64(int64(n)) {
+				return int64(n)
+			}
+		}
+		return -1
+	}
+	switch c.Op {
+	case "points.balance":
+		b, err := svc.Balance(ctx, actorOf(c.Event), lim)
+		return b, "", err
+	case "round.open":
+		rd, err := svc.Open(ctx, id, version, text("title"), text("rules"), text("id"), lim)
+		return rd.ID, text("title") + ": " + text("rules"), err
+	case "round.stake":
+		st, bal, err := svc.Stake(ctx, id, text("round"), actorOf(c.Event), whole("amount"), lim)
+		if err != nil {
+			return nil, fmt.Sprintf("%s %d", text("round"), whole("amount")), err
+		}
+		return map[string]any{"viewer": st.Viewer, "name": st.Name, "stake": st.Amount, "balance": bal},
+			fmt.Sprintf("%s: %s staked %d", text("round"), st.Name, st.Amount), nil
+	case "round.roll":
+		v, err := svc.Roll(ctx, id, text("round"), text("label"), int(whole("sides")))
+		return v, fmt.Sprintf("%s: %s d%d = %d", text("round"), text("label"), whole("sides"), v), err
+	case "round.settle":
+		raw, _ := a["payouts"].(map[string]any)
+		payouts := map[string]int64{}
+		for k, v := range raw {
+			n, ok := v.(int64)
+			if !ok {
+				return nil, text("round"), fmt.Errorf("%w: each payout is a whole number of points", rounds.ErrRefused)
+			}
+			payouts[k] = n
+		}
+		b, _ := json.Marshal(payouts)
+		return nil, text("round") + ": " + string(b), svc.Settle(ctx, id, text("round"), payouts, lim)
+	case "round.cancel":
+		return nil, text("round") + ": " + text("reason"), svc.Cancel(ctx, id, text("round"), text("reason"))
+	}
+	return nil, "", fmt.Errorf("%w: StreamGremlin has no call %s", rounds.ErrRefused, c.Op)
+}
+
+// actorOf is the viewer behind a call: its event's actor.
+func actorOf(event map[string]any) *events.Actor {
+	a, _ := event["actor"].(map[string]any)
+	if a == nil {
+		return nil
+	}
+	s := func(k string) string { v, _ := a[k].(string); return v }
+	return &events.Actor{Platform: s("platform"), ID: s("id"), Login: s("login"), DisplayName: s("display_name")}
+}
+
+// hostCall does chat and emit.
+func (m *Manager) hostCall(ctx context.Context, id, version string, r *running, c lua.HostCall) (bool, string) {
+	{
 		switch c.Op {
 		case "emit":
 			ok, why := m.emit(ctx, id, r, c)
@@ -690,6 +845,7 @@ func using(ctx context.Context, wf Workflows, id string) ([]workflow.Summary, er
 // removes it from the store.
 func (m *Manager) Removing(ctx context.Context, id string, wf Workflows) ([]string, error) {
 	m.stop(id)
+	m.refund(ctx, id, "the plugin was removed")
 	names := []string{}
 	if wf != nil {
 		using, err := using(ctx, wf, id)
@@ -744,6 +900,7 @@ func (m *Manager) Switched(ctx context.Context, id string, wf Workflows) ([]stri
 		}
 	}
 	m.register(p, man)
+	m.refund(ctx, id, "the plugin changed to "+p.Version)
 	m.log.Info("plugin switched version", "plugin", id, "version", p.Version, "steps_removed", gone, "workflows_off", off)
 	if m.isRunning(id) {
 		if err := m.start(ctx, id); err != nil {

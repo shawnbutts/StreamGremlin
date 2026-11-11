@@ -179,6 +179,56 @@ describe('plugins on Add-ons', () => {
     expect(target.textContent).toContain('its workflows stay on');
   });
 
+  it('shows a plugin’s rounds, with the rules as it states them', async () => {
+    const withRounds: InstalledPackage = {
+      ...dice,
+      plugin: {
+        ...dice.plugin!,
+        permissions: [
+          ...dice.plugin!.permissions,
+          { name: 'points.rounds', what: 'Hold viewers’ points in its rounds and pay them out: up to 1,000 points from a viewer a round' },
+        ],
+      },
+    };
+    const calls = mockFetch({
+      '/v1/packages': () => ({ status: 200, body: { packages: [withRounds] } }),
+      '/v1/packages/audit': () => ({ status: 200, body: { audit: [] } }),
+      '/v1/packages/dice-tray/rounds': () => ({
+        status: 200,
+        body: {
+          rounds: [
+            {
+              id: 'r_1', plugin: 'dice-tray', version: '1.3.0', title: 'Gamble', rules: 'Roll 1 to 100: 60 or more pays back twice.', currency: '',
+              state: 'settled', opened_at: now, closes_by: now, closed_at: now, payouts: { v_fan: 100 },
+              stakes: [{ viewer: 'v_fan', name: 'Fan', amount: 50, at: now }],
+              rolls: [{ seq: 1, label: 'Fan’s roll', sides: 100, value: 73, at: now }],
+            },
+            {
+              id: 'r_2', plugin: 'dice-tray', version: '1.3.0', title: 'Gamble', rules: 'Roll 1 to 100: 60 or more pays back twice.', currency: '',
+              state: 'refunded', reason: 'the plugin was turned off', opened_at: now, closes_by: now, stakes: [], rolls: [],
+            },
+          ],
+        },
+      }),
+    });
+    const target = start();
+    await settle();
+    expect(target.textContent).toContain('up to 1,000 points from a viewer a round');
+    button(target, 'Show its rounds')!.click();
+    await settle();
+    expect(calls.some((c) => c.path === '/v1/packages/dice-tray/rounds')).toBe(true);
+    const list = target.querySelector('[aria-label="Dice tray’s rounds"]')!;
+    const text = list.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain('Gamble, paid out.');
+    expect(text).toContain('Rules, as Dice tray states them: Roll 1 to 100: 60 or more pays back twice.');
+    expect(text).toContain('Stakes: Fan 50.');
+    expect(text).toContain('Rolls by StreamGremlin: Fan’s roll 73 of 100.');
+    expect(text).toContain('Paid back: Fan 100.');
+    expect(text).toContain('refunded: the plugin was turned off.');
+    expect(target.textContent).toContain('StreamGremlin can’t check them');
+    await noViolations('rounds');
+  });
+
   it('says why a plugin didn’t load', async () => {
     engine([dice], { loadError: 'line 3: syntax error' });
     const target = start();

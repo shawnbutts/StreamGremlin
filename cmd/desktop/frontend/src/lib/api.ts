@@ -1480,6 +1480,28 @@ export interface PluginChange {
   workflows: string[];
 }
 
+/** A plugin's round (docs/adr/0039-points-for-plugins.md). */
+export interface PluginRound {
+  id: string;
+  plugin: string;
+  version: string;
+  title: string;
+  /** As the plugin stated them: StreamGremlin can't check them. */
+  rules: string;
+  currency: string;
+  state: 'open' | 'settling' | 'settled' | 'refunded';
+  /** Why it was refunded. */
+  reason?: string;
+  opened_at: string;
+  closes_by: string;
+  closed_at?: string;
+  /** What each staked viewer got back, by viewer id. */
+  payouts?: Record<string, number>;
+  stakes: { viewer: string; name: string; amount: number; at: string }[];
+  /** Made and recorded by StreamGremlin. */
+  rolls: { seq: number; label: string; sides: number; value: number; at: string }[];
+}
+
 /** One thing a plugin asked StreamGremlin to do. */
 export interface PluginActivity {
   seq: number;
@@ -1584,6 +1606,8 @@ export const setPackageEnabled = (id: string, enabled: boolean) =>
 /** Change a plugin's settings; one that's on starts again, fresh. */
 export const setPackageSettings = (id: string, settings: Record<string, unknown>) =>
   api<Package>('PUT', `/v1/packages/${encodeURIComponent(id)}/settings`, { settings });
+/** A plugin's rounds, newest first. */
+export const getPackageRounds = (id: string) => api<{ rounds: PluginRound[] }>('GET', `/v1/packages/${encodeURIComponent(id)}/rounds`);
 /** What a plugin has asked StreamGremlin to do, newest first. */
 export const getPackageActivity = (id: string) =>
   api<{ activity: PluginActivity[] }>('GET', `/v1/packages/${encodeURIComponent(id)}/activity`);

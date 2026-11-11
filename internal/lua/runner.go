@@ -189,6 +189,11 @@ func (r *Runner) Run(ctx context.Context, job Job) (Result, error) {
 		return res, err
 	default:
 		p.kill()
+		if errors.Is(err, context.DeadlineExceeded) {
+			// The step's deadline beat the worker stopping itself: the
+			// same time limit, said the same way.
+			err = &Error{Kind: KindTimeout, Log: res.Log, LogDropped: res.LogDropped}
+		}
 		if errors.As(err, &le) {
 			if le.Kind == KindTimeout {
 				le.Message = fmt.Sprintf("the script ran longer than its %s time limit", limitText(job.TimeLimit, limit))

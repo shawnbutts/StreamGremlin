@@ -36,6 +36,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
@@ -92,6 +93,7 @@ type Host struct {
 	gives     *gives.Service
 	lua       *lua.Runner
 	plugins   *plugins.Manager
+	rounds    *rounds.Service
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -199,7 +201,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Overlays: ovs, Hub: h.hub})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
-	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Inbox: inbox, Logger: log})
+	h.rounds = rounds.New(rounds.Options{DB: h.db, Ledger: ledger, Viewers: h.viewers, Logger: log})
+	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Inbox: inbox, Rounds: h.rounds, Logger: log})
 	if err := h.plugins.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -269,6 +272,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Gives:      h.gives,
 		Lua:        h.lua,
 		Plugins:    h.plugins,
+		Rounds:     h.rounds,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
