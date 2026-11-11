@@ -153,7 +153,7 @@ func (m *Manager) register(p packages.Package, man packages.Manifest) {
 	for _, a := range man.Lua.Actions {
 		name := p.ID + "." + a.Name
 		m.opts.Actions.Add(workflow.Action{
-			Name: name, Label: a.Label, Group: p.Name, External: true,
+			Name: name, Label: a.Label, Group: p.Name, External: true, AddOn: p.ID,
 			Description: fmt.Sprintf("%s From %s, published by %s (not verified).", strings.TrimSpace(a.Description), p.Name, p.Publisher),
 			Params:      params(a.Params),
 			Run:         m.step(p.ID, p.Name, a),

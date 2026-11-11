@@ -417,6 +417,8 @@ export interface ActionInfo {
   saves_state?: boolean;
   /** Behind "More steps…" in the editor. */
   more?: boolean;
+  /** The add-on (a Lua plugin) it comes from, by id; absent for StreamGremlin's own. */
+  add_on?: string;
   params: ActionParam[];
 }
 

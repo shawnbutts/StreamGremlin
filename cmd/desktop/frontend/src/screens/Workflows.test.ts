@@ -85,6 +85,12 @@ const palette: Palette = {
     },
   ],
   actions: [
+    // An add-on's step, listed first by the engine, shown after StreamGremlin's own.
+    {
+      name: 'dice-tray.roll', label: 'Roll dice', description: 'Rolls dice. From Dice tray, published by Someone (not verified).', group: 'Dice tray',
+      external: true, add_on: 'dice-tray',
+      params: [{ name: 'dice', label: 'How many dice', type: 'text', required: false, default_hint: 'A number from 1 to 10' }],
+    },
     {
       name: 'chat.send', label: 'Send a chat message', description: 'Posts in your chat.', group: 'Twitch', external: true,
       params: [
@@ -489,6 +495,14 @@ describe('Workflows', () => {
     expect(el.textContent).toContain('Send a chat message');
     // Rare steps are hidden until asked for.
     expect(byLabel(el, 'Add a step').textContent).not.toContain('Take a screenshot');
+    // An add-on's steps come last, marked as an add-on's.
+    const groups = Array.from(byLabel(el, 'Add a step').querySelectorAll('optgroup')).map((g) => g.label);
+    expect(groups.slice(-2)).toEqual(['Dice tray (add-on)', 'Flow']);
+    expect(byLabel(el, 'Add a step').textContent).toContain('Roll dice (add-on)');
+    set(byLabel<HTMLSelectElement>(el, 'Add a step'), 'action:dice-tray.roll');
+    expect(el.textContent).toContain('Roll dice (from the Dice tray add-on)');
+    button(el, 'Remove step 2')!.click();
+    await settle(10);
     const msg = field<HTMLTextAreaElement>(el, 'Message');
     set(msg, 'Hi ');
     msg.setSelectionRange(3, 3);

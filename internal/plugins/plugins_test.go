@@ -186,7 +186,7 @@ func TestTheExamplePlugin(t *testing.T) {
 
 	// Installed off: its steps are there, and fail saying so.
 	a, ok := r.reg.Get("dice-tray.roll")
-	if !ok || a.Group != "Dice tray" || !a.External || !strings.Contains(a.Description, "published by StreamGremlin examples (not verified)") ||
+	if !ok || a.Group != "Dice tray" || a.AddOn != "dice-tray" || !a.External || !strings.Contains(a.Description, "published by StreamGremlin examples (not verified)") ||
 		a.Param("who").Editor != "message" || a.Param("dice").Type != "text" || a.Param("dice").DefaultHint != "A number from 1 to 10" {
 		t.Fatalf("step: %+v", a)
 	}

@@ -80,7 +80,7 @@ Everything else is ADR-0037's sandbox: no files, network, `os` beyond the clock,
 
 ### Its steps
 
-- `<id>.<action>`, in the editor under the plugin's name, labelled "from <name> (published by <publisher>, not verified)". Text values can use `{viewer}` and the rest, like a message. Number values are taken as text too, so they can come from chat (`{first_word}`, as the built-in steps take numbers typed in chat); each value is checked against the manifest (type, range, options) when the step runs.
+- `<id>.<action>`, in the editor under the plugin's name, labelled "from <name> (published by <publisher>, not verified)". The step picker lists add-ons' groups after StreamGremlin's own, as "Dice tray (add-on)", each step as "Roll dice (add-on)", and a step's card says "from the Dice tray add-on" (the action's `add_on` names it). Text values can use `{viewer}` and the rest, like a message. Number values are taken as text too, so they can come from chat (`{first_word}`, as the built-in steps take numbers typed in chat); each value is checked against the manifest (type, range, options) when the step runs.
 - **External:** a test event never runs them; the step is recorded as skipped with its values (ADR-0008). A plugin's effects are its own, so StreamGremlin can't run it "for this run only".
 - A plugin that's off, failed or removed: its steps fail at once, saying so. Its workflows stay on while it's off (D-107: they work again when it's back).
 - The output is what the handler returned: a value, list or table, with ADR-0037's limits.

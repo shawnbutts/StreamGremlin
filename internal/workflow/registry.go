@@ -56,6 +56,9 @@ type Action struct {
 	// Call.DryRun set: they show the result in the app's previews only,
 	// never in OBS or anywhere viewers see (an alert, say).
 	Preview bool `json:"preview,omitempty"`
+	// AddOn is the id of the add-on (a Lua plugin) the action comes from;
+	// empty for StreamGremlin's own. The editor says so beside its name.
+	AddOn string `json:"add_on,omitempty"`
 	// More puts the action behind "More steps…" in the editor.
 	More   bool                                           `json:"more,omitempty"`
 	Params []Param                                        `json:"params"`

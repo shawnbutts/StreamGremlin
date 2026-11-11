@@ -16,8 +16,11 @@
   const actionOf = (s: StepDef) => env.actions.find((a) => a.name === s.action);
   const title = (s: StepDef) => {
     switch (stepKind(s)) {
-      case 'action':
-        return actionOf(s)?.label ?? s.action;
+      case 'action': {
+        const a = actionOf(s);
+        if (!a) return s.action ?? '';
+        return a.add_on ? `${a.label} (from the ${a.group} add-on)` : a.label;
+      }
       case 'set':
         return 'Remember a value';
       case 'if':
@@ -30,7 +33,10 @@
         return 'A step the editor can’t show yet';
     }
   };
-  const groups = $derived([...new Set(env.actions.filter((a) => env.more || !a.more).map((a) => a.group))]);
+  // StreamGremlin's own groups first, then each add-on's, marked as one.
+  const shown = $derived(env.actions.filter((a) => env.more || !a.more));
+  const groups = $derived([...new Set([...shown.filter((a) => !a.add_on), ...shown.filter((a) => a.add_on)].map((a) => a.group))]);
+  const addOnGroup = (g: string) => shown.some((a) => a.group === g && a.add_on);
 
   function add(e: Event) {
     const sel = e.currentTarget as HTMLSelectElement;
@@ -191,9 +197,9 @@
   <select class="sg-input" onchange={add} aria-label={`Add ${what}`}>
     <option value="">Add {what}…</option>
     {#each groups as g (g)}
-      <optgroup label={g}>
-        {#each env.actions.filter((a) => a.group === g && (env.more || !a.more)) as a (a.name)}
-          <option value={`action:${a.name}`}>{a.label}</option>
+      <optgroup label={addOnGroup(g) ? `${g} (add-on)` : g}>
+        {#each shown.filter((a) => a.group === g) as a (a.name)}
+          <option value={`action:${a.name}`}>{a.add_on ? `${a.label} (add-on)` : a.label}</option>
         {/each}
       </optgroup>
     {/each}
