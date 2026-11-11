@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"flag"
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,16 +12,20 @@ import (
 
 var update = flag.Bool("update", false, "rewrite the looks' sound files")
 
-const themes = "../themes"
-
-// The looks' sound files are this package's output, byte for byte. After
-// changing a sound: go test ./internal/overlays/themesounds -update
+// The looks' sound files are this package's output, byte for byte: the
+// built-in looks' and the examples'. After changing a sound:
+// go test ./internal/overlays/themesounds -update
 func TestTheLooksSoundsAreMadeHere(t *testing.T) {
-	files := Files()
-	if len(files) != len(Looks)*len(Cues) {
+	sameFiles(t, "../themes", Looks, Files())
+	sameFiles(t, "../../../examples/themes", Examples, ExampleFiles())
+}
+
+func sameFiles(t *testing.T, themes string, looks []string, files map[string][]byte) {
+	t.Helper()
+	if len(files) != len(looks)*len(Cues) {
 		t.Fatalf("%d files", len(files))
 	}
-	for _, look := range Looks {
+	for _, look := range looks {
 		for _, cue := range Cues {
 			name := look + "/" + cue + ".wav"
 			want, ok := files[name]
@@ -45,7 +50,10 @@ func TestTheLooksSoundsAreMadeHere(t *testing.T) {
 // Each is a short, valid, 16-bit mono WAV that isn't silent and doesn't clip.
 func TestTheLooksSoundsArePlayable(t *testing.T) {
 	again := Files()
-	for name, b := range Files() {
+	maps.Copy(again, ExampleFiles())
+	all := Files()
+	maps.Copy(all, ExampleFiles())
+	for name, b := range all {
 		if !bytes.Equal(b, again[name]) {
 			t.Errorf("%s: not the same twice", name)
 		}

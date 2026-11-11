@@ -59,14 +59,15 @@ func TestInstalledLooksThroughTheCLI(t *testing.T) {
 	zipFolder(t, filepath.Join("..", "..", "examples", "themes", "paper-wheel"), zipPath)
 
 	out, errOut, code := cli(t, dir, "packages", "install", zipPath)
-	if code != 0 || !strings.Contains(out, "Paper wheel 1.0.0: a wheel look, published by StreamGremlin examples (not verified)") ||
+	if code != 0 || !strings.Contains(out, "Paper wheel 1.1.0: a wheel look, published by StreamGremlin examples (not verified)") ||
+		!strings.Contains(out, "It has its own sounds.") ||
 		!strings.Contains(out, "can't reach the internet") || !strings.Contains(out, "-yes") {
 		t.Fatal(out, errOut)
 	}
 	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "No add-ons installed") {
 		t.Fatal("installed without -yes:", out)
 	}
-	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 0 || !strings.Contains(out, "Installed Paper wheel 1.0.0") {
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 0 || !strings.Contains(out, "Installed Paper wheel 1.1.0") {
 		t.Fatal(out, errOut)
 	}
 	if out, _, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 0 || !strings.Contains(out, "installed already") {
@@ -89,7 +90,7 @@ func TestInstalledLooksThroughTheCLI(t *testing.T) {
 	var url string
 	p.mu.Lock()
 	for _, m := range p.got {
-		if u := regexp.MustCompile(`"url":"(http://127\.0\.0\.1:\d+/t/paper-wheel/1\.0\.0/[0-9a-f]{64}/index\.html)"`).FindStringSubmatch(m); u != nil {
+		if u := regexp.MustCompile(`"url":"(http://127\.0\.0\.1:\d+/t/paper-wheel/1\.1\.0/[0-9a-f]{64}/index\.html)"`).FindStringSubmatch(m); u != nil {
 			url = u[1]
 		}
 	}
@@ -97,7 +98,10 @@ func TestInstalledLooksThroughTheCLI(t *testing.T) {
 	if url == "" || !strings.Contains(strings.Join(p.got, "\n"), `"odds_checked":false`) {
 		t.Fatal("no look link in", p.got)
 	}
-	for _, f := range []string{url, strings.TrimSuffix(url, "index.html") + "wheel.js"} {
+	// Its own sounds, beside its page, on unless the streamer turns them off.
+	base := strings.TrimSuffix(url, "index.html")
+	eventually(t, "the look's sounds in the hello", func() string { return p.has("hello", `"start":"`+base+`start.wav"`) })
+	for _, f := range []string{url, base + "wheel.js", base + "start.wav"} {
 		res, err := http.Get(f)
 		if err != nil {
 			t.Fatal(err)

@@ -23,15 +23,30 @@ var Cues = []string{"start", "end", "cheer"}
 // Looks are the built-in looks with sounds, by folder.
 var Looks = []string{"workshop", "neon-arcade", "selector-board"}
 
+// Examples are the example looks in examples/themes/ with sounds, by
+// folder: their sounds are made here too.
+var Examples = []string{"paper-wheel"}
+
+// ExampleFiles returns the example looks' sounds as WAV files, by path
+// under examples/themes/, like "paper-wheel/start.wav".
+func ExampleFiles() map[string][]byte {
+	return build(map[string]map[string]func() []float64{
+		"paper-wheel": {"start": paperStart, "end": paperEnd, "cheer": paperCheer},
+	})
+}
+
 // Files returns every look's sounds as WAV files, by path under
 // internal/overlays/themes/, like "workshop/start.wav". The same bytes
 // every time.
 func Files() map[string][]byte {
-	makers := map[string]map[string]func() []float64{
+	return build(map[string]map[string]func() []float64{
 		"workshop":       {"start": workshopStart, "end": workshopEnd, "cheer": workshopCheer},
 		"neon-arcade":    {"start": neonStart, "end": neonEnd, "cheer": neonCheer},
 		"selector-board": {"start": boardStart, "end": boardEnd, "cheer": boardCheer},
-	}
+	})
+}
+
+func build(makers map[string]map[string]func() []float64) map[string][]byte {
 	out := map[string][]byte{}
 	for look, cues := range makers {
 		for cue, gen := range cues {
@@ -279,5 +294,76 @@ func boardCheer() []float64 {
 		tone(buf, at, 1.0, 0.12, 0.006, 0.25, sine, fixed(hz*2))
 		tone(buf, at, 1.0, 0.05, 0.006, 0.15, sine, fixed(hz*3))
 	}
+	return buf
+}
+
+// --- Paper wheel (the example): paper on paper -------------------------------
+
+// rustle adds paper friction: noise kept to the band paper sounds in
+// (lo to hi Hz), made grainy by fibres catching, its loudness shaped by
+// env(t) from 0 to 1.
+func rustle(buf []float64, n *noise, at, length, amp, lo, hi float64, env func(t float64) float64) {
+	start := int(at * Rate)
+	kLo, kHi := math.Exp(-2*math.Pi*lo/Rate), math.Exp(-2*math.Pi*hi/Rate)
+	low, high, grain, target := 0.0, 0.0, 0.0, 0.0
+	for i := 0; i < int(length*Rate) && start+i < len(buf); i++ {
+		x := n.next()
+		low = kLo*low + (1-kLo)*x
+		high = kHi*high + (1-kHi)*x
+		if i%88 == 0 { // a new catch of the fibres every 4 ms
+			target = 0.35 + 0.65*math.Abs(n.next())
+		}
+		grain += (target - grain) * 0.02
+		buf[start+i] += amp * env(float64(i)/Rate) * grain * (high - low) * 4
+	}
+}
+
+// stroke is a rub's swell: up and back down over length seconds.
+func stroke(t, at, length float64) float64 {
+	if t < at || t > at+length {
+		return 0
+	}
+	return math.Pow(math.Sin(math.Pi*(t-at)/length), 2)
+}
+
+// A sheet of paper rubbed on another: four strokes, back and forth, each
+// quicker and lighter, as the wheel is pushed round.
+func paperStart() []float64 {
+	buf := samples(1.25)
+	n := noise(0x9a9e1)
+	strokes := []struct{ at, length, amp float64 }{{0, 0.42, 1}, {0.36, 0.34, 0.8}, {0.66, 0.28, 0.65}, {0.9, 0.3, 0.45}}
+	rustle(buf, &n, 0, 1.25, 1, 1400, 7000, func(t float64) float64 {
+		v := 0.0
+		for _, s := range strokes {
+			v += s.amp * stroke(t, s.at, s.length)
+		}
+		return v
+	})
+	return buf
+}
+
+// One slow last rub as it drags to a stop, then the paper pointer's tab
+// patting down on the wheel.
+func paperEnd() []float64 {
+	buf := samples(0.75)
+	n := noise(0x9a9e2)
+	rustle(buf, &n, 0, 0.5, 0.8, 1000, 5500, func(t float64) float64 { return stroke(t, 0, 0.5) * (1 - t) })
+	rustle(buf, &n, 0.48, 0.12, 1, 600, 4000, func(t float64) float64 { return math.Exp(-t / 0.02) })
+	tone(buf, 0.48, 0.15, 0.25, 0.001, 0.025, sine, fixed(180))
+	return buf
+}
+
+// Confetti thrown, a crackle of paper scraps, and a paper party blower
+// unrolling with a buzz.
+func paperCheer() []float64 {
+	buf := samples(1.4)
+	n := noise(0x9a9e3)
+	for i := 0; i < 26; i++ { // scraps, thickest at the start
+		at := 0.9 * math.Pow(float64(i)/26, 1.6)
+		rustle(buf, &n, at, 0.05, 0.6+0.3*math.Abs(n.next()), 2000, 9000, func(t float64) float64 { return math.Exp(-t / 0.012) })
+	}
+	blow := func(t float64) float64 { return 330 + 70*math.Min(1, t/0.18) + 4*math.Sin(2*math.Pi*23*t) }
+	tone(buf, 0.05, 1.0, 0.32, 0.03, 0.9, square(0.3), blow)
+	tone(buf, 0.05, 1.0, 0.18, 0.03, 0.9, sine, func(t float64) float64 { return 2 * blow(t) })
 	return buf
 }

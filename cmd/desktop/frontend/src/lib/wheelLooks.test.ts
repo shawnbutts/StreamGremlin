@@ -10,6 +10,7 @@ let wheelTheme: (win: unknown, style: unknown, opts?: unknown) => unknown;
 let selectorTheme: (win: unknown, opts?: unknown) => unknown;
 let workshop: { style: unknown };
 let neon: { style: unknown };
+let paperWheel: (win: unknown, opts?: unknown) => void;
 let geometry: {
   chances: (c: unknown[]) => string[];
   spans: (c: unknown[]) => [number, number][];
@@ -29,6 +30,7 @@ beforeAll(async () => {
   workshop = (await load('themes/workshop/main.js')) as never;
   neon = (await load('themes/neon-arcade/main.js')) as never;
   geometry = (await load('themes/shared/wheel.js')) as never;
+  paperWheel = (await load('../../examples/themes/paper-wheel/wheel.js')).paperWheel as never;
 });
 
 afterEach(() => {
@@ -180,6 +182,42 @@ class FakeSocket {
     for (const fn of this.listeners[kind] ?? []) fn({ data: data === undefined ? undefined : JSON.stringify(data) });
   }
 }
+
+describe('the example look, Paper wheel', () => {
+  it('spins: the wheel is on screen before its turn is set, so the browser animates it', async () => {
+    const page = new URL(root + '../../examples/themes/paper-wheel/index.html', import.meta.url).pathname;
+    const html = (await import('node:fs')).readFileSync(page, 'utf8');
+    document.body.innerHTML = html.slice(html.indexOf('<main'), html.indexOf('</main>') + 7);
+    const sent: { type: string; payload: Record<string, unknown> }[] = [];
+    const parent = { postMessage: (m: { type: string; payload: Record<string, unknown> }) => sent.push(m) };
+    const listeners: ((ev: { source: unknown; data: unknown }) => void)[] = [];
+    const c = clock();
+    const win = { document, parent, addEventListener: (_k: string, fn: (typeof listeners)[0]) => listeners.push(fn) };
+    paperWheel(win, { setTimeout: c.setTimeout });
+    const post = (type: string, payload: unknown) =>
+      listeners.forEach((fn) => fn({ source: parent, data: { protocolVersion: 1, type, payload } }));
+    expect(sent[0].type).toBe('theme.ready');
+    const stage = document.getElementById('stage')!;
+    const rotor = document.getElementById('rotor')!;
+    // A browser only animates what it has laid out: was the wheel showing
+    // when the look made the page lay out its starting turn?
+    let shownAtReset: boolean | undefined;
+    rotor.getBoundingClientRect = () => {
+      shownAtReset = !stage.hidden;
+      return new DOMRect();
+    };
+    post('session.snapshot', { settings: { paper: 'Sky' } });
+    post('spin.start', { spinId: 's1', title: 'Next game', choices, winner: 0, draw: 1, durationMs: 6000 });
+    expect(shownAtReset).toBe(true);
+    expect(rotor.style.transition).toContain('6000ms');
+    expect(rotor.style.transform).toBe(`rotate(${5 * 360 + 360 - 135}deg)`); // number 1 of 4 is at 135°
+    expect(document.getElementById('chances')!.textContent).toContain('Mario: 50%');
+    c.advance(6000);
+    expect(sent.at(-1)).toEqual({ protocolVersion: 1, type: 'spin.animation.completed', payload: { spinId: 's1' } });
+    post('spin.start', { spinId: 'bad', choices, winner: 1, draw: 0, durationMs: 6000 });
+    expect(sent.at(-1)!.type).toBe('theme.error');
+  });
+});
 
 describe('the overlay page with a wheel look', () => {
   const url = 'http://127.0.0.1:50123/t/builtin/workshop/v1/index.html';

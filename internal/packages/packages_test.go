@@ -92,7 +92,7 @@ func TestTheExampleThemeIsAPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Manifest.ID != "paper-wheel" || r.Manifest.Theme.Entry != "index.html" || len(r.Files) != 5 || len(r.Manifest.Theme.Settings) != 5 {
+	if r.Manifest.ID != "paper-wheel" || r.Manifest.Theme.Entry != "index.html" || len(r.Files) != 8 || len(r.Manifest.Theme.Settings) != 5 {
 		t.Fatal(r.Manifest, r.Paths())
 	}
 }

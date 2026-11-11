@@ -1155,4 +1155,5 @@ Decided 2026-11-10 under D-007, building on D-062 and D-063. The user: "split it
 - **Installing shows what it is first:** name, version, publisher "(not verified)", files and size, settings, its own sounds, and that it runs sandboxed with no network and can't have its odds checked. Install sends the ZIP again with the digest the streamer was shown, so what's installed is what they saw.
 - **A ZIP of a look's folder works,** as Finder and Explorer make them, so a streamer never has to build one by hand.
 - **An example look, Paper wheel,** is in `examples/themes/paper-wheel`: StreamGremlin's own code, for tests and the live check, and for anyone making a look.
+  - **It has its own sounds** (1.1.0), made like the built-in looks' (D-065). The user: "the paper-wheel needs sounds. like paper rubbing on paper." Paper rubbing as it starts, a last rub and the pointer's paper tab patting down as it stops, and confetti with a paper party blower for the result.
 - Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.
