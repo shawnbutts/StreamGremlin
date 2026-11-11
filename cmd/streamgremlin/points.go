@@ -541,6 +541,17 @@ func printCard(w io.Writer, v api.ViewerView, c api.ChatterCard) {
 			return out
 		})
 	}
+	if s := c.Suspicious; s != nil {
+		parts := []string{}
+		if s.BanEvasion == "likely" || s.BanEvasion == "possible" {
+			parts = append(parts, s.BanEvasion+" ban evader")
+		}
+		if s.SharedBans > 0 {
+			parts = append(parts, fmt.Sprintf("banned in %d channels you share bans with", s.SharedBans))
+		}
+		parts = append(parts, map[string]string{"active_monitoring": "monitored", "restricted": "restricted", "none": "not restricted or monitored"}[s.Treatment])
+		fmt.Fprintf(w, "  %-11s %s\n", "Suspicious:", strings.Join(parts, ", "))
+	}
 	if c.Viewer != nil {
 		fmt.Fprintf(w, "  StreamGremlin: %d %s, %d chat messages, first seen %s\n", c.Viewer.Balance, c.Currency, c.Viewer.Messages,
 			c.Viewer.FirstSeen.Local().Format("Jan 2 2006"))

@@ -360,6 +360,9 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 		s.chattersLocked(w, r)
 	case r.Method == "GET" && r.URL.Path == "/helix/subscriptions":
 		s.subscriptionsLocked(w, r)
+	case r.Method == "GET" && r.URL.Path == "/helix/chat/settings":
+		s.getChatSettingsLocked(w, r)
+	case s.moderateLocked(w, r):
 	case r.Method == "GET" && r.URL.Path == "/helix/channels/vips":
 		s.cardListLocked(w, r, "channel:read:vips", "channel:manage:vips")
 	case r.Method == "GET" && r.URL.Path == "/helix/moderation/moderators":

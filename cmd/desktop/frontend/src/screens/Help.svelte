@@ -49,6 +49,13 @@
       workflow” gives a new one something to do. A button press has no viewer behind it, like a timer. Rest the pointer on a
       chatter’s name, or click it, for their card: what Twitch says about them now (following, subscribed, VIP, moderator,
       banned) and what StreamGremlin knows (points, recent messages). Anything Twitch didn’t give says unknown, never no.
+      The card also moderates: time out (with a reason if you like), ban (it asks first), unban, warn, shoutout, VIP and
+      moderator, and how Twitch treats a suspicious user. Resting the pointer on a message shows quick buttons: Delete, a
+      10-minute timeout, and Ban. Each is sent to Twitch once, as you, and kept under “Done from StreamGremlin”; if Twitch
+      doesn’t answer it says unknown and isn’t sent again. <strong>Chat modes</strong> turns emote-only, followers-only,
+      slow, subscribers-only and unique chat on and off. Twitch’s suspicious-user flags (a likely or possible ban evader,
+      someone banned in a channel you share bans with) show on their messages and card, and “A suspicious user chats” can
+      start a workflow.
     </dd>
     <dt>Events</dt>
     <dd>Everything StreamGremlin hears: chat messages, <code>!commands</code>, OBS scene changes. Test events look real to workflows but are marked Test.</dd>

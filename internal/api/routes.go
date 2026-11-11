@@ -17,6 +17,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
+	"code.streamgremlin.com/streamgremlin/internal/moderation"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
@@ -77,6 +78,8 @@ type Deps struct {
 	Rounds *rounds.Service
 	// Buttons are the streamer's buttons (D-075).
 	Buttons *buttons.Service
+	// Moderation sends and records moderating requests (D-079).
+	Moderation *moderation.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time
@@ -169,7 +172,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), chatterRoutes(d)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(chatterRoutes(d), moderationRoutes(d)...)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

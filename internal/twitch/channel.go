@@ -51,11 +51,15 @@ var Feeds = []Feed{
 	{Type: "channel.prediction.end", Label: "Predictions end", Version: "1", Scopes: predictionScopes},
 	// Ad breaks (docs/adr/0024-ads.md): Affiliate or Partner.
 	{Type: "channel.ad_break.begin", Label: "Ad breaks", Version: "1", Scopes: []string{"channel:read:ads"}},
+	// Suspicious users (D-079): Twitch's ban-evasion and shared-ban flags.
+	{Type: "channel.suspicious_user.message", Label: "Suspicious users' messages", Version: "1", Scopes: suspiciousScopes},
+	{Type: "channel.suspicious_user.update", Label: "Suspicious users' treatment", Version: "1", Scopes: suspiciousScopes},
 }
 
 var (
 	pollScopes       = []string{"channel:read:polls", "channel:manage:polls"}
 	predictionScopes = []string{"channel:read:predictions", "channel:manage:predictions"}
+	suspiciousScopes = []string{SuspiciousReadScope}
 )
 
 // FeedStatus says whether Twitch sends one kind of event.
@@ -123,7 +127,7 @@ func (s *Service) subscribeFeeds(ctx context.Context, clientID, token, sessionID
 		}
 		cond := map[string]string{"broadcaster_user_id": userID}
 		switch f.Type {
-		case "channel.follow":
+		case "channel.follow", "channel.suspicious_user.message", "channel.suspicious_user.update":
 			cond["moderator_user_id"] = userID
 		case "channel.raid":
 			cond = map[string]string{"to_broadcaster_user_id": userID}
@@ -393,6 +397,44 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 			"channel.prediction.lock": "chat.prediction.locked", "channel.prediction.end": "chat.prediction.ended"}[typ]
 		env.Actor = nil
 		payload = e.payload()
+	case "channel.suspicious_user.message":
+		var e struct {
+			LowTrust   string   `json:"low_trust_status"`
+			Types      []string `json:"types"`
+			BanEvasion string   `json:"ban_evasion_evaluation"`
+			SharedBans []string `json:"shared_ban_channel_ids"`
+			Message    struct {
+				ID   string `json:"message_id"`
+				Text string `json:"text"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(raw, &e) != nil || env.Actor == nil {
+			return events.Envelope{}, false
+		}
+		if e.Types == nil {
+			e.Types = []string{}
+		}
+		if e.SharedBans == nil {
+			e.SharedBans = []string{}
+		}
+		// Keyed by the chat message: a redelivery is one event.
+		if e.Message.ID != "" {
+			env.SourceEventID = "suspicious:" + e.Message.ID
+		}
+		env.Type, payload = "moderation.suspicious_user.message", map[string]any{"message_id": e.Message.ID, "text": e.Message.Text,
+			"low_trust_status": e.LowTrust, "types": e.Types, "ban_evasion": e.BanEvasion, "shared_ban_channel_ids": e.SharedBans}
+	case "channel.suspicious_user.update":
+		var e struct {
+			LowTrust string `json:"low_trust_status"`
+			ModID    string `json:"moderator_user_id"`
+			ModLogin string `json:"moderator_user_login"`
+			ModName  string `json:"moderator_user_name"`
+		}
+		if json.Unmarshal(raw, &e) != nil || env.Actor == nil {
+			return events.Envelope{}, false
+		}
+		env.Type, payload = "moderation.suspicious_user.updated", map[string]any{"low_trust_status": e.LowTrust,
+			"moderator": map[string]any{"id": e.ModID, "login": e.ModLogin, "name": e.ModName}}
 	default:
 		return events.Envelope{}, false
 	}

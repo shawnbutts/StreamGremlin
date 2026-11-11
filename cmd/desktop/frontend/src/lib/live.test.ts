@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buttonId, chatLine, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, twitchRows } from './live';
-import type { ChatterCard, EventRecord, TwitchCard, WorkflowSummary } from './api';
+import { buttonId, chatLine, historyWords, lengthWords, modWords, modesWords, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, suspicionRow, suspicionWords, suspiciousLine, twitchRows } from './live';
+import type { ChatterCard, EventRecord, ModRecord, TwitchCard, WorkflowSummary } from './api';
 
 const ev = (payload: Record<string, unknown>, extra: Partial<EventRecord> = {}): EventRecord => ({
   seq: 7,
@@ -115,10 +115,48 @@ describe('viewer card', () => {
     expect(t.find((r) => r.label === 'Banned')!.value).toMatch(/^Timed out until /);
   });
   it('says what StreamGremlin knows', () => {
-    const card: ChatterCard = { platform: 'twitch', user_id: '42', twitch: base, viewer: null, currency: 'gremlins', messages: [] };
+    const card: ChatterCard = { platform: 'twitch', user_id: '42', twitch: base, viewer: null, currency: 'gremlins', messages: [], moderation: [], suspicious: null };
     expect(recordWords(card, now)).toEqual(['StreamGremlin has no record of them yet.']);
     const v = { id: 'v', platform: 'twitch', user_id: '42', login: 'fan', display_name: 'Fan', first_seen: '2026-11-01T12:00:00Z', last_seen: '', messages: 1, balance: 1250 };
     expect(recordWords({ ...card, viewer: v }, now)).toEqual(['First seen Nov 1, 2026 (10 days ago); 1 message in all.', '1,250 gremlins.']);
     expect(recordWords({ ...card, twitch: null }, now)[0]).toContain('A test chatter');
+  });
+});
+
+describe('moderating', () => {
+  const rec = (x: Partial<ModRecord>): ModRecord => ({ id: 'm', request_id: 'r', action: 'timeout', platform: 'twitch', from: 'live', state: 'done', created_at: '', ...x });
+  it('says timeouts’ lengths', () => {
+    expect(lengthWords(600)).toBe('10 minutes');
+    expect(lengthWords(3600)).toBe('1 hour');
+    expect(lengthWords(1209600)).toBe('2 weeks');
+    expect(lengthWords(90)).toBe('90 seconds');
+  });
+  it('says how a request went, never done when it wasn’t', () => {
+    expect(modWords(rec({ seconds: 600 }), 'Fan')).toBe('Timed out Fan for 10 minutes.');
+    expect(modWords(rec({ action: 'ban' }), 'Fan', true)).toBe('Banned Fan. (already sent; not sent again)');
+    expect(modWords(rec({ state: 'refused', answer: 'Twitch refused: already banned (400)' }))).toBe('Not done: Twitch refused: already banned (400)');
+    expect(modWords(rec({ state: 'unknown', answer: 'Twitch didn’t answer' }))).toMatch(/^Unknown: /);
+    expect(historyWords(rec({ seconds: 60, reason: 'calm' }))).toBe('Time out 1 minute (“calm”)');
+    expect(historyWords(rec({ action: 'vip', state: 'refused' }))).toBe('Make VIP: refused');
+  });
+  it('puts Twitch’s suspicious flags in words', () => {
+    expect(suspicionWords({ low_trust_status: 'active_monitoring', ban_evasion: 'likely', types: ['ban_evader'], shared_ban_channel_ids: [] }))
+      .toBe('Likely ban evader, monitored');
+    expect(suspicionWords({ treatment: 'restricted', types: ['banned_in_shared_channel'], shared_bans: 2 }))
+      .toBe('Banned in 2 channels you share bans with, restricted (only you and your mods see their messages)');
+    expect(suspicionWords({ treatment: 'none', types: ['manually_added'] })).toBe('Marked by you or a mod');
+    expect(suspicionRow(null).value).toContain('hasn’t flagged them while StreamGremlin was listening');
+  });
+  it('makes a line from a suspicious message chat didn’t carry', () => {
+    const l = suspiciousLine(ev({ message_id: 'm9', text: 'hi', low_trust_status: 'restricted', ban_evasion: 'possible', types: ['ban_evader'] },
+      { type: 'moderation.suspicious_user.message' }));
+    expect(l).toMatchObject({ messageId: 'm9', text: 'hi', name: 'Fan', userId: '42' });
+    expect(l.suspicious).toContain('Possible ban evader');
+  });
+  it('says the chat modes', () => {
+    const off = { emote_mode: false, follower_mode: false, follower_mode_duration: null, slow_mode: false, slow_mode_wait_time: null, subscriber_mode: false, unique_chat_mode: false };
+    expect(modesWords(off)).toBe('No chat modes on.');
+    expect(modesWords({ ...off, slow_mode: true, slow_mode_wait_time: 10, follower_mode: true, follower_mode_duration: 60 }))
+      .toBe('On: followers-only (1 hour), slow (10 seconds).');
   });
 });

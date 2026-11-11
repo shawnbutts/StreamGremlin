@@ -10,23 +10,47 @@
     BUTTON_COLORS,
     deleteButton,
     getButtons,
+    getChatModes,
     getConnections,
+    getModeration,
     getEvents,
     getUISettings,
     getWorkflows,
+    moderate,
     orderButtons,
     pressButton,
     putUISettings,
     saveButton,
     sendChat,
     type ButtonColor,
+    type ChatModes,
+    type ChatModesChange,
+    type EventRecord,
+    type ModAction,
+    type ModRecord,
     type LiveButton,
     type LivePlace,
     type TwitchStatus,
     type WorkflowSummary,
   } from '../lib/api';
   import { eventTime } from '../lib/events';
-  import { CHAT_MESSAGE, buttonId, chatLine, pressWords, startsFrom, startsWords, starterWorkflow, type ChatLine } from '../lib/live';
+  import {
+    CHAT_MESSAGE,
+    SUSPICIOUS_MESSAGE,
+    buttonId,
+    chatLine,
+    historyWords,
+    lengthWords,
+    modWords,
+    modesWords,
+    newRequestId,
+    pressWords,
+    startsFrom,
+    startsWords,
+    starterWorkflow,
+    suspiciousLine,
+    type ChatLine,
+  } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
@@ -50,8 +74,6 @@
   const keep = 300;
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const newRequestId = () =>
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   // Chat.
   let lines = $state<ChatLine[]>([]); // oldest first
@@ -126,14 +148,115 @@
     if (restoreFocus) from?.focus();
   }
 
-  function add(recs: Parameters<typeof chatLine>[0][]) {
+  // A chat message and Twitch's suspicious-user flag on it arrive as two
+  // events; they're one line, matched by the message's id, in either order.
+  function add(recs: EventRecord[]) {
     if (recs.length === 0) return;
-    const fresh = recs.map(chatLine);
-    lines = [...lines, ...fresh].slice(-keep);
+    const next = [...lines];
+    let fresh = 0;
+    for (const ev of recs) {
+      const l = ev.type === SUSPICIOUS_MESSAGE ? suspiciousLine(ev) : chatLine(ev);
+      const i = l.messageId ? next.findIndex((x) => x.messageId === l.messageId) : -1;
+      if (i < 0) {
+        next.push(l);
+        fresh++;
+      } else if (ev.type === SUSPICIOUS_MESSAGE) {
+        next[i] = { ...next[i], suspicious: l.suspicious };
+      } else {
+        next[i] = { ...l, seq: next[i].seq, suspicious: next[i].suspicious, deleted: next[i].deleted };
+      }
+    }
+    lines = next.slice(-keep);
+    if (fresh === 0) return;
     if (atBottom) {
       tick().then(() => logEl?.scrollTo?.({ top: logEl.scrollHeight }));
     } else {
-      unseen += fresh.length;
+      unseen += fresh;
+    }
+  }
+
+  // Moderating from a chat line (D-079): delete, a 10-minute timeout, and
+  // ban (asked first). The card has the rest.
+  let modNotice = $state('');
+  let modProblem = $state('');
+  let confirmBan = $state<ChatLine | undefined>();
+  const canModerate = (l: ChatLine) => youIn && !l.test && !!l.userId && l.userId !== twitch?.streamer.user_id;
+
+  async function moderateLine(l: ChatLine, action: ModAction, extra: { seconds?: number; message_id?: string } = {}) {
+    modNotice = '';
+    modProblem = '';
+    try {
+      const res = await moderate({ request_id: newRequestId(), action, platform: 'twitch', user_id: l.userId, login: l.login, from: 'live', ...extra });
+      moderated(res.record);
+      const words = modWords(res.record, l.name, res.duplicate);
+      if (res.record.state === 'done') modNotice = words;
+      else modProblem = words;
+    } catch (e) {
+      modProblem = `Not sent: ${message(e)}`;
+    }
+  }
+
+  function moderated(r: ModRecord) {
+    if (r.state === 'done' && r.action === 'delete' && r.message_id) {
+      lines = lines.map((x) => (x.messageId === r.message_id ? { ...x, deleted: true } : x));
+    }
+    if (logOpen) loadLog();
+  }
+
+  // Chat modes (D-079).
+  let modes = $state<ChatModes | null>(null);
+  let modesProblem = $state('');
+  let modesBusy = $state(false);
+  let modesNotice = $state('');
+  let followMinutes = $state(10);
+  let slowSeconds = $state(30);
+  const FOLLOW_CHOICES = [0, 10, 30, 60, 1440, 10080];
+  const SLOW_CHOICES = [3, 5, 10, 30, 60, 120];
+
+  async function loadModes() {
+    if (modesBusy) return;
+    try {
+      const v = await getChatModes();
+      modes = v.settings;
+      modesProblem = v.settings ? '' : (v.problem ?? 'Twitch didn’t say.');
+      if (v.settings?.follower_mode_duration != null) followMinutes = v.settings.follower_mode_duration;
+      if (v.settings?.slow_mode_wait_time != null) slowSeconds = v.settings.slow_mode_wait_time;
+    } catch (e) {
+      modes = null;
+      modesProblem = message(e);
+    }
+  }
+
+  async function changeModes(change: ChatModesChange) {
+    modesBusy = true;
+    modesNotice = '';
+    try {
+      const res = await moderate({ request_id: newRequestId(), action: 'chat_modes', platform: 'twitch', chat_modes: change, from: 'live' });
+      if (res.record.state === 'done' && res.record.settings) {
+        modes = res.record.settings;
+        modesNotice = modesWords(res.record.settings);
+        modesProblem = '';
+      } else {
+        modesProblem = modWords(res.record);
+      }
+      if (logOpen) loadLog();
+    } catch (e) {
+      modesProblem = `Not sent: ${message(e)}`;
+    } finally {
+      modesBusy = false;
+    }
+  }
+
+  // What was done from StreamGremlin.
+  let logOpen = $state(false);
+  let log = $state<ModRecord[] | undefined>();
+  let logProblem = $state('');
+  async function loadLog() {
+    try {
+      log = (await getModeration(20)).moderation;
+      logProblem = '';
+    } catch (e) {
+      logProblem = message(e);
     }
   }
 
@@ -178,8 +301,10 @@
       .catch(() => undefined);
     loadTwitch();
     loadButtons();
+    loadModes();
     const timer = setInterval(() => {
       loadTwitch();
+      loadModes();
       if (!editing && !form) loadButtons();
     }, refreshMs);
     abort.signal.addEventListener('abort', () => clearInterval(timer));
@@ -188,12 +313,12 @@
       while (!abort.signal.aborted) {
         try {
           if (cursor === undefined) {
-            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE] }, abort.signal);
+            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE, SUSPICIOUS_MESSAGE] }, abort.signal);
             lines = [];
             add(page.events);
             cursor = page.head;
           } else {
-            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE] }, abort.signal);
+            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE, SUSPICIOUS_MESSAGE] }, abort.signal);
             add(page.events);
             if (page.events.length > 0) cursor = page.events[page.events.length - 1].seq;
             if (page.head < cursor) cursor = undefined; // a different data folder: start again
@@ -389,7 +514,7 @@
       <div class="live-log" role="log" aria-label="Chat messages" bind:this={logEl} onscroll={onScroll} tabindex="0">
       <ol class="live-lines">
         {#each lines as l (l.seq)}
-          <li class="live-line">
+          <li class="live-line" class:live-deleted={l.deleted} class:live-flagged={!!l.suspicious}>
             <span class="sg-muted live-time">{eventTime(l.at)}</span>
             {#if l.color}<span class="live-swatch" style:background={l.color} aria-hidden="true"></span>{/if}
             <button
@@ -402,7 +527,23 @@
               onclick={(e) => openCard(l, e.currentTarget)}>{l.name}</button
             >{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
                 class="live-badge">Test</span
-              >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}<span class="live-text">: {l.text}</span>
+              >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}{#if l.suspicious}<span
+                class="live-badge live-suspicious">Suspicious: {l.suspicious}</span
+              >{/if}{#if l.deleted}<span class="live-badge">Deleted</span>{/if}<span class="live-text">: {l.text}</span>
+            {#if canModerate(l) && !l.deleted}
+              <!-- Quick tools for the pointer; the card (click the name) has every action for the keyboard. -->
+              <span class="live-tools">
+                {#if l.messageId}<button type="button" class="button" tabindex="-1" aria-label={`Delete ${l.name}’s message`}
+                    onclick={() => moderateLine(l, 'delete', { message_id: l.messageId })}>Delete</button
+                  >{/if}
+                <button type="button" class="button" tabindex="-1" aria-label={`Time out ${l.name} for 10 minutes`}
+                  onclick={() => moderateLine(l, 'timeout', { seconds: 600 })}>10 min</button
+                >
+                <button type="button" class="button button-danger" tabindex="-1" aria-label={`Ban ${l.name}`} onclick={() => (confirmBan = l)}
+                  >Ban…</button
+                >
+              </span>
+            {/if}
           </li>
         {/each}
       </ol>
@@ -431,7 +572,11 @@
         <p class="sg-muted">Sign in to Twitch on Connections to send messages from here.</p>
       {/if}
       {#if sendError}<p class="error" role="alert">{sendError}</p>{/if}
+      <p class="saved" role="status">{modNotice}</p>
+      {#if modProblem}<p class="error" role="alert">{modProblem}</p>{/if}
     </section>
+
+    <div class="live-side">
 
     <section class="sg-panel live-buttons" aria-labelledby="live-buttons-heading">
       <div class="live-buttons-head">
@@ -518,7 +663,87 @@
       {/if}
       <p class="saved" role="status">{notice}</p>
     </section>
+
+    <section class="sg-panel live-modes" aria-labelledby="live-modes-heading">
+      <h2 id="live-modes-heading">Chat modes</h2>
+      {#if modes}
+        <div class="live-mode-list">
+          <button type="button" class="button" aria-pressed={modes.emote_mode} disabled={modesBusy || !youIn}
+            onclick={() => changeModes({ emote_mode: !modes!.emote_mode })}>Emote-only</button
+          >
+          <button type="button" class="button" aria-pressed={modes.subscriber_mode} disabled={modesBusy || !youIn}
+            onclick={() => changeModes({ subscriber_mode: !modes!.subscriber_mode })}>Subscribers-only</button
+          >
+          <button type="button" class="button" aria-pressed={modes.unique_chat_mode} disabled={modesBusy || !youIn}
+            onclick={() => changeModes({ unique_chat_mode: !modes!.unique_chat_mode })}>Unique chat</button
+          >
+          <div class="live-mode-with">
+            <button type="button" class="button" aria-pressed={modes.follower_mode} disabled={modesBusy || !youIn}
+              onclick={() => changeModes(modes!.follower_mode ? { follower_mode: false } : { follower_mode: true, follower_mode_duration: followMinutes })}
+              >Followers-only</button
+            >
+            <label>
+              <span class="visually-hidden">Followed for at least</span>
+              <select class="sg-input" bind:value={followMinutes} disabled={modesBusy || !youIn}
+                onchange={() => modes!.follower_mode && changeModes({ follower_mode: true, follower_mode_duration: followMinutes })}>
+                {#each FOLLOW_CHOICES as m (m)}<option value={m}>{m === 0 ? 'any follower' : `followed ${lengthWords(m * 60)}`}</option>{/each}
+              </select>
+            </label>
+          </div>
+          <div class="live-mode-with">
+            <button type="button" class="button" aria-pressed={modes.slow_mode} disabled={modesBusy || !youIn}
+              onclick={() => changeModes(modes!.slow_mode ? { slow_mode: false } : { slow_mode: true, slow_mode_wait_time: slowSeconds })}
+              >Slow</button
+            >
+            <label>
+              <span class="visually-hidden">Seconds between messages</span>
+              <select class="sg-input" bind:value={slowSeconds} disabled={modesBusy || !youIn}
+                onchange={() => modes!.slow_mode && changeModes({ slow_mode: true, slow_mode_wait_time: slowSeconds })}>
+                {#each SLOW_CHOICES as n (n)}<option value={n}>{n} seconds</option>{/each}
+              </select>
+            </label>
+          </div>
+        </div>
+        <p class="saved" role="status">{modesNotice}</p>
+      {/if}
+      {#if modesProblem}
+        <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> {modes ? modesProblem : `Unknown: ${modesProblem}`}</p>
+      {/if}
+      <details class="live-log-details" ontoggle={(e) => {
+        logOpen = (e.currentTarget as HTMLDetailsElement).open;
+        if (logOpen) loadLog();
+      }}>
+        <summary>Done from StreamGremlin</summary>
+        {#if logProblem}
+          <p class="state state-unknown"><span aria-hidden="true">?</span> Unknown: {logProblem}</p>
+        {:else if log && log.length === 0}
+          <p class="sg-muted">Nothing yet.</p>
+        {:else if log}
+          <ul class="live-modlog">
+            {#each log as r (r.id)}
+              <li><span class="sg-muted">{eventTime(r.created_at)}</span> {r.login ? `${r.login}: ` : ''}{historyWords(r)}</li>
+            {/each}
+          </ul>
+        {/if}
+      </details>
+    </section>
+    </div>
   </div>
+{/if}
+
+{#if confirmBan}
+  {@const who = confirmBan}
+  <ConfirmDialog
+    title={`Ban ${who.name}?`}
+    message={`${who.name} can’t chat until you unban them. To give a reason, use their card (click their name).`}
+    confirmLabel="Ban"
+    onconfirm={() => {
+      const l = who;
+      confirmBan = undefined;
+      moderateLine(l, 'ban');
+    }}
+    oncancel={() => (confirmBan = undefined)}
+  />
 {/if}
 
 {#if card}
@@ -530,6 +755,9 @@
       onclose={closeCard}
       onpointerenter={() => clearTimeout(leaveTimer)}
       onpointerleave={leaveName}
+      canModerate={canModerate(card.line)}
+      onpin={() => card && !card.pinned && (card = { ...card, pinned: true })}
+      onmoderated={moderated}
     />
   {/key}
 {/if}
@@ -590,8 +818,64 @@
     height: auto;
     min-height: 20rem;
   }
-  .live-buttons {
+  .live-side {
     grid-area: buttons;
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+  }
+  .live-modes h2 {
+    margin-bottom: 0.5rem;
+  }
+  .live-mode-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .live-mode-with {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+  }
+  .live-modes .button[aria-pressed='true'] {
+    border-color: var(--sg-primary);
+    box-shadow: inset 0 0 0 1px var(--sg-primary);
+  }
+  .live-log-details {
+    margin-top: 0.75rem;
+  }
+  .live-modlog {
+    list-style: none;
+    margin: 0.4rem 0 0;
+    padding: 0;
+    font-size: 0.9rem;
+  }
+  .live-line {
+    position: relative;
+  }
+  .live-tools {
+    display: none;
+    margin-left: 0.5rem;
+    gap: 0.25rem;
+  }
+  .live-line:hover .live-tools {
+    display: inline-flex;
+  }
+  .live-tools .button {
+    font-size: 0.8rem;
+    padding: 0.05rem 0.4rem;
+  }
+  .live-deleted .live-text {
+    text-decoration: line-through;
+    color: var(--sg-muted);
+  }
+  .live-flagged {
+    border-left: 3px solid var(--sg-warning, var(--sg-primary));
+    padding-left: 0.4rem;
+  }
+  .live-suspicious {
+    color: var(--sg-foreground);
+    font-weight: 650;
   }
   .live-buttons-head {
     display: flex;

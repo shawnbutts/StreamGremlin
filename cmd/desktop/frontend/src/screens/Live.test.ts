@@ -46,6 +46,9 @@ const chat = (seq: number, name: string, text: string, extra: Record<string, unk
   delivery_quality: synthetic ? 'synthetic' : 'confirmed',
 });
 
+const modesOff = { emote_mode: false, follower_mode: false, follower_mode_duration: null, slow_mode: false, slow_mode_wait_time: null,
+  subscriber_mode: false, unique_chat_mode: false };
+
 const brb: LiveButton = { id: 'brb', label: 'Be right back', color: 'blue', position: 0, created_at: now, updated_at: now, starts: [] };
 const hype: LiveButton = { id: 'hype', label: 'Hype!', color: '', position: 1, created_at: now, updated_at: now, starts: [] };
 const brbFlow: WorkflowSummary = {
@@ -66,7 +69,7 @@ function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: 
     },
     '/v1/connections': () =>
       twitchStatus({
-        streamer: signedIn ? { state: 'connected', login: 'gremlin' } : {},
+        streamer: signedIn ? { state: 'connected', login: 'gremlin', user_id: 'u1' } : {},
         bot: opts.bot ? { state: 'connected', login: 'gremlinbot' } : {},
         chat: signedIn ? { state: 'connected', since: now } : { state: 'off', since: now },
       }),
@@ -80,6 +83,13 @@ function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: 
     },
     '/v1/buttons': () => ({ status: 200, body: { buttons } }),
     '/v1/workflows': () => ({ status: 200, body: { workflows: [brbFlow] } }),
+    '/v1/chat/settings': () => ({ status: 200, body: { settings: modesOff } }),
+    '/v1/moderation': (method, body) =>
+      method === 'POST'
+        ? { status: 200, body: { record: { id: 'mod1', from: 'live', platform: 'twitch', created_at: now, ...(body as object), state: 'done',
+            settings: (body as { action: string }).action === 'chat_modes' ? { ...modesOff, ...(body as { chat_modes: object }).chat_modes } : undefined },
+            duplicate: false } }
+        : { status: 200, body: { moderation: [{ id: 'mod0', request_id: 'r', action: 'timeout', platform: 'twitch', login: 'fan', seconds: 600, from: 'live', state: 'done', created_at: now }] } },
     '/v1/chat/messages': (_m, body) => ({ status: 200, body: { message_id: 'x', sent_as: (body as { as: string }).as, login: 'gremlin' } }),
     '/v1/button-order': (_m, body) => {
       const order = (body as { order: string[] }).order;
@@ -277,6 +287,8 @@ describe('Live viewer card', () => {
     viewer: { id: 'v1', platform: 'twitch', user_id: 'u3', login: 'fan', display_name: 'Fan', first_seen: '2026-01-01T12:00:00Z', last_seen: now, messages: 42, balance: 300 },
     currency: 'gremlins',
     messages: [chat(1, 'Fan', 'first one'), chat(3, 'Fan', 'hello there')],
+    moderation: [],
+    suspicious: null,
   };
 
   it('opens on hover with Twitch’s facts, unknowns marked, and the record; closes when the pointer leaves', async () => {
@@ -337,7 +349,7 @@ describe('Live viewer card', () => {
       events: [chat(3, 'Fan', 'hello there'), chat(4, 'Tester', 'a test', {}, true)],
       extra: {
         '/v1/chatters/twitch/u3': () => ({ status: 503, body: { error: { code: 'unavailable', message: 'Twitch isn’t set up' } } }),
-        '/v1/chatters/twitch/u4': () => ({ status: 200, body: { platform: 'twitch', user_id: 'u4', twitch: null, viewer: null, currency: 'points', messages: [chat(4, 'Tester', 'a test', {}, true)] } }),
+        '/v1/chatters/twitch/u4': () => ({ status: 200, body: { platform: 'twitch', user_id: 'u4', twitch: null, viewer: null, currency: 'points', messages: [chat(4, 'Tester', 'a test', {}, true)], moderation: [], suspicious: null } }),
       },
     });
     const el = start();
@@ -351,5 +363,153 @@ describe('Live viewer card', () => {
     expect(card.textContent).toContain('A test chatter');
     expect(card.textContent).not.toContain('On Twitch');
     expect(calls.some((c) => c.path === '/v1/chatters/twitch/u4?test=1')).toBe(true);
+  });
+});
+
+const suspicious = (seq: number, name: string, messageId: string, text: string): EventRecord => ({
+  seq,
+  event_id: `s${seq}`,
+  type: 'moderation.suspicious_user.message',
+  schema_version: 1,
+  source: 'twitch',
+  occurred_at: now,
+  received_at: now,
+  actor: { platform: 'twitch', id: `u${seq}`, login: name.toLowerCase(), display_name: name },
+  payload: { message_id: messageId, text, low_trust_status: 'active_monitoring', types: ['ban_evader'], ban_evasion: 'likely', shared_ban_channel_ids: [] },
+  delivery_quality: 'confirmed',
+});
+
+describe('Live moderating', () => {
+  const posts = (calls: { method: string; path: string; body: unknown }[]) =>
+    calls.filter((c) => c.method === 'POST' && c.path === '/v1/moderation').map((c) => c.body as Record<string, unknown>);
+
+  it('times out, deletes and bans from a chat line, banning only after asking', async () => {
+    const { calls } = engine({ events: [chat(3, 'Fan', 'buy followers'), chat(4, 'Gremlin', 'my own', { chatter: { id: 'u1', login: 'gremlin', display_name: 'Gremlin', badges: [] } }),
+      chat(5, 'Tester', 'a test', {}, true)] });
+    const el = start();
+    await settle(60);
+    const lineOf = (name: string) => Array.from(el.querySelectorAll('.live-line')).find((li) => li.querySelector('.live-name')?.textContent === name)!;
+    // No tools on your own line or a test line.
+    expect(lineOf('Gremlin').querySelector('.live-tools')).toBeNull();
+    expect(lineOf('Tester').querySelector('.live-tools')).toBeNull();
+    const tools = lineOf('Fan').querySelector('.live-tools')!;
+    button(tools, '10 min')!.click();
+    await settle(20);
+    expect(posts(calls)[0]).toMatchObject({ action: 'timeout', seconds: 600, user_id: 'u3', login: 'fan', platform: 'twitch', from: 'live' });
+    expect(el.textContent).toContain('Timed out Fan for 10 minutes.');
+    button(tools, 'Delete')!.click();
+    await settle(20);
+    expect(posts(calls)[1]).toMatchObject({ action: 'delete', message_id: 'm3' });
+    expect(lineOf('Fan').textContent).toContain('Deleted');
+    expect(lineOf('Fan').querySelector('.live-tools')).toBeNull();
+    // Each request has its own id.
+    expect(posts(calls)[0].request_id).not.toBe(posts(calls)[1].request_id);
+  });
+
+  it('asks before a ban, and says when Twitch refuses', async () => {
+    const { calls } = engine({
+      events: [chat(3, 'Fan', 'spam')],
+      extra: {
+        '/v1/moderation': () => ({ status: 200, body: { record: { id: 'm', request_id: 'r', action: 'ban', platform: 'twitch', from: 'live', created_at: now,
+          state: 'refused', answer: 'Twitch refused: The user specified in the user_id field is already banned. (400)' }, duplicate: false } }),
+      },
+    });
+    const el = start();
+    await settle(60);
+    button(el.querySelector('.live-tools')!, 'Ban…')!.click();
+    flushSync();
+    const dialog = document.querySelector('[role="alertdialog"], [role="dialog"]')!;
+    expect(dialog.textContent).toContain('Ban Fan?');
+    expect(posts(calls)).toHaveLength(0);
+    await noViolations('ban dialog');
+    button(dialog, 'Ban')!.click();
+    await settle(20);
+    expect(posts(calls)[0]).toMatchObject({ action: 'ban', user_id: 'u3' });
+    expect(el.querySelector('[role="alert"]')!.textContent).toContain('Not done: Twitch refused');
+  });
+
+  it('marks a suspicious user’s message, in either order, and shows one chat didn’t carry', async () => {
+    engine({
+      events: [chat(3, 'Fan', 'hello'), suspicious(4, 'Fan', 'm3', 'hello')],
+      later: [suspicious(12, 'Sneaky', 'm99', 'only mods see this'), chat(13, 'Sneaky', 'only mods see this', { message_id: 'm99' })],
+    });
+    const el = start();
+    await settle(150);
+    const lines = Array.from(el.querySelectorAll('.live-line'));
+    expect(lines).toHaveLength(2); // two messages, each one line
+    expect(lines[0].textContent).toContain('Suspicious: Likely ban evader, monitored');
+    expect(lines[1].textContent).toContain('only mods see this');
+    expect(lines[1].textContent).toContain('Suspicious');
+    await noViolations('suspicious');
+  });
+
+  it('turns chat modes on and off, and says unknown when Twitch can’t be asked', async () => {
+    const { calls } = engine();
+    const el = start();
+    await settle(60);
+    const slow = button(el, 'Slow')!;
+    expect(slow.getAttribute('aria-pressed')).toBe('false');
+    slow.click();
+    await settle(20);
+    expect(posts(calls)[0]).toMatchObject({ action: 'chat_modes', chat_modes: { slow_mode: true, slow_mode_wait_time: 30 } });
+    expect(button(el, 'Slow')!.getAttribute('aria-pressed')).toBe('true');
+    expect(el.textContent).toContain('On: slow (30 seconds).');
+    await noViolations('chat modes');
+    // The log of what was done.
+    const details = el.querySelector<HTMLDetailsElement>('.live-log-details')!;
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    await settle(20);
+    expect(details.textContent).toContain('fan: Time out 10 minutes');
+  });
+
+  it('says the chat modes are unknown when Twitch isn’t signed in', async () => {
+    engine({ signedIn: false, extra: { '/v1/chat/settings': () => ({ status: 200, body: { settings: null, problem: 'Sign in with your Twitch account first.' } }) } });
+    const el = start();
+    await settle(60);
+    expect(el.querySelector('.live-modes')!.textContent).toContain('Unknown: Sign in with your Twitch account first.');
+    expect(button(el, 'Slow')).toBeUndefined();
+  });
+
+  it('moderates from the card: a timeout with a reason, a warning needs one, a ban asks first', async () => {
+    let cardCalls = 0;
+    const card: ChatterCard = {
+      platform: 'twitch', user_id: 'u3',
+      twitch: { user_id: 'u3', login: 'fan', vip: false, moderator: false, ban: { banned: false }, follow: { follows: false }, subscription: { subscribed: false },
+        unknown: [], read_at: now },
+      viewer: null, currency: 'points', messages: [], suspicious: { treatment: 'active_monitoring', ban_evasion: 'possible', types: ['ban_evader'], shared_bans: 0, at: now, seq: 4 },
+      moderation: [{ id: 'old', request_id: 'r0', action: 'warn', platform: 'twitch', reason: 'be nice', from: 'live', state: 'done', created_at: now }],
+    };
+    const { calls } = engine({ events: [chat(3, 'Fan', 'hello')], extra: { '/v1/chatters/twitch/u3': () => ((cardCalls++), { status: 200, body: card }) } });
+    const el = start();
+    await settle(60);
+    button(el, 'Fan')!.click();
+    await settle(30);
+    const dlg = document.querySelector<HTMLElement>('.viewer-card')!;
+    expect(dlg.textContent).toContain('Possible ban evader, monitored');
+    expect(dlg.textContent).toContain('Warn (“be nice”)');
+    await noViolations('card with moderating');
+    button(dlg, 'Warn')!.click();
+    await settle(10);
+    expect(dlg.textContent).toContain('A warning needs a reason');
+    expect(posts(calls)).toHaveLength(0);
+    const reason = dlg.querySelector<HTMLInputElement>('input')!;
+    setValue(reason, 'calm down');
+    setValue(dlg.querySelector<HTMLSelectElement>('select')!, '3600');
+    button(dlg, 'Time out')!.click();
+    await settle(30);
+    expect(posts(calls)[0]).toMatchObject({ action: 'timeout', seconds: 3600, reason: 'calm down', user_id: 'u3' });
+    expect(dlg.textContent).toContain('Timed out Fan for 1 hour.');
+    expect(cardCalls).toBe(2); // read again after acting
+    button(dlg, 'Ban…')!.click();
+    flushSync();
+    expect(posts(calls)).toHaveLength(1);
+    const confirm = Array.from(document.querySelectorAll('[role="alertdialog"], [role="dialog"]')).find((d) => d.textContent?.includes('Ban Fan?'))!;
+    button(confirm, 'Ban')!.click();
+    await settle(30);
+    expect(posts(calls)[1]).toMatchObject({ action: 'ban' });
+    button(document.querySelector('.viewer-card')!, 'Restrict')!.click();
+    await settle(30);
+    expect(posts(calls)[2]).toMatchObject({ action: 'restrict' });
   });
 });

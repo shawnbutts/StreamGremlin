@@ -33,6 +33,8 @@ describe('Twitch channel events in words', () => {
   const of = (type: string, payload: Record<string, unknown>, actor?: EventRecord['actor']) => eventSummary({ ...ev(payload, actor), type });
   it('says who did what', () => {
     expect(of('audience.follow.created', {}, fan)).toBe('Fan followed');
+    expect(of('moderation.suspicious_user.message', { text: 'hi' }, fan)).toBe('Suspicious user Fan: hi');
+    expect(of('moderation.suspicious_user.updated', { low_trust_status: 'restricted' }, fan)).toBe('Fan is now restricted');
     expect(of('monetization.subscription.started', { tier: 2, is_gift: true }, fan)).toBe('Fan subscribed (a gift), tier 2');
     expect(of('monetization.subscription.renewed', { months: 14, text: 'yay' }, fan)).toBe('Fan resubscribed: 14 months. “yay”');
     expect(of('monetization.subscription.gifted', { total: 1, from: 'Anonymous' })).toBe('Anonymous gifted 1 sub');

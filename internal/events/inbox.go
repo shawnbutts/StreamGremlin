@@ -341,6 +341,17 @@ func (in *Inbox) CountChatFrom(ctx context.Context, platform, userID string, aft
 	return n, nil
 }
 
+// LatestFrom is one account's newest real event of the given types.
+func (in *Inbox) LatestFrom(ctx context.Context, platform, userID string, types ...string) (rec Record, ok bool, err error) {
+	cond, args := Filter(types).where()
+	recs, err := in.query(ctx, `WHERE delivery_quality != 'synthetic' AND json_extract(actor, '$.platform') = ?
+		AND json_extract(actor, '$.id') = ?`+cond+" ORDER BY seq DESC LIMIT 1", append(append([]any{platform, userID}, args...), 1)...)
+	if err != nil || len(recs) == 0 {
+		return Record{}, false, err
+	}
+	return recs[0], true, nil
+}
+
 // ChatFrom lists one account's newest chat messages, up to limit, oldest
 // first: real messages, or test ones when synthetic. Commands are included.
 func (in *Inbox) ChatFrom(ctx context.Context, platform, userID string, limit int, synthetic bool) ([]Record, error) {

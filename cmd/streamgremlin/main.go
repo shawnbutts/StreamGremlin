@@ -54,6 +54,9 @@ Commands:
             buttons [-json]               list, with the workflows each starts
             buttons press|delete ID       press one (its workflows run), delete
             buttons set ID -label TEXT [-color NAME], buttons move ID...
+  mod       Moderate your Twitch chat as you, each recorded (streamgremlin mod help).
+            mod timeout @NAME 10m, mod ban @NAME -yes, mod unban|warn|vip|mod @NAME
+            mod delete MESSAGE_ID, mod modes [slow=30 ...], mod history [@NAME]
   quotes    Numbered quotes (streamgremlin quotes help).
             quotes [-q TEXT]              list, newest first
             quotes add [-by NAME] TEXT    add one
@@ -178,6 +181,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return timersCmd(dir, rest, stdout, stderr)
 	case "buttons":
 		return buttonsCmd(dir, rest, stdout, stderr)
+	case "mod":
+		return modCmd(dir, rest, stdout, stderr)
 	case "vars":
 		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":

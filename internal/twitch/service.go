@@ -44,7 +44,10 @@ var (
 		// Time in chat: who's connected to chat (docs/adr/0034-time-in-chat.md).
 		ChattersScope,
 		// The Live screen's viewer card: moderators, bans and VIPs (D-078).
-		ModerationReadScope, VIPsReadScope}
+		ModerationReadScope, VIPsReadScope,
+		// Moderating from chat, chat modes and suspicious users (D-079).
+		BansScope, ChatDeleteScope, WarningsScope, ShoutoutsScope, VIPsManageScope, ModsManageScope,
+		ChatSettingsScope, SuspiciousReadScope, SuspiciousManage}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

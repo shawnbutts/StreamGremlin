@@ -1,10 +1,11 @@
 // The Live screen's parts in words (D-075): chat lines from chat events,
 // buttons' ids, and which workflows start from a button.
 import { SCHEMA, type Def } from './editor';
-import type { ChatterCard, EventRecord, TwitchCard, WorkflowSummary } from './api';
+import type { ChatModes, ChatterCard, EventRecord, ModRecord, Suspicion, TwitchCard, WorkflowSummary } from './api';
 
 export const BUTTON_PRESSED = 'buttons.button.pressed';
 export const CHAT_MESSAGE = 'chat.message.received';
+export const SUSPICIOUS_MESSAGE = 'moderation.suspicious_user.message';
 
 export interface ChatLine {
   seq: number;
@@ -22,6 +23,10 @@ export interface ChatLine {
   test: boolean;
   /** From another channel in a shared chat. */
   shared: boolean;
+  /** Twitch's suspicious-user flag on this message, in words, when it has one. */
+  suspicious?: string;
+  /** Deleted from StreamGremlin. */
+  deleted?: boolean;
 }
 
 const badgeWords: Record<string, string> = {
@@ -202,4 +207,124 @@ export function recordWords(card: ChatterCard, now = new Date()): string[] {
   const out = [`First seen ${day(v.first_seen)} (${since(v.first_seen, now)} ago); ${v.messages} ${v.messages === 1 ? 'message' : 'messages'} in all.`];
   out.push(`${v.balance.toLocaleString()} ${card.currency || 'points'}.`);
   return out;
+}
+
+// Moderating (D-079).
+
+/** "A new request id", for sending a moderating request once. */
+export const newRequestId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** "10 minutes", "1 hour", "2 weeks": a timeout's length. */
+export function lengthWords(seconds: number): string {
+  const units: [number, string][] = [[604800, 'week'], [86400, 'day'], [3600, 'hour'], [60, 'minute'], [1, 'second']];
+  for (const [n, w] of units) {
+    if (seconds >= n && seconds % n === 0) {
+      const k = seconds / n;
+      return `${k} ${w}${k === 1 ? '' : 's'}`;
+    }
+  }
+  return `${seconds} seconds`;
+}
+
+/** The timeouts offered, shortest first. */
+export const TIMEOUTS = [60, 600, 3600, 86400, 604800];
+
+const doneWords: Record<string, (name: string, r: ModRecord) => string> = {
+  delete: () => 'Deleted the message.',
+  timeout: (n, r) => `Timed out ${n} for ${lengthWords(r.seconds ?? 0)}.`,
+  ban: (n) => `Banned ${n}.`,
+  unban: (n) => `Unbanned ${n}.`,
+  warn: (n) => `Warned ${n}.`,
+  shoutout: (n) => `Shouted out ${n}.`,
+  vip: (n) => `${n} is a VIP.`,
+  unvip: (n) => `${n} isn’t a VIP now.`,
+  mod: (n) => `${n} is a moderator.`,
+  unmod: (n) => `${n} isn’t a moderator now.`,
+  monitor: (n) => `Twitch is monitoring ${n}.`,
+  restrict: (n) => `Twitch restricts ${n}: only you and your mods see their messages.`,
+  unsuspect: (n) => `Twitch treats ${n} as usual now.`,
+  chat_modes: () => 'Chat modes changed.',
+};
+
+const actionNames: Record<string, string> = {
+  delete: 'Delete a message', timeout: 'Time out', ban: 'Ban', unban: 'Unban', warn: 'Warn', shoutout: 'Shoutout',
+  vip: 'Make VIP', unvip: 'Remove VIP', mod: 'Make moderator', unmod: 'Remove moderator', monitor: 'Monitor',
+  restrict: 'Restrict', unsuspect: 'Stop treating as suspicious', chat_modes: 'Chat modes',
+};
+
+/** How a moderating request went, in words. */
+export function modWords(r: ModRecord, name = r.login || 'them', duplicate = false): string {
+  const again = duplicate ? ' (already sent; not sent again)' : '';
+  if (r.state === 'done') return doneWords[r.action](name, r) + again;
+  if (r.state === 'pending') return `${actionNames[r.action] ?? r.action}: still waiting for Twitch.`;
+  if (r.state === 'unknown') return `Unknown: ${r.answer ?? 'Twitch didn’t answer.'}`;
+  return `Not done: ${r.answer ?? 'Twitch refused.'}`;
+}
+
+/** One line of a viewer's moderation history. */
+export function historyWords(r: ModRecord): string {
+  let w = actionNames[r.action] ?? r.action;
+  if (r.action === 'timeout' && r.seconds) w += ` ${lengthWords(r.seconds)}`;
+  if (r.reason) w += ` (“${r.reason}”)`;
+  const state = r.state === 'done' ? '' : r.state === 'refused' ? ': refused' : r.state === 'unknown' ? ': unknown' : ': waiting';
+  return w + state;
+}
+
+const treatmentWords: Record<string, string> = {
+  active_monitoring: 'monitored',
+  restricted: 'restricted (only you and your mods see their messages)',
+  none: 'not restricted or monitored',
+};
+
+/** Twitch's suspicious-user flags in words, from an event's payload. */
+export function suspicionWords(s: { treatment?: string; low_trust_status?: string; ban_evasion?: string; types?: string[]; shared_bans?: number; shared_ban_channel_ids?: string[] }): string {
+  const parts: string[] = [];
+  if (s.ban_evasion === 'likely') parts.push('likely ban evader');
+  else if (s.ban_evasion === 'possible') parts.push('possible ban evader');
+  const shared = s.shared_bans ?? s.shared_ban_channel_ids?.length ?? 0;
+  if (shared > 0 || s.types?.includes('banned_in_shared_channel')) {
+    parts.push(shared > 0 ? `banned in ${shared} channel${shared === 1 ? '' : 's'} you share bans with` : 'banned in a channel you share bans with');
+  }
+  if (s.types?.includes('manually_added')) parts.push('marked by you or a mod');
+  const t = s.treatment ?? s.low_trust_status ?? '';
+  if (treatmentWords[t] && t !== 'none') parts.push(treatmentWords[t]);
+  if (parts.length === 0) return t === 'none' ? 'Flagged by Twitch; not restricted or monitored' : 'Flagged by Twitch';
+  return parts[0][0].toUpperCase() + parts.join(', ').slice(1);
+}
+
+/** The card's suspicious row: unknown before Twitch flags them, never "no". */
+export function suspicionRow(s: Suspicion | null): CardRow {
+  if (!s) return { label: 'Suspicious', value: 'Twitch hasn’t flagged them while StreamGremlin was listening.' };
+  return { label: 'Suspicious', value: suspicionWords(s) };
+}
+
+/** A suspicious-user event as a chat line, for a message chat didn't carry. */
+export function suspiciousLine(ev: EventRecord): ChatLine {
+  const p = ev.payload ?? {};
+  return {
+    seq: ev.seq,
+    messageId: typeof p.message_id === 'string' ? p.message_id : '',
+    userId: ev.actor?.id ?? '',
+    login: ev.actor?.login ?? '',
+    name: ev.actor?.display_name || ev.actor?.login || 'Someone',
+    text: typeof p.text === 'string' ? p.text : '',
+    badges: [],
+    color: '',
+    at: ev.occurred_at,
+    test: ev.delivery_quality === 'synthetic',
+    shared: false,
+    suspicious: suspicionWords(p as Parameters<typeof suspicionWords>[0]),
+  };
+}
+
+/** The chat modes that are on, in words. */
+export function modesWords(m: ChatModes): string {
+  const on: string[] = [];
+  if (m.emote_mode) on.push('emote-only');
+  if (m.follower_mode) on.push(m.follower_mode_duration ? `followers-only (${lengthWords(m.follower_mode_duration * 60)})` : 'followers-only');
+  if (m.slow_mode) on.push(`slow (${m.slow_mode_wait_time ?? 30} seconds)`);
+  if (m.subscriber_mode) on.push('subscribers-only');
+  if (m.unique_chat_mode) on.push('unique chat');
+  return on.length ? `On: ${on.join(', ')}.` : 'No chat modes on.';
 }

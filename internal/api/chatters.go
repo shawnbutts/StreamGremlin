@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/moderation"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 )
@@ -23,6 +24,11 @@ type ChatterCard struct {
 	Currency string      `json:"currency"`
 	// Messages are their newest chat messages still kept, oldest first.
 	Messages []events.Record `json:"messages"`
+	// Moderation is what was done to them from StreamGremlin, newest first.
+	Moderation []moderation.Record `json:"moderation"`
+	// Suspicious is Twitch's newest flag on them while StreamGremlin was
+	// listening; nil when Twitch hasn't flagged them in that time.
+	Suspicious *Suspicion `json:"suspicious"`
 }
 
 // cardMessages is how many recent messages a card shows.
@@ -33,7 +39,7 @@ func chatterRoutes(d Deps) []Route {
 		Method: "GET", Path: "/v1/chatters/{platform}/{user_id}",
 		Summary: "A viewer card for a chatter: what Twitch says now (account, follow, subscription, VIP, moderator, banned; " +
 			"each fact it couldn't read is listed as unknown, with why), StreamGremlin's record and points, and their newest " +
-			"10 chat messages. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed.",
+			"10 chat messages, what was done to them from StreamGremlin, and Twitch's newest suspicious-user flag on them. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed.",
 		Permission: PermViewersRead,
 		Handler: func(w http.ResponseWriter, r *http.Request) {
 			platform, id := r.PathValue("platform"), r.PathValue("user_id")
@@ -87,6 +93,19 @@ func chatterRoutes(d Deps) []Route {
 				return
 			}
 			out.Messages = msgs
+			out.Moderation = []moderation.Record{}
+			if !test && d.Moderation != nil {
+				if out.Moderation, err = d.Moderation.List(r.Context(), platform, id, 10); err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+			}
+			if !test {
+				if out.Suspicious, err = suspicion(r.Context(), d.Events, platform, id); err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+			}
 			writeJSON(w, http.StatusOK, out)
 		},
 	}}

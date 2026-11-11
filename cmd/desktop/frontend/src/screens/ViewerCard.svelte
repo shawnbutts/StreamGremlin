@@ -12,11 +12,24 @@
 <script lang="ts">
   // The viewer card (D-078): what Twitch says about a chatter now, with
   // StreamGremlin's record, points and their recent messages. Anything
-  // Twitch didn't give is shown as unknown, with why.
+  // Twitch didn't give is shown as unknown, with why. From slice 3 (D-079)
+  // it also moderates: each request is sent once, as you, and recorded.
   import { onMount, tick } from 'svelte';
-  import { ApiError, getChatterCard } from '../lib/api';
+  import { ApiError, getChatterCard, moderate, type ModAction, type ModRecord } from '../lib/api';
   import { eventTime } from '../lib/events';
-  import { chatLine, recordWords, twitchRows, type ChatLine } from '../lib/live';
+  import {
+    TIMEOUTS,
+    chatLine,
+    historyWords,
+    lengthWords,
+    modWords,
+    newRequestId,
+    recordWords,
+    suspicionRow,
+    twitchRows,
+    type ChatLine,
+  } from '../lib/live';
+  import ConfirmDialog from '../lib/ConfirmDialog.svelte';
 
   let {
     line,
@@ -25,6 +38,9 @@
     onclose,
     onpointerenter,
     onpointerleave,
+    canModerate = false,
+    onpin,
+    onmoderated,
   }: {
     line: ChatLine;
     /** Where the name is, to place the card beside it. */
@@ -34,7 +50,47 @@
     onclose: (restoreFocus: boolean) => void;
     onpointerenter?: () => void;
     onpointerleave?: () => void;
+    /** Signed in, and not you: the moderating buttons show. */
+    canModerate?: boolean;
+    /** The card is being used: keep it open. */
+    onpin?: () => void;
+    onmoderated?: (r: ModRecord) => void;
   } = $props();
+
+  let busy = $state(false);
+  let modNotice = $state('');
+  let modProblem = $state('');
+  let seconds = $state(600);
+  let reason = $state('');
+  let confirmBan = $state(false);
+
+  async function act(action: ModAction, extra: { seconds?: number; reason?: string } = {}) {
+    busy = true;
+    modNotice = '';
+    modProblem = '';
+    try {
+      const res = await moderate({ request_id: newRequestId(), action, platform: 'twitch', user_id: line.userId, login: line.login, from: 'live', ...extra });
+      const words = modWords(res.record, line.name, res.duplicate);
+      if (res.record.state === 'done') {
+        modNotice = words;
+        if (action === 'timeout' || action === 'ban' || action === 'warn') reason = '';
+      } else modProblem = words;
+      onmoderated?.(res.record);
+      await load(true);
+    } catch (e) {
+      modProblem = `Not sent: ${e instanceof ApiError ? e.message : String(e)}`;
+    } finally {
+      busy = false;
+    }
+  }
+
+  function warn() {
+    if (!reason.trim()) {
+      modProblem = 'A warning needs a reason: type it in Reason.';
+      return;
+    }
+    act('warn', { reason: reason.trim() });
+  }
 
   let card = $state<ChatterCard | undefined>();
   let error = $state('');
@@ -100,6 +156,8 @@
   style={place}
   tabindex="-1"
   {onkeydown}
+  onpointerdown={() => onpin?.()}
+  onfocusin={() => onpin?.()}
   onpointerenter={() => onpointerenter?.()}
   onpointerleave={() => onpointerleave?.()}
 >
@@ -128,12 +186,69 @@
             {#if r.unknown}<span aria-hidden="true">{'? '}</span>{`Unknown: ${r.value}`}{:else}{r.value}{/if}
           </dd>
         {/each}
+        <dt>Suspicious</dt>
+        <dd class:viewer-card-flag={!!card.suspicious}>{suspicionRow(card.suspicious).value}</dd>
       </dl>
       {#if card.twitch.description}<p class="viewer-card-bio">{card.twitch.description}</p>{/if}
       <p class="sg-muted viewer-card-when">Asked Twitch at {eventTime(card.twitch.read_at)}.</p>
     {/if}
     <h3>In StreamGremlin</h3>
     {#each recordWords(card) as w (w)}<p class="viewer-card-record">{w}</p>{/each}
+    {#if canModerate && card.twitch}
+      {@const tw = card.twitch}
+      <h3>Moderate</h3>
+      <div class="viewer-card-mod">
+        <label class="field">
+          <span>Reason (for a timeout or ban if you like; a warning needs one)</span>
+          <input class="sg-input" bind:value={reason} maxlength="500" autocomplete="off" />
+        </label>
+        <div class="row-actions">
+          <label>
+            <span class="visually-hidden">Timeout length</span>
+            <select class="sg-input" bind:value={seconds}>
+              {#each TIMEOUTS as t (t)}<option value={t}>{lengthWords(t)}</option>{/each}
+            </select>
+          </label>
+          <button type="button" class="button" disabled={busy} onclick={() => act('timeout', { seconds, reason: reason.trim() || undefined })}>Time out</button>
+          {#if tw.ban?.banned}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unban')}>Unban</button>
+          {:else}
+            <button type="button" class="button button-danger" disabled={busy} onclick={() => (confirmBan = true)}>Ban…</button>
+          {/if}
+          <button type="button" class="button" disabled={busy} onclick={warn}>Warn</button>
+        </div>
+        <div class="row-actions">
+          {#if tw.vip}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unvip')}>Remove VIP</button>
+          {:else}
+            <button type="button" class="button" disabled={busy} onclick={() => act('vip')}>Make VIP</button>
+          {/if}
+          {#if tw.moderator}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unmod')}>Remove moderator</button>
+          {:else}
+            <button type="button" class="button" disabled={busy} onclick={() => act('mod')}>Make moderator</button>
+          {/if}
+          <button type="button" class="button" disabled={busy} onclick={() => act('shoutout')}>Shoutout</button>
+        </div>
+        <div class="row-actions" role="group" aria-label="How Twitch treats them as a suspicious user">
+          <button type="button" class="button" disabled={busy} onclick={() => act('monitor')}>Monitor</button>
+          <button type="button" class="button" disabled={busy} onclick={() => act('restrict')}>Restrict</button>
+          {#if card.suspicious && card.suspicious.treatment !== 'none'}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unsuspect')}>Treat as usual</button>
+          {/if}
+        </div>
+        <p class="saved" role="status">{modNotice}</p>
+        {#if modProblem}<p class="error" role="alert">{modProblem}</p>{/if}
+      </div>
+    {/if}
+    {#if card.moderation?.length}
+      <h3>Done from StreamGremlin</h3>
+      <ul class="viewer-card-messages">
+        {#each card.moderation as m (m.id)}
+          <li><span class="sg-muted">{eventTime(m.created_at)}</span> {historyWords(m)}</li>
+        {/each}
+      </ul>
+    {/if}
     <h3>Recent messages</h3>
     {#if recent.length === 0}
       <p class="sg-muted">None kept.</p>
@@ -146,6 +261,19 @@
     {/if}
   {/if}
 </div>
+
+{#if confirmBan}
+  <ConfirmDialog
+    title={`Ban ${line.name}?`}
+    message={`${line.name} can’t chat until you unban them.${reason.trim() ? ` Reason: “${reason.trim()}”.` : ''}`}
+    confirmLabel="Ban"
+    onconfirm={() => {
+      confirmBan = false;
+      act('ban', { reason: reason.trim() || undefined });
+    }}
+    oncancel={() => (confirmBan = false)}
+  />
+{/if}
 
 <style>
   .viewer-card {
@@ -201,6 +329,16 @@
   }
   .viewer-card-record {
     margin: 0.2rem 0;
+  }
+  .viewer-card-flag {
+    font-weight: 650;
+  }
+  .viewer-card-mod .row-actions {
+    flex-wrap: wrap;
+    margin: 0.35rem 0;
+  }
+  .viewer-card-mod .field input {
+    width: 100%;
   }
   .viewer-card-messages {
     list-style: none;

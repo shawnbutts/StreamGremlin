@@ -31,6 +31,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
+	"code.streamgremlin.com/streamgremlin/internal/moderation"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
@@ -244,6 +245,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	startedAt := time.Now()
+	mods := moderation.New(h.db, h.twitch, log)
+	if err := mods.Recover(ctx); err != nil {
+		return nil, err
+	}
 	h.api = api.NewServer(api.Options{Token: h.token, Logger: log}, api.Routes(api.Deps{
 		DataDir:    opts.DataDir,
 		StartedAt:  startedAt,
@@ -275,6 +280,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Plugins:    h.plugins,
 		Rounds:     h.rounds,
 		Buttons:    buttons.New(h.db, inbox, nil),
+		Moderation: mods,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},

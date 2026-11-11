@@ -26,20 +26,22 @@ var subTypes = map[string]subType{
 	"channel.raid":                 {"1", nil, "to_broadcaster_user_id"},
 	"channel.channel_points_custom_reward_redemption.add": {"1",
 		[]string{"channel:read:redemptions", "channel:manage:redemptions"}, "broadcaster_user_id"},
-	"stream.online":               {"1", nil, "broadcaster_user_id"},
-	"stream.offline":              {"1", nil, "broadcaster_user_id"},
-	"channel.update":              {"2", nil, "broadcaster_user_id"},
-	"channel.hype_train.begin":    {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
-	"channel.hype_train.progress": {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
-	"channel.hype_train.end":      {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
-	"channel.poll.begin":          {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
-	"channel.poll.progress":       {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
-	"channel.poll.end":            {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
-	"channel.prediction.begin":    {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
-	"channel.prediction.progress": {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
-	"channel.prediction.lock":     {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
-	"channel.prediction.end":      {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
-	"channel.ad_break.begin":      {"1", []string{"channel:read:ads"}, "broadcaster_user_id"},
+	"stream.online":                   {"1", nil, "broadcaster_user_id"},
+	"stream.offline":                  {"1", nil, "broadcaster_user_id"},
+	"channel.update":                  {"2", nil, "broadcaster_user_id"},
+	"channel.hype_train.begin":        {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.hype_train.progress":     {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.hype_train.end":          {"2", []string{"channel:read:hype_train"}, "broadcaster_user_id"},
+	"channel.poll.begin":              {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.poll.progress":           {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.poll.end":                {"1", []string{"channel:read:polls", "channel:manage:polls"}, "broadcaster_user_id"},
+	"channel.prediction.begin":        {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.progress":     {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.lock":         {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.prediction.end":          {"1", []string{"channel:read:predictions", "channel:manage:predictions"}, "broadcaster_user_id"},
+	"channel.ad_break.begin":          {"1", []string{"channel:read:ads"}, "broadcaster_user_id"},
+	"channel.suspicious_user.message": {"1", []string{"moderator:read:suspicious_users"}, "broadcaster_user_id"},
+	"channel.suspicious_user.update":  {"1", []string{"moderator:read:suspicious_users"}, "broadcaster_user_id"},
 }
 
 // RefuseType makes Twitch refuse new subscriptions of typ with 403, as for
@@ -82,7 +84,7 @@ func (s *Server) subscribeLocked(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 403, "subscription missing proper authorization")
 	case in.Type == "channel.chat.message" && in.Condition["user_id"] != g.userID:
 		writeErr(w, 403, "user_id must match the token")
-	case in.Type == "channel.follow" && in.Condition["moderator_user_id"] != g.userID:
+	case (in.Type == "channel.follow" || strings.HasPrefix(in.Type, "channel.suspicious_user.")) && in.Condition["moderator_user_id"] != g.userID:
 		writeErr(w, 403, "moderator_user_id must match the token")
 	case in.Condition[st.cond] == "":
 		writeErr(w, 400, "missing condition "+st.cond)
@@ -363,4 +365,26 @@ func (s *Server) formEvent(channel, viewer, kind, amount, text string) {
 	case "offline":
 		s.GoOffline(channel)
 	}
+}
+
+// SuspiciousSay has viewer, flagged by Twitch, say text in channel: the
+// chat message (unless the viewer is restricted, when Twitch's docs don't
+// say whether it's sent; mocktwitch sends it) and then the suspicious user
+// event for it, with evasion "likely", "possible", "unknown" or "".
+func (s *Server) SuspiciousSay(channel, viewer, text, status, evasion string, types ...string) (messageID string) {
+	id := s.Say(channel, viewer, text)
+	if types == nil {
+		types = []string{}
+	}
+	s.Notify(channel, "channel.suspicious_user.message", merge(s.user(viewer), map[string]any{
+		"low_trust_status": status, "types": types, "ban_evasion_evaluation": evasion, "shared_ban_channel_ids": []string{},
+		"message": map[string]any{"message_id": id, "text": text, "fragments": []any{map[string]any{"type": "text", "text": text}}}}), "")
+	return id
+}
+
+// SuspiciousUpdate: a moderator changes how Twitch treats viewer.
+func (s *Server) SuspiciousUpdate(channel, viewer, moderator, status string) string {
+	m := strings.ToLower(moderator)
+	return s.Notify(channel, "channel.suspicious_user.update", merge(s.user(viewer), map[string]any{
+		"low_trust_status": status, "moderator_user_id": s.UserID(m), "moderator_user_login": m, "moderator_user_name": moderator}), "")
 }

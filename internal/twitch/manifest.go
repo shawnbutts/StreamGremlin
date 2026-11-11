@@ -56,6 +56,9 @@ func TwitchManifest() Manifest {
 			"https://dev.twitch.tv/docs/api/reference/#get-vips",
 			"https://dev.twitch.tv/docs/api/reference/#get-moderators",
 			"https://dev.twitch.tv/docs/api/reference/#get-banned-users",
+			"https://dev.twitch.tv/docs/api/reference/moderation",
+			"https://dev.twitch.tv/docs/api/reference/chat",
+			"https://dev.twitch.tv/docs/eventsub/reference/channel-moderation",
 		},
 		Capabilities: []Capability{
 			{
@@ -208,6 +211,38 @@ func TwitchManifest() Manifest {
 					"the reference: what Get Broadcaster Subscriptions, Get Moderators and Get Banned Users return for one user_id who isn't " +
 					"listed; an empty list is taken as no. A timeout whose expires_at has passed is shown as not banned. A fact that fails " +
 					"or is refused is listed as unknown with why, never as no. Check User Subscription isn't used: it needs the viewer's own token.",
+			},
+			{
+				Name: "moderation.actions", Support: PermissionRequired,
+				Scopes: []string{BansScope, ChatDeleteScope, WarningsScope, ShoutoutsScope, VIPsManageScope, ModsManageScope, SuspiciousManage},
+				Notes: "D-079, ADR-0041, read 2026-11-11. As the streamer (moderator_id = broadcaster). Ban User (POST /moderation/bans, " +
+					"data{user_id, duration 1-1209600 for a timeout, reason up to 500}; 400 already banned, may not be banned; a timeout on a " +
+					"ban is refused; a ban on a timeout replaces it), Unban User (DELETE; 400 not banned), Delete Chat Messages (DELETE " +
+					"/moderation/chat with message_id, never without: that clears chat; within 6 hours; not the broadcaster's or a mod's), " +
+					"Warn Chat User (POST /moderation/warnings, data{user_id, reason}), Send a Shoutout (POST /chat/shoutouts; one per 2 " +
+					"minutes, one per target per 60 minutes, 429), Add/Remove Channel VIP (422 a moderator or already a VIP; 409 no slots; " +
+					"10 per 10 s), Add/Remove Channel Moderator (400 already; 422 a VIP; 10 per 10 s), Add/Remove Suspicious Status " +
+					"(POST {user_id, status ACTIVE_MONITORING|RESTRICTED}, DELETE). None has an idempotency key: each is sent once; 4xx is " +
+					"refused with Twitch's message, 5xx or no answer is unknown and never retried. Warn, Shoutout and the suspicious-user " +
+					"endpoints were read from a summary of the reference, not verbatim: checked in the live check.",
+			},
+			{
+				Name: "chat.settings", Support: PermissionRequired, Scopes: []string{ChatSettingsScope},
+				Notes: "Get Chat Settings (no scope for these fields) and Update Chat Settings (PATCH, moderator:manage:chat_settings): " +
+					"emote_mode, follower_mode with follower_mode_duration 0-129600 minutes, slow_mode with slow_mode_wait_time 3-120 " +
+					"seconds, subscriber_mode, unique_chat_mode. non_moderator_chat_delay isn't offered. Read from a summary of the " +
+					"reference: checked in the live check.",
+			},
+			{
+				Name: "events.suspicious_users", Support: PermissionRequired, Scopes: []string{SuspiciousReadScope},
+				Notes: "channel.suspicious_user.message and channel.suspicious_user.update v1, condition broadcaster_user_id and " +
+					"moderator_user_id (both you). Stored as moderation.suspicious_user.message (keyed by the chat message id) and " +
+					"moderation.suspicious_user.updated. Fields: low_trust_status none|active_monitoring|restricted, types " +
+					"manually_added|ban_evader|banned_in_shared_channel, ban_evasion_evaluation unknown|possible|likely, " +
+					"shared_ban_channel_ids. Not stated in the pages read: whether a restricted user's message also arrives as " +
+					"channel.chat.message; the Live screen merges the two by message id in either order, and shows one alone. There's " +
+					"no request to read a viewer's flags, so only flags heard while connected are known. Read from a summary of the " +
+					"reference: checked in the live check.",
 			},
 			{
 				Name: "users.profile_picture", Support: Supported,

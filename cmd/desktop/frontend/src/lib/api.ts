@@ -1360,7 +1360,83 @@ export interface ChatterCard {
   viewer: Viewer | null;
   currency: string;
   messages: EventRecord[];
+  /** What was done to them from StreamGremlin, newest first. */
+  moderation: ModRecord[];
+  /** Twitch's newest suspicious-user flag while StreamGremlin listened; null when none. */
+  suspicious: Suspicion | null;
 }
+
+// Moderating from chat (D-079). Each request is sent to Twitch once, as you,
+// and recorded with Twitch's answer.
+export type ModAction =
+  | 'delete' | 'timeout' | 'ban' | 'unban' | 'warn' | 'shoutout' | 'vip' | 'unvip' | 'mod' | 'unmod'
+  | 'monitor' | 'restrict' | 'unsuspect' | 'chat_modes';
+
+export interface ChatModes {
+  emote_mode: boolean;
+  follower_mode: boolean;
+  follower_mode_duration: number | null;
+  slow_mode: boolean;
+  slow_mode_wait_time: number | null;
+  subscriber_mode: boolean;
+  unique_chat_mode: boolean;
+}
+
+export type ChatModesChange = Partial<{
+  emote_mode: boolean;
+  follower_mode: boolean;
+  follower_mode_duration: number;
+  slow_mode: boolean;
+  slow_mode_wait_time: number;
+  subscriber_mode: boolean;
+  unique_chat_mode: boolean;
+}>;
+
+export interface ModRequest {
+  request_id: string;
+  action: ModAction;
+  platform: 'twitch';
+  user_id?: string;
+  login?: string;
+  message_id?: string;
+  seconds?: number;
+  reason?: string;
+  chat_modes?: ChatModesChange;
+  from: 'live';
+}
+
+export interface ModRecord {
+  id: string;
+  request_id: string;
+  action: ModAction;
+  platform: string;
+  user_id?: string;
+  login?: string;
+  message_id?: string;
+  seconds?: number;
+  reason?: string;
+  chat_modes?: ChatModesChange;
+  from: string;
+  /** done; refused (with why); unknown (no answer: never sent again); pending while asking. */
+  state: 'pending' | 'done' | 'refused' | 'unknown';
+  answer?: string;
+  created_at: string;
+  answered_at?: string;
+  settings?: ChatModes;
+}
+
+export interface Suspicion {
+  treatment: 'none' | 'active_monitoring' | 'restricted' | string;
+  ban_evasion?: string;
+  types: string[];
+  shared_bans: number;
+  at: string;
+  seq: number;
+}
+
+export const moderate = (r: ModRequest) => api<{ record: ModRecord; duplicate: boolean }>('POST', '/v1/moderation', r);
+export const getModeration = (limit = 20) => api<{ moderation: ModRecord[] }>('GET', `/v1/moderation?limit=${limit}`);
+export const getChatModes = () => api<{ settings: ChatModes | null; problem?: string }>('GET', '/v1/chat/settings');
 
 export const getChatterCard = (platform: string, userId: string, test = false) =>
   api<ChatterCard>('GET', `/v1/chatters/${encodeURIComponent(platform)}/${encodeURIComponent(userId)}` + (test ? '?test=1' : ''));

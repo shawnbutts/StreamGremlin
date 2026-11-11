@@ -93,6 +93,10 @@ const (
 	PermButtonsRead  Permission = "buttons.read"
 	PermButtonsWrite Permission = "buttons.write"
 	PermButtonsPress Permission = "buttons.press"
+	// Moderation (D-079): seeing what was done and the chat modes; doing
+	// it (bans, timeouts, deleting, warnings, VIPs, moderators, chat modes).
+	PermModerationRead  Permission = "moderation.read"
+	PermModerationWrite Permission = "moderation.write"
 )
 
 // Principal is an authenticated caller.

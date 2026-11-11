@@ -63,6 +63,13 @@ const TimerFired = "timers.timer.fired"
 // records (M7, D-075).
 const ButtonPressed = "buttons.button.pressed"
 
+// Suspicious users (D-079): Twitch's flags on a chatter's message, and a
+// change in how Twitch treats them.
+const (
+	SuspiciousMessage = "moderation.suspicious_user.message"
+	SuspiciousUpdated = "moderation.suspicious_user.updated"
+)
+
 // Catalog lists the types the engine knows in this build. Slices add their
 // types here as they add the adapters that send them (docs/adr/0004-events.md).
 // Payload shapes aren't frozen until the slice that sends the real event.
@@ -194,6 +201,24 @@ func Catalog() []Kind {
 		obsKind("broadcast.media.ended", "OBS media ended", "A media source finished playing.",
 			[]Field{{Name: "source_name", Label: "Source", Kind: "text", Default: "Intro Video", Max: 256}},
 			func(v map[string]string) map[string]any { return map[string]any{"source_name": v["source_name"]} }),
+		twitchKind(SuspiciousMessage, "Suspicious user chats",
+			"Twitch flagged a chatter as suspicious: a likely or possible ban evader, banned in a channel you share bans with, or marked by you or a mod.", true,
+			[]Field{{Name: "text", Label: "Their message", Kind: "text", Default: "hello again", Max: 500},
+				{Name: "status", Label: "Twitch's treatment", Kind: "choice", Default: "active_monitoring", Max: 20, Choices: []string{"none", "active_monitoring", "restricted"}},
+				{Name: "ban_evasion", Label: "Ban evader", Kind: "choice", Default: "likely", Max: 10, Choices: []string{"likely", "possible", "unknown", ""}}},
+			func(a *Actor, v map[string]string) map[string]any {
+				types := []string{}
+				if v["ban_evasion"] == "likely" || v["ban_evasion"] == "possible" {
+					types = append(types, "ban_evader")
+				}
+				return map[string]any{"message_id": "test", "text": v["text"], "low_trust_status": v["status"], "types": types,
+					"ban_evasion": v["ban_evasion"], "shared_ban_channel_ids": []string{}}
+			}),
+		twitchKind(SuspiciousUpdated, "Suspicious user's treatment changed", "You or a mod changed how Twitch treats a suspicious user.", false,
+			[]Field{{Name: "status", Label: "Twitch's treatment", Kind: "choice", Default: "restricted", Max: 20, Choices: []string{"none", "active_monitoring", "restricted"}}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"low_trust_status": v["status"], "moderator": map[string]any{"id": "1", "login": "you", "name": "You"}}
+			}),
 		twitchKind("audience.follow.created", "Follow", "Someone followed your channel.", false, nil,
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"followed_at": "2026-11-08T20:00:00Z"}

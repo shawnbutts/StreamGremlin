@@ -339,3 +339,6 @@ func (s *Service) cardBan(ctx context.Context, userID string) (Ban, error) {
 	}
 	return Ban{}, nil
 }
+
+// IsSignInError reports whether err means the streamer isn't signed in.
+func IsSignInError(err error) bool { return errors.Is(err, errStreamerSignIn) }

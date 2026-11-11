@@ -10,6 +10,12 @@ export function eventSummary(ev: EventRecord): string {
   switch (ev.type) {
     case 'audience.follow.created':
       return `${who} followed`;
+    case 'moderation.suspicious_user.message':
+      return `Suspicious user ${who}: ${typeof p.text === 'string' ? p.text : ''}`;
+    case 'moderation.suspicious_user.updated': {
+      const t = p.low_trust_status === 'restricted' ? 'restricted' : p.low_trust_status === 'active_monitoring' ? 'monitored' : 'treated as usual';
+      return `${who} is now ${t}`;
+    }
     case 'monetization.subscription.started':
       return `${who} subscribed${p.is_gift ? ' (a gift)' : ''}, tier ${num('tier')}`;
     case 'monetization.subscription.renewed':

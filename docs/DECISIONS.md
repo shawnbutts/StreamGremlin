@@ -1368,3 +1368,19 @@ Decided 2026-11-11, building M7 slice 2 after the user's "proceed". The user, fo
 - **On the Live screen** a chatter's name is a button. Resting the pointer on it opens the card; leaving closes it. Clicking it, or Enter, opens it to stay, with focus in it; Escape or Close shuts it and gives focus back to the name.
 - **The route** is `GET /v1/chatters/{platform}/{user_id}` under `viewers.read`; `streamgremlin viewers card @NAME` prints the same. No new storage, so no ADR.
 
+## D-079. Moderating from chat, chat modes, and Twitch's suspicious-user flags (M7 slice 3)
+
+Decided 2026-11-11. The user asked whether external sites like CommanderRoot could help spot bots and scammers. I found no documented API for those lists, and recommended Twitch's own Suspicious User Detection instead. The user: "yes, fold it into slice 3 and proceed". The design is [ADR-0041](adr/0041-moderation-record.md). In short:
+
+- **Moderating is sent once, as the streamer, and recorded** with Twitch's answer: done, refused (with why) or unknown (no answer, never retried). It covers delete a message, time out, ban, unban, warn, shoutout, VIP and moderator on and off, and the chat modes. A request id makes a repeat return the record instead of sending again.
+- **Banning asks first** in the app, and needs `-yes` in the CLI. A timeout from a chat line is 10 minutes. The card offers 1 minute to 1 week, with a reason.
+- **Twitch's suspicious-user flags** (`channel.suspicious_user.message` and `.update`) are events:
+  - **what they mark:** a likely or possible ban evader, someone banned in channels you share bans with, or someone marked by you or a mod; and whether Twitch monitors or restricts them;
+  - **where they show:** on the chatter's messages on Live and on their card;
+  - **a workflow trigger:** "A suspicious user chats";
+  - **on the card:** Monitor, Restrict and Treat as usual change how Twitch treats them.
+  - **unknown before a flag:** there's no request to read a viewer's flags, so before any flag the card says Twitch hasn't flagged them while StreamGremlin was listening, never "not suspicious".
+- **No third-party bot lists:** CommanderRoot and TwitchInsights have no documented API, would send viewers' names to someone else, and list helpful bots too. If a "known bot" note is wanted later, it would be a list the streamer imports as a file.
+- **The bot doesn't moderate yet.** D-075 allowed it; it waits until someone asks, with its own scopes.
+- **Nine scopes are added** to the streamer's sign-in (ADR-0041). The streamer signs in again once.
+

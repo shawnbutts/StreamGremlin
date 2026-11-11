@@ -2,6 +2,7 @@ package twitch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -216,5 +217,42 @@ func TestHypeTrainsReachTheInbox(t *testing.T) {
 	}
 	if b := payload(t, recs[0]); b["all_time_high_level"] != float64(4) {
 		t.Fatalf("%v", b)
+	}
+}
+
+// Suspicious users (D-079): Twitch's flag on a message arrives beside the
+// chat message, keyed by the message so a redelivery is one event; a
+// change of treatment names the viewer.
+func TestSuspiciousUsersReachTheInbox(t *testing.T) {
+	r, _ := chatRig(t, false)
+	id := r.mock.SuspiciousSay("streamer", "Sneaky", "hi again", "active_monitoring", "likely", "ban_evader")
+	r.mock.SuspiciousUpdate("streamer", "Sneaky", "Streamer", "restricted")
+	recs := waitEvents(t, r.inbox, 3)
+	var msg, upd *events.Record
+	for i := range recs {
+		switch recs[i].Type {
+		case events.SuspiciousMessage:
+			msg = &recs[i]
+		case events.SuspiciousUpdated:
+			upd = &recs[i]
+		}
+	}
+	if msg == nil || upd == nil {
+		t.Fatalf("%+v", recs)
+	}
+	var p struct {
+		MessageID  string   `json:"message_id"`
+		Text       string   `json:"text"`
+		LowTrust   string   `json:"low_trust_status"`
+		BanEvasion string   `json:"ban_evasion"`
+		Types      []string `json:"types"`
+	}
+	_ = json.Unmarshal(msg.Payload, &p)
+	if p.MessageID != id || p.Text != "hi again" || p.LowTrust != "active_monitoring" || p.BanEvasion != "likely" ||
+		len(p.Types) != 1 || msg.Actor == nil || msg.Actor.Login != "sneaky" || msg.SourceEventID != "suspicious:"+id {
+		t.Fatalf("%+v %+v", p, msg)
+	}
+	if !strings.Contains(string(upd.Payload), `"low_trust_status":"restricted"`) || upd.Actor.Login != "sneaky" {
+		t.Fatalf("%s", upd.Payload)
 	}
 }
