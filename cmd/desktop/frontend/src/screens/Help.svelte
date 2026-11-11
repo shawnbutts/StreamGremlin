@@ -46,7 +46,9 @@
       The screen for while you’re live: your Twitch chat in the middle, with a box to send as you or the bot, and your buttons
       beside it or along the top (Buttons: Right or Top). A button runs the workflows that start from it, with the trigger “You
       press a button”: a scene, a sound, a message. <strong>Edit buttons</strong> makes, orders and deletes them, and “Make a
-      workflow” gives a new one something to do. A button press has no viewer behind it, like a timer.
+      workflow” gives a new one something to do. A button press has no viewer behind it, like a timer. Rest the pointer on a
+      chatter’s name, or click it, for their card: what Twitch says about them now (following, subscribed, VIP, moderator,
+      banned) and what StreamGremlin knows (points, recent messages). Anything Twitch didn’t give says unknown, never no.
     </dd>
     <dt>Events</dt>
     <dd>Everything StreamGremlin hears: chat messages, <code>!commands</code>, OBS scene changes. Test events look real to workflows but are marked Test.</dd>

@@ -33,7 +33,7 @@ type Manifest struct {
 func TwitchManifest() Manifest {
 	return Manifest{
 		Provider:   "twitch",
-		VerifiedAt: "2026-11-08",
+		VerifiedAt: "2026-11-11",
 		Docs: []string{
 			"https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/",
 			"https://dev.twitch.tv/docs/authentication/refresh-tokens/",
@@ -50,6 +50,12 @@ func TwitchManifest() Manifest {
 			"https://dev.twitch.tv/docs/eventsub/eventsub-reference/",
 			"https://dev.twitch.tv/docs/eventsub/manage-subscriptions/",
 			"https://dev.twitch.tv/docs/api/reference/#get-channel-information",
+			"https://dev.twitch.tv/docs/api/reference/#get-users",
+			"https://dev.twitch.tv/docs/api/reference/#get-channel-followers",
+			"https://dev.twitch.tv/docs/api/reference/#get-broadcaster-subscriptions",
+			"https://dev.twitch.tv/docs/api/reference/#get-vips",
+			"https://dev.twitch.tv/docs/api/reference/#get-moderators",
+			"https://dev.twitch.tv/docs/api/reference/#get-banned-users",
 		},
 		Capabilities: []Capability{
 			{
@@ -190,6 +196,18 @@ func TwitchManifest() Manifest {
 					"characters and unique; prompts up to 200; cost at least 1; cooldown up to 604800 seconds (stated on Update only). A " +
 					"redemption moves only from UNFULFILLED, to FULFILLED or CANCELED; CANCELED refunds the points. Not stated in the " +
 					"reference: rate limits for these endpoints, a maximum cost or per-stream limit, and how several ids answer in one update.",
+			},
+			{
+				Name: "viewers.card", Support: PermissionRequired,
+				Scopes: []string{FollowersScope, SubscribersScope, ModerationReadScope, VIPsReadScope},
+				Notes: "The Live screen's viewer card (D-078), read 2026-11-11, each asked fresh with one user_id, never cached by the " +
+					"engine: Get Users (no scope; deleted or suspended accounts aren't listed), Get Channel Followers (moderator:read:followers; " +
+					"empty means not following, as documented), Get Broadcaster Subscriptions (channel:read:subscriptions; tier, is_gift, " +
+					"gifter, anonymous gifter id 274598607), Get VIPs (channel:read:vips; ids not on the list are ignored), Get Moderators " +
+					"(moderation:read), Get Banned Users (moderation:read; expires_at empty for a ban, a time for a timeout). Not stated in " +
+					"the reference: what Get Broadcaster Subscriptions, Get Moderators and Get Banned Users return for one user_id who isn't " +
+					"listed; an empty list is taken as no. A timeout whose expires_at has passed is shown as not banned. A fact that fails " +
+					"or is refused is listed as unknown with why, never as no. Check User Subscription isn't used: it needs the viewer's own token.",
 			},
 			{
 				Name: "users.profile_picture", Support: Supported,

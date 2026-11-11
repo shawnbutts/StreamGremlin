@@ -169,7 +169,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(luaRoutes(d), buttonRoutes(d)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), chatterRoutes(d)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

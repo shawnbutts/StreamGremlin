@@ -1329,6 +1329,42 @@ export interface PointsView {
   top: Viewer[];
 }
 
+// The Live screen's viewer card (D-078). A Twitch fact left out is unknown,
+// and `unknown` says why; it's never a "no".
+export type CardFact = 'account' | 'follow' | 'subscription' | 'vip' | 'moderator' | 'banned';
+
+export interface TwitchCard {
+  user_id: string;
+  login?: string;
+  display_name?: string;
+  description?: string;
+  created_at?: string;
+  broadcaster_type?: string;
+  staff_type?: string;
+  picture?: string;
+  follow?: { follows: boolean; followed_at?: string };
+  subscription?: { subscribed: boolean; tier?: number; gift?: boolean; gifter?: string; anonymous?: boolean };
+  vip?: boolean;
+  moderator?: boolean;
+  ban?: { banned: boolean; until?: string; since?: string; reason?: string; by?: string };
+  unknown: { fact: CardFact; why: string }[];
+  read_at: string;
+}
+
+export interface ChatterCard {
+  platform: string;
+  user_id: string;
+  /** Null when Twitch wasn't asked: a test chatter. */
+  twitch: TwitchCard | null;
+  /** StreamGremlin's record and points; null when there's none. */
+  viewer: Viewer | null;
+  currency: string;
+  messages: EventRecord[];
+}
+
+export const getChatterCard = (platform: string, userId: string, test = false) =>
+  api<ChatterCard>('GET', `/v1/chatters/${encodeURIComponent(platform)}/${encodeURIComponent(userId)}` + (test ? '?test=1' : ''));
+
 const vid = (id: string) => encodeURIComponent(id);
 export const getPoints = () => api<PointsView>('GET', '/v1/points');
 export const getViewers = (q = '') => api<{ viewers: Viewer[] }>('GET', `/v1/viewers?q=${encodeURIComponent(q)}`);

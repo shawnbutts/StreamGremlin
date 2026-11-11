@@ -2,8 +2,9 @@ import axe from 'axe-core';
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Live from './Live.svelte';
+import { forgetCards } from './ViewerCard.svelte';
 import { mockFetch, settle, twitchStatus } from '../test/helpers';
-import type { EventRecord, LiveButton, WorkflowSummary } from '../lib/api';
+import type { ChatterCard, EventRecord, LiveButton, WorkflowSummary } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -12,12 +13,13 @@ afterEach(() => {
   comp = undefined;
   document.body.innerHTML = '';
   vi.unstubAllGlobals();
+  forgetCards();
 });
 
 function start() {
   const target = document.createElement('main');
   document.body.appendChild(target);
-  comp = mount(Live, { target, props: { idleMs: 20, retryMs: 20, refreshMs: 10_000 } });
+  comp = mount(Live, { target, props: { idleMs: 20, retryMs: 20, refreshMs: 10_000, hoverMs: 10 } });
   return target;
 }
 
@@ -52,7 +54,7 @@ const brbFlow: WorkflowSummary = {
 };
 
 function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: EventRecord[]; signedIn?: boolean; bot?: boolean; place?: 'right' | 'top';
-  refuseEvents?: boolean } = {}) {
+  refuseEvents?: boolean; extra?: Parameters<typeof mockFetch>[0] } = {}) {
   const buttons = [...(opts.buttons ?? [brb, hype])];
   let later = opts.later ?? [];
   let ui = { theme: 'system', text_size: 'standard', density: 'comfortable', more: [], live_buttons: opts.place ?? 'right' };
@@ -102,7 +104,7 @@ function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: 
       return { status: i >= 0 ? 200 : 201, body: b };
     };
   }
-  return { calls: mockFetch(routes), buttons };
+  return { calls: mockFetch({ ...routes, ...(opts.extra ?? {}) }), buttons };
 }
 
 async function noViolations(label: string) {
@@ -258,5 +260,96 @@ describe('Live', () => {
     expect(calls.find((c) => c.method === 'PUT' && c.path === '/v1/settings/ui')?.body).toEqual({ live_buttons: 'right' });
     expect(el.querySelector('.live')!.getAttribute('data-place')).toBe('right');
     expect(button(el, 'Right')!.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('Live viewer card', () => {
+  const fanCard: ChatterCard = {
+    platform: 'twitch',
+    user_id: 'u3',
+    twitch: {
+      user_id: 'u3', login: 'fan', display_name: 'Fan', created_at: '2019-05-06T12:00:00Z', description: 'I like games',
+      follow: { follows: true, followed_at: '2024-03-01T12:00:00Z' }, subscription: { subscribed: true, tier: 2 },
+      moderator: true, ban: { banned: false },
+      unknown: [{ fact: 'vip', why: 'Sign in to Twitch again and allow StreamGremlin to see this.' }],
+      read_at: now,
+    },
+    viewer: { id: 'v1', platform: 'twitch', user_id: 'u3', login: 'fan', display_name: 'Fan', first_seen: '2026-01-01T12:00:00Z', last_seen: now, messages: 42, balance: 300 },
+    currency: 'gremlins',
+    messages: [chat(1, 'Fan', 'first one'), chat(3, 'Fan', 'hello there')],
+  };
+
+  it('opens on hover with Twitch’s facts, unknowns marked, and the record; closes when the pointer leaves', async () => {
+    const { calls } = engine({ events: [chat(3, 'Fan', 'hello there')], extra: { '/v1/chatters/twitch/u3': () => ({ status: 200, body: fanCard }) } });
+    const el = start();
+    await settle(60);
+    const name = button(el, 'Fan')!;
+    expect(name.getAttribute('aria-haspopup')).toBe('dialog');
+    name.dispatchEvent(new PointerEvent('pointerenter'));
+    await settle(60);
+    const card = document.querySelector('[role="dialog"]')!;
+    expect(card).toBeTruthy();
+    expect(name.getAttribute('aria-expanded')).toBe('true');
+    expect(card.textContent).toContain('Tier 2');
+    expect(card.textContent).toContain('Moderator');
+    expect(card.textContent).toContain('Unknown: Sign in to Twitch again'); // VIP: unknown, not "No"
+    expect(card.textContent).toContain('I like games');
+    expect(card.textContent).toContain('42 messages in all');
+    expect(card.textContent).toContain('300 gremlins');
+    expect(card.textContent).toContain('first one');
+    await noViolations('viewer card');
+    // Hovering again within a minute doesn't ask Twitch again.
+    name.dispatchEvent(new PointerEvent('pointerleave'));
+    await settle(300);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    name.dispatchEvent(new PointerEvent('pointerenter'));
+    await settle(60);
+    expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+    expect(calls.filter((c) => c.path.startsWith('/v1/chatters/')).length).toBe(1);
+    // Refresh asks again.
+    button(document.body, 'Refresh')!.click();
+    await settle(30);
+    expect(calls.filter((c) => c.path.startsWith('/v1/chatters/')).length).toBe(2);
+  });
+
+  it('opens from the keyboard, takes focus, and gives it back on Escape', async () => {
+    engine({ events: [chat(3, 'Fan', 'hello there')], extra: { '/v1/chatters/twitch/u3': () => ({ status: 200, body: fanCard }) } });
+    const el = start();
+    await settle(60);
+    const name = button(el, 'Fan')!;
+    name.focus();
+    name.click();
+    await settle(30);
+    const card = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(card.contains(document.activeElement)).toBe(true);
+    // Pinned: leaving with the pointer doesn't close it.
+    name.dispatchEvent(new PointerEvent('pointerleave'));
+    await settle(300);
+    expect(document.querySelector('[role="dialog"]')).toBeTruthy();
+    card.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    flushSync();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(name);
+  });
+
+  it('says unknown when the engine can’t answer, and doesn’t ask Twitch about a test chatter', async () => {
+    const { calls } = engine({
+      events: [chat(3, 'Fan', 'hello there'), chat(4, 'Tester', 'a test', {}, true)],
+      extra: {
+        '/v1/chatters/twitch/u3': () => ({ status: 503, body: { error: { code: 'unavailable', message: 'Twitch isn’t set up' } } }),
+        '/v1/chatters/twitch/u4': () => ({ status: 200, body: { platform: 'twitch', user_id: 'u4', twitch: null, viewer: null, currency: 'points', messages: [chat(4, 'Tester', 'a test', {}, true)] } }),
+      },
+    });
+    const el = start();
+    await settle(60);
+    button(el, 'Fan')!.click();
+    await settle(30);
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain('Unknown: Twitch isn’t set up');
+    button(el, 'Tester')!.click();
+    await settle(30);
+    const card = document.querySelector('[role="dialog"]')!;
+    expect(card.textContent).toContain('A test chatter');
+    expect(card.textContent).not.toContain('On Twitch');
+    expect(calls.some((c) => c.path === '/v1/chatters/twitch/u4?test=1')).toBe(true);
   });
 });

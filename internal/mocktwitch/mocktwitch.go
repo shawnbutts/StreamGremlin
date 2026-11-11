@@ -52,6 +52,7 @@ type Server struct {
 	ad      adState
 	vw      viewerState
 	ch      chatterState
+	cd      cardState
 }
 
 type code struct {

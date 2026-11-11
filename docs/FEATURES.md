@@ -79,7 +79,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Stream category for matching content packs | 0033, D-051 | Later, with packs |
 | A Live screen: chat in the middle with sending, buttons that run workflows (right side or top) | new (D-075); built in M7 (ADR-0040, D-076) | Live |
 | A "You press a button" trigger, for the Live screen's buttons and the Stream Deck | new (D-075); built in M7 (ADR-0040, D-076) | Live |
-| A viewer card on a chatter's name: what Twitch's API gives (account, follow, subscription, VIP, moderator, banned) and StreamGremlin's record | new (D-075) | Live |
+| A viewer card on a chatter's name: what Twitch's API gives (account, follow, subscription, VIP, moderator, banned) and StreamGremlin's record | new (D-075); built in M7 (D-078) | Live |
 | Moderating from chat: delete, time out, ban and unban, warn, shoutout, VIP, moderator, chat modes, as Twitch's API allows | new (D-075) | Live |
 
 ## OBS

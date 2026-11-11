@@ -1355,3 +1355,16 @@ Decided 2026-11-11, after M7 slice 1's live check. The user: "live check looks g
 - **Unless its command is taken.** When a workflow that's on already answers a chat command the new one answers, the new one is saved off, so chat never gets two replies. The save says why (`off_because`), and the screens and CLI show it.
 - **Saving an existing workflow keeps its switch,** on or off, as before. A restored workflow still comes back off, and imports from Streamer.bot (Later) still start off.
 - **The screens say where it stands after saving:** "It's on.", "It's on, but its group … is off.", or "It's off: …".
+
+## D-078. The viewer card (M7 slice 2)
+
+Decided 2026-11-11, building M7 slice 2 after the user's "proceed". The user, for D-075: "the chat would need some details about the viewer when hovering over their name. pretty much everything we can get from the api."
+
+- **What Twitch's API gives about one viewer, read fresh:** the account (made when, Affiliate or Partner, staff, their bio) from Get Users; following and since when; subscribed, the tier, and whether it's a gift and from whom; VIP; moderator; banned or timed out, until when, by whom and why. One documented call each, at once, with that viewer's id. The engine keeps none of it; the app reuses a card for a minute, and **Refresh** asks again.
+- **Two read scopes are added for the streamer:** `moderation:read` (moderators and bans) and `channel:read:vips`. The streamer signs in again once; until then those facts say so. Slice 3 adds the moderating scopes it needs.
+- **Unknown, never "no":** a fact Twitch refuses, fails or isn't signed in for is listed as unknown with why. Only an answer Twitch gave is a yes or a no. Where the reference doesn't say what one id that isn't listed returns, an empty list is taken as no, and the manifest says so.
+- **Not used:** Check User Subscription, which needs the viewer's own token, and anything Twitch doesn't document (watch time, a viewer's other channels).
+- **StreamGremlin's own record** comes with it: first seen, messages, points, and their 10 newest chat messages still kept. A test chatter isn't looked up on Twitch.
+- **On the Live screen** a chatter's name is a button. Resting the pointer on it opens the card; leaving closes it. Clicking it, or Enter, opens it to stay, with focus in it; Escape or Close shuts it and gives focus back to the name.
+- **The route** is `GET /v1/chatters/{platform}/{user_id}` under `viewers.read`; `streamgremlin viewers card @NAME` prints the same. No new storage, so no ADR.
+

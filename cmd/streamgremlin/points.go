@@ -19,6 +19,8 @@ import (
 const viewersUsage = `usage:
   streamgremlin viewers [NAME]            viewers whose name starts with NAME (all when empty), with their points
   streamgremlin viewers show ID|@NAME     one viewer, with their points history
+  streamgremlin viewers card ID|@NAME     what Twitch says about them now (follow, subscription, VIP, moderator,
+                                          banned; unknown when Twitch didn't say), and their recent chat
   streamgremlin viewers export ID|@NAME   everything kept about them, as JSON
   streamgremlin viewers forget ID|@NAME   blank their account and names; their points history stays, unnamed
   streamgremlin viewers export-all        everything kept about every viewer, as JSON (forgotten viewers unnamed)
@@ -95,6 +97,18 @@ func viewersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		_ = json.Unmarshal(raw, &pretty)
 		b, _ := json.MarshalIndent(pretty, "", "  ")
 		fmt.Fprintln(stdout, string(b))
+		return 0
+	}
+	if len(args) == 2 && args[0] == "card" {
+		v, code := findViewer(ctx, c, args[1], stderr)
+		if code != 0 {
+			return code
+		}
+		var card api.ChatterCard
+		if code := apiExit(c.Do(ctx, "GET", "/v1/chatters/"+url.PathEscape(v.Platform)+"/"+url.PathEscape(v.UserID), nil, &card), stderr); code != 0 {
+			return code
+		}
+		printCard(stdout, v, card)
 		return 0
 	}
 	if len(args) == 2 && (args[0] == "show" || args[0] == "export" || args[0] == "forget") {
@@ -452,4 +466,90 @@ func giveAllCmd(ctx context.Context, c interface {
 	}
 	fmt.Fprintf(stdout, "Gave %s %d each, %d in all. (%s)\n", plural(g.Viewers, "viewer", "viewers"), g.Amount, g.Total, g.ID)
 	return 0
+}
+
+// printCard prints a viewer card: each Twitch fact, or why it's unknown.
+func printCard(w io.Writer, v api.ViewerView, c api.ChatterCard) {
+	fmt.Fprintf(w, "%s (@%s)\n", v.DisplayName, v.Login)
+	if t := c.Twitch; t != nil {
+		why := map[string]string{}
+		for _, u := range t.Unknown {
+			why[u.Fact] = "unknown: " + u.Why
+		}
+		yes := func(b bool) string {
+			if b {
+				return "yes"
+			}
+			return "no"
+		}
+		fact := func(label, f string, known bool, value func() string) {
+			if !known {
+				if why[f] == "" {
+					why[f] = "unknown"
+				}
+				fmt.Fprintf(w, "  %-11s %s\n", label+":", why[f])
+				return
+			}
+			fmt.Fprintf(w, "  %-11s %s\n", label+":", value())
+		}
+		fact("Account", "account", why["account"] == "", func() string {
+			out := "known to Twitch"
+			if t.CreatedAt != nil {
+				out = "made " + t.CreatedAt.Local().Format("Jan 2 2006")
+			}
+			if t.BroadcasterType != "" {
+				out += ", Twitch " + t.BroadcasterType
+			}
+			return out
+		})
+		fact("Follows", "follow", t.Follow != nil, func() string {
+			if !t.Follow.Follows {
+				return "no"
+			}
+			return "since " + t.Follow.FollowedAt.Local().Format("Jan 2 2006")
+		})
+		fact("Subscribed", "subscription", t.Subscription != nil, func() string {
+			s := t.Subscription
+			if !s.Subscribed {
+				return "no"
+			}
+			out := fmt.Sprintf("tier %d", s.Tier)
+			switch {
+			case s.Anonymous:
+				out += ", an anonymous gift"
+			case s.Gifter != "":
+				out += ", a gift from " + s.Gifter
+			case s.Gift:
+				out += ", a gift"
+			}
+			return out
+		})
+		fact("VIP", "vip", t.VIP != nil, func() string { return yes(*t.VIP) })
+		fact("Moderator", "moderator", t.Moderator != nil, func() string { return yes(*t.Moderator) })
+		fact("Banned", "banned", t.Ban != nil, func() string {
+			b := t.Ban
+			if !b.Banned {
+				return "no"
+			}
+			out := "banned"
+			if b.Until != nil {
+				out = "timed out until " + b.Until.Local().Format("15:04")
+			}
+			if b.Reason != "" {
+				out += ": " + b.Reason
+			}
+			return out
+		})
+	}
+	if c.Viewer != nil {
+		fmt.Fprintf(w, "  StreamGremlin: %d %s, %d chat messages, first seen %s\n", c.Viewer.Balance, c.Currency, c.Viewer.Messages,
+			c.Viewer.FirstSeen.Local().Format("Jan 2 2006"))
+	}
+	for _, m := range c.Messages {
+		var p struct {
+			Text string `json:"text"`
+		}
+		_ = json.Unmarshal(m.Payload, &p)
+		fmt.Fprintf(w, "  %s  %s\n", m.OccurredAt.Local().Format("Jan 2 15:04"), p.Text)
+	}
 }

@@ -15,6 +15,7 @@ type viewerState struct {
 	followers   map[string]map[string]time.Time // channel login -> viewer login -> followed at
 	created     map[string]time.Time            // login -> account made
 	subMonths   map[string]map[string]int       // channel login -> viewer login -> months
+	subGifters  map[string]map[string]string    // channel login -> viewer login -> gifter login ("" anonymous)
 	followErr   int                             // when set, Get Channel Followers answers this status
 	followCalls int
 }
@@ -24,6 +25,7 @@ func (s *Server) viewersInit() {
 		s.vw.followers = map[string]map[string]time.Time{}
 		s.vw.created = map[string]time.Time{}
 		s.vw.subMonths = map[string]map[string]int{}
+		s.vw.subGifters = map[string]map[string]string{}
 	}
 }
 
@@ -140,4 +142,149 @@ func (s *Server) followersLocked(w http.ResponseWriter, r *http.Request) {
 			"followed_at": at.Format(time.RFC3339)})
 	}
 	writeJSON(w, map[string]any{"total": len(s.vw.followers[channel]), "data": data, "pagination": map[string]any{}})
+}
+
+// The viewer card's lists (Get VIPs, Get Moderators, Get Banned Users), as
+// Twitch's reference describes them: the broadcaster's token, user_id
+// filters up to 100, ids not on the list ignored.
+
+type cardState struct {
+	vips   map[string]map[string]bool   // channel login -> viewer login
+	banned map[string]map[string]banned // channel login -> viewer login
+	// fail: when set for a path, that endpoint answers the status.
+	fail map[string]int
+}
+
+type banned struct {
+	until  time.Time // zero: doesn't end
+	at     time.Time
+	reason string
+	by     string
+}
+
+func (s *Server) cardInit() {
+	if s.cd.vips == nil {
+		s.cd.vips = map[string]map[string]bool{}
+		s.cd.banned = map[string]map[string]banned{}
+		s.cd.fail = map[string]int{}
+	}
+}
+
+// SetVIP makes viewer a VIP in channel, or not.
+func (s *Server) SetVIP(channel, viewer string, vip bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	c := strings.ToLower(channel)
+	if s.cd.vips[c] == nil {
+		s.cd.vips[c] = map[string]bool{}
+	}
+	s.cd.vips[c][strings.ToLower(viewer)] = vip
+}
+
+// SetBanned bans viewer from channel (until zero: for good), or lifts it
+// when banned is false.
+func (s *Server) SetBanned(channel, viewer string, isBanned bool, until time.Time, reason, by string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	c, v := strings.ToLower(channel), strings.ToLower(viewer)
+	if s.cd.banned[c] == nil {
+		s.cd.banned[c] = map[string]banned{}
+	}
+	if !isBanned {
+		delete(s.cd.banned[c], v)
+		return
+	}
+	s.cd.banned[c][v] = banned{until: until.UTC(), at: s.now().UTC(), reason: reason, by: by}
+}
+
+// FailCard makes one of the card's endpoints ("/helix/channels/vips",
+// "/helix/moderation/moderators", "/helix/moderation/banned") answer status
+// (0 to stop).
+func (s *Server) FailCard(path string, status int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	s.cd.fail[path] = status
+}
+
+// cardListLocked answers the three list endpoints.
+func (s *Server) cardListLocked(w http.ResponseWriter, r *http.Request, scopes ...string) {
+	s.cardInit()
+	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	g, ok := s.access[tok]
+	if ok {
+		has := false
+		for _, sc := range scopes {
+			has = has || contains(g.scopes, sc)
+		}
+		if !has {
+			writeErr(w, 401, "Missing scope: "+strings.Join(scopes, " or "))
+			return
+		}
+	}
+	if _, ok := s.helixAuth(w, r, ""); !ok {
+		return
+	}
+	if st := s.cd.fail[r.URL.Path]; st != 0 {
+		writeErr(w, st, "mocktwitch was told to fail")
+		return
+	}
+	q := r.URL.Query()
+	if q.Get("broadcaster_id") != g.userID {
+		writeErr(w, 401, "The ID in broadcaster_id must match the user ID found in the request's OAuth token.")
+		return
+	}
+	ids := q["user_id"]
+	if len(ids) > 100 {
+		writeErr(w, 400, "The maximum number of user_id is 100.")
+		return
+	}
+	channel := g.login
+	data := []map[string]string{}
+	for _, id := range ids {
+		v := s.loginOfLocked(id)
+		if v == "" {
+			continue
+		}
+		row := map[string]string{"user_id": id, "user_login": v, "user_name": v}
+		switch r.URL.Path {
+		case "/helix/channels/vips":
+			if !s.cd.vips[channel][v] {
+				continue
+			}
+		case "/helix/moderation/moderators":
+			if !s.chat.mods[channel][v] {
+				continue
+			}
+		case "/helix/moderation/banned":
+			b, ok := s.cd.banned[channel][v]
+			if !ok {
+				continue
+			}
+			row["expires_at"] = ""
+			if !b.until.IsZero() {
+				row["expires_at"] = b.until.Format(time.RFC3339)
+			}
+			row["created_at"] = b.at.Format(time.RFC3339)
+			row["reason"] = b.reason
+			row["moderator_id"], row["moderator_login"], row["moderator_name"] = s.userIDLocked(b.by), b.by, b.by
+		}
+		data = append(data, row)
+	}
+	writeJSON(w, map[string]any{"data": data, "pagination": map[string]any{}})
+}
+
+// SetSubGift marks viewer's subscription to channel as a gift from gifter
+// ("" for an anonymous gift). Set the subscription with SetSubMonths.
+func (s *Server) SetSubGift(channel, viewer, gifter string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.viewersInit()
+	c := strings.ToLower(channel)
+	if s.vw.subGifters[c] == nil {
+		s.vw.subGifters[c] = map[string]string{}
+	}
+	s.vw.subGifters[c][strings.ToLower(viewer)] = strings.ToLower(gifter)
 }

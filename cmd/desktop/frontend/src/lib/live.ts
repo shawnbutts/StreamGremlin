@@ -1,7 +1,7 @@
 // The Live screen's parts in words (D-075): chat lines from chat events,
 // buttons' ids, and which workflows start from a button.
 import { SCHEMA, type Def } from './editor';
-import type { EventRecord, WorkflowSummary } from './api';
+import type { ChatterCard, EventRecord, TwitchCard, WorkflowSummary } from './api';
 
 export const BUTTON_PRESSED = 'buttons.button.pressed';
 export const CHAT_MESSAGE = 'chat.message.received';
@@ -120,4 +120,86 @@ export function startsWords(id: string, workflows: WorkflowSummary[]): string {
   if (on.length) parts.push(`Starts ${quoted(on)}`);
   if (off.length) parts.push(`${quoted(off)} ${off.length === 1 ? 'is' : 'are'} off`);
   return parts.join('; ') + '.';
+}
+
+// The viewer card (D-078).
+
+export interface CardRow {
+  label: string;
+  value: string;
+  /** Twitch didn't say: value is why. */
+  unknown?: boolean;
+}
+
+const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+/** "3 years", "5 months", "12 days", "today": how long ago, roughly. */
+export function since(iso: string, now = new Date()): string {
+  const days = Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000);
+  const n = (k: number, one: string) => `${k} ${one}${k === 1 ? '' : 's'}`;
+  if (days < 1) return 'today';
+  if (days < 60) return n(days, 'day');
+  if (days < 730) return n(Math.floor(days / 30.44), 'month');
+  return n(Math.floor(days / 365.25), 'year');
+}
+
+const staffWords: Record<string, string> = { staff: 'Twitch staff', admin: 'Twitch admin', global_mod: 'Twitch global moderator' };
+
+/** What Twitch says about a chatter, a row per fact, unknowns included. */
+export function twitchRows(c: TwitchCard, now = new Date()): CardRow[] {
+  const why = (fact: string) => c.unknown.find((u) => u.fact === fact)?.why ?? 'Twitch didn’t say.';
+  const row = (label: string, fact: string, known: boolean, value: () => string): CardRow =>
+    known ? { label, value: value() } : { label, value: why(fact), unknown: true };
+  const rows: CardRow[] = [];
+  const accountKnown = !c.unknown.some((u) => u.fact === 'account');
+  rows.push(
+    row('Account', 'account', accountKnown, () => {
+      const parts: string[] = [];
+      if (c.created_at) parts.push(`made ${day(c.created_at)} (${since(c.created_at, now)} ago)`);
+      if (c.broadcaster_type === 'partner') parts.push('Twitch Partner');
+      if (c.broadcaster_type === 'affiliate') parts.push('Twitch Affiliate');
+      if (c.staff_type && staffWords[c.staff_type]) parts.push(staffWords[c.staff_type]);
+      const w = parts.join(', ');
+      return w ? w[0].toUpperCase() + w.slice(1) : 'Known to Twitch';
+    }),
+  );
+  rows.push(
+    row('Follows', 'follow', !!c.follow, () =>
+      c.follow!.follows ? (c.follow!.followed_at ? `Since ${day(c.follow!.followed_at)} (${since(c.follow!.followed_at, now)})` : 'Yes') : 'No',
+    ),
+  );
+  rows.push(
+    row('Subscribed', 'subscription', !!c.subscription, () => {
+      const s = c.subscription!;
+      if (!s.subscribed) return 'No';
+      let w = s.tier ? `Tier ${s.tier}` : 'Yes';
+      if (s.gift) w += s.anonymous ? ', an anonymous gift' : s.gifter ? `, a gift from ${s.gifter}` : ', a gift';
+      return w;
+    }),
+  );
+  rows.push(row('VIP', 'vip', c.vip !== undefined, () => (c.vip ? 'Yes' : 'No')));
+  rows.push(row('Moderator', 'moderator', c.moderator !== undefined, () => (c.moderator ? 'Yes' : 'No')));
+  rows.push(
+    row('Banned', 'banned', !!c.ban, () => {
+      const b = c.ban!;
+      if (!b.banned) return 'No';
+      let w = b.until ? `Timed out until ${eventTimeOf(b.until)}` : 'Banned';
+      if (b.by) w += ` by ${b.by}`;
+      if (b.reason) w += `: ${b.reason}`;
+      return w;
+    }),
+  );
+  return rows;
+}
+
+const eventTimeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+/** What StreamGremlin knows about a chatter, in words. */
+export function recordWords(card: ChatterCard, now = new Date()): string[] {
+  if (card.twitch === null) return ['A test chatter: Twitch never saw them, and StreamGremlin keeps no record of test events.'];
+  const v = card.viewer;
+  if (!v) return ['StreamGremlin has no record of them yet.'];
+  const out = [`First seen ${day(v.first_seen)} (${since(v.first_seen, now)} ago); ${v.messages} ${v.messages === 1 ? 'message' : 'messages'} in all.`];
+  out.push(`${v.balance.toLocaleString()} ${card.currency || 'points'}.`);
+  return out;
 }

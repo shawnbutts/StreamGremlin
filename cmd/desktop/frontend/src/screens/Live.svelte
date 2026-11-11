@@ -28,6 +28,7 @@
   import { eventTime } from '../lib/events';
   import { CHAT_MESSAGE, buttonId, chatLine, pressWords, startsFrom, startsWords, starterWorkflow, type ChatLine } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
+  import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import { onOffWords } from '../lib/workflows';
 
@@ -35,12 +36,15 @@
     idleMs = 250,
     retryMs = 2000,
     refreshMs = 5000,
+    hoverMs = 350,
   }: {
     /** Pause after an empty answer; the engine already waits up to 20 s. */
     idleMs?: number;
     retryMs?: number;
     /** How often the chat connection and the buttons' workflows are checked. */
     refreshMs?: number;
+    /** How long the pointer rests on a name before its card opens. */
+    hoverMs?: number;
   } = $props();
 
   const keep = 300;
@@ -84,6 +88,43 @@
   let notice = $state('');
   let confirmDelete = $state<LiveButton | undefined>();
   let starting = $state<ReturnType<typeof starterWorkflow> | undefined>();
+
+  // The viewer card (D-078): hovering a name opens it; clicking or Enter
+  // pins it open and moves focus into it; Escape or Close shuts it.
+  let card = $state<{ line: ChatLine; anchor?: DOMRect; pinned: boolean; from?: HTMLElement } | undefined>();
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+  let leaveTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearTimers = () => {
+    clearTimeout(hoverTimer);
+    clearTimeout(leaveTimer);
+  };
+
+  function hoverName(l: ChatLine, el: HTMLElement) {
+    clearTimers();
+    if (card?.pinned) return;
+    hoverTimer = setTimeout(() => (card = { line: l, anchor: el.getBoundingClientRect(), pinned: false, from: el }), hoverMs);
+  }
+
+  function leaveName() {
+    clearTimeout(hoverTimer);
+    if (card && !card.pinned) leaveTimer = setTimeout(() => (card = card?.pinned ? card : undefined), 250);
+  }
+
+  function openCard(l: ChatLine, el: HTMLElement) {
+    clearTimers();
+    if (card?.pinned && card.line.seq === l.seq) {
+      closeCard(true);
+      return;
+    }
+    card = { line: l, anchor: el.getBoundingClientRect(), pinned: true, from: el };
+  }
+
+  function closeCard(restoreFocus: boolean) {
+    clearTimers();
+    const from = card?.from;
+    card = undefined;
+    if (restoreFocus) from?.focus();
+  }
 
   function add(recs: Parameters<typeof chatLine>[0][]) {
     if (recs.length === 0) return;
@@ -167,7 +208,10 @@
         }
       }
     })();
-    return () => abort.abort();
+    return () => {
+      abort.abort();
+      clearTimers();
+    };
   });
 
   async function send(e: SubmitEvent) {
@@ -348,7 +392,15 @@
           <li class="live-line">
             <span class="sg-muted live-time">{eventTime(l.at)}</span>
             {#if l.color}<span class="live-swatch" style:background={l.color} aria-hidden="true"></span>{/if}
-            <strong class="live-name">{l.name}</strong>{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
+            <button
+              type="button"
+              class="live-name"
+              aria-haspopup="dialog"
+              aria-expanded={card?.line.seq === l.seq}
+              onpointerenter={(e) => hoverName(l, e.currentTarget)}
+              onpointerleave={leaveName}
+              onclick={(e) => openCard(l, e.currentTarget)}>{l.name}</button
+            >{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
                 class="live-badge">Test</span
               >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}<span class="live-text">: {l.text}</span>
           </li>
@@ -469,6 +521,19 @@
   </div>
 {/if}
 
+{#if card}
+  {#key card.line.seq}
+    <ViewerCard
+      line={card.line}
+      anchor={card.anchor}
+      pinned={card.pinned}
+      onclose={closeCard}
+      onpointerenter={() => clearTimeout(leaveTimer)}
+      onpointerleave={leaveName}
+    />
+  {/key}
+{/if}
+
 {#if confirmDelete}
   <ConfirmDialog
     title="Delete this button?"
@@ -560,6 +625,21 @@
     border-radius: 50%;
     margin-right: 0.3rem;
     border: 1px solid var(--sg-border);
+  }
+  .live-name {
+    font: inherit;
+    font-weight: 700;
+    color: var(--sg-foreground);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+  }
+  .live-name:hover,
+  .live-name[aria-expanded='true'] {
+    text-decoration-style: solid;
   }
   .live-badge {
     font-size: 0.75rem;

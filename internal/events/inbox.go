@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -338,6 +339,16 @@ func (in *Inbox) CountChatFrom(ctx context.Context, platform, userID string, aft
 		return 0, fmt.Errorf("events: count chat: %w", err)
 	}
 	return n, nil
+}
+
+// ChatFrom lists one account's newest chat messages, up to limit, oldest
+// first: real messages, or test ones when synthetic. Commands are included.
+func (in *Inbox) ChatFrom(ctx context.Context, platform, userID string, limit int, synthetic bool) ([]Record, error) {
+	recs, err := in.query(ctx, `WHERE type = 'chat.message.received' AND (delivery_quality = 'synthetic') = ?
+		AND json_extract(actor, '$.platform') = ? AND json_extract(actor, '$.id') = ? ORDER BY seq DESC LIMIT ?`,
+		synthetic, platform, userID, limit)
+	slices.Reverse(recs)
+	return recs, err
 }
 
 // SeqBeforeUpTo is SeqBefore among events up to seq upTo, so a window

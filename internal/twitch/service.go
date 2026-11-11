@@ -42,7 +42,9 @@ var (
 		// Ads: the schedule, starting a break and snoozing (docs/adr/0024-ads.md).
 		AdsReadScope, CommercialScope, AdsManageScope,
 		// Time in chat: who's connected to chat (docs/adr/0034-time-in-chat.md).
-		ChattersScope}
+		ChattersScope,
+		// The Live screen's viewer card: moderators, bans and VIPs (D-078).
+		ModerationReadScope, VIPsReadScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

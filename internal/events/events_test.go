@@ -418,3 +418,35 @@ func TestSearch(t *testing.T) {
 		t.Error(texts(got))
 	}
 }
+
+// One account's chat, for the Live screen's viewer card: newest kept,
+// oldest first, others' messages and test messages apart.
+func TestChatFrom(t *testing.T) {
+	in, _, _ := newInbox(t)
+	ctx := context.Background()
+	for i := range 5 {
+		if _, err := in.Accept(ctx, chatEvent(fmt.Sprintf("m%d", i), fmt.Sprintf("hello %d", i))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	other := chatEvent("o1", "not me")
+	other.Actor = &Actor{Platform: "twitch", ID: "43", Login: "other"}
+	if _, err := in.Accept(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	test := chatEvent("t1", "a test")
+	test.DeliveryQuality = "synthetic"
+	if _, err := in.Accept(ctx, test); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := in.ChatFrom(ctx, "twitch", "42", 3, false)
+	if err != nil || len(recs) != 3 || recs[0].SourceEventID != "m2" || recs[2].SourceEventID != "m4" {
+		t.Fatalf("%+v %v", recs, err)
+	}
+	if recs, _ := in.ChatFrom(ctx, "twitch", "42", 10, true); len(recs) != 1 || recs[0].SourceEventID != "t1" {
+		t.Fatalf("test: %+v", recs)
+	}
+	if recs, _ := in.ChatFrom(ctx, "twitch", "99", 10, false); len(recs) != 0 {
+		t.Fatalf("nobody: %+v", recs)
+	}
+}

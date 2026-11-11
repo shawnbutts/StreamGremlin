@@ -138,14 +138,33 @@ func (s *Server) subscriptionsLocked(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	slices.Sort(all)
+	if ids := q["user_id"]; len(ids) > 0 {
+		// Filtered: only those listed who subscribe, no pagination.
+		var some []string
+		for _, id := range ids {
+			if l := s.loginOfLocked(id); l != "" && slices.Contains(all, l) {
+				some = append(some, l)
+			}
+		}
+		all, first = some, 100
+	}
 	start, _ := strconv.Atoi(q.Get("after"))
 	start = max(0, min(start, len(all)))
 	end := min(start+first, len(all))
 	data := []map[string]any{}
 	for _, login := range all[start:end] {
-		data = append(data, map[string]any{"broadcaster_id": g.userID, "broadcaster_login": g.login, "broadcaster_name": g.login,
+		row := map[string]any{"broadcaster_id": g.userID, "broadcaster_login": g.login, "broadcaster_name": g.login,
 			"gifter_id": "", "gifter_login": "", "gifter_name": "", "is_gift": false, "plan_name": "Channel Subscription", "tier": "1000",
-			"user_id": s.userIDLocked(login), "user_login": login, "user_name": login})
+			"user_id": s.userIDLocked(login), "user_login": login, "user_name": login}
+		if gifter, ok := s.vw.subGifters[g.login][login]; ok {
+			row["is_gift"] = true
+			if gifter == "" {
+				row["gifter_id"], row["gifter_login"], row["gifter_name"] = "274598607", "ananonymousgifter", "AnAnonymousGifter"
+			} else {
+				row["gifter_id"], row["gifter_login"], row["gifter_name"] = s.userIDLocked(gifter), gifter, gifter
+			}
+		}
+		data = append(data, row)
 	}
 	page := map[string]any{}
 	if end < len(all) {
