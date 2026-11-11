@@ -95,6 +95,55 @@ type VersionAnswer struct {
 	From string `json:"from,omitempty"`
 	// Overlays are those using it, and what each had reset.
 	Overlays []Changed `json:"overlays"`
+	// Workflows a plugin's new version turned off, by name: they used a
+	// step it doesn't have. Reset are its settings back to their default.
+	Workflows []string `json:"workflows,omitempty"`
+	Reset     []string `json:"reset,omitempty"`
+}
+
+// stepNames are a plugin's steps as workflows name them.
+func stepNames(id string, actions []packages.Action) []string {
+	out := []string{}
+	for _, a := range actions {
+		out = append(out, id+"."+a.Name)
+	}
+	return out
+}
+
+// affected fills in the workflows using the steps a plugin's other version
+// drops.
+func affected(ctx context.Context, d Deps, id string, ch *packages.PluginChange) error {
+	if ch == nil || len(ch.RemovedSteps) == 0 || d.Workflows == nil {
+		return nil
+	}
+	using, err := plugins.UsingSteps(ctx, d.Workflows, stepNames(id, ch.RemovedSteps))
+	if err != nil {
+		return err
+	}
+	for _, w := range using {
+		ch.Workflows = append(ch.Workflows, w.Name)
+	}
+	return nil
+}
+
+// pluginSwitched moves a running plugin to the version now installed: its
+// steps, the workflows using ones it dropped, and its worker. One that
+// won't load is left off, saying why, in the package answered.
+func pluginSwitched(ctx context.Context, d Deps, in packages.Installed) (VersionAnswer, error) {
+	a := VersionAnswer{Package: in.Package, From: in.From, Overlays: []Changed{}, Reset: in.Reset}
+	if d.Plugins == nil {
+		return a, nil
+	}
+	off, err := d.Plugins.Switched(ctx, in.ID, d.Workflows)
+	switch {
+	case errors.Is(err, plugins.ErrLoad):
+		d.Logger.Warn("plugin's new version didn't load", "plugin", in.ID, "version", in.Version, "err", err)
+	case err != nil:
+		return a, err
+	}
+	a.Workflows = off
+	a.Package, err = d.Packages.Get(ctx, in.ID)
+	return a, err
 }
 
 func packageRoutes(d Deps) []Route {
@@ -137,6 +186,10 @@ func packageRoutes(d Deps) []Route {
 							internalError(w, r, d.Logger, err)
 							return
 						}
+						if err := affected(r.Context(), d, p.ID, p.Plugin.Rollback); err != nil {
+							internalError(w, r, d.Logger, err)
+							return
+						}
 					}
 					out = append(out, v)
 				}
@@ -146,7 +199,9 @@ func packageRoutes(d Deps) []Route {
 		{
 			Method: "POST", Path: "/v1/packages/check",
 			Summary: "Read a package (the body is its ZIP, up to 16 MB) and say what it is and what installing it would do. " +
-				"Stores nothing. A package that can't be installed is refused (400, or 409 when it clashes with what's installed).",
+				"Stores nothing. For a plugin's update, plugin_update names the permissions it asks for that aren't approved, the steps it " +
+				"drops, the workflows using them and the settings that go back to their default. A package that can't be installed is " +
+				"refused (400, or 409 when it clashes with what's installed).",
 			Permission: PermPackagesWrite, MaxBody: packages.MaxZipBytes + 1,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				data, ok := readZip(w, r)
@@ -156,6 +211,10 @@ func packageRoutes(d Deps) []Route {
 				pv, _, err := d.Packages.Check(r.Context(), data)
 				if err != nil {
 					packageError(w, r, d, err)
+					return
+				}
+				if err := affected(r.Context(), d, pv.ID, pv.PluginUpdate); err != nil {
+					internalError(w, r, d.Logger, err)
 					return
 				}
 				writeJSON(w, http.StatusOK, pv)
@@ -168,7 +227,9 @@ func packageRoutes(d Deps) []Route {
 				"is kept, to roll back to) and moves the overlays using it, each keeping the settings the new version takes. One " +
 				"from another publisher than the installed one also needs ?publisher= the new publisher's name, exactly " +
 				"(otherwise 409 confirm_publisher). A Lua plugin needs ?permissions= exactly the permissions it asks for, comma-separated, " +
-				"each approved (otherwise 409 confirm_permissions); it's installed off. Exactly what's installed again is harmless (200).",
+				"each approved (otherwise 409 confirm_permissions); it's installed off. Updating a plugin asks only when the new version asks " +
+				"for a permission not approved now; workflows using steps it drops are turned off and named, its settings kept where they " +
+				"fit, and if it's on it's loaded again, fresh. Exactly what's installed again is harmless (200).",
 			Permission: PermPackagesWrite, MaxBody: packages.MaxZipBytes + 1,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				dg := r.URL.Query().Get("digest")
@@ -184,51 +245,72 @@ func packageRoutes(d Deps) []Route {
 				if q := r.URL.Query().Get("permissions"); q != "" {
 					perms = strings.Split(q, ",")
 				}
-				p, from, created, err := d.Packages.InstallWith(r.Context(), data,
+				in, err := d.Packages.InstallWith(r.Context(), data,
 					packages.Approval{Digest: dg, Publisher: r.URL.Query().Get("publisher"), Permissions: perms}, d.Now())
 				if err != nil {
 					d.Logger.Warn("package refused", "err", err)
 					packageError(w, r, d, err)
 					return
 				}
-				if !created {
+				p := in.Package
+				if !in.Changed {
 					writeJSON(w, http.StatusOK, VersionAnswer{Package: p, Overlays: []Changed{}})
 					return
 				}
-				changed := []Changed{}
-				if p.Plugin != nil {
+				answer := VersionAnswer{Package: p, From: in.From, Overlays: []Changed{}}
+				switch {
+				case p.Plugin != nil && in.From != "":
+					if answer, err = pluginSwitched(r.Context(), d, in); err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
+				case p.Plugin != nil:
 					if d.Plugins != nil {
 						if err := d.Plugins.Installed(r.Context(), p.ID); err != nil {
 							internalError(w, r, d.Logger, err)
 							return
 						}
 					}
-				} else if changed, err = switchVersion(r.Context(), d, p.ID); err != nil {
-					internalError(w, r, d.Logger, err)
-					return
+				default:
+					if answer.Overlays, err = switchVersion(r.Context(), d, p.ID); err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
 				}
-				d.Logger.Info("package installed", "package", p.ID, "version", p.Version, "from", from, "publisher", p.Publisher, "digest", p.Digest)
-				writeJSON(w, http.StatusCreated, VersionAnswer{Package: p, From: from, Overlays: changed})
+				d.Logger.Info("package installed", "package", p.ID, "version", p.Version, "from", in.From, "publisher", p.Publisher, "digest", p.Digest,
+					"workflows_off", answer.Workflows, "settings_reset", in.Reset)
+				writeJSON(w, http.StatusCreated, answer)
 			},
 		},
 		{
 			Method: "POST", Path: "/v1/packages/{id}/rollback",
 			Summary: "Roll a package back to the version before the installed one (its rollback_to), kept from an earlier update. " +
-				"Overlays using it move back together, keeping the settings that version takes. 409 when there's none.",
+				"Overlays using it move back together, keeping the settings that version takes. A plugin is loaded again as that version " +
+				"if it's on; workflows using steps that version doesn't have are turned off; one that asks for permissions not approved " +
+				"now needs ?permissions= exactly those it asks for (otherwise 409 confirm_permissions). 409 when there's none.",
 			Permission: PermPackagesWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				p, from, err := d.Packages.Rollback(r.Context(), r.PathValue("id"), d.Now())
+				var perms []string
+				if q := r.URL.Query().Get("permissions"); q != "" {
+					perms = strings.Split(q, ",")
+				}
+				in, err := d.Packages.RollbackWith(r.Context(), r.PathValue("id"), perms, d.Now())
 				if err != nil {
 					packageError(w, r, d, err)
 					return
 				}
-				changed, err := switchVersion(r.Context(), d, p.ID)
+				answer := VersionAnswer{Package: in.Package, From: in.From, Overlays: []Changed{}}
+				if in.Plugin != nil {
+					answer, err = pluginSwitched(r.Context(), d, in)
+				} else {
+					answer.Overlays, err = switchVersion(r.Context(), d, in.ID)
+				}
 				if err != nil {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				d.Logger.Info("package rolled back", "package", p.ID, "version", p.Version, "from", from)
-				writeJSON(w, http.StatusOK, VersionAnswer{Package: p, From: from, Overlays: changed})
+				d.Logger.Info("package rolled back", "package", in.ID, "version", in.Version, "from", in.From, "workflows_off", answer.Workflows)
+				writeJSON(w, http.StatusOK, answer)
 			},
 		},
 		{

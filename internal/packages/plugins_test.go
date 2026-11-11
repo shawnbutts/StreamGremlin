@@ -97,7 +97,7 @@ func TestPluginStore(t *testing.T) {
 	if _, _, _, err := s.Install(ctx, data, pv.Digest, "", now); !errors.Is(err, ErrConfirmPermissions) {
 		t.Fatalf("no permissions: %v", err)
 	}
-	if _, _, _, err := s.InstallWith(ctx, data, Approval{Digest: pv.Digest, Permissions: []string{"chat.send"}}, now); err != nil {
+	if _, err := s.InstallWith(ctx, data, Approval{Digest: pv.Digest, Permissions: []string{"chat.send"}}, now); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := s.Approved(ctx, "dice"); strings.Join(got, ",") != "chat.send" {
@@ -106,11 +106,6 @@ func TestPluginStore(t *testing.T) {
 	p, _ := s.Get(ctx, "dice")
 	if p.Plugin == nil || p.Plugin.Enabled || p.Plugin.Values["sides"] != float64(6) {
 		t.Fatalf("installed: %+v", p.Plugin)
-	}
-	// Another version is refused until updates come.
-	v2 := zipOf(t, file{name: "streamgremlin.json", body: strings.Replace(fmt.Sprintf(luaManifest, ""), `"1.0.0"`, `"1.1.0"`, 1)}, file{name: "plugin.lua", body: "x"})
-	if _, _, err := s.Check(ctx, v2); !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "remove it first") {
-		t.Errorf("update: %v", err)
 	}
 
 	// Settings, checked.
@@ -181,4 +176,125 @@ func noise(n int) string {
 		b[i] = 'a' + byte(x>>24)%26
 	}
 	return "--" + string(b[2:])
+}
+
+// version is the test plugin at another version, with its manifest changed
+// by pairs of from, to.
+func version(t *testing.T, v string, swaps ...string) []byte {
+	t.Helper()
+	m := strings.Replace(fmt.Sprintf(luaManifest, ""), `"1.0.0"`, `"`+v+`"`, 1)
+	for i := 0; i+1 < len(swaps); i += 2 {
+		if !strings.Contains(m, swaps[i]) {
+			t.Fatalf("no %s", swaps[i])
+		}
+		m = strings.Replace(m, swaps[i], swaps[i+1], 1)
+	}
+	return zipOf(t, file{name: "streamgremlin.json", body: m}, file{name: "plugin.lua", body: "-- " + v})
+}
+
+// Updating and rolling back a plugin (D-072): it asks again only for
+// permissions not approved; steps it drops and settings that don't fit are
+// named; its settings are kept where they fit.
+func TestPluginUpdatesAndRollsBack(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	install := func(data []byte, perms ...string) (Installed, error) {
+		t.Helper()
+		pv, _, err := s.Check(ctx, data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.InstallWith(ctx, data, Approval{Digest: pv.Digest, Permissions: perms}, now)
+	}
+	// 1.0.0 asks for nothing.
+	v1 := version(t, "1.0.0", `"permissions":["chat.send"],`, "")
+	if _, err := install(v1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetSettings(ctx, "dice", map[string]any{"sides": float64(20)}, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetEnabled(ctx, "dice", true, now); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1.1.0 asks for chat.send, renames roll to throw, and allows 12 sides.
+	v2 := version(t, "1.1.0", `"name":"roll"`, `"name":"throw"`, `"max":100}]`, `"max":12}]`)
+	pv, _, err := s.Check(ctx, v2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch := pv.PluginUpdate
+	if !pv.Update || ch == nil || len(ch.NewPermissions) != 1 || ch.NewPermissions[0].Name != "chat.send" ||
+		len(ch.RemovedSteps) != 1 || ch.RemovedSteps[0].Name != "roll" || strings.Join(ch.Reset, ",") != "Sides" {
+		t.Fatalf("preview: %+v %+v", pv.Update, ch)
+	}
+	if _, err := install(v2); !errors.Is(err, ErrConfirmPermissions) || !strings.Contains(err.Error(), "chat.send") {
+		t.Fatalf("without approving: %v", err)
+	}
+	got, err := install(v2, "chat.send")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.From != "1.0.0" || got.Version != "1.1.0" || strings.Join(got.Reset, ",") != "Sides" || !got.Plugin.Enabled ||
+		got.Plugin.Values["sides"] != float64(6) {
+		t.Fatalf("updated: %+v %+v", got, got.Plugin)
+	}
+	if a, _ := s.Approved(ctx, "dice"); strings.Join(a, ",") != "chat.send" {
+		t.Errorf("approved: %v", a)
+	}
+
+	// Roll back: 1.0.0 asks for nothing, so nothing to approve; throw goes.
+	p, _ := s.Get(ctx, "dice")
+	rb := p.Plugin.Rollback
+	if p.RollbackTo != "1.0.0" || rb == nil || len(rb.NewPermissions) != 0 || len(rb.RemovedSteps) != 1 || rb.RemovedSteps[0].Name != "throw" {
+		t.Fatalf("rollback: %s %+v", p.RollbackTo, rb)
+	}
+	back, err := s.RollbackWith(ctx, "dice", nil, now)
+	if err != nil || back.From != "1.1.0" || back.Version != "1.0.0" {
+		t.Fatalf("rolled back: %+v %v", back, err)
+	}
+	if a, _ := s.Approved(ctx, "dice"); len(a) != 0 {
+		t.Errorf("approved after rolling back: %v", a)
+	}
+
+	// 1.1.0 again, kept: it asks for chat.send again.
+	if _, err := install(v2); !errors.Is(err, ErrConfirmPermissions) {
+		t.Fatalf("again: %v", err)
+	}
+	if _, err := install(v2, "chat.send"); err != nil {
+		t.Fatal(err)
+	}
+	// 1.2.0 asks for the same: no need to approve it again.
+	if _, err := install(version(t, "1.2.0")); err != nil {
+		t.Fatalf("same permissions: %v", err)
+	}
+	// Rolling back to a version that asks for more needs it approved:
+	// 1.1.0 and 1.2.0 both ask for chat.send, so make one that doesn't.
+	if _, err := install(version(t, "1.3.0", `"permissions":["chat.send"],`, "")); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = s.Get(ctx, "dice")
+	if p.RollbackTo != "1.2.0" || len(p.Plugin.Rollback.NewPermissions) != 1 {
+		t.Fatalf("rollback to 1.2.0: %+v", p.Plugin.Rollback)
+	}
+	if _, err := s.RollbackWith(ctx, "dice", nil, now); !errors.Is(err, ErrConfirmPermissions) {
+		t.Fatalf("rolling back without approving: %v", err)
+	}
+	if _, err := s.RollbackWith(ctx, "dice", []string{"chat.send"}, now); err != nil {
+		t.Fatal(err)
+	}
+
+	audit, _ := s.Audit(ctx, 20)
+	var lines []string
+	for _, a := range audit {
+		lines = append(lines, a.Action+" "+a.Version+": "+a.Detail)
+	}
+	all := strings.Join(lines, "\n")
+	for _, want := range []string{"update 1.1.0: Dice 1.0.0 to 1.1.0", "permissions approved: chat.send", "steps removed: roll",
+		"settings reset: Sides", "rollback 1.0.0: Dice 1.1.0 back to 1.0.0"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("audit has no %q:\n%s", want, all)
+		}
+	}
 }

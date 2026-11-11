@@ -198,4 +198,98 @@ describe('plugins on Add-ons', () => {
     await settle();
     expect(target.textContent).toContain('Turned off (not deleted): Roll.');
   });
+
+  it('updates asking only for what’s new, naming the workflows turned off, and rolls back', async () => {
+    const installed: InstalledPackage = { ...dice, version: '1.0.0', kept: [], plugin: { ...dice.plugin!, enabled: true, permissions: [] } };
+    const list = [installed];
+    const calls = mockFetch({
+      '/v1/packages': () => ({ status: 200, body: { packages: list } }),
+      '/v1/packages/audit': () => ({ status: 200, body: { audit: [] } }),
+      '/v1/packages/dice-tray/rollback': (_m, _b, query) => {
+        list[0] = { ...installed, kept: ['1.2.0'] };
+        return { status: 200, body: { ...list[0], from: '1.2.0', overlays: [], workflows: [], reset: [], query } };
+      },
+    });
+    const inner = (globalThis.fetch as unknown as { getMockImplementation: () => (p: string, i?: RequestInit) => Promise<Response> }).getMockImplementation();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (p: string, i?: RequestInit) => {
+        if (i?.method === 'POST' && p === '/v1/packages/check') {
+          const { workflows: _w, used_by: _u, ...rest } = dice;
+          const pv: PackagePreview = {
+            ...rest, version: '1.2.0', installed, same: false, sounds: false, update: true, older: false, publisher_change: false,
+            plugin_update: {
+              new_permissions: [dice.plugin!.permissions[0]], permissions: ['chat.send'],
+              removed_steps: [{ name: 'roll', label: 'Roll dice', description: 'Rolls dice.' }], reset: ['Sides on each die'], workflows: ['Throw'],
+            },
+          };
+          return new Response(JSON.stringify(pv), { status: 200 });
+        }
+        if (i?.method === 'POST' && p.startsWith('/v1/packages?digest=')) {
+          calls.push({ method: 'POST', path: p, body: undefined });
+          const now = { ...dice, version: '1.2.0', kept: ['1.0.0'], rollback_to: '1.0.0', workflows: ['Roll'],
+            plugin: { ...dice.plugin!, enabled: true, rollback: {
+              new_permissions: [], permissions: [], removed_steps: [], reset: [], workflows: [] } } };
+          list[0] = now;
+          return new Response(JSON.stringify({ ...now, from: '1.0.0', overlays: [], workflows: ['Throw'], reset: ['Sides on each die'] }), { status: 201 });
+        }
+        return inner(p, i);
+      }),
+    );
+    const target = start();
+    await settle();
+    await pickZip(target);
+    const preview = target.querySelector('[aria-label="What it is"]')!;
+    expect(preview.textContent).toContain('Dice tray 1.0.0 → 1.2.0');
+    expect(preview.textContent).toContain('If it’s on, it starts again, fresh');
+    const changes = target.querySelector('[aria-label="What updating changes"]')!;
+    expect(changes.textContent).toContain('Steps this version doesn’t have: Roll dice.');
+    expect(changes.textContent).toContain('These workflows use them and are turned off, not deleted: Throw.');
+    expect(changes.textContent).toContain('Back to the default, as this version doesn’t take what’s set: Sides on each die.');
+    expect(preview.textContent).toContain('This version asks for more. Tick each one you allow:');
+    const update = button(target, 'Update Dice tray')!;
+    expect(update.disabled).toBe(true);
+    await noViolations('update preview');
+    checkbox(target, 'Send messages in your chat')!.click();
+    flushSync();
+    update.click();
+    await settle();
+    expect(calls.some((c) => c.path.includes('&permissions=chat.send'))).toBe(true);
+    const status = Array.from(target.querySelectorAll('[role=status]')).find((x) => x.textContent?.includes('Updated'))!;
+    expect(status.textContent).toContain('Updated Dice tray from 1.0.0 to 1.2.0.');
+    expect(status.textContent).toContain('Turned off, as they used a step it doesn’t have (not deleted): Throw.');
+    expect(status.textContent).toContain('It started again, fresh, as 1.2.0.');
+
+    button(target, 'Roll back to 1.0.0')!.click();
+    await settle();
+    const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]')!;
+    expect(dialog.textContent).toContain('It starts again, fresh: its memory starts over.');
+    Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Roll back')!.click();
+    await settle();
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/v1/packages/dice-tray/rollback')).toBe(true);
+    expect(target.textContent).toContain('Rolled Dice tray back from 1.2.0 to 1.0.0.');
+  });
+
+  it('asks before rolling back to a version that asks for more', async () => {
+    const p: InstalledPackage = { ...dice, version: '1.3.0', rollback_to: '1.2.0', kept: ['1.2.0'], plugin: { ...dice.plugin!, permissions: [],
+      rollback: { new_permissions: [dice.plugin!.permissions[0]], permissions: ['chat.send'],
+        removed_steps: [{ name: 'best', label: 'The session’s best roll', description: '' }], reset: [], workflows: ['Best'] } } };
+    const calls = mockFetch({
+      '/v1/packages': () => ({ status: 200, body: { packages: [p] } }),
+      '/v1/packages/audit': () => ({ status: 200, body: { audit: [] } }),
+      '/v1/packages/dice-tray/rollback': () => ({ status: 200, body: { ...p, version: '1.2.0', from: '1.3.0', overlays: [], workflows: ['Best'] } }),
+    });
+    const target = start();
+    await settle();
+    button(target, 'Roll back to 1.2.0')!.click();
+    await settle();
+    const dialog = document.querySelector('[role="dialog"], [role="alertdialog"]')!;
+    expect(dialog.textContent).toContain('1.2.0 asks for more: rolling back allows it to send messages in your chat');
+    expect(dialog.textContent).toContain('1.2.0 doesn’t have The session’s best roll: these workflows use it and are turned off, not deleted: Best.');
+    await noViolations('rollback dialog');
+    Array.from(dialog.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Allow and roll back')!.click();
+    await settle();
+    expect(calls.some((c) => c.path === '/v1/packages/dice-tray/rollback?permissions=chat.send')).toBe(true);
+    expect(target.textContent).toContain('Turned off, as they used a step it doesn’t have (not deleted): Best.');
+  });
 });

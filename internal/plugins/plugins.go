@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -533,6 +534,69 @@ func (m *Manager) Removing(ctx context.Context, id string, wf Workflows) ([]stri
 	}
 	m.unregister(id)
 	return names, nil
+}
+
+// Switched moves a plugin to the version now installed, after an update
+// or roll back (D-072): workflows using steps it no longer has are turned
+// off (never deleted) and named, its steps are registered again, and if
+// it's on it's loaded again, fresh. A version that won't load is left off,
+// saying why (ErrLoad).
+func (m *Manager) Switched(ctx context.Context, id string, wf Workflows) ([]string, error) {
+	p, man, err := m.opts.Store.Plugin(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	m.mu.Lock()
+	old := m.actions[id]
+	m.mu.Unlock()
+	var gone []string
+	for _, name := range old {
+		if !slices.ContainsFunc(man.Lua.Actions, func(a packages.Action) bool { return id+"."+a.Name == name }) {
+			gone = append(gone, name)
+		}
+	}
+	off := []string{}
+	if wf != nil && len(gone) > 0 {
+		using, err := UsingSteps(ctx, wf, gone)
+		if err != nil {
+			return nil, err
+		}
+		for _, w := range using {
+			if w.Enabled {
+				if err := wf.SetEnabled(ctx, w.ID, false); err != nil {
+					return nil, err
+				}
+			}
+			off = append(off, w.Name)
+		}
+	}
+	m.register(p, man)
+	m.log.Info("plugin switched version", "plugin", id, "version", p.Version, "steps_removed", gone, "workflows_off", off)
+	if m.isRunning(id) {
+		if err := m.start(ctx, id); err != nil {
+			return off, err
+		}
+	}
+	return off, nil
+}
+
+// UsingSteps are the workflows using any of these steps, each once.
+func UsingSteps(ctx context.Context, wf Workflows, steps []string) ([]workflow.Summary, error) {
+	out := []workflow.Summary{}
+	seen := map[string]bool{}
+	for _, s := range steps {
+		using, err := wf.UsingActions(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		for _, w := range using {
+			if !seen[w.ID] {
+				seen[w.ID] = true
+				out = append(out, w)
+			}
+		}
+	}
+	return out, nil
 }
 
 // Using names the workflows that use a plugin's steps.

@@ -38,7 +38,10 @@
   let confirmPublisher = $state('');
   // A plugin's permissions, each ticked.
   let approved = $state<Record<string, boolean>>({});
-  const allApproved = $derived(!preview?.plugin || preview.plugin.permissions.every((x) => approved[x.name]));
+  // A plugin's update asks only for what isn't allowed already (D-072).
+  const change = $derived(preview?.plugin_update);
+  const toApprove = $derived(change ? change.new_permissions : (preview?.plugin?.permissions ?? []));
+  const allApproved = $derived(toApprove.every((x) => approved[x.name]));
   const confirmed = $derived((!preview?.publisher_change || confirmPublisher === preview.publisher) && allApproved);
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
@@ -74,6 +77,31 @@
       .filter((o) => o.reset.length)
       .map((o) => ` On ${o.overlay}, ${o.reset.join(', ')} went back to the default: ${a.version} doesn’t take what was set.`)
       .join('');
+  }
+
+  // What a plugin's new version turned off and reset, and whether it runs.
+  function pluginNotes(a: VersionAnswer) {
+    let out = '';
+    if (a.workflows?.length) out += ` Turned off, as they used a step it doesn’t have (not deleted): ${a.workflows.join(', ')}.`;
+    if (a.reset?.length) out += ` Back to the default: ${a.reset.join(', ')}.`;
+    if (a.plugin?.error) out += ` It’s off: ${a.plugin.error}.`;
+    else if (a.plugin?.enabled) out += ` It started again, fresh, as ${a.version}.`;
+    return out;
+  }
+
+  // What rolling a plugin back does, for the dialog.
+  function rollbackNotes(p: InstalledPackage) {
+    const rb = p.plugin?.rollback;
+    if (!rb) return '';
+    let out = '';
+    if (rb.new_permissions.length) out += ` ${p.rollback_to} asks for more: rolling back allows it to ${rb.new_permissions.map((x) => x.what.charAt(0).toLowerCase() + x.what.slice(1)).join('; ')}.`;
+    if (rb.removed_steps.length) {
+      out += ` ${p.rollback_to} doesn’t have ${rb.removed_steps.map((a) => a.label).join(', ')}`;
+      out += rb.workflows.length ? `: these workflows use it and are turned off, not deleted: ${rb.workflows.join(', ')}.` : '.';
+    }
+    if (rb.reset.length) out += ` Back to the default: ${rb.reset.join(', ')}.`;
+    if (p.plugin?.enabled) out += ' It starts again, fresh: its memory starts over.';
+    return out;
   }
 
   function clearFile() {
@@ -120,7 +148,9 @@
         p.publisher_change ? confirmPublisher : '',
         p.plugin ? p.plugin.permissions.map((x) => x.name) : [],
       );
-      notice = a.plugin
+      notice = a.plugin && a.from
+        ? `Updated ${a.name} from ${a.from} to ${a.version}.${pluginNotes(a)}`
+        : a.plugin
         ? `Installed ${a.name} ${a.version}. It’s off: turn it on below when you’re ready, then add its steps to a workflow.`
         : a.from
         ? `Updated ${a.name} from ${a.from} to ${a.version}.${a.overlays.length ? ` ${a.overlays.map((o) => o.overlay).join(', ')} use${a.overlays.length === 1 ? 's' : ''} it now.` : ''}${resets(a)}`
@@ -140,8 +170,9 @@
     error = '';
     notice = '';
     try {
-      const a = await rollbackPackage(p.id);
-      notice = `Rolled ${a.name} back from ${a.from} to ${a.version}.${resets(a)}`;
+      const rb = p.plugin?.rollback;
+      const a = await rollbackPackage(p.id, rb?.new_permissions.length ? rb.permissions : []);
+      notice = `Rolled ${a.name} back from ${a.from} to ${a.version}.${a.plugin ? pluginNotes(a) : resets(a)}`;
     } catch (e) {
       error = message(e);
     } finally {
@@ -186,7 +217,9 @@
   <ul class="secret-list" aria-label="Installed add-ons">
     {#each list as p (p.id)}
       {#if p.plugin}
-        <li class="secret-row"><PluginCard {p} {busy} onchanged={load} onremove={() => (removing = p)} /></li>
+        <li class="secret-row">
+          <PluginCard {p} {busy} onchanged={load} onremove={() => (removing = p)} onrollback={() => (rollingBack = p)} />
+        </li>
       {:else}
       <li class="secret-row">
         <div>
@@ -230,8 +263,12 @@
         <h3>{preview.name} {preview.installed.version} → {preview.version}</h3>
         <p>
           {preview.older ? 'An older version than the one installed.' : 'An update.'}
-          {preview.installed.version} is kept, so you can roll back to it. Overlays using it switch together, keeping the settings
-          this version still takes.
+          {preview.installed.version} is kept, so you can roll back to it.
+          {#if preview.plugin}
+            Its settings are kept where this version still takes them. If it’s on, it starts again, fresh: its memory starts over.
+          {:else}
+            Overlays using it switch together, keeping the settings this version still takes.
+          {/if}
         </p>
       {:else}
         <h3>{preview.name} {preview.version}</h3>
@@ -272,16 +309,44 @@
             <strong>Templates it adds to the gallery</strong>, in its own section: {pl.templates.map((t) => t.title).join(', ')}.
           </p>
         {/if}
-        {#if pl.permissions.length}
+        {#if change && (change.removed_steps.length || change.reset.length)}
+          <div class="update-change" role="group" aria-label="What updating changes">
+            {#if change.removed_steps.length}
+              <p>
+                <strong>Steps this version doesn’t have:</strong> {change.removed_steps.map((a) => a.label).join(', ')}.
+                {#if change.workflows.length}
+                  These workflows use them and are turned off, not deleted: {change.workflows.join(', ')}.
+                {:else}
+                  No workflow uses them.
+                {/if}
+              </p>
+            {/if}
+            {#if change.reset.length}
+              <p>Back to the default, as this version doesn’t take what’s set: {change.reset.join(', ')}.</p>
+            {/if}
+          </div>
+        {/if}
+        {#if change && toApprove.length === 0}
+          <p>
+            {pl.permissions.length
+              ? `It asks for what you allowed already: ${pl.permissions.map((x) => x.what).join('; ')}.`
+              : 'It asks for no permissions: it only does what its steps give back.'}
+          </p>
+        {:else if toApprove.length}
           <fieldset class="permissions">
-            <legend>It asks for permission to do these. Tick each one you allow:</legend>
-            {#each pl.permissions as x (x.name)}
+            <legend>{change ? 'This version asks for more. Tick each one you allow:' : 'It asks for permission to do these. Tick each one you allow:'}</legend>
+            {#each toApprove as x (x.name)}
               <label class="choice-inline">
                 <input type="checkbox" checked={approved[x.name] === true} onchange={(e) => (approved[x.name] = e.currentTarget.checked)} />
                 {x.what}
               </label>
             {/each}
-            <p class="sg-muted field-hint">It can only be installed with all of them allowed.</p>
+            <p class="sg-muted field-hint">
+              It can only be {change ? 'updated' : 'installed'} with all of them allowed.
+              {#if change && pl.permissions.length > toApprove.length}
+                Allowed already: {pl.permissions.filter((x) => !toApprove.some((y) => y.name === x.name)).map((x) => x.what).join('; ')}.
+              {/if}
+            </p>
           </fieldset>
         {:else}
           <p>It asks for no permissions: it only does what its steps give back.</p>
@@ -335,8 +400,8 @@
   {@const r = rollingBack}
   <ConfirmDialog
     title={`Roll ${r.name} back to ${r.rollback_to}?`}
-    message={`${r.version} is kept, so you can update to it again.${r.used_by.length ? ` These overlays switch back with it: ${r.used_by.join(', ')}.` : ''}`}
-    confirmLabel="Roll back"
+    message={`${r.version} is kept, so you can update to it again.${r.used_by.length ? ` These overlays switch back with it: ${r.used_by.join(', ')}.` : ''}${rollbackNotes(r)}`}
+    confirmLabel={r.plugin?.rollback?.new_permissions.length ? 'Allow and roll back' : 'Roll back'}
     onconfirm={() => rollback(r)}
     oncancel={() => (rollingBack = undefined)}
   />
@@ -365,7 +430,8 @@
   .install-preview h3 {
     margin: 0 0 6px;
   }
-  .publisher-change {
+  .publisher-change,
+  .update-change {
     margin: 8px 0;
     padding: 8px 12px;
     border-left: 4px solid var(--sg-warning);

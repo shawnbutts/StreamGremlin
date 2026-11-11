@@ -205,7 +205,8 @@ func (e *Engine) StatsSince(ctx context.Context, seen time.Time) (Stats, error) 
 }
 
 // UsingActions are the workflows (not deleted) with a step whose action
-// starts with prefix: a plugin's "<id>.".
+// starts with prefix, when it ends in "." (a plugin's "<id>."), or is
+// exactly prefix (one of its steps).
 func (e *Engine) UsingActions(ctx context.Context, prefix string) ([]Summary, error) {
 	all, err := e.st.list(ctx, false)
 	if err != nil {
@@ -224,9 +225,18 @@ func (e *Engine) UsingActions(ctx context.Context, prefix string) ([]Summary, er
 	return out, nil
 }
 
+// matchAction: a prefix ending in "." matches every action under it,
+// anything else one action exactly.
+func matchAction(action, prefix string) bool {
+	if strings.HasSuffix(prefix, ".") {
+		return strings.HasPrefix(action, prefix)
+	}
+	return action == prefix
+}
+
 func usesAction(steps []Step, prefix string) bool {
 	for _, s := range steps {
-		if strings.HasPrefix(s.Action, prefix) || usesAction(s.Do, prefix) || usesAction(s.Else, prefix) || usesAction(s.Steps, prefix) {
+		if matchAction(s.Action, prefix) || usesAction(s.Do, prefix) || usesAction(s.Else, prefix) || usesAction(s.Steps, prefix) {
 			return true
 		}
 		for _, b := range s.Choose {

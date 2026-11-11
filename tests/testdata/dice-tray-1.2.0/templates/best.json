@@ -1,0 +1,19 @@
+{
+  "template": {
+    "id": "best",
+    "title": "!best: the session's best roll",
+    "description": "!best says who has the best roll since Dice tray was turned on, and how many rolls there have been.",
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.dice-tray-best",
+    "name": "Best roll (Dice tray)",
+    "group": "Dice tray",
+    "triggers": [{ "type": "chat.command.received", "where": { "command": "best" } }],
+    "steps": [
+      { "id": "best", "action": "dice-tray.best" },
+      { "action": "chat.send", "with": { "message": "${steps.best.output.text}" } }
+    ]
+  }
+}

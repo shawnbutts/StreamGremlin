@@ -1252,3 +1252,15 @@ Decided 2026-11-11. The user: "in the 'add a step' dropdown, can we added an '(a
 - **A plugin's number left empty is its default:** `!roll` with nothing after it rolls one die.
 - **Dice tray 1.1.0** brings `!roll` and `!best` templates.
 
+
+## D-072. Updating and rolling back Lua plugins (M5 slice 5b)
+
+Decided 2026-11-11, building slice 5b after the user's "proceed". ADR-0036 and ADR-0038 had already set the rules: an update asks again only when it asks for more, and names the workflows that use steps it removes. This records how they're built. Slice 5b is split in two: updates and roll back first; the plugin's own events and its timers come next, as slice 5c.
+
+- **An update is installing another version of an installed plugin,** as for looks (D-068): the check shows it, the installed version is kept, and two earlier versions stay for **Roll back**.
+- **Permissions:** an update or roll back asks only when that version asks for a permission that isn't approved now. Then every permission it asks for has to be approved, as at install (`?permissions=`, 409 `confirm_permissions`; `-allow` in the terminal). A version that asks for fewer drops the rest.
+- **Steps it doesn't have:** the check names them and the workflows using them. Those workflows are turned off (never deleted) when it's installed, and named again in the answer. A step is found exactly: `UsingActions` matches a prefix only when it ends in ".".
+- **Settings** stay where the new version still takes them. A value left at the old default takes the new default. Any other value that doesn't fit goes back to the default, and is named.
+- **A plugin that's on is loaded again as the new version,** fresh: its memory starts over, and the screens say so before you confirm. One that won't load is left off, saying why, as when it's turned on. A failure from the version before is cleared.
+- **Roll back** to a version that asks for more says so in its dialog, whose button reads **Allow and roll back**: confirming it is the approval. In the terminal it needs `-allow`.
+- The audit records the permissions, the steps removed and the settings reset with each update and roll back.

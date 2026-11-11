@@ -16,7 +16,8 @@
     busy = false,
     onchanged,
     onremove,
-  }: { p: InstalledPackage; busy?: boolean; onchanged: () => void; onremove: () => void } = $props();
+    onrollback,
+  }: { p: InstalledPackage; busy?: boolean; onchanged: () => void; onremove: () => void; onrollback?: () => void } = $props();
 
   const plugin = $derived(p.plugin!);
   let working = $state(false);
@@ -100,6 +101,11 @@
         />
         On
       </label>
+      {#if p.rollback_to && onrollback}
+        <button type="button" class="button" aria-label={`Roll ${p.name} back to ${p.rollback_to}`} disabled={busy || working} onclick={onrollback}
+          >Roll back to {p.rollback_to}</button
+        >
+      {/if}
       <button type="button" class="button button-danger" aria-label={`Remove ${p.name}`} disabled={busy || working} onclick={onremove}>Remove</button>
     </div>
   </div>
@@ -134,6 +140,7 @@
   {/if}
   <p class="sg-muted field-hint">
     {p.workflows?.length ? `Used by ${p.workflows.join(', ')}.` : 'No workflow uses it yet.'}
+    {p.kept.length ? `Kept to roll back to: ${p.kept.join(', ')}.` : ''}
   </p>
 
   {#if p.settings?.length}

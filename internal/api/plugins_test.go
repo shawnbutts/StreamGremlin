@@ -10,8 +10,9 @@ import (
 	"testing"
 )
 
-// examplePlugin zips examples/plugins/dice-tray.
-func examplePlugin(t *testing.T) string {
+// examplePlugin zips examples/plugins/dice-tray, each file changed by
+// change when given.
+func examplePlugin(t *testing.T, change ...func(name string, b []byte) []byte) string {
 	t.Helper()
 	dir := filepath.Join("..", "..", "examples", "plugins", "dice-tray")
 	var buf bytes.Buffer
@@ -20,6 +21,9 @@ func examplePlugin(t *testing.T) string {
 		b, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // the repository's own example
 		if err != nil {
 			t.Fatal(err)
+		}
+		for _, c := range change {
+			b = c(name, b)
 		}
 		w, _ := zw.Create(name)
 		_, _ = w.Write(b)
@@ -114,6 +118,110 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 		t.Fatal("its templates outlived it:", out)
 	}
 	if _, out := call("GET", "/v1/packages/audit", ""); !strings.Contains(out, `"action":"on"`) || !strings.Contains(out, `"action":"settings"`) {
+		t.Fatal(out)
+	}
+}
+
+// diceVersion is the example at another version: with permissions, and
+// without the "roll" step when dropRoll.
+func diceVersion(t *testing.T, version string, perms bool, dropRoll bool) string {
+	return examplePlugin(t, func(name string, b []byte) []byte {
+		s := string(b)
+		switch name {
+		case "streamgremlin.json":
+			s = strings.Replace(s, `"version": "1.1.0"`, `"version": "`+version+`"`, 1)
+			if !perms {
+				s = strings.Replace(s, `"permissions": ["chat.send"],`, "", 1)
+			}
+			if dropRoll {
+				i := strings.Index(s, "{\n        \"name\": \"roll\",")
+				j := strings.Index(s, "{\n        \"name\": \"roll_and_say\",")
+				s = s[:i] + s[j:]
+			}
+		case "plugin.lua":
+			if dropRoll {
+				s = strings.Replace(s, `sg.action("roll", function`, `local _ = (function`, 1)
+			}
+		}
+		return []byte(s)
+	})
+}
+
+// Updating and rolling back a plugin through the API (D-072): the check
+// names new permissions, dropped steps and the workflows using them;
+// updating asks only for new permissions; workflows using a dropped step
+// are turned off.
+func TestPluginUpdatesThroughTheAPI(t *testing.T) {
+	s := newTestServer(t)
+	call := func(method, path, body string) (int, string) {
+		w := do(t, s, req{method: method, path: path, token: testToken, body: body})
+		return w.Code, w.Body.String()
+	}
+	digest := func(data string) string {
+		var pv struct{ Digest string }
+		code, out := call("POST", "/v1/packages/check", data)
+		if code != 200 {
+			t.Fatal(code, out)
+		}
+		_ = json.Unmarshal([]byte(out), &pv)
+		return pv.Digest
+	}
+	// 1.0.0 asks for nothing.
+	v1 := diceVersion(t, "1.0.0", false, false)
+	if code, out := call("POST", "/v1/packages?digest="+digest(v1), v1); code != 201 {
+		t.Fatal(code, out)
+	}
+	if code, out := call("PUT", "/v1/workflows/chat.roll", diceWorkflowAPI); code != 200 && code != 201 {
+		t.Fatal(code, out)
+	}
+	call("PUT", "/v1/workflows/chat.roll/enabled", `{"enabled": true}`)
+	call("PUT", "/v1/packages/dice-tray/enabled", `{"enabled": true}`)
+
+	// 1.2.0 asks for chat.send and drops "Roll dice", which chat.roll uses.
+	v2 := diceVersion(t, "1.2.0", true, true)
+	code, out := call("POST", "/v1/packages/check", v2)
+	if code != 200 || !strings.Contains(out, `"plugin_update":{"new_permissions":[{"name":"chat.send"`) ||
+		!strings.Contains(out, `"removed_steps":[{"name":"roll"`) || !strings.Contains(out, `"workflows":["Roll"]`) {
+		t.Fatal(code, out)
+	}
+	d2 := digest(v2)
+	if code, out := call("POST", "/v1/packages?digest="+d2, v2); code != 409 || !strings.Contains(out, "confirm_permissions") ||
+		!strings.Contains(out, "asks for more: chat.send") {
+		t.Fatal(code, out)
+	}
+	code, out = call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send", v2)
+	if code != 201 || !strings.Contains(out, `"from":"1.0.0"`) || !strings.Contains(out, `"workflows":["Roll"]`) || !strings.Contains(out, `"enabled":true`) {
+		t.Fatal(code, out)
+	}
+	if _, out := call("GET", "/v1/workflows/chat.roll", ""); !strings.Contains(out, `"enabled":false`) {
+		t.Fatal("still on:", out)
+	}
+
+	// Its roll back is described, with nothing to approve; rolling back
+	// brings the step back and turns nothing off.
+	_, out = call("GET", "/v1/packages", "")
+	if !strings.Contains(out, `"rollback_to":"1.0.0"`) || !strings.Contains(out, `"rollback":{"new_permissions":[],"permissions":[],"removed_steps":[],"reset":[],"workflows":[]}`) {
+		t.Fatal(out)
+	}
+	code, out = call("POST", "/v1/packages/dice-tray/rollback", "")
+	if code != 200 || !strings.Contains(out, `"from":"1.2.0"`) || !strings.Contains(out, `"version":"1.0.0"`) || !strings.Contains(out, `"enabled":true`) {
+		t.Fatal(code, out)
+	}
+	// Forward again, then to a version without permissions; rolling back to
+	// 1.2.0 then needs chat.send approved.
+	call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send", v2)
+	v3 := diceVersion(t, "1.3.0", false, true)
+	if code, out := call("POST", "/v1/packages?digest="+digest(v3), v3); code != 201 {
+		t.Fatal(code, out)
+	}
+	if code, out := call("POST", "/v1/packages/dice-tray/rollback", ""); code != 409 || !strings.Contains(out, "confirm_permissions") {
+		t.Fatal(code, out)
+	}
+	if code, out := call("POST", "/v1/packages/dice-tray/rollback?permissions=chat.send", ""); code != 200 || !strings.Contains(out, `"version":"1.2.0"`) {
+		t.Fatal(code, out)
+	}
+	_, out = call("GET", "/v1/packages/audit", "")
+	if !strings.Contains(out, "permissions approved: chat.send") || !strings.Contains(out, "steps removed: roll") {
 		t.Fatal(out)
 	}
 }

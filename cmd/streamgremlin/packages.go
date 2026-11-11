@@ -22,10 +22,13 @@ const packagesUsage = `usage:
                                               says what it is. Replacing another publisher's
                                               also needs -publisher with the new one's name; a
                                               plugin needs -allow with each permission it asks for
+                                              (an update, only when it asks for more)
   streamgremlin packages on|off ID            turn a plugin on or off
   streamgremlin packages set ID KEY=VALUE...  change a plugin's settings (it starts again, fresh)
   streamgremlin packages activity ID [-json]  what a plugin has asked StreamGremlin to do
-  streamgremlin packages rollback ID [-yes]   back to the version before the installed one
+  streamgremlin packages rollback ID [-yes] [-allow PERMISSIONS]
+                                              back to the version before the installed one; a
+                                              plugin's version that asks for more needs -allow
   streamgremlin packages remove ID [-yes]     remove one; overlays using a look go back to Classic,
                                               workflows using a plugin's steps are turned off
   streamgremlin packages history [-json]      installs, updates, roll backs, removals and refusals
@@ -57,6 +60,66 @@ type versionAnswer struct {
 		Overlay string   `json:"overlay"`
 		Reset   []string `json:"reset"`
 	} `json:"overlays"`
+	Workflows []string `json:"workflows"`
+	Reset     []string `json:"reset"`
+}
+
+// pluginMoved says what a plugin's new version turned off and reset, and
+// whether it's running.
+func (a versionAnswer) pluginMoved(w io.Writer) {
+	if len(a.Workflows) > 0 {
+		fmt.Fprintf(w, " These workflows used a step it doesn't have and are turned off (not deleted): %s.", strings.Join(a.Workflows, ", "))
+	}
+	if len(a.Reset) > 0 {
+		fmt.Fprintf(w, " Back to the default: %s.", strings.Join(a.Reset, ", "))
+	}
+	switch {
+	case a.Plugin.Error != "":
+		fmt.Fprintf(w, " It's off: %s.", a.Plugin.Error)
+	case a.Plugin.Enabled:
+		fmt.Fprintf(w, " It started again, fresh, as %s.", a.Version)
+	}
+	fmt.Fprintln(w)
+}
+
+// describeChange says what moving a plugin to another version does.
+func describeChange(w io.Writer, id string, ch *packages.PluginChange) {
+	if ch == nil {
+		return
+	}
+	if len(ch.NewPermissions) > 0 {
+		fmt.Fprintln(w, "It asks for more permissions:")
+		for _, x := range ch.NewPermissions {
+			fmt.Fprintf(w, "  %s  %s\n", x.Name, x.What)
+		}
+	}
+	if len(ch.RemovedSteps) > 0 {
+		var steps []string
+		for _, a := range ch.RemovedSteps {
+			steps = append(steps, fmt.Sprintf("%s (%s.%s)", a.Label, id, a.Name))
+		}
+		fmt.Fprintf(w, "Steps it doesn't have: %s.", strings.Join(steps, ", "))
+		if len(ch.Workflows) > 0 {
+			fmt.Fprintf(w, " These workflows use them and are turned off (not deleted): %s.", strings.Join(ch.Workflows, ", "))
+		}
+		fmt.Fprintln(w)
+	}
+	if len(ch.Reset) > 0 {
+		fmt.Fprintf(w, "Settings that go back to their default: %s.\n", strings.Join(ch.Reset, ", "))
+	}
+	fmt.Fprintln(w, "If it's on, it starts again, fresh: its memory starts over.")
+}
+
+// newPermissions are the names of those a plugin's other version asks for
+// that aren't approved now.
+func newPermissions(ch *packages.PluginChange) []string {
+	var out []string
+	if ch != nil {
+		for _, x := range ch.NewPermissions {
+			out = append(out, x.Name)
+		}
+	}
+	return out
 }
 
 // moved says which overlays moved to a new version, and what they had reset.
@@ -141,8 +204,12 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 				if len(p.Workflows) > 0 {
 					used = "used by " + strings.Join(p.Workflows, ", ")
 				}
-				fmt.Fprintf(stdout, "%s  %s %s, Lua plugin, published by %s (not verified); %s; permissions: %s; %s\n", p.ID, p.Name, p.Version,
-					p.Publisher, state, orNone(perms), used)
+				kept := ""
+				if p.RollbackTo != "" {
+					kept = "; can roll back to " + p.RollbackTo
+				}
+				fmt.Fprintf(stdout, "%s  %s %s, Lua plugin, published by %s (not verified); %s; permissions: %s; %s%s\n", p.ID, p.Name, p.Version,
+					p.Publisher, state, orNone(perms), used, kept)
 				continue
 			}
 			used := "not used yet"
@@ -185,8 +252,11 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if pv.Older {
 				what = "An older version"
 			}
-			fmt.Fprintf(stdout, "%s: %s is installed, and is kept so you can roll back to it. Overlays using it switch together.\n",
-				what, pv.Installed.Version)
+			together := "Overlays using it switch together."
+			if pv.Plugin != nil {
+				together = "Its settings are kept where this version still takes them."
+			}
+			fmt.Fprintf(stdout, "%s: %s is installed, and is kept so you can roll back to it. %s\n", what, pv.Installed.Version, together)
 		}
 		if pv.PublisherChange && pv.Installed != nil {
 			fmt.Fprintf(stdout, "Another publisher: the installed one says %s, this one says %s. Neither is verified: someone else may have used the same id.\n",
@@ -216,12 +286,15 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			if len(pv.Plugin.Permissions) == 0 {
 				fmt.Fprintln(stdout, "It asks for no permissions.")
+			} else if pv.PluginUpdate != nil && len(pv.PluginUpdate.NewPermissions) == 0 {
+				fmt.Fprintf(stdout, "It asks for the permissions you allowed already: %s.\n", strings.Join(pv.Plugin.PermissionNames(), ", "))
 			} else {
 				fmt.Fprintln(stdout, "It asks for these permissions:")
 				for _, x := range pv.Plugin.Permissions {
 					fmt.Fprintf(stdout, "  %s  %s\n", x.Name, x.What)
 				}
 			}
+			describeChange(stdout, pv.ID, pv.PluginUpdate)
 		} else {
 			fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
 				"StreamGremlin's settings. It's told the result StreamGremlin drew, but what it draws is up to whoever made it: the real result is "+
@@ -238,11 +311,12 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			confirm = fmt.Sprintf(" -publisher %q", pv.Publisher)
 		}
 		var asked []string
+		mustAllow := false
 		if pv.Plugin != nil {
-			for _, x := range pv.Plugin.Permissions {
-				asked = append(asked, x.Name)
-			}
-			if len(asked) > 0 {
+			asked = pv.Plugin.PermissionNames()
+			// An update asks only when it asks for more.
+			mustAllow = len(asked) > 0 && (pv.PluginUpdate == nil || len(pv.PluginUpdate.NewPermissions) > 0)
+			if mustAllow {
 				confirm += " -allow " + strings.Join(asked, ",")
 			}
 		}
@@ -254,7 +328,7 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "To replace %s's add-on, confirm the new publisher by name: -publisher %q\n", pv.Installed.Publisher, pv.Publisher)
 			return 1
 		}
-		if pv.Plugin != nil && *allow != strings.Join(asked, ",") {
+		if mustAllow && *allow != strings.Join(asked, ",") {
 			fmt.Fprintf(stderr, "%s asks for %s: approve each with -allow %s\n", pv.Name, orNone(asked), strings.Join(asked, ","))
 			return 1
 		}
@@ -271,7 +345,11 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		}
 		if a.From != "" {
 			fmt.Fprintf(stdout, "Updated %s from %s to %s.", a.Name, a.From, a.Version)
-			a.moved(stdout)
+			if a.Plugin != nil {
+				a.pluginMoved(stdout)
+			} else {
+				a.moved(stdout)
+			}
 			return 0
 		}
 		if a.Plugin != nil {
@@ -373,20 +451,45 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		case found.RollbackTo == "":
 			fmt.Fprintf(stderr, "There's no version of %s before %s to roll back to\n", found.Name, found.Version)
 			return 1
-		case !*yes:
+		}
+		var rb *packages.PluginChange
+		if found.Plugin != nil {
+			rb = found.Plugin.Rollback
+		}
+		more := newPermissions(rb)
+		if !*yes {
 			fmt.Fprintf(stdout, "Rolling %s back from %s to %s keeps %s, so you can update to it again.", found.Name, found.Version, found.RollbackTo, found.Version)
 			if len(found.UsedBy) > 0 {
 				fmt.Fprintf(stdout, " These overlays switch back with it: %s.", strings.Join(found.UsedBy, ", "))
 			}
-			fmt.Fprintln(stdout, "\nRun again with -yes to roll back.")
+			fmt.Fprintln(stdout)
+			describeChange(stdout, found.ID, rb)
+			confirm := ""
+			if len(more) > 0 {
+				confirm = " -allow " + strings.Join(rb.Permissions, ",")
+			}
+			fmt.Fprintf(stdout, "Run again with -yes%s to roll back.\n", confirm)
 			return 0
 		}
+		path := "/v1/packages/" + url.PathEscape(pos[0]) + "/rollback"
+		if len(more) > 0 {
+			want := strings.Join(rb.Permissions, ",")
+			if *allow != want {
+				fmt.Fprintf(stderr, "%s %s asks for more: %s. Approve each with -allow %s\n", found.Name, found.RollbackTo, strings.Join(more, ", "), want)
+				return 1
+			}
+			path += "?" + url.Values{"permissions": {*allow}}.Encode()
+		}
 		var a versionAnswer
-		if code := apiExit(c.Do(ctx, "POST", "/v1/packages/"+url.PathEscape(pos[0])+"/rollback", nil, &a), stderr); code != 0 {
+		if code := apiExit(c.Do(ctx, "POST", path, nil, &a), stderr); code != 0 {
 			return code
 		}
 		fmt.Fprintf(stdout, "Rolled %s back from %s to %s.", a.Name, a.From, a.Version)
-		a.moved(stdout)
+		if a.Plugin != nil {
+			a.pluginMoved(stdout)
+		} else {
+			a.moved(stdout)
+		}
 		return 0
 	case sub == "remove" && len(pos) == 1:
 		var out struct {

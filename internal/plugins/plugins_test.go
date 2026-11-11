@@ -53,11 +53,22 @@ func (f *fakeChat) texts() []string {
 
 type fakeWorkflows struct {
 	list []workflow.Summary
+	// uses, when set, is each workflow's step, by its id.
+	uses map[string]string
 	off  []string
 }
 
 func (f *fakeWorkflows) UsingActions(_ context.Context, prefix string) ([]workflow.Summary, error) {
-	return f.list, nil
+	if f.uses == nil {
+		return f.list, nil
+	}
+	out := []workflow.Summary{}
+	for _, w := range f.list {
+		if a := f.uses[w.ID]; a == prefix || strings.HasSuffix(prefix, ".") && strings.HasPrefix(a, prefix) {
+			out = append(out, w)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeWorkflows) SetEnabled(_ context.Context, id string, on bool) error {
@@ -131,7 +142,7 @@ func (r *rig) install(t *testing.T, data []byte, perms ...string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := r.store.InstallWith(context.Background(), data, packages.Approval{Digest: pv.Digest, Permissions: perms}, r.now); err != nil {
+	if _, err := r.store.InstallWith(context.Background(), data, packages.Approval{Digest: pv.Digest, Permissions: perms}, r.now); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.m.Installed(context.Background(), pv.ID); err != nil {
@@ -178,7 +189,7 @@ func TestTheExamplePlugin(t *testing.T) {
 		t.Fatalf("preview: %+v", pv.Plugin)
 	}
 	for _, perms := range [][]string{nil, {"chat.send", "chat.send"}, {"chat.send", "points.give"}} {
-		if _, _, _, err := r.store.InstallWith(ctx, data, packages.Approval{Digest: pv.Digest, Permissions: perms}, r.now); !errors.Is(err, packages.ErrConfirmPermissions) {
+		if _, err := r.store.InstallWith(ctx, data, packages.Approval{Digest: pv.Digest, Permissions: perms}, r.now); !errors.Is(err, packages.ErrConfirmPermissions) {
 			t.Errorf("%v: %v", perms, err)
 		}
 	}
@@ -459,5 +470,97 @@ func TestEmptyNumberIsTheDefault(t *testing.T) {
 	out, err := r.step(t, "dice-tray.roll", map[string]any{"dice": " "})
 	if err != nil || len(out.(map[string]any)["each"].([]any)) != 1 {
 		t.Fatalf("%v %v", out, err)
+	}
+}
+
+// Updating and rolling back (D-072): workflows using a step the new
+// version drops are turned off; a plugin that's on is loaded again, fresh,
+// as the new version.
+func TestUpdatingAPlugin(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.install(t, zipFolder(t, example, nil), "chat.send")
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.step(t, "dice-tray.roll", nil); err != nil {
+		t.Fatal(err)
+	}
+	// 1.2.0 drops "Roll dice", keeping "Roll dice and say it".
+	v2 := zipFolder(t, example, func(name string, b []byte) []byte {
+		switch name {
+		case "streamgremlin.json":
+			s := strings.Replace(string(b), `"version": "1.1.0"`, `"version": "1.2.0"`, 1)
+			i := strings.Index(s, `{
+        "name": "roll",`)
+			j := strings.Index(s, `{
+        "name": "roll_and_say",`)
+			return []byte(s[:i] + s[j:])
+		case "plugin.lua":
+			return bytes.Replace(b, []byte(`sg.action("roll", function`), []byte(`local _ = (function`), 1)
+		}
+		return b
+	})
+	pv, _, err := r.store.Check(ctx, v2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch := pv.PluginUpdate; ch == nil || len(ch.RemovedSteps) != 1 || ch.RemovedSteps[0].Name != "roll" || len(ch.NewPermissions) != 0 {
+		t.Fatalf("preview: %+v", pv.PluginUpdate)
+	}
+	if _, err := r.store.InstallWith(ctx, v2, packages.Approval{Digest: pv.Digest}, r.now); err != nil {
+		t.Fatal(err)
+	}
+	wf := &fakeWorkflows{
+		list: []workflow.Summary{{ID: "chat.roll", Name: "Roll", Enabled: true}, {ID: "chat.say", Name: "Say", Enabled: true}},
+		uses: map[string]string{"chat.roll": "dice-tray.roll", "chat.say": "dice-tray.roll_and_say"},
+	}
+	off, err := r.m.Switched(ctx, "dice-tray", wf)
+	if err != nil || strings.Join(off, ",") != "Roll" || strings.Join(wf.off, ",") != "chat.roll" {
+		t.Fatalf("switched: %v %v %v", off, wf.off, err)
+	}
+	if _, ok := r.reg.Get("dice-tray.roll"); ok {
+		t.Error("the dropped step is still there")
+	}
+	// Loaded again as 1.2.0: the session starts over.
+	out, err := r.step(t, "dice-tray.best", nil)
+	if err != nil || out.(map[string]any)["rolls"] != int64(0) {
+		t.Fatalf("after the update: %v %v", out, err)
+	}
+	if list, _ := r.store.ActivityOf(ctx, "dice-tray", 1); len(list) == 0 || list[0].Version != "1.2.0" {
+		t.Errorf("activity: %+v", list)
+	}
+
+	// Roll back: "Roll dice" is back, nothing is turned off.
+	if _, err := r.store.RollbackWith(ctx, "dice-tray", nil, r.now); err != nil {
+		t.Fatal(err)
+	}
+	wf.off = nil
+	if off, err := r.m.Switched(ctx, "dice-tray", wf); err != nil || len(off) != 0 || len(wf.off) != 0 {
+		t.Fatalf("rolled back: %v %v %v", off, wf.off, err)
+	}
+	if _, err := r.step(t, "dice-tray.roll", nil); err != nil {
+		t.Fatalf("rolled back: %v", err)
+	}
+
+	// A version that won't load is left off, saying why.
+	broken := zipFolder(t, example, func(name string, b []byte) []byte {
+		switch name {
+		case "streamgremlin.json":
+			return bytes.Replace(b, []byte(`"version": "1.1.0"`), []byte(`"version": "1.3.0"`), 1)
+		case "plugin.lua":
+			return append(b, []byte("\nlocal x = = 1\n")...)
+		}
+		return b
+	})
+	pv, _, _ = r.store.Check(ctx, broken)
+	if _, err := r.store.InstallWith(ctx, broken, packages.Approval{Digest: pv.Digest}, r.now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.m.Switched(ctx, "dice-tray", wf); !errors.Is(err, ErrLoad) {
+		t.Fatalf("broken: %v", err)
+	}
+	if p, _ := r.store.Get(ctx, "dice-tray"); p.Plugin.Enabled || !strings.Contains(p.Plugin.Error, "line") {
+		t.Errorf("broken: %+v", p.Plugin)
 	}
 }

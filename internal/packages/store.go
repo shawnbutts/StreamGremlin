@@ -70,6 +70,17 @@ type PluginInfo struct {
 	Script  string         `json:"script"`
 	// Templates it adds to the gallery, in its own section (D-071).
 	Templates []TemplateInfo `json:"templates"`
+	// Rollback is what rolling back to RollbackTo would do (D-072).
+	Rollback *PluginChange `json:"rollback,omitempty"`
+}
+
+// PermissionNames are the names of the permissions it asks for.
+func (i *PluginInfo) PermissionNames() []string {
+	out := []string{}
+	for _, p := range i.Permissions {
+		out = append(out, p.Name)
+	}
+	return out
 }
 
 // TemplateInfo names one of a plugin's templates.
@@ -103,6 +114,9 @@ type Preview struct {
 	// PublisherChange: the installed one says another publisher. Installing
 	// needs the new publisher confirmed by name.
 	PublisherChange bool `json:"publisher_change"`
+	// PluginUpdate is what updating an installed plugin to this version
+	// does (D-072).
+	PluginUpdate *PluginChange `json:"plugin_update,omitempty"`
 }
 
 func describe(r *Read, now time.Time) Package {
@@ -178,13 +192,19 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 		case stored != "" && stored != r.Digest:
 			return pv, r, fmt.Errorf("%w: %s %s is installed or kept, and this is a different package with the same version: ask its publisher for a new version",
 				ErrConflict, cur.Name, r.Manifest.Version)
-		case r.Manifest.Kind == KindLua:
-			return pv, r, fmt.Errorf("%w: %s %s is installed: remove it first to install %s (updating plugins comes in a later version)",
-				ErrConflict, cur.Name, cur.Version, r.Manifest.Version)
 		default:
 			pv.Update = true
 			pv.Older = CompareVersions(r.Manifest.Version, cur.Version) < 0
 			pv.PublisherChange = cur.Publisher != r.Manifest.Publisher
+			if r.Manifest.Lua != nil {
+				from, err := s.manifest(ctx, cur.ID, cur.Version)
+				if err != nil {
+					return Preview{}, nil, err
+				}
+				if pv.PluginUpdate, err = s.pluginChange(ctx, cur.ID, from, r.Manifest); err != nil {
+					return Preview{}, nil, err
+				}
+			}
 		}
 	}
 	return pv, r, nil
@@ -198,7 +218,8 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 // exactly what's installed changes nothing (false). from is the version
 // an update replaced.
 func (s *Store) Install(ctx context.Context, data []byte, digest, publisher string, now time.Time) (p Package, from string, changed bool, err error) {
-	return s.InstallWith(ctx, data, Approval{Digest: digest, Publisher: publisher}, now)
+	in, err := s.InstallWith(ctx, data, Approval{Digest: digest, Publisher: publisher}, now)
+	return in.Package, in.From, in.Changed, err
 }
 
 // Approval is what the streamer confirmed when installing: the digest they
@@ -211,34 +232,43 @@ type Approval struct {
 }
 
 // InstallWith is Install with a plugin's permissions: exactly those it asks
-// for must be approved, or nothing is installed (ErrConfirmPermissions).
-func (s *Store) InstallWith(ctx context.Context, data []byte, a Approval, now time.Time) (p Package, from string, changed bool, err error) {
-	digest, publisher := a.Digest, a.Publisher
+// for must be approved, or nothing is installed (ErrConfirmPermissions). An
+// update asks only when the new version asks for one that isn't approved
+// now (D-072).
+func (s *Store) InstallWith(ctx context.Context, data []byte, a Approval, now time.Time) (Installed, error) {
 	pv, r, err := s.Check(ctx, data)
 	if err != nil {
 		if r != nil {
 			s.audit(ctx, r.Manifest.ID, r.Manifest.Version, "refuse", err.Error(), now)
 		}
-		return Package{}, "", false, err
+		return Installed{}, err
 	}
-	if digest != r.Digest {
-		return Package{}, "", false, fmt.Errorf("%w: this isn't the package that was checked: check it again", ErrInvalid)
+	if a.Digest != r.Digest {
+		return Installed{}, fmt.Errorf("%w: this isn't the package that was checked: check it again", ErrInvalid)
 	}
 	if pv.Same {
-		return *pv.Installed, "", false, nil
+		return Installed{Package: *pv.Installed}, nil
 	}
-	if r.Manifest.Lua != nil && !samePermissions(r.Manifest.Lua.Permissions, a.Permissions) {
-		return Package{}, "", false, fmt.Errorf("%w: %s asks for %s: approve exactly those to install it", ErrConfirmPermissions, r.Manifest.Name,
-			permissionList(r.Manifest.Lua.Permissions))
+	if m := r.Manifest; m.Lua != nil {
+		if pv.PluginUpdate != nil {
+			if err := needsApproval(m.Name, "update it", m, pv.PluginUpdate, a.Permissions); err != nil {
+				return Installed{}, err
+			}
+		} else if !samePermissions(m.Lua.Permissions, a.Permissions) {
+			return Installed{}, fmt.Errorf("%w: %s asks for %s: approve exactly those to install it", ErrConfirmPermissions, m.Name,
+				permissionList(m.Lua.Permissions))
+		}
 	}
-	if pv.PublisherChange && publisher != r.Manifest.Publisher {
-		return Package{}, "", false, fmt.Errorf("%w: %s is installed from %s (not verified), and this says %s (not verified): confirm the new publisher by name to replace it",
+	if pv.PublisherChange && a.Publisher != r.Manifest.Publisher {
+		return Installed{}, fmt.Errorf("%w: %s is installed from %s (not verified), and this says %s (not verified): confirm the new publisher by name to replace it",
 			ErrConfirm, pv.Installed.Name, pv.Installed.Publisher, r.Manifest.Publisher)
 	}
 	ts := storage.Timestamp(now)
+	var reset []string
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
 		if pv.Update {
-			return update(ctx, tx, pv, r, ts)
+			reset, err = s.update(ctx, tx, pv, r, ts)
+			return err
 		}
 		var n int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM packages").Scan(&n); err != nil {
@@ -270,15 +300,16 @@ func (s *Store) InstallWith(ctx context.Context, data []byte, a Approval, now ti
 	})
 	if err != nil {
 		if !errors.Is(err, ErrFull) && !errors.Is(err, ErrConflict) {
-			return Package{}, "", false, fmt.Errorf("packages: install: %w", err)
+			return Installed{}, fmt.Errorf("packages: install: %w", err)
 		}
-		return Package{}, "", false, err
+		return Installed{}, err
 	}
+	in := Installed{Changed: true, Reset: reset}
 	if pv.Update {
-		from = pv.Installed.Version
+		in.From = pv.Installed.Version
 	}
-	p, err = s.Get(ctx, r.Manifest.ID)
-	return p, from, true, err
+	in.Package, err = s.Get(ctx, r.Manifest.ID)
+	return in, err
 }
 
 // storeVersion stores a version and its files.
@@ -333,10 +364,10 @@ func (s *Store) Get(ctx context.Context, id string) (Package, error) {
 	if err != nil {
 		return p, err
 	}
-	if err := s.fillPlugin(ctx, &p); err != nil {
+	if err := s.fillKept(ctx, &p); err != nil {
 		return p, err
 	}
-	return p, s.fillKept(ctx, &p)
+	return p, s.fillPlugin(ctx, &p)
 }
 
 // List returns every installed package, by name.

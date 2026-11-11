@@ -1449,6 +1449,22 @@ export interface PluginInfo {
   script: string;
   /** Templates it adds to the gallery, in its own section. */
   templates: { id: string; title: string }[];
+  /** What rolling back to rollback_to would do. */
+  rollback?: PluginChange;
+}
+
+/** What moving a plugin to another version does (D-072). */
+export interface PluginChange {
+  /** Permissions it asks for that aren't approved now. */
+  new_permissions: { name: string; what: string }[];
+  /** Every permission that version asks for. */
+  permissions: string[];
+  /** Steps the installed version has and that one doesn't. */
+  removed_steps: PluginAction[];
+  /** Settings, by label, that go back to their default. */
+  reset: string[];
+  /** Workflows using the removed steps: turned off, not deleted. */
+  workflows: string[];
 }
 
 /** One thing a plugin asked StreamGremlin to do. */
@@ -1481,6 +1497,8 @@ export interface PackagePreview extends Package {
   older: boolean;
   /** The installed one says another publisher: installing needs this one's publisher typed. */
   publisher_change: boolean;
+  /** For a plugin's update: what updating to this version does. */
+  plugin_update?: PluginChange;
 }
 
 /** What an install, update or roll back did. */
@@ -1489,6 +1507,9 @@ export interface VersionAnswer extends Package {
   from?: string;
   /** The overlays using it, and the settings each had reset to the new version's defaults. */
   overlays: { overlay: string; reset: string[] }[];
+  /** A plugin's: workflows turned off (they used a step it doesn't have), and settings back to their default. */
+  workflows?: string[];
+  reset?: string[];
 }
 
 export interface PackageAuditEntry {
@@ -1553,9 +1574,11 @@ export const setPackageSettings = (id: string, settings: Record<string, unknown>
 /** What a plugin has asked StreamGremlin to do, newest first. */
 export const getPackageActivity = (id: string) =>
   api<{ activity: PluginActivity[] }>('GET', `/v1/packages/${encodeURIComponent(id)}/activity`);
-/** Back to the version before (rollback_to). */
-export const rollbackPackage = (id: string) =>
-  api<VersionAnswer>('POST', `/v1/packages/${encodeURIComponent(id)}/rollback`);
+/** Back to the version before (rollback_to); a plugin's that asks for more needs every permission it asks for. */
+export const rollbackPackage = (id: string, permissions: string[] = []) => {
+  const q = permissions.length ? `?permissions=${encodeURIComponent(permissions.join(','))}` : '';
+  return api<VersionAnswer>('POST', `/v1/packages/${encodeURIComponent(id)}/rollback` + q);
+};
 export const removePackage = (id: string) =>
   api<{ package: Package; overlays: string[]; workflows?: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
 export const getPackageAudit = () => api<{ audit: PackageAuditEntry[] }>('GET', '/v1/packages/audit');

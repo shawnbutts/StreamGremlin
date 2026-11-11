@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-11
+
+> **Amended by D-072 (2026-11-11), slice 5b:** plugins are updated and rolled back as looks are (ADR-0036, D-068). An update or roll back asks only when that version asks for a permission not approved now, and then for every one it asks for (`?permissions=` on `POST /v1/packages` and `POST /v1/packages/{id}/rollback`, 409 `confirm_permissions`). The check's `plugin_update`, and a plugin's `rollback`, name the new permissions, the steps that version doesn't have, the workflows using them (turned off when it's installed) and the settings that go back to their default. A plugin that's on is loaded again, fresh, as that version. Its events and timers move to slice 5c.
 - **Based on:** [ADR-0036](0036-packages-plugins-and-themes.md) (what a package and a plugin own: install, settings, removal, the Add-ons screen); [ADR-0037](0037-lua-scripts.md) (the Lua sandbox and worker); StreamWisp's ADR-0041 (out-of-process plugins) and ADR-0067 (plugins in Lua), D-106, D-107 and D-111.
 
 ## Context
@@ -14,10 +16,11 @@ ADR-0036 decided what a plugin owns and left its script, permissions, actions an
 
 - **5a:** the manifest's `lua` section; installing with each permission approved; on and off; settings; the plugin's steps; `chat.send`; the call log; removing (its workflows turned off); the Add-ons screen and the CLI; an example plugin.
 - **Templates** (D-071), between the two: a plugin's `templates/` in the gallery, in the add-on's own section.
-- **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps); `events.publish` and its events as triggers; timers (`sg.after`).
+- **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps). Built: D-072.
+- **5c:** `events.publish` and its events as triggers; timers (`sg.after`).
 - Slice 6 adds points (ADR-0036).
 
-Until 5b, installing another version of an installed plugin is refused, saying to remove it first (as themes were in 3a).
+Until 5b, installing another version of an installed plugin was refused, saying to remove it first (as themes were in 3a).
 
 ### The manifest
 

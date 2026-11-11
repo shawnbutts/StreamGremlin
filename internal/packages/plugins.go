@@ -47,7 +47,20 @@ func (s *Store) fillPlugin(ctx context.Context, p *Package) error {
 		return err
 	}
 	p.Plugin.Templates = templateInfo(ts)
-	return nil
+	p.Plugin.Rollback = nil
+	if p.RollbackTo == "" {
+		return nil
+	}
+	from, err := s.manifest(ctx, p.ID, p.Version)
+	if err != nil {
+		return err
+	}
+	to, err := s.manifest(ctx, p.ID, p.RollbackTo)
+	if err != nil {
+		return err
+	}
+	p.Plugin.Rollback, err = s.pluginChange(ctx, p.ID, from, to)
+	return err
 }
 
 // templatesOf reads an installed version's templates, as they were checked.

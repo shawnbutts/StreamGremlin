@@ -160,7 +160,7 @@ func (s *Store) fillKept(ctx context.Context, p *Package) error {
 // update makes r the installed version of an installed id: stored if it
 // isn't already (a version kept from before has the same files), current,
 // with its publisher; then the versions beyond what's kept are deleted.
-func update(ctx context.Context, tx *sql.Tx, pv Preview, r *Read, ts string) error {
+func (s *Store) update(ctx context.Context, tx *sql.Tx, pv Preview, r *Read, ts string) ([]string, error) {
 	cur := pv.Installed
 	var stored string
 	err := tx.QueryRowContext(ctx, "SELECT digest FROM package_versions WHERE package_id = ? AND version = ?", r.Manifest.ID, r.Manifest.Version).
@@ -168,27 +168,49 @@ func update(ctx context.Context, tx *sql.Tx, pv Preview, r *Read, ts string) err
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 	case err != nil:
-		return err
+		return nil, err
 	case stored != r.Digest:
-		return fmt.Errorf("%w: %s %s was kept with other files just now", ErrConflict, r.Manifest.ID, r.Manifest.Version)
+		return nil, fmt.Errorf("%w: %s %s was kept with other files just now", ErrConflict, r.Manifest.ID, r.Manifest.Version)
 	}
 	if stored == "" {
 		if err := storeVersion(ctx, tx, r, ts); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if err := setCurrent(ctx, tx, r.Manifest.ID, cur.Version, r.Manifest.Version, r.Manifest.Publisher, ts); err != nil {
-		return err
+		return nil, err
 	}
 	detail := fmt.Sprintf("%s %s to %s, published by %s (not verified), digest %s", r.Manifest.Name, cur.Version, r.Manifest.Version,
 		r.Manifest.Publisher, r.Digest)
 	if pv.PublisherChange {
 		detail += fmt.Sprintf("; the publisher changed from %s, confirmed by name", cur.Publisher)
 	}
-	if err := auditTx(ctx, tx, r.Manifest.ID, r.Manifest.Version, "update", detail, ts); err != nil {
-		return err
+	var reset []string
+	if pv.PluginUpdate != nil {
+		from, err := manifestTx(ctx, tx, r.Manifest.ID, cur.Version)
+		if err != nil {
+			return nil, err
+		}
+		var note string
+		if reset, note, err = switchPlugin(ctx, tx, r.Manifest.ID, from, r.Manifest, pv.PluginUpdate); err != nil {
+			return nil, err
+		}
+		detail += note
 	}
-	return prune(ctx, tx, r.Manifest.ID, r.Manifest.Version)
+	if err := auditTx(ctx, tx, r.Manifest.ID, r.Manifest.Version, "update", detail, ts); err != nil {
+		return nil, err
+	}
+	return reset, prune(ctx, tx, r.Manifest.ID, r.Manifest.Version)
+}
+
+func manifestTx(ctx context.Context, tx *sql.Tx, id, version string) (Manifest, error) {
+	var raw string
+	if err := tx.QueryRowContext(ctx, "SELECT manifest FROM package_versions WHERE package_id = ? AND version = ?", id, version).Scan(&raw); err != nil {
+		return Manifest{}, err
+	}
+	var m Manifest
+	err := json.Unmarshal([]byte(raw), &m)
+	return m, err
 }
 
 // setCurrent switches the current version, if it's still from: an update
@@ -233,35 +255,61 @@ func prune(ctx context.Context, tx *sql.Tx, id, current string) error {
 // current again, with that version's publisher. The version rolled back
 // from is kept. Returns the package as it is now and the version it was.
 func (s *Store) Rollback(ctx context.Context, id string, now time.Time) (Package, string, error) {
+	in, err := s.RollbackWith(ctx, id, nil, now)
+	return in.Package, in.From, err
+}
+
+// RollbackWith is Rollback with a plugin's permissions: a version that asks
+// for one not approved now needs exactly those it asks for approved
+// (ErrConfirmPermissions). Its settings are kept where they fit.
+func (s *Store) RollbackWith(ctx context.Context, id string, approve []string, now time.Time) (Installed, error) {
 	cur, err := s.Get(ctx, id)
 	if err != nil {
-		return Package{}, "", err
+		return Installed{}, err
 	}
 	if cur.RollbackTo == "" {
-		return Package{}, "", fmt.Errorf("%w: there's no version of %s before %s to roll back to", ErrConflict, cur.Name, cur.Version)
+		return Installed{}, fmt.Errorf("%w: there's no version of %s before %s to roll back to", ErrConflict, cur.Name, cur.Version)
 	}
 	to := cur.RollbackTo
-	ts := storage.Timestamp(now)
-	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		var raw string
-		if err := tx.QueryRowContext(ctx, "SELECT manifest FROM package_versions WHERE package_id = ? AND version = ?", id, to).Scan(&raw); err != nil {
-			return err
+	if cur.Plugin != nil {
+		m, err := s.manifest(ctx, id, to)
+		if err != nil {
+			return Installed{}, err
 		}
-		var m Manifest
-		if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		if err := needsApproval(cur.Name, "roll back to it", m, cur.Plugin.Rollback, approve); err != nil {
+			return Installed{}, err
+		}
+	}
+	ts := storage.Timestamp(now)
+	var reset []string
+	err = s.withTx(ctx, func(tx *sql.Tx) error {
+		m, err := manifestTx(ctx, tx, id, to)
+		if err != nil {
 			return err
 		}
 		if err := setCurrent(ctx, tx, id, cur.Version, to, m.Publisher, ts); err != nil {
 			return err
 		}
-		return auditTx(ctx, tx, id, to, "rollback", fmt.Sprintf("%s %s back to %s, published by %s (not verified)", m.Name, cur.Version, to, m.Publisher), ts)
+		detail := fmt.Sprintf("%s %s back to %s, published by %s (not verified)", m.Name, cur.Version, to, m.Publisher)
+		if cur.Plugin != nil {
+			from, err := manifestTx(ctx, tx, id, cur.Version)
+			if err != nil {
+				return err
+			}
+			var note string
+			if reset, note, err = switchPlugin(ctx, tx, id, from, m, cur.Plugin.Rollback); err != nil {
+				return err
+			}
+			detail += note
+		}
+		return auditTx(ctx, tx, id, to, "rollback", detail, ts)
 	})
 	if err != nil {
 		if errors.Is(err, ErrConflict) {
-			return Package{}, "", err
+			return Installed{}, err
 		}
-		return Package{}, "", fmt.Errorf("packages: roll back: %w", err)
+		return Installed{}, fmt.Errorf("packages: roll back: %w", err)
 	}
 	p, err := s.Get(ctx, id)
-	return p, cur.Version, err
+	return Installed{Package: p, From: cur.Version, Changed: true, Reset: reset}, err
 }
