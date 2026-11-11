@@ -53,7 +53,7 @@
     <dt>Workflows</dt>
     <dd>
       “When this happens, do that”: when a viewer types <code>!hello</code>, say hi back. Start from a template or build one in
-      plain words. New workflows start off; turn one on when it’s ready.
+      plain words. A new workflow starts on, unless another workflow already answers its command; its switch turns it off.
     </dd>
     <dt>Test</dt>
     <dd>Runs a workflow with a test event. Nothing reaches your chat or OBS, and saved variables don’t change; the run’s trace shows what it would have done.</dd>

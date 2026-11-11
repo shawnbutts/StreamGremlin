@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandEntry } from './api';
-import { describeTrigger, forWhom, overlaysIn, takenBy, testFields, whoPreset } from './workflows';
+import { describeTrigger, forWhom, onOffWords, overlaysIn, takenBy, testFields, whoPreset } from './workflows';
 
 const table: CommandEntry[] = [
   {
@@ -61,5 +61,14 @@ describe('overlaysIn', () => {
     };
     expect(overlaysIn(def)).toEqual(['alerts', 'corner']);
     expect(overlaysIn({ steps: [] })).toEqual([]);
+  });
+});
+
+describe('onOffWords', () => {
+  it('says whether a saved workflow is on, and why not', () => {
+    expect(onOffWords({ enabled: true })).toBe('It’s on.');
+    expect(onOffWords({ enabled: true, group: 'Fun', group_enabled: false })).toBe('It’s on, but its group “Fun” is off.');
+    expect(onOffWords({ enabled: false }, '!hello is already answered by “Hi”.')).toBe('It’s off: !hello is already answered by “Hi”.');
+    expect(onOffWords({ enabled: false })).toBe('It’s off until you turn it on.');
   });
 });

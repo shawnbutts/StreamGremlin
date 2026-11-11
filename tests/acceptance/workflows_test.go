@@ -57,11 +57,16 @@ func TestWorkflowsDriveTwitchAndOBS(t *testing.T) {
 		}
 		return out
 	}
-	if out := save("brb.json", brbWorkflow); !strings.Contains(out, "It's off") {
+	// New workflows start on (D-077); these are turned off to show an off
+	// one never runs.
+	if out := save("brb.json", brbWorkflow); !strings.Contains(out, "It's on") {
 		t.Fatal(out)
 	}
 	save("back.json", backWorkflow)
 	save("slow.json", slowWorkflow)
+	for _, id := range []string{"chat.brb", "chat.back", "chat.slow"} {
+		cli(t, dir, "workflows", "off", id)
+	}
 	if _, errOut, code := cli(t, dir, "workflows", "save", writeFile(t, files, "bad.json", strings.Replace(brbWorkflow, "obs.scene.snapshot_and_switch", "obs.teleport", 1))); code != 2 || !strings.Contains(errOut, `no action "obs.teleport"`) {
 		t.Fatalf("invalid: %d %s", code, errOut)
 	}

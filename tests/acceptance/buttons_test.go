@@ -39,9 +39,11 @@ func TestButtonsThroughTheCLI(t *testing.T) {
 		"steps":[{"action":"chat.send","with":{"message":"Back in a moment! (${event.payload.label})"}}]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if out, errOut, code := cli(t, dir, "workflows", "save", wf); code != 0 {
+	// A new workflow starts on (D-077); off, a press starts nothing.
+	if out, errOut, code := cli(t, dir, "workflows", "save", wf); code != 0 || !strings.Contains(out, "It's on") {
 		t.Fatal(out, errOut)
 	}
+	cli(t, dir, "workflows", "off", "live.brb")
 	if out, _, _ := cli(t, dir, "buttons", "press", "brb"); !strings.Contains(out, "No workflow that's on starts from it") {
 		t.Fatalf("off: %s", out)
 	}

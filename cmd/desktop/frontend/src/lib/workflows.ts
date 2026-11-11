@@ -121,3 +121,10 @@ export function overlaysIn(def: unknown): string[] {
   walk(def);
   return [...found];
 }
+
+/** Whether a saved workflow is on, in words: new ones start on (D-077). */
+export function onOffWords(w: { enabled: boolean; group?: string; group_enabled?: boolean }, offBecause?: string): string {
+  if (!w.enabled) return offBecause ? `It’s off: ${offBecause}` : 'It’s off until you turn it on.';
+  if (w.group && w.group_enabled === false) return `It’s on, but its group “${w.group}” is off.`;
+  return 'It’s on.';
+}

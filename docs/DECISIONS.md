@@ -1346,3 +1346,12 @@ Decided 2026-11-11, building M7 slice 1 after the user's "proceed". The design i
 - **The buttons go right or top,** saved with the appearance settings as `live_buttons`, right by default.
 - **Chatters' Twitch colours are a swatch,** never the colour of their name, for contrast. Badges are words.
 - **The send box sends as you by default** on the Live screen, or as the bot.
+
+## D-077. New workflows start on (amends ADR-0008)
+
+Decided 2026-11-11, after M7 slice 1's live check. The user: "live check looks good. on thing that this pointed out, when creating a workflow (manually or from an addon), it should be enabled."
+
+- **A new workflow starts on,** however it's made: the editor, a template (StreamGremlin's or an add-on's), the "Make a workflow" buttons on Timers and Live, or `streamgremlin workflows save`. ADR-0008 had new workflows start off.
+- **Unless its command is taken.** When a workflow that's on already answers a chat command the new one answers, the new one is saved off, so chat never gets two replies. The save says why (`off_because`), and the screens and CLI show it.
+- **Saving an existing workflow keeps its switch,** on or off, as before. A restored workflow still comes back off, and imports from Streamer.bot (Later) still start off.
+- **The screens say where it stands after saving:** "It's on.", "It's on, but its group … is off.", or "It's off: …".

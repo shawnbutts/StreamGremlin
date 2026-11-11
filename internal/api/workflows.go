@@ -87,7 +87,7 @@ func workflowRoutes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/workflows/{id}",
-			Summary:    "Save a definition (streamgremlin.workflow/v1). The same content keeps its version; a new workflow starts off. A change to a workflow that's on is refused (409 command_taken) when it newly overlaps a chat command another workflow that's on answers.",
+			Summary:    "Save a definition (streamgremlin.workflow/v1). The same content keeps its version. A new workflow starts on, or off when a chat command it answers is taken (off_because says why); a saved one keeps its switch. A change to a workflow that's on is refused (409 command_taken) when it newly overlaps a chat command another workflow that's on answers.",
 			Permission: PermWorkflowsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				raw, err := io.ReadAll(r.Body)
@@ -108,7 +108,14 @@ func workflowRoutes(d Deps) []Route {
 					workflowError(w, r, d, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, map[string]any{"workflow": s, "changed": changed})
+				out := map[string]any{"workflow": s, "changed": changed}
+				if changed && s.Version == 1 && !s.Enabled {
+					// New, and started off: say why.
+					if why := d.Workflows.Taken(r.Context(), s.ID); why != nil {
+						out["off_because"] = why.Error()
+					}
+				}
+				writeJSON(w, http.StatusOK, out)
 			},
 		},
 		{

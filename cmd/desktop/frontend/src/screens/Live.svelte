@@ -29,6 +29,7 @@
   import { CHAT_MESSAGE, buttonId, chatLine, pressWords, startsFrom, startsWords, starterWorkflow, type ChatLine } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
+  import { onOffWords } from '../lib/workflows';
 
   let {
     idleMs = 250,
@@ -298,9 +299,9 @@
     title="A workflow for a button"
     taken={workflows.map((w) => w.id)}
     {workflows}
-    onsaved={(w) => {
+    onsaved={(w, _changed, offBecause) => {
       starting = undefined;
-      notice = `Saved “${w.name}”. It’s off until you turn it on, on the Workflows screen.`;
+      notice = `Saved “${w.name}”. ${onOffWords(w, offBecause)}`;
       loadButtons();
     }}
     oncancel={() => (starting = undefined)}

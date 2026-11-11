@@ -25,9 +25,18 @@ func TestWorkflowsThroughTheAPI(t *testing.T) {
 		t.Fatalf("mismatched id: %d", w.Code)
 	}
 	w = do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello", token: testToken, body: helloWorkflow})
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `"changed":true`) || !strings.Contains(w.Body.String(), `"enabled":false`) {
+	// New workflows start on (D-077).
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"changed":true`) || !strings.Contains(w.Body.String(), `"enabled":true`) ||
+		strings.Contains(w.Body.String(), "off_because") {
 		t.Fatalf("save: %d %s", w.Code, w.Body)
 	}
+	// Another answer to !hello starts off, saying why.
+	if w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello2", token: testToken,
+		body: strings.Replace(helloWorkflow, `"chat.hello"`, `"chat.hello2"`, 1)}); w.Code != 200 || !strings.Contains(w.Body.String(), `"enabled":false`) ||
+		!strings.Contains(w.Body.String(), `"off_because":"!hello is already answered by`) {
+		t.Fatalf("taken: %d %s", w.Code, w.Body)
+	}
+	do(t, s, req{method: "DELETE", path: "/v1/workflows/chat.hello2", token: testToken})
 	if w := do(t, s, req{method: "PUT", path: "/v1/workflows/chat.hello", token: testToken, body: helloWorkflow}); !strings.Contains(w.Body.String(), `"changed":false`) {
 		t.Fatalf("resave: %s", w.Body)
 	}

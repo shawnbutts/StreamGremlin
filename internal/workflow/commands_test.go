@@ -151,3 +151,50 @@ func TestStatsForHome(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 }
+
+// New workflows start on (D-077), unless a command they answer is taken:
+// then they start off, and Taken says why. Saving an existing workflow
+// never changes its switch.
+func TestNewWorkflowsStartOn(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	s, changed, err := r.eng.Save(ctx, cmdDef("hi.one", "hi", ""))
+	if err != nil || !changed || !s.Enabled || !s.Running {
+		t.Fatalf("new: %+v %v", s, err)
+	}
+	if err := r.eng.Taken(ctx, "hi.one"); err != nil {
+		t.Fatal(err)
+	}
+	// The same command again: saved, but off, saying who answers it.
+	s, _, err = r.eng.Save(ctx, cmdDef("hi.two", "hi", ""))
+	if err != nil || s.Enabled {
+		t.Fatalf("taken: %+v %v", s, err)
+	}
+	var taken *commands.TakenError
+	if err := r.eng.Taken(ctx, "hi.two"); !errors.As(err, &taken) || taken.Conflicts[0].Owner != "hi.one" {
+		t.Fatalf("why: %v", err)
+	}
+	// Turned off by hand, a change keeps it off; turned on, a change keeps it on.
+	if err := r.eng.SetEnabled(ctx, "hi.one", false); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ = r.eng.Save(ctx, cmdDef("hi.one", "hello", "")); s.Enabled {
+		t.Fatal("a change turned it on")
+	}
+	if s, _, _ = r.eng.Save(ctx, cmdDef("other", "other", "")); !s.Enabled {
+		t.Fatal("not on")
+	}
+	if s, _, _ = r.eng.Save(ctx, cmdDef("other", "other2", "")); !s.Enabled {
+		t.Fatal("a change turned it off")
+	}
+	// A deleted workflow comes back off, as before.
+	if err := r.eng.Delete(ctx, "other"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.eng.Restore(ctx, "other"); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := r.eng.Get(ctx, "other"); s.Enabled {
+		t.Fatalf("restored on: %+v", s)
+	}
+}

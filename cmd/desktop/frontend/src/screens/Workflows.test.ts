@@ -170,7 +170,8 @@ function engine(initial: { wfs?: WorkflowSummary[]; defs?: Record<string, unknow
     }
     defs[id] = d;
     const prev = wfs.find((w) => w.id === id);
-    const w: WorkflowSummary = { id: d.id, name: d.name, enabled: prev?.enabled ?? false, version: (prev?.version ?? 0) + 1, updated_at: now(), triggers: d.triggers };
+    // New workflows start on (D-077).
+    const w: WorkflowSummary = { id: d.id, name: d.name, enabled: prev?.enabled ?? true, version: (prev?.version ?? 0) + 1, updated_at: now(), triggers: d.triggers };
     if (prev) wfs.splice(wfs.indexOf(prev), 1, w);
     else wfs.push(w);
     return { status: 200, body: { workflow: w, changed: true } };
@@ -486,7 +487,7 @@ describe('Workflows', () => {
     expect(target.textContent).toContain("didn't connect in time");
   });
 
-  it('builds a workflow in plain words, then turns it on, tests it and shows the trace', async () => {
+  it('builds a workflow in plain words, which starts on, tests it and shows the trace', async () => {
     const e = engine();
     const el = start();
     await settle(40);
@@ -538,13 +539,10 @@ describe('Workflows', () => {
       triggers: [{ type: 'chat.command.received', where: { command: 'hello', 'chatter.role': ['moderator', 'broadcaster'] } }],
       steps: [{ action: 'chat.send', with: { message: 'Hi ${event.actor.display_name}!' } }],
     });
-    expect(el.textContent).toContain('It’s off until you turn it on.');
+    // New workflows start on (D-077), ready to test.
+    expect(el.textContent).toContain('Saved “Say hello back” as version 1. It’s on.');
     expect(el.textContent).toContain('When: Chat command !hello (mods and you)');
-    expect(button(el, 'Test')!.disabled).toBe(true);
-    expect(el.textContent).toContain('Turn it on to test it.');
-
-    el.querySelector<HTMLInputElement>('input[role="switch"]')!.click();
-    await settle(60);
+    expect(button(el, 'Test')!.disabled).toBe(false);
     button(el, 'Test')!.click();
     await settle(60);
     const sim = e.calls.find((c) => c.path === '/v1/events/simulate')!.body as { type: string; fields: Record<string, string> };
@@ -586,7 +584,7 @@ describe('Workflows', () => {
     button(el, 'Save')!.click();
     await settle(60);
     expect((lastPut(e.calls) as { id: string; steps: { with: { message: string } }[] }).steps[0].with.message).toBe('BRB!');
-    expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s off until you turn it on.');
+    expect(el.textContent).toContain('Saved “Be right back” as version 1. It’s on.');
   });
 
   it('plays one of several sounds, and back to one', async () => {

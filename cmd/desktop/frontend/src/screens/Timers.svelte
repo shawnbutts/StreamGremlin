@@ -18,6 +18,7 @@
   import { eventTime } from '../lib/events';
   import { conditionWords, formOf, newForm, nextWords, scheduleWords, starterWorkflow, timerOf, usedBy, type TimerForm } from '../lib/timers';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
+  import { onOffWords } from '../lib/workflows';
 
   let { refreshMs = 2000 }: { refreshMs?: number } = $props();
 
@@ -154,9 +155,9 @@
     title="A workflow for a timer"
     taken={workflows.map((w) => w.id)}
     {workflows}
-    onsaved={(w) => {
+    onsaved={(w, _changed, offBecause) => {
       starting = undefined;
-      notice = `Saved “${w.name}”. It’s off until you turn it on, on the Workflows screen.`;
+      notice = `Saved “${w.name}”. ${onOffWords(w, offBecause)}`;
       loadWorkflows();
     }}
     oncancel={() => (starting = undefined)}

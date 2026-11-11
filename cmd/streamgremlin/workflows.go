@@ -19,7 +19,7 @@ import (
 const workflowsUsage = `usage:
   streamgremlin workflows                 list them
   streamgremlin workflows show ID         print the definition
-  streamgremlin workflows save FILE       add or update one (new ones start off)
+  streamgremlin workflows save FILE       add or update one (new ones start on)
   streamgremlin workflows on|off ID       turn one on or off
   streamgremlin workflows groups          list groups, with their switches
   streamgremlin workflows group NAME on|off   switch a group (each workflow keeps its own switch)
@@ -94,8 +94,9 @@ func workflowsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		var out struct {
-			Workflow workflow.Summary
-			Changed  bool
+			Workflow   workflow.Summary
+			Changed    bool
+			OffBecause string `json:"off_because"`
 		}
 		err = c.DoRaw(ctx, "PUT", "/v1/workflows/"+url.PathEscape(probe.ID), raw, &out)
 		var pe *client.APIError
@@ -114,6 +115,8 @@ func workflowsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stdout, "%s is unchanged (v%d).\n", out.Workflow.ID, out.Workflow.Version)
 		case out.Workflow.Enabled:
 			fmt.Fprintf(stdout, "Saved %s as v%d. It's on.\n", out.Workflow.ID, out.Workflow.Version)
+		case out.OffBecause != "":
+			fmt.Fprintf(stdout, "Saved %s as v%d. It's off: %s\n", out.Workflow.ID, out.Workflow.Version, out.OffBecause)
 		default:
 			fmt.Fprintf(stdout, "Saved %s as v%d. It's off: turn it on with `streamgremlin workflows on %s`.\n", out.Workflow.ID, out.Workflow.Version, out.Workflow.ID)
 		}

@@ -49,7 +49,7 @@
     title?: string;
     taken?: string[];
     workflows?: WorkflowSummary[];
-    onsaved: (w: WorkflowSummary, changed: boolean) => void;
+    onsaved: (w: WorkflowSummary, changed: boolean, offBecause?: string) => void;
     oncancel: () => void;
   } = $props();
 
@@ -222,7 +222,7 @@
     try {
       const r = await saveWorkflow(JSON.stringify(def));
       start = JSON.stringify(def);
-      onsaved(r.workflow, r.changed);
+      onsaved(r.workflow, r.changed, r.off_because);
     } catch (e) {
       if (e instanceof ProblemsError) env.problems = e.problems;
       else if (e instanceof ApiError && e.code === 'deleted') {

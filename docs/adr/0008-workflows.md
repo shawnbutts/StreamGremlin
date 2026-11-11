@@ -19,7 +19,7 @@ Workflows are what Streamer.bot users come for: when something happens (a chat c
 **Definitions** (`internal/workflow`, format `streamgremlin.workflow/v1`)
 - **Format:** JSON, decoded strictly (unknown fields are errors), at most 256 KiB. JSON only, because the plain-words editor (slice 9) writes it and nobody needs to hand-write YAML. A YAML reader can come with the Streamer.bot import if wanted.
 - **Versions:** every save that changes the content makes a new version; versions never change and are never deleted. The same content saved again keeps its version.
-- **On or off** is the workflow's state, not its content. **New workflows start off**, so a pasted or imported workflow never runs before the streamer has looked at it.
+- **On or off** is the workflow's state, not its content. ~~New workflows start off~~ **New workflows start on** (amended by D-077, 2026-11-11): a new workflow starts on, unless a chat command it answers is already answered by a workflow that's on; then it starts off, and the save says why. Saving an existing workflow keeps its switch. Imports from Streamer.bot (Later) still start off.
 - **Checked when saved, all problems at once,** each at its JSON path (`$.steps[2].with.message`):
   - every expression compiles;
   - every action exists, with its required parameters and no unknown ones;

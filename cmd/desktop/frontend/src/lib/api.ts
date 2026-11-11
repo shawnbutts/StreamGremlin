@@ -490,7 +490,8 @@ export const getJob = (id: string) => api<{ job: Job; steps: StepRecord[] }>('GE
 export const cancelJob = (id: string) => api<void>('POST', `/v1/jobs/${encodeURIComponent(id)}/cancel`);
 
 /** Save a definition given as JSON text. Problems come back as a ProblemsError. */
-export async function saveWorkflow(text: string): Promise<{ workflow: WorkflowSummary; changed: boolean }> {
+/** Save a definition. A new one starts on, or off with off_because saying why (D-077). */
+export async function saveWorkflow(text: string): Promise<{ workflow: WorkflowSummary; changed: boolean; off_because?: string }> {
   let id = '';
   try {
     id = JSON.parse(text)?.id ?? '';

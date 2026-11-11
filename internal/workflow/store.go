@@ -76,9 +76,9 @@ type store struct {
 
 func ts(t time.Time) string { return storage.Timestamp(t) }
 
-// save stores a new version when the content changed. New workflows start
-// off, so a pasted or imported workflow never runs before it's checked.
-func (s *store) save(ctx context.Context, d *Definition) (version int, changed bool, err error) {
+// save stores a new version when the content changed. A new workflow
+// starts on or off as given (D-077); an existing one keeps its switch.
+func (s *store) save(ctx context.Context, d *Definition, on bool) (version int, changed bool, err error) {
 	canonical, sum := d.Canonical()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -99,7 +99,7 @@ func (s *store) save(ctx context.Context, d *Definition) (version int, changed b
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		if _, err := tx.ExecContext(ctx, `INSERT INTO workflows (id, name, enabled, current_version, created_at, updated_at, grp)
-			VALUES (?, ?, 0, 1, ?, ?, ?)`, d.ID, d.Name, now, now, d.Group); err != nil {
+			VALUES (?, ?, ?, 1, ?, ?, ?)`, d.ID, d.Name, on, now, now, d.Group); err != nil {
 			return 0, false, err
 		}
 		version = 1

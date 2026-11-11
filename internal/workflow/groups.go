@@ -144,7 +144,7 @@ func (e *Engine) RenameGroup(ctx context.Context, from, to string) (string, erro
 			return "", err
 		}
 		d.Group = to
-		if _, _, err := e.st.save(ctx, d); err != nil {
+		if _, _, err := e.st.save(ctx, d, false); err != nil { // existing: on stays as it was
 			return "", fmt.Errorf("moving %s: %w", id, err)
 		}
 	}

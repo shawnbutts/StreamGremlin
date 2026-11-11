@@ -37,7 +37,9 @@ func TestWhoRunAnotherAndDeleteThroughTheCLI(t *testing.T) {
 			t.Fatal(out, errOut)
 		}
 	}
-	cli(t, dir, "workflows", "on", "chat.announce")
+	// New workflows start on (D-077): the helper is turned off to show a
+	// call to one that's off fails.
+	cli(t, dir, "workflows", "off", "helper.shout")
 
 	// The helper is off: the call fails and says so.
 	tw.Say("streamer", "streamer", "!announce first")

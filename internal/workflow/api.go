@@ -12,7 +12,9 @@ import (
 )
 
 // Save parses and stores a definition. Unchanged content keeps its version.
-// A new workflow starts turned off.
+// A new workflow starts turned on (D-077), unless a chat command it answers
+// is already answered by a workflow that's on: then it starts off, and
+// Taken says why.
 func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 	d, err := Parse(raw, e.reg)
 	if err != nil {
@@ -27,7 +29,14 @@ func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 	}
 	// Only a workflow that will run must keep its commands free: on, and
 	// in a group that's on (a move into another group counts).
-	if prev, _, on, err := e.st.definition(ctx, d.ID, 0); err == nil && on && e.groupOn(ctx, d.Group) {
+	prev, _, on, err := e.st.definition(ctx, d.ID, 0)
+	fresh := errors.Is(err, ErrNotFound)
+	if err != nil && !fresh {
+		return Summary{}, false, err
+	}
+	// A new workflow starts on when nothing that's on answers its commands.
+	startOn := fresh && (!e.groupOn(ctx, d.Group) || e.checkCommands(d.ID, d, nil) == nil)
+	if err == nil && on && e.groupOn(ctx, d.Group) {
 		if !e.groupOn(ctx, prev.Group) {
 			prev = nil // it wasn't running: everything it answers is new
 		}
@@ -35,18 +44,34 @@ func (e *Engine) Save(ctx context.Context, raw []byte) (Summary, bool, error) {
 			return Summary{}, false, err
 		}
 	}
-	version, changed, err := e.st.save(ctx, d)
+	version, changed, err := e.st.save(ctx, d, startOn)
 	if err != nil {
 		return Summary{}, false, err
 	}
 	if changed {
-		e.log.Info("workflow saved", "workflow", d.ID, "version", version)
+		e.log.Info("workflow saved", "workflow", d.ID, "version", version, "new", fresh, "on", fresh && startOn)
 		if err := e.reload(ctx); err != nil {
 			return Summary{}, false, err
 		}
 	}
 	s, err := e.Get(ctx, d.ID)
 	return s, changed, err
+}
+
+// Taken reports why a workflow can't be turned on: a *commands.TakenError
+// when a chat command it answers is answered by a workflow that's on, or
+// nil. A new workflow that started off says why with it.
+func (e *Engine) Taken(ctx context.Context, id string) error {
+	e.cmdMu.Lock()
+	defer e.cmdMu.Unlock()
+	d, _, _, err := e.st.definition(ctx, id, 0)
+	if err != nil {
+		return err
+	}
+	if !e.groupOn(ctx, d.Group) {
+		return nil
+	}
+	return e.checkCommands(id, d, nil)
 }
 
 // Get returns one workflow's summary. Deleted workflows aren't found.

@@ -29,7 +29,7 @@
   import type { Def } from '../lib/editor';
   import TemplateGallery from '../editor/TemplateGallery.svelte';
   import { eventTime } from '../lib/events';
-  import { describeTrigger, forWhom, jobOk, jobWords, overlaysIn, testFields } from '../lib/workflows';
+  import { describeTrigger, forWhom, jobOk, jobWords, overlaysIn, testFields, onOffWords } from '../lib/workflows';
   import OverlayPreview from '../lib/OverlayPreview.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import RunTrace from './RunTrace.svelte';
@@ -102,12 +102,10 @@
     }
   }
 
-  function saved(w: WorkflowSummary, changed: boolean) {
+  function saved(w: WorkflowSummary, changed: boolean, offBecause?: string) {
     editing = undefined;
     error = '';
-    notice = changed
-      ? `Saved “${w.name}” as version ${w.version}.${w.enabled ? '' : ' It’s off until you turn it on.'}`
-      : `“${w.name}” is unchanged.`;
+    notice = changed ? `Saved “${w.name}” as version ${w.version}. ${onOffWords(w, offBecause)}` : `“${w.name}” is unchanged.`;
     load();
   }
 

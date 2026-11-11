@@ -124,10 +124,11 @@ func (r *rig) save(raw []byte, on bool) Summary {
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	if on {
-		if err := r.eng.SetEnabled(context.Background(), s.ID, true); err != nil {
+	if s.Enabled != on {
+		if err := r.eng.SetEnabled(context.Background(), s.ID, on); err != nil {
 			r.t.Fatal(err)
 		}
+		s.Enabled = on
 	}
 	return s
 }
