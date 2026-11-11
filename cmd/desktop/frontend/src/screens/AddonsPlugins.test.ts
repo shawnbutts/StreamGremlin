@@ -39,6 +39,7 @@ const dice: InstalledPackage = {
   ],
   plugin: {
     enabled: false, timeout: 5, script: 'plugin.lua', values: { sides: 6, cheer: true },
+    templates: [{ id: 'roll', title: '!roll: roll dice in chat' }],
     permissions: [{ name: 'chat.send', what: 'Send messages in your chat, as the bot when one is signed in (at most 20 a minute)' }],
     actions: [
       { name: 'roll', label: 'Roll dice', description: 'Rolls dice.' },
@@ -121,6 +122,7 @@ describe('plugins on Add-ons', () => {
     expect(preview.textContent).toContain('It can’t reach your files, the internet or your accounts');
     expect(preview.textContent).toContain('Roll dice');
     expect(preview.textContent).not.toContain('OBS');
+    expect(preview.textContent).toContain('Templates it adds to the gallery, in its own section: !roll: roll dice in chat.');
     const install = button(target, 'Install Dice tray')!;
     expect(install.disabled).toBe(true);
     await noViolations('preview');
@@ -141,6 +143,7 @@ describe('plugins on Add-ons', () => {
     expect(card.textContent).toContain('Lua plugin · published by StreamGremlin examples (not verified)');
     expect(card.textContent).toContain('Send messages in your chat');
     expect(card.textContent).toContain('Used by Roll.');
+    expect(card.textContent).toContain('Find them in the gallery under “Dice tray (add-on)”');
     expect(card.textContent).toContain('Off. Its steps fail until you turn it on.');
     await noViolations('installed');
 

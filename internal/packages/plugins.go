@@ -12,6 +12,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/templates"
 )
 
 // MaxActivity is how many activity entries a plugin keeps.
@@ -41,7 +42,62 @@ func (s *Store) fillPlugin(ctx context.Context, p *Package) error {
 		return err
 	}
 	p.Plugin.Values = overlays.FillSettings(p.Settings, saved)
+	ts, err := s.templatesOf(ctx, p.ID, p.Version)
+	if err != nil {
+		return err
+	}
+	p.Plugin.Templates = templateInfo(ts)
 	return nil
+}
+
+// templatesOf reads an installed version's templates, as they were checked.
+func (s *Store) templatesOf(ctx context.Context, id, version string) ([]templates.Template, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT path, data FROM package_files WHERE package_id = ? AND version = ?
+		AND path LIKE 'templates/%.json' ORDER BY path`, id, version)
+	if err != nil {
+		return nil, fmt.Errorf("packages: templates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := []templates.Template{}
+	for rows.Next() {
+		var p string
+		var b []byte
+		if err := rows.Scan(&p, &b); err != nil {
+			return nil, err
+		}
+		if !isTemplate(p) {
+			continue
+		}
+		t, err := templates.ParseAddOn(b)
+		if err != nil {
+			return nil, fmt.Errorf("packages: %s's %s: %w", id, p, err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// AddOnTemplates are every installed plugin's templates, for the gallery:
+// each id is "<plugin>/<template>", its category the plugin's name.
+func (s *Store) AddOnTemplates(ctx context.Context) ([]templates.Template, error) {
+	ps, _, err := s.Plugins(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []templates.Template{}
+	for _, p := range ps {
+		ts, err := s.templatesOf(ctx, p.ID, p.Version)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range ts {
+			t.ID = p.ID + "/" + t.ID
+			t.Category = p.Name
+			t.AddOn = &templates.AddOn{ID: p.ID, Name: p.Name, Publisher: p.Publisher, Enabled: p.Plugin.Enabled}
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
 
 func (s *Store) savedSettings(ctx context.Context, id string) (map[string]any, error) {

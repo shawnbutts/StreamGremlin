@@ -126,6 +126,12 @@
     <strong>Steps it adds:</strong>
     {plugin.actions.map((a) => a.label).join(', ')}. Find them under “{p.name}” when you add a step.
   </p>
+  {#if plugin.templates.length}
+    <p class="field-hint">
+      <strong>Templates:</strong>
+      {plugin.templates.map((t) => t.title).join(', ')}. Find them in the gallery under “{p.name} (add-on)” when you make a new workflow.
+    </p>
+  {/if}
   <p class="sg-muted field-hint">
     {p.workflows?.length ? `Used by ${p.workflows.join(', ')}.` : 'No workflow uses it yet.'}
   </p>

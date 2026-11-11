@@ -38,7 +38,14 @@ func templatesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if len(t.Blanks) > 0 {
 				blanks = fmt.Sprintf(" (%d to fill in)", len(t.Blanks))
 			}
-			fmt.Fprintf(stdout, "%-10s %-14s %s: %s%s\n", t.ID, t.Category, t.Title, t.Description, blanks)
+			category := t.Category
+			if t.AddOn != nil {
+				category += " (add-on)"
+				if !t.AddOn.Enabled {
+					blanks += fmt.Sprintf(" [%s is off: turn it on with streamgremlin packages on %s]", t.AddOn.Name, t.AddOn.ID)
+				}
+			}
+			fmt.Fprintf(stdout, "%-10s %-14s %s: %s%s\n", t.ID, category, t.Title, t.Description, blanks)
 		}
 		return 0
 	}

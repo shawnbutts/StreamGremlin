@@ -1236,3 +1236,19 @@ Decided 2026-11-11 under D-007, building on D-063 and D-069. Asked whether plugi
 - **A plugin's number values are taken as text,** so they can come from chat, and are checked against the manifest when the step runs.
 - Details are in [ADR-0038](adr/0038-lua-plugins.md).
 
+## D-071. Add-ons mark their steps and bring templates (M5 slice 5)
+
+Decided 2026-11-11. The user: "in the 'add a step' dropdown, can we added an '(add-on)' at the end of the name or some other indicator where it comes from? also, i think we should have support for add-ons like this to add their own templates. which one should have it's own section". Offered a section per add-on in the gallery, in place of ADR-0036's offered workflows, the user said: "proceed".
+
+- **An add-on's steps are marked.** In **Add a step**, its group is "Dice tray (add-on)", after StreamGremlin's own groups, and each step reads "Roll dice (add-on)". A step's card says "from the Dice tray add-on". An action carries `add_on`, the plugin's id.
+- **A plugin can bring templates,** in place of ADR-0036's workflows offered after install:
+  - in a `templates/` folder, one JSON file each, in the gallery's own format (template and workflow), with no category (the add-on is its section), never a starter, at most 20;
+  - checked when the plugin is checked and installed, as the editor would save them: they may use StreamGremlin's own steps and the plugin's, not another add-on's; a problem in a blank left for the streamer is skipped;
+  - in the gallery, **each add-on has its own section,** "Dice tray (add-on)", after StreamGremlin's sections, saying who published it (not verified) and, while it's off, to turn it on;
+  - in `/v1/templates` with ids `<plugin>/<template>`, the category the add-on's name and `add_on` saying whose they are and whether it's on; `streamgremlin templates` marks them;
+  - the install check lists them; the add-on's card on Add-ons names them;
+  - removing the add-on takes its section away. Workflows made from its templates are turned off like any using its steps.
+- **Why a section per add-on,** not one "Add-ons" section: the gallery matches the step picker, and it says whose templates they are when several publishers' add-ons are installed.
+- **A plugin's number left empty is its default:** `!roll` with nothing after it rolls one die.
+- **Dice tray 1.1.0** brings `!roll` and `!best` templates.
+

@@ -59,7 +59,14 @@
   {#each categories as c (c)}
     {@const items = list.filter((t) => t.category === c)}
     {#if items.length}
-      <h3>{c}</h3>
+      {@const addOn = items[0].add_on}
+      <h3>{addOn ? `${c} (add-on)` : c}</h3>
+      {#if addOn}
+        <p class="sg-muted field-hint">
+          From the {addOn.name} add-on, published by {addOn.publisher} (not verified).
+          {addOn.enabled ? '' : `${addOn.name} is off: turn it on on Add-ons for its steps to work.`}
+        </p>
+      {/if}
       <ul class="gallery" aria-label={c}>
         {#each items as t (t.id)}
           <li class="sg-panel gallery-card">

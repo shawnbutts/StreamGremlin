@@ -13,7 +13,8 @@ ADR-0036 decided what a plugin owns and left its script, permissions, actions an
 ### Built in two parts
 
 - **5a:** the manifest's `lua` section; installing with each permission approved; on and off; settings; the plugin's steps; `chat.send`; the call log; removing (its workflows turned off); the Add-ons screen and the CLI; an example plugin.
-- **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps); the workflows a plugin offers (ADR-0036); `events.publish` and its events as triggers; timers (`sg.after`).
+- **Templates** (D-071), between the two: a plugin's `templates/` in the gallery, in the add-on's own section.
+- **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps); `events.publish` and its events as triggers; timers (`sg.after`).
 - Slice 6 adds points (ADR-0036).
 
 Until 5b, installing another version of an installed plugin is refused, saying to remove it first (as themes were in 3a).
@@ -40,7 +41,8 @@ Until 5b, installing another version of an installed plugin is refused, saying t
 - `timeout`: seconds a call may take, 1 to 30, default 10.
 - `actions`: 1 to 50. A name is up to 32 lowercase letters, digits and `_`. Each has a label, a description, and up to 20 `params`: `text` (up to `max` characters, at most 500), `number` (`min`, `max`), `switch` or `choice` (`options`), each with a label, optional `default` and `required`. The step is `<id>.<name>`.
 - `settings`: as a theme's (ADR-0036), one set for the plugin, never named like a secret.
-- Files: `.lua`, `.json`, `.md`, `.txt` only (5b adds `workflows/*.json`).
+- Files: `.lua`, `.json`, `.md`, `.txt` only.
+- `templates/*.json`: up to 20 templates, below.
 
 Actions are declared so StreamGremlin knows a plugin's steps without running it. The script then handles them. A declared action it doesn't handle fails when called; a handler for one not declared stops the script loading.
 
@@ -85,6 +87,15 @@ Everything else is ADR-0037's sandbox: no files, network, `os` beyond the clock,
 - A plugin that's off, failed or removed: its steps fail at once, saying so. Its workflows stay on while it's off (D-107: they work again when it's back).
 - The output is what the handler returned: a value, list or table, with ADR-0037's limits.
 - Registered when StreamGremlin starts, from every installed plugin's manifest, before workflows load; added on install, removed on removal.
+
+### Templates (D-071)
+
+A plugin brings ready-made workflows as templates, not workflows added for the streamer:
+- one file each in `templates/`, in the gallery's format: `template` (`id`, `title`, `description`, `blanks`) and `workflow`. Strict: no category (the add-on is its section), never a starter, no `add_on`, each blank an empty text in the workflow;
+- **checked when the plugin is checked**, as the editor would save each: StreamGremlin's own steps and the plugin's, not another add-on's. A problem at a blank (left empty for the streamer) is skipped. One that fails refuses the package, naming the template;
+- **in the gallery**, each installed add-on is a section of its own, "Dice tray (add-on)", after StreamGremlin's, saying who published it (not verified) and, while it's off, to turn it on. `/v1/templates` gives them ids `<plugin>/<template>`, the add-on's name as category, and `add_on` (id, name, publisher, on);
+- like any template, one opens in the editor turned off, and is saved only when the streamer saves it;
+- removing the add-on takes its section away; workflows made from them use its steps, so they're turned off with the rest.
 
 ### Settings, on and off, removing
 

@@ -1,0 +1,19 @@
+{
+  "template": {
+    "id": "roll",
+    "title": "!roll: roll dice in chat",
+    "description": "!roll rolls one die, !roll 3 three. Dice tray says the result in chat, and cheers a new best roll of the session.",
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.dice-tray-roll",
+    "name": "Roll dice (Dice tray)",
+    "group": "Dice tray",
+    "triggers": [{ "type": "chat.command.received", "where": { "command": "roll" } }],
+    "queue": { "policy": "serial", "max_pending": 10 },
+    "steps": [
+      { "id": "roll", "action": "dice-tray.roll_and_say", "with": { "dice": "${event.payload.arg_list[?0].orValue(\"\")}" } }
+    ]
+  }
+}

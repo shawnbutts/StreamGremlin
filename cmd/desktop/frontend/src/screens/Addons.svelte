@@ -267,6 +267,11 @@
         <ul class="plugin-steps">
           {#each pl.actions as a (a.name)}<li><strong>{a.label}</strong>: {a.description}</li>{/each}
         </ul>
+        {#if pl.templates.length}
+          <p>
+            <strong>Templates it adds to the gallery</strong>, in its own section: {pl.templates.map((t) => t.title).join(', ')}.
+          </p>
+        {/if}
         {#if pl.permissions.length}
           <fieldset class="permissions">
             <legend>It asks for permission to do these. Tick each one you allow:</legend>

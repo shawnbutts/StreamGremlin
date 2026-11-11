@@ -207,6 +207,13 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			for _, a := range pv.Plugin.Actions {
 				fmt.Fprintf(stdout, "  %s.%s  %s: %s\n", pv.ID, a.Name, a.Label, a.Description)
 			}
+			if len(pv.Plugin.Templates) > 0 {
+				var titles []string
+				for _, t := range pv.Plugin.Templates {
+					titles = append(titles, t.Title)
+				}
+				fmt.Fprintf(stdout, "Templates it adds to the gallery: %s.\n", strings.Join(titles, ", "))
+			}
 			if len(pv.Plugin.Permissions) == 0 {
 				fmt.Fprintln(stdout, "It asks for no permissions.")
 			} else {

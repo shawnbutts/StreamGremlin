@@ -248,6 +248,9 @@ func ReadZip(data []byte) (*Read, error) {
 		case !utf8.Valid(script):
 			return nil, invalid("the plugin's script isn't UTF-8 text")
 		}
+		if _, err := readTemplates(r); err != nil {
+			return nil, err
+		}
 	}
 	r.Digest = digest(r)
 	return r, nil

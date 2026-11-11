@@ -203,6 +203,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.plugins.Start(ctx); err != nil {
 		return nil, err
 	}
+	h.packages.SetCheck(h.plugins.CheckTemplates)
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {

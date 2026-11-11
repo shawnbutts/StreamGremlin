@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
+	"code.streamgremlin.com/streamgremlin/internal/templates"
 )
 
 // Limits on a Lua plugin (docs/adr/0038-lua-plugins.md).
@@ -27,6 +28,46 @@ const (
 // the words the install screen shows.
 var Permissions = map[string]string{
 	PermChatSend: "Send messages in your chat, as the bot when one is signed in (at most 20 a minute)",
+}
+
+// TemplateDir holds a plugin's templates, one JSON file each, in the
+// gallery's format (D-071).
+const TemplateDir = "templates/"
+
+// isTemplate reports whether a package path is one of its templates.
+func isTemplate(p string) bool {
+	return strings.HasPrefix(p, TemplateDir) && path.Ext(p) == ".json" && !strings.Contains(strings.TrimPrefix(p, TemplateDir), "/")
+}
+
+// readTemplates reads and checks a plugin's templates, by path order.
+func readTemplates(r *Read) ([]templates.Template, error) {
+	var out []templates.Template
+	seen := map[string]bool{}
+	for _, p := range r.Paths() {
+		if !isTemplate(p) {
+			continue
+		}
+		t, err := templates.ParseAddOn(r.Files[p])
+		if err != nil {
+			return nil, invalid("%s: %s", p, strings.TrimPrefix(err.Error(), templates.ErrInvalid.Error()+": "))
+		}
+		if seen[t.ID] {
+			return nil, invalid("%s: the template id %q is used twice", p, t.ID)
+		}
+		seen[t.ID] = true
+		out = append(out, t)
+	}
+	if len(out) > templates.MaxAddOnTemplates {
+		return nil, invalid("a plugin has up to %d templates", templates.MaxAddOnTemplates)
+	}
+	return out, nil
+}
+
+// Templates reads a plugin version's templates: what Check showed, the
+// gallery offers.
+func (r *Read) Templates() []templates.Template {
+	ts, _ := readTemplates(r)
+	return ts
 }
 
 // luaTypes are the files a Lua plugin may have.

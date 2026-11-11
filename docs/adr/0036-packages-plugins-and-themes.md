@@ -15,6 +15,8 @@
 > - an installed theme's files are served only while that version is the one installed; the theme server checks the id, version and digest against what's installed;
 > - the Add-ons screen and `streamgremlin packages [install FILE [-yes] | remove ID [-yes] | history]`; `overlays look NAME -look ID -set KEY=VALUE`; `GET /v1/packages/audit` shows the audit.
 
+> **Amended by D-071 (2026-11-11), slice 5:** a plugin's workflows aren't offered after install: it brings **templates** (`templates/*.json`) that the gallery shows in the add-on's own section, checked against StreamGremlin's steps and its own, added only when the streamer picks one ([ADR-0038](0038-lua-plugins.md)). The `workflows/` folder and `from_package` aren't used: removal finds a plugin's workflows by its steps.
+
 > **Amended by D-070 (2026-11-11), slice 5a:** a Lua plugin's manifest, permissions, steps, worker and activity are [ADR-0038](0038-lua-plugins.md)'s. The audit gains `on`, `off`, `settings` and `failed`; `package_settings` comes with migration 0025, with `package_permissions` and `package_activity`; installing a plugin needs its permissions approved (`?permissions=`, 409 `confirm_permissions`); another version of an installed plugin is refused until 5b.
 
 > **Amended by D-068 (2026-11-11), slice 3b:**

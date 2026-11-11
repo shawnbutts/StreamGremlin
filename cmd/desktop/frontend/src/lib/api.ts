@@ -594,6 +594,8 @@ export interface Template {
   starter: boolean;
   blanks: Blank[];
   workflow: Record<string, unknown>;
+  /** The add-on whose template it is (its category is the add-on's name), or absent for StreamGremlin's own. */
+  add_on?: { id: string; name: string; publisher: string; enabled: boolean };
 }
 
 export const getTemplates = () => api<{ templates: Template[]; categories: string[] }>('GET', '/v1/templates');
@@ -1445,6 +1447,8 @@ export interface PluginInfo {
   /** Seconds a call may take. */
   timeout: number;
   script: string;
+  /** Templates it adds to the gallery, in its own section. */
+  templates: { id: string; title: string }[];
 }
 
 /** One thing a plugin asked StreamGremlin to do. */

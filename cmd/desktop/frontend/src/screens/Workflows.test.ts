@@ -117,8 +117,13 @@ const palette: Palette = {
 };
 
 const templates = {
-  categories: ['Chat commands', 'Scenes', 'Stream'],
+  categories: ['Chat commands', 'Scenes', 'Stream', 'Dice tray'],
   templates: [
+    {
+      id: 'dice-tray/roll', title: '!roll: roll dice in chat', category: 'Dice tray', description: 'Rolls dice.', starter: false, blanks: [],
+      add_on: { id: 'dice-tray', name: 'Dice tray', publisher: 'Someone', enabled: false },
+      workflow: { schema: 'streamgremlin.workflow/v1', id: 'chat.dice-tray-roll', name: 'Roll dice (Dice tray)', triggers: [{ type: 'chat.command.received', where: { command: 'roll' } }], steps: [{ id: 'roll', action: 'dice-tray.roll' }] },
+    },
     {
       id: 'brb', title: 'Be right back', category: 'Scenes', description: '!brb switches to your break scene.', starter: true,
       blanks: [{ path: '$.steps[0].with.message', hint: 'What to say in chat' }],
@@ -547,6 +552,11 @@ describe('Workflows', () => {
     const gallery = el.querySelector('section[aria-labelledby="gallery-heading"]')!;
     expect(gallery.querySelector('[aria-label="Scenes"]')!.textContent).toContain('1 thing to fill in');
     expect(gallery.textContent).toContain('You already have “Say hello back”');
+    // An add-on's templates are in its own section, last, saying whose they are.
+    const headings = Array.from(gallery.querySelectorAll('h3')).map((h) => h.textContent);
+    expect(headings.at(-1)).toBe('Dice tray (add-on)');
+    expect(gallery.querySelector('[aria-label="Dice tray"]')!.textContent).toContain('!roll: roll dice in chat');
+    expect(gallery.textContent!.replace(/\s+/g, ' ')).toContain('From the Dice tray add-on, published by Someone (not verified). Dice tray is off: turn it on on Add-ons');
     await noViolations('gallery');
     button(el, 'Use Be right back')!.click();
     await settle(60);

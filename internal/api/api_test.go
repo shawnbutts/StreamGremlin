@@ -153,6 +153,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	if err := pm.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	pkgs.SetCheck(pm.CheckTemplates)
 	t.Cleanup(pm.Close)
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})

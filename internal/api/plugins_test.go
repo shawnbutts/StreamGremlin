@@ -16,7 +16,7 @@ func examplePlugin(t *testing.T) string {
 	dir := filepath.Join("..", "..", "examples", "plugins", "dice-tray")
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	for _, name := range []string{"streamgremlin.json", "plugin.lua", "README.md"} {
+	for _, name := range []string{"streamgremlin.json", "plugin.lua", "README.md", "templates/roll.json", "templates/best.json"} {
 		b, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // the repository's own example
 		if err != nil {
 			t.Fatal(err)
@@ -70,6 +70,14 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 		t.Fatal(out)
 	}
 
+	// Its templates are in the gallery, in its own section.
+	_, out = call("GET", "/v1/templates", "")
+	if !strings.Contains(out, `"id":"dice-tray/roll"`) || !strings.Contains(out, `"category":"Dice tray"`) ||
+		!strings.Contains(out, `"add_on":{"id":"dice-tray","name":"Dice tray","publisher":"StreamGremlin examples","enabled":false}`) ||
+		!strings.Contains(out, `"Stream","Dice tray"]`) {
+		t.Fatal(out)
+	}
+
 	// On, settings, activity.
 	if code, out := call("PUT", "/v1/packages/dice-tray/enabled", `{"enabled": true}`); code != 200 || !strings.Contains(out, `"enabled":true`) {
 		t.Fatal(code, out)
@@ -101,6 +109,9 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 	}
 	if _, out := call("GET", "/v1/workflows/chat.roll", ""); !strings.Contains(out, `"enabled":false`) {
 		t.Fatal("still on:", out)
+	}
+	if _, out := call("GET", "/v1/templates", ""); strings.Contains(out, "dice-tray/") || strings.Contains(out, `"Dice tray"`) {
+		t.Fatal("its templates outlived it:", out)
 	}
 	if _, out := call("GET", "/v1/packages/audit", ""); !strings.Contains(out, `"action":"on"`) || !strings.Contains(out, `"action":"settings"`) {
 		t.Fatal(out)

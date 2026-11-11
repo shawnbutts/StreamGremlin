@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 
 	"code.streamgremlin.com/streamgremlin/internal/commands"
 	"code.streamgremlin.com/streamgremlin/internal/templates"
@@ -240,7 +241,9 @@ func workflowRoutes(d Deps) []Route {
 		},
 		{
 			Method: "GET", Path: "/v1/templates",
-			Summary:    "Ready-made workflows for the gallery: each with its title, category, the blanks to fill in, and the workflow. Data only; nothing is added until saved.",
+			Summary: "Ready-made workflows for the gallery: each with its title, category, the blanks to fill in, and the workflow. " +
+				"Installed add-ons' templates follow StreamGremlin's own, each add-on its own category (its name), with add_on saying " +
+				"whose they are and whether it's on. Data only; nothing is added until saved.",
 			Permission: PermWorkflowsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				list, err := templates.All()
@@ -248,7 +251,21 @@ func workflowRoutes(d Deps) []Route {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, map[string]any{"templates": list, "categories": templates.Categories})
+				categories := append([]string{}, templates.Categories...)
+				if d.Packages != nil {
+					extra, err := d.Packages.AddOnTemplates(r.Context())
+					if err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
+					for _, t := range extra {
+						if !slices.Contains(categories, t.Category) {
+							categories = append(categories, t.Category)
+						}
+					}
+					list = append(list, extra...)
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"templates": list, "categories": categories})
 			},
 		},
 		{

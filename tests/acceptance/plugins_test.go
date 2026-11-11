@@ -8,15 +8,6 @@ import (
 	"testing"
 )
 
-const diceRollWorkflow = `{"schema":"streamgremlin.workflow/v1","id":"chat.roll","name":"Roll",
-	"triggers":[{"type":"chat.command.received","where":{"command":"roll"}}],
-	"steps":[{"id":"roll","action":"dice-tray.roll_and_say","with":{"dice":"${event.payload.args}"}}]}`
-
-const diceBestWorkflow = `{"schema":"streamgremlin.workflow/v1","id":"chat.best","name":"Best",
-	"triggers":[{"type":"chat.command.received","where":{"command":"best"}}],
-	"steps":[{"id":"best","action":"dice-tray.best"},
-	         {"action":"chat.send","with":{"message":"${steps.best.output.text}","as":"streamer"}}]}`
-
 // A Lua plugin through the real engine, CLI and a stand-in Twitch
 // (docs/adr/0038-lua-plugins.md): installed only with its permissions,
 // off until turned on, answering chat through its own steps and sg.chat,
@@ -51,36 +42,45 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	zipFolder(t, filepath.Join("..", "..", "examples", "plugins", "dice-tray"), zipPath)
 	out, _, code := cli(t, dir, "packages", "install", zipPath)
 	if code != 0 || !strings.Contains(out, "a Lua plugin, published by StreamGremlin examples (not verified)") ||
-		!strings.Contains(out, "dice-tray.roll_and_say") || !strings.Contains(out, "chat.send  Send messages in your chat") ||
+		!strings.Contains(out, "dice-tray.roll_and_say") || !strings.Contains(out, "Templates it adds to the gallery: !best: the session's best roll, !roll: roll dice in chat.") || !strings.Contains(out, "chat.send  Send messages in your chat") ||
 		!strings.Contains(out, "-yes -allow chat.send") {
 		t.Fatalf("check:\n%s", out)
 	}
 	if _, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 1 || !strings.Contains(errOut, "-allow chat.send") {
 		t.Fatalf("without -allow: %d %s", code, errOut)
 	}
-	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.0.0, off") {
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.1.0, off") {
 		t.Fatalf("install: %d %s%s", code, out, errOut)
 	}
 
+	// Its templates are in the gallery: the workflows come from them.
+	out, _, _ = cli(t, dir, "templates")
+	if !strings.Contains(out, "dice-tray/roll Dice tray (add-on) !roll: roll dice in chat") || !strings.Contains(out, "[Dice tray is off") {
+		t.Fatalf("templates:\n%s", out)
+	}
 	files := t.TempDir()
-	for _, w := range []string{diceRollWorkflow, diceBestWorkflow} {
+	for _, id := range []string{"dice-tray/roll", "dice-tray/best"} {
+		w, errOut, code := cli(t, dir, "templates", "show", id)
+		if code != 0 {
+			t.Fatal(errOut)
+		}
 		if out, errOut, code := cli(t, dir, "workflows", "save", writeFile(t, files, "w.json", w)); code != 0 {
 			t.Fatal(out, errOut)
 		}
 	}
-	cli(t, dir, "workflows", "on", "chat.roll")
-	cli(t, dir, "workflows", "on", "chat.best")
+	cli(t, dir, "workflows", "on", "chat.dice-tray-roll")
+	cli(t, dir, "workflows", "on", "chat.dice-tray-best")
 
 	// Off: the step fails, saying so.
 	tw.Say("streamer", "Fan", "!roll 2")
 	eventually(t, "the failed run", func() string {
-		out, _, _ := cli(t, dir, "runs", "-workflow", "chat.roll")
+		out, _, _ := cli(t, dir, "runs", "-workflow", "chat.dice-tray-roll")
 		if !strings.Contains(out, "failed") {
 			return out
 		}
 		return ""
 	})
-	out, _, _ = cli(t, dir, "runs", "-workflow", "chat.roll")
+	out, _, _ = cli(t, dir, "runs", "-workflow", "chat.dice-tray-roll")
 	if trace, _, _ := cli(t, dir, "runs", "show", strings.Fields(out)[0]); !strings.Contains(trace, "Dice tray is off") {
 		t.Fatalf("off trace:\n%s", trace)
 	}
@@ -89,8 +89,8 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	if out, errOut, code := cli(t, dir, "packages", "on", "dice-tray"); code != 0 || !strings.Contains(out, "Dice tray is on") {
 		t.Fatal(out, errOut)
 	}
-	tw.Say("streamer", "Fan", "!roll 2")
-	eventually(t, "Fan's roll", said("Fan rolled "))
+	tw.Say("streamer", "Fan", "!roll")
+	eventually(t, "Fan's roll", said("Fan rolled a "))
 	tw.Say("streamer", "Pal", "!roll 3")
 	eventually(t, "Pal's roll", said("Pal rolled "))
 	tw.Say("streamer", "Pal", "!best")
@@ -100,7 +100,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	if !strings.Contains(out, "log       ok      Dice tray ready: d6") || strings.Count(out, "chat.send ok      ") != 2 {
 		t.Fatalf("activity:\n%s", out)
 	}
-	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Lua plugin, published by StreamGremlin examples (not verified); on; permissions: chat.send; used by Best, Roll") {
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Lua plugin, published by StreamGremlin examples (not verified); on; permissions: chat.send; used by Best roll (Dice tray), Roll dice (Dice tray)") {
 		t.Fatalf("list:\n%s", out)
 	}
 
@@ -128,13 +128,13 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 
 	// Removing turns its workflows off.
 	out, _, _ = cli(t, dir, "packages", "remove", "dice-tray")
-	if !strings.Contains(out, "These workflows use its steps and are turned off (not deleted): Best, Roll") {
+	if !strings.Contains(out, "These workflows use its steps and are turned off (not deleted): Best roll (Dice tray), Roll dice (Dice tray)") {
 		t.Fatalf("remove check:\n%s", out)
 	}
-	if out, errOut, code := cli(t, dir, "packages", "remove", "dice-tray", "-yes"); code != 0 || !strings.Contains(out, "Workflows that used it (now off): Best, Roll") {
+	if out, errOut, code := cli(t, dir, "packages", "remove", "dice-tray", "-yes"); code != 0 || !strings.Contains(out, "Workflows that used it (now off): Best roll (Dice tray), Roll dice (Dice tray)") {
 		t.Fatal(out, errOut)
 	}
-	if out, _, _ := cli(t, dir, "workflows"); strings.Contains(out, "chat.roll  on") {
+	if out, _, _ := cli(t, dir, "workflows"); strings.Contains(out, "chat.dice-tray-roll  on") {
 		t.Fatalf("still on:\n%s", out)
 	}
 	out, _, _ = cli(t, dir, "packages", "history")

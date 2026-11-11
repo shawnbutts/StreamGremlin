@@ -11,15 +11,23 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/templates"
 )
 
 // Store keeps installed packages in the database.
 type Store struct {
 	db *storage.DB
+	// check, when set, checks more of a package than its ZIP and manifest:
+	// a plugin's templates against the engine's steps (SetCheck).
+	check func(*Read) error
 }
 
 // NewStore returns a Store.
 func NewStore(db *storage.DB) *Store { return &Store{db: db} }
+
+// SetCheck adds a check every package passes before it's shown or
+// installed. Its error should wrap ErrInvalid.
+func (s *Store) SetCheck(check func(*Read) error) { s.check = check }
 
 // Package is an installed package as its current version describes it.
 type Package struct {
@@ -60,6 +68,14 @@ type PluginInfo struct {
 	Values  map[string]any `json:"values"`
 	Timeout int            `json:"timeout"`
 	Script  string         `json:"script"`
+	// Templates it adds to the gallery, in its own section (D-071).
+	Templates []TemplateInfo `json:"templates"`
+}
+
+// TemplateInfo names one of a plugin's templates.
+type TemplateInfo struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
 }
 
 // PermissionInfo is a permission and what it lets a plugin do.
@@ -94,7 +110,18 @@ func describe(r *Read, now time.Time) Package {
 	p := Package{ID: m.ID, Kind: m.Kind, Name: m.Name, Version: m.Version, Publisher: m.Publisher, Description: m.Description,
 		License: m.License, Homepage: m.Homepage, Digest: r.Digest, Size: r.Size, Files: len(r.Files), InstalledAt: now, UpdatedAt: now}
 	fromManifest(&p, m)
+	if p.Plugin != nil {
+		p.Plugin.Templates = templateInfo(r.Templates())
+	}
 	return p
+}
+
+func templateInfo(ts []templates.Template) []TemplateInfo {
+	out := []TemplateInfo{}
+	for _, t := range ts {
+		out = append(out, TemplateInfo{ID: t.ID, Title: t.Title})
+	}
+	return out
 }
 
 // fromManifest fills what the manifest says about settings and a plugin.
@@ -109,6 +136,7 @@ func fromManifest(p *Package, m Manifest) {
 		for _, name := range m.Lua.Permissions {
 			info.Permissions = append(info.Permissions, PermissionInfo{Name: name, What: Permissions[name]})
 		}
+		info.Templates = []TemplateInfo{}
 		p.Plugin = info
 	}
 }
@@ -119,6 +147,11 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 	r, err := ReadZip(data)
 	if err != nil {
 		return Preview{}, nil, err
+	}
+	if s.check != nil {
+		if err := s.check(r); err != nil {
+			return Preview{}, r, err
+		}
 	}
 	pv := Preview{Package: describe(r, time.Time{})}
 	if r.Manifest.Theme != nil {

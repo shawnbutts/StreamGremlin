@@ -10,6 +10,8 @@ It adds three steps to workflows:
 
 Settings: the sides on each die, and whether to cheer a new best roll.
 
+It adds two templates to the gallery, in their own **Dice tray** section: **!roll** (rolls dice and says it) and **!best** (the session's best roll). Templates are in `templates/`, one JSON file each, in the same format as StreamGremlin's own.
+
 The session's rolls live in the script's own variables, so they start over when the plugin is turned off, its settings change, or StreamGremlin restarts.
 
 To install it, compress this folder into a ZIP and pick it on **Add-ons**.

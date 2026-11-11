@@ -210,6 +210,9 @@ func (m *Manager) step(id, name string, a packages.Action) func(ctx context.Cont
 		args := map[string]any{}
 		for _, p := range a.Params {
 			v, ok := c.Args[p.Name]
+			if s, isText := v.(string); isText && p.Kind != "text" && strings.TrimSpace(s) == "" {
+				ok = false // nothing typed after the command: the default
+			}
 			if !ok || v == nil {
 				if p.Default != nil {
 					args[p.Name] = p.Default
@@ -556,4 +559,48 @@ func numberRange(p packages.Param) string {
 		return " of at most " + f(*p.Max)
 	}
 	return ""
+}
+
+// CheckTemplates checks a plugin's templates as the workflow editor would
+// save them (D-071): each may use StreamGremlin's own steps and this
+// plugin's, not another add-on's. Problems in a blank (left empty for the
+// streamer) are skipped. It's the store's extra check (packages.SetCheck).
+func (m *Manager) CheckTemplates(r *packages.Read) error {
+	man := r.Manifest
+	if man.Lua == nil {
+		return nil
+	}
+	ts := r.Templates()
+	if len(ts) == 0 {
+		return nil
+	}
+	reg := workflow.NewRegistry()
+	for _, a := range m.opts.Actions.List() {
+		if a.AddOn == "" {
+			reg.Add(*a)
+		}
+	}
+	for _, a := range man.Lua.Actions {
+		reg.Add(workflow.Action{Name: man.ID + "." + a.Name, Label: a.Label, Group: man.Name, External: true, AddOn: man.ID, Params: params(a.Params)})
+	}
+	for _, t := range ts {
+		_, err := workflow.Parse(t.Workflow, reg)
+		var inv *workflow.InvalidError
+		if err == nil {
+			continue
+		}
+		if !errors.As(err, &inv) {
+			return fmt.Errorf("%w: template %q: %s", packages.ErrInvalid, t.ID, err.Error())
+		}
+		for _, pr := range inv.Problems {
+			blank := false
+			for _, b := range t.Blanks {
+				blank = blank || pr.Path == b.Path || strings.HasPrefix(pr.Path, b.Path+".")
+			}
+			if !blank {
+				return fmt.Errorf("%w: template %q: %s: %s", packages.ErrInvalid, t.ID, pr.Path, pr.Message)
+			}
+		}
+	}
+	return nil
 }

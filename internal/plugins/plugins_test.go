@@ -397,3 +397,67 @@ func TestStartLoadsPluginsLeftOn(t *testing.T) {
 		t.Fatalf("after start: %v %v", out, err)
 	}
 }
+
+// A plugin's templates are checked as the editor would save them: its own
+// steps and StreamGremlin's, not another add-on's (D-071).
+func TestPluginTemplatesAreChecked(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.reg.Add(workflow.Action{Name: "chat.send", Label: "Send", Group: "Twitch", External: true,
+		Params: []workflow.Param{{Name: "message", Label: "Message", Type: "text", Required: true}}})
+	r.reg.Add(workflow.Action{Name: "other.thing", Label: "Other", Group: "Other", AddOn: "other"})
+	r.store.SetCheck(r.m.CheckTemplates)
+	pv, _, err := r.store.Check(ctx, zipFolder(t, example, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pv.Plugin.Templates) != 2 || pv.Plugin.Templates[0].Title != "!best: the session's best roll" {
+		t.Fatalf("templates: %+v", pv.Plugin.Templates)
+	}
+	for _, c := range []struct{ from, to, want string }{
+		{`"action": "dice-tray.best"`, `"action": "dice-tray.teleport"`, `no action "dice-tray.teleport"`},
+		{`"action": "dice-tray.best"`, `"action": "other.thing"`, `no action "other.thing"`},
+		{`"triggers"`, `"trigger"`, `template "best": $: not a workflow definition`},
+	} {
+		bad := zipFolder(t, example, func(name string, b []byte) []byte {
+			if name == "templates/best.json" {
+				return bytes.Replace(b, []byte(c.from), []byte(c.to), 1)
+			}
+			return b
+		})
+		if _, _, err := r.store.Check(ctx, bad); !errors.Is(err, packages.ErrInvalid) || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v, want %q", c.to, err, c.want)
+		}
+	}
+	// A blank left empty isn't a problem.
+	blank := zipFolder(t, example, func(name string, b []byte) []byte {
+		if name == "templates/best.json" {
+			b = bytes.Replace(b, []byte(`"blanks": []`), []byte(`"blanks": [{"path": "$.steps[1].with.message", "hint": "What to say"}]`), 1)
+			return bytes.Replace(b, []byte(`"${steps.best.output.text}"`), []byte(`""`), 1)
+		}
+		return b
+	})
+	if _, _, err := r.store.Check(ctx, blank); err != nil {
+		t.Errorf("blank: %v", err)
+	}
+
+	// Installed: in the gallery, under the plugin's name, saying it's off.
+	r.install(t, zipFolder(t, example, nil), "chat.send")
+	ts, err := r.store.AddOnTemplates(ctx)
+	if err != nil || len(ts) != 2 || ts[1].ID != "dice-tray/roll" || ts[1].Category != "Dice tray" || ts[1].AddOn == nil || ts[1].AddOn.Enabled {
+		t.Fatalf("gallery: %+v %v", ts, err)
+	}
+}
+
+// "!roll" with nothing after it rolls the default, one die.
+func TestEmptyNumberIsTheDefault(t *testing.T) {
+	r := newRig(t)
+	r.install(t, zipFolder(t, example, nil), "chat.send")
+	if err := r.m.SetEnabled(context.Background(), "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.step(t, "dice-tray.roll", map[string]any{"dice": " "})
+	if err != nil || len(out.(map[string]any)["each"].([]any)) != 1 {
+		t.Fatalf("%v %v", out, err)
+	}
+}
