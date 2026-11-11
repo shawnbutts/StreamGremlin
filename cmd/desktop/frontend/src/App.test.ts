@@ -88,6 +88,7 @@ describe('App', () => {
       '/v1/points': () => ({ status: 200, body: { currency: { id: 'points', name: 'points', allow_negative: false }, summary: { transactions: 0, viewers: 0, issued: 0 }, top: [] } }),
       '/v1/viewers': () => ({ status: 200, body: { viewers: [] } }),
       '/v1/timers': () => ({ status: 200, body: { timers: [] } }),
+      '/v1/buttons': () => ({ status: 200, body: { buttons: [] } }),
       '/v1/quotes': () => ({ status: 200, body: { quotes: [], count: 0, next: 1 } }),
       '/v1/sounds': () => ({ status: 200, body: { sounds: [], player: true } }),
       '/v1/overlays': () => ({
@@ -98,21 +99,12 @@ describe('App', () => {
     });
     const el = start();
     await settle();
+    // Live is second: it's the screen for while you're live (D-075).
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '2', ctrlKey: true }));
     flushSync();
     await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Connections');
-    await noViolations('connections');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', ctrlKey: true }));
-    flushSync();
-    await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Events');
-    await noViolations('events');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4', ctrlKey: true }));
-    flushSync();
-    await settle();
-    expect(el.querySelector('h1')?.textContent).toBe('Workflows');
-    await noViolations('workflows');
+    expect(el.querySelector('h1')?.textContent).toBe('Live');
+    await noViolations('live');
     // Timers, Quotes and Rewards start under More…, so the numbers go on.
     const keyTo = async (key: string, title: string) => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: true }));
@@ -120,17 +112,26 @@ describe('App', () => {
       await settle();
       expect(el.querySelector('h1')?.textContent).toBe(title);
     };
-    await keyTo('5', 'Sounds');
+    await keyTo('3', 'Connections');
+    await noViolations('connections');
+    await keyTo('4', 'Events');
+    await noViolations('events');
+    await keyTo('5', 'Workflows');
+    await noViolations('workflows');
+    await keyTo('6', 'Sounds');
     await noViolations('sounds');
-    await keyTo('6', 'Overlays');
+    await keyTo('7', 'Overlays');
     await noViolations('overlays');
-    await keyTo('7', 'Giveaways');
+    await keyTo('8', 'Giveaways');
     await noViolations('giveaways');
-    await keyTo('8', 'Points');
+    await keyTo('9', 'Points');
     await noViolations('points');
-    await keyTo('9', 'Viewers');
+    // Viewers and Variables are past nine, so they're reached from the sidebar.
+    Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent === 'Viewers')!.click();
+    flushSync();
+    await settle();
+    expect(el.querySelector('h1')?.textContent).toBe('Viewers');
     await noViolations('viewers');
-    // Variables is past nine, so it's reached from the sidebar.
     Array.from(el.querySelectorAll<HTMLButtonElement>('nav button')).find((b) => b.textContent === 'Variables')!.click();
     flushSync();
     await settle();

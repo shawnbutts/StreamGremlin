@@ -156,7 +156,7 @@
   <h2 id="screens-heading">Screens</h2>
   <p class="sg-muted">
     Screens you don’t use often can go under “More…” in the sidebar, out of the way. They keep working: timers still run and
-    quote commands still answer. Home, Events, Workflows, Settings and Help always stay.
+    quote commands still answer. Home, Live, Events, Workflows, Settings and Help always stay.
   </p>
   <ul class="secret-list" aria-label="Screens">
     {#each MOVABLE as id (id)}

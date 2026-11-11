@@ -189,6 +189,11 @@ func (in *Inbox) Get(ctx context.Context, id string) (Record, error) {
 	return r, nil
 }
 
+// BySource returns the event a source stored under its own id.
+func (in *Inbox) BySource(ctx context.Context, source, id string) (Record, error) {
+	return in.bySourceEventID(ctx, source, id)
+}
+
 func (in *Inbox) bySourceEventID(ctx context.Context, source, id string) (Record, error) {
 	r, _, err := scan(in.db.QueryRowContext(ctx, selectRecord+"WHERE source = ? AND source_event_id = ?", source, id))
 	if errors.Is(err, sql.ErrNoRows) {

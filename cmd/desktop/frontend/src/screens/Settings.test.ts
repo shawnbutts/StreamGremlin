@@ -89,7 +89,7 @@ describe('Settings', () => {
         .querySelector<HTMLInputElement>('input')!;
     expect(underMore('Quotes').checked).toBe(true);
     expect(underMore('Sounds').checked).toBe(false);
-    expect(el.textContent).toContain('Home, Events, Workflows, Settings and Help always stay');
+    expect(el.textContent).toContain('Home, Live, Events, Workflows, Settings and Help always stay');
     underMore('Quotes').click();
     await settle();
     expect(calls.at(-1)).toMatchObject({ method: 'PUT', body: { more: ['timers', 'rewards'] } });

@@ -9,6 +9,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
+	"code.streamgremlin.com/streamgremlin/internal/buttons"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
@@ -74,6 +75,8 @@ type Deps struct {
 	Plugins *plugins.Manager
 	// Rounds are plugins' rounds (ADR-0039).
 	Rounds *rounds.Service
+	// Buttons are the streamer's buttons (D-075).
+	Buttons *buttons.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time
@@ -141,7 +144,7 @@ func Routes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/settings/ui",
-			Summary: "Change the appearance settings {theme?, text_size?, density?, more?}; fields left out keep what's saved. " +
+			Summary: "Change the appearance settings {theme?, text_size?, density?, more?, live_buttons?}; fields left out keep what's saved. " +
 				"Repeating a request is harmless.",
 			Permission: PermSettingsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +169,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), luaRoutes(d)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(luaRoutes(d), buttonRoutes(d)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

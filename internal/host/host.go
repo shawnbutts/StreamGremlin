@@ -22,6 +22,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/backup"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
+	"code.streamgremlin.com/streamgremlin/internal/buttons"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
@@ -273,6 +274,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Lua:        h.lua,
 		Plugins:    h.plugins,
 		Rounds:     h.rounds,
+		Buttons:    buttons.New(h.db, inbox, nil),
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},

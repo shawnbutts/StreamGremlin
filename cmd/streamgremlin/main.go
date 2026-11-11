@@ -50,6 +50,10 @@ Commands:
             timers [-json]                list, with when each goes off next
             timers run|on|off|delete ID   run now, turn on or off, delete
             timers set ID -name N -every 15m [-lines N] [-live] [-once]
+  buttons   Your buttons, which run workflows (streamgremlin buttons help).
+            buttons [-json]               list, with the workflows each starts
+            buttons press|delete ID       press one (its workflows run), delete
+            buttons set ID -label TEXT [-color NAME], buttons move ID...
   quotes    Numbered quotes (streamgremlin quotes help).
             quotes [-q TEXT]              list, newest first
             quotes add [-by NAME] TEXT    add one
@@ -172,6 +176,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return quotesCmd(dir, rest, stdout, stderr)
 	case "timers":
 		return timersCmd(dir, rest, stdout, stderr)
+	case "buttons":
+		return buttonsCmd(dir, rest, stdout, stderr)
 	case "vars":
 		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":

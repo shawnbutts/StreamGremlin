@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/buttons"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
@@ -176,7 +177,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

@@ -88,6 +88,11 @@ const (
 	// installing and removing them.
 	PermPackagesRead  Permission = "packages.read"
 	PermPackagesWrite Permission = "packages.write"
+	// Buttons (D-075): listing them; making, changing, ordering and
+	// deleting them; and pressing them, which runs their workflows.
+	PermButtonsRead  Permission = "buttons.read"
+	PermButtonsWrite Permission = "buttons.write"
+	PermButtonsPress Permission = "buttons.press"
 )
 
 // Principal is an authenticated caller.

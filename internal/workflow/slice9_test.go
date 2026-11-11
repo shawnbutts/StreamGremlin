@@ -272,7 +272,7 @@ func TestThePaletteMatchesTheEventCatalog(t *testing.T) {
 				t.Errorf("%s: no %s in its payload", tr.Type, m.Path)
 			}
 			switch m.Kind {
-			case "command", "who", "text", "scene", "source", "on_off", "timer":
+			case "command", "who", "text", "scene", "source", "on_off", "timer", "button":
 			default:
 				t.Errorf("%s: kind %q", m.Path, m.Kind)
 			}

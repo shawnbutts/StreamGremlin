@@ -1332,3 +1332,17 @@ Offered our own Stream Deck plugin, global hotkeys, or both, the user chose: "Ou
 - **Moderating from chat:** small buttons for what Twitch's documented moderation API allows. That means deleting a message, timing out (Twitch's "mute"), banning and unbanning, warning, a shoutout, VIP and moderator, and the chat modes. Each is checked against Twitch's docs when built, recorded, and refused ones say why. Banning asks first, in the app's dialog.
 - **Our own Stream Deck plugin,** built with Elgato's documented SDK. It pairs once with the app, then each button is set to a StreamGremlin button or workflow, picked from a list, and it can show state. It reaches the engine through the same authenticated local API as the app and CLI, with its own narrow permissions. How it pairs is designed as an ADR first (security). It installs from a file. A Marketplace listing is a later decision.
 - **The Streamer.bot WebSocket gateway stays Leave,** so Streamer.bot's Stream Deck buttons don't carry over. Streamers set their buttons again with ours. **Global hotkeys stay Later.**
+
+## D-076. Buttons and the Live screen (M7 slice 1)
+
+Decided 2026-11-11, building M7 slice 1 after the user's "proceed". The design is [ADR-0040](adr/0040-buttons.md). In short:
+
+- **A button is a named source of an event,** `buttons.button.pressed`, not a second kind of workflow. Workflows start from it with the new trigger **You press a button**, matching the button. A press has no viewer, like a timer.
+- **Exactly once:** a press carries a request id from the app. The same id again is the same press, and runs nothing twice.
+- **A press says which workflows it started.**
+- **Deleting a button keeps its workflows,** as with timers. They never start from it again.
+- **Pressing has its own permission,** `buttons.press`, so the Stream Deck's token (slice 4) can press without editing.
+- **Live is second in the sidebar** (Ctrl/⌘+2) and never goes under More…. Every later shortcut moves down one.
+- **The buttons go right or top,** saved with the appearance settings as `live_buttons`, right by default.
+- **Chatters' Twitch colours are a swatch,** never the colour of their name, for contrast. Badges are words.
+- **The send box sends as you by default** on the Live screen, or as the bot.

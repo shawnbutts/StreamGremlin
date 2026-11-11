@@ -44,13 +44,17 @@ type UI struct {
 	// More lists the screens shown under "More…" in the sidebar, by id.
 	// Screens there work as usual; they're just out of the way.
 	More []string `json:"more"`
+	// LiveButtons is where the Live screen shows the buttons: right or top.
+	LiveButtons string `json:"live_buttons"`
 }
 
 // Text sizes and densities.
 var (
 	TextSizes = []string{"small", "standard", "large", "larger"}
 	Densities = []string{"comfortable", "compact"}
-	// MovableScreens can go under "More…". Home, Events, Workflows,
+	// LivePlaces are where the Live screen's buttons can go.
+	LivePlaces = []string{"right", "top"}
+	// MovableScreens can go under "More…". Home, Live, Events, Workflows,
 	// Settings and Help always stay in the sidebar.
 	MovableScreens = []string{"connections", "timers", "quotes", "sounds", "overlays", "giveaways", "points", "viewers", "wheels", "rewards", "polls", "variables", "addons"}
 )
@@ -58,7 +62,7 @@ var (
 // DefaultUI is used until the streamer changes anything. Settings saved
 // before a field existed get its default.
 func DefaultUI() UI {
-	return UI{Theme: ThemeSystem, TextSize: "standard", Density: "comfortable", More: []string{"timers", "quotes", "wheels", "rewards", "polls"}}
+	return UI{Theme: ThemeSystem, TextSize: "standard", Density: "comfortable", LiveButtons: "right", More: []string{"timers", "quotes", "wheels", "rewards", "polls"}}
 }
 
 // Check reports what's wrong with the settings, in words, and puts More in
@@ -71,6 +75,8 @@ func (ui *UI) Check() error {
 		return fmt.Errorf("%w: text size must be small, standard, large or larger", ErrInvalid)
 	case !slices.Contains(Densities, ui.Density):
 		return fmt.Errorf("%w: spacing must be comfortable or compact", ErrInvalid)
+	case !slices.Contains(LivePlaces, ui.LiveButtons):
+		return fmt.Errorf("%w: the Live screen's buttons go right or top", ErrInvalid)
 	}
 	more := []string{}
 	for _, id := range MovableScreens {
@@ -125,6 +131,9 @@ func (s *Store) UI(ctx context.Context) (UI, error) {
 	}
 	if !slices.Contains(Densities, ui.Density) {
 		ui.Density = def.Density
+	}
+	if !slices.Contains(LivePlaces, ui.LiveButtons) {
+		ui.LiveButtons = def.LiveButtons
 	}
 	if ui.More == nil {
 		ui.More = def.More

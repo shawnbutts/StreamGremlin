@@ -9,6 +9,7 @@
   import Events from './screens/Events.svelte';
   import Help from './screens/Help.svelte';
   import Home from './screens/Home.svelte';
+  import Live from './screens/Live.svelte';
   import Quotes from './screens/Quotes.svelte';
   import Settings from './screens/Settings.svelte';
   import Sounds from './screens/Sounds.svelte';
@@ -26,14 +27,15 @@
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
 
-  type Screen = 'home' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'addons' | 'help' | 'settings';
+  type Screen = 'home' | 'live' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'addons' | 'help' | 'settings';
   // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
   // order, then "More…" with the ones the streamer moved there, then
-  // Settings and Help, always last. Home, Events, Workflows, Settings and
-  // Help never move. Ctrl/⌘+1–9 go to the main screens in order; Settings
+  // Settings and Help, always last. Home, Live, Events, Workflows, Settings
+  // and Help never move. Ctrl/⌘+1–9 go to the main screens in order; Settings
   // is Ctrl/⌘+comma and Help Ctrl/⌘+/, as in most apps.
   const screens: { id: Screen; label: string }[] = [
     { id: 'home', label: 'Home' },
+    { id: 'live', label: 'Live' },
     { id: 'connections', label: 'Connections' },
     { id: 'events', label: 'Events' },
     { id: 'workflows', label: 'Workflows' },
@@ -215,6 +217,8 @@
       </section>
     {:else if screen === 'home'}
       <Home ongo={go} />
+    {:else if screen === 'live'}
+      <Live />
     {:else if screen === 'connections'}
       <Connections />
     {:else if screen === 'events'}

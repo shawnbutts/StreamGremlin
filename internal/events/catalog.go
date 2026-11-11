@@ -59,6 +59,10 @@ type Kind struct {
 // TimerFired is the event a timer records each time it goes off.
 const TimerFired = "timers.timer.fired"
 
+// ButtonPressed is the event a press of one of the streamer's buttons
+// records (M7, D-075).
+const ButtonPressed = "buttons.button.pressed"
+
 // Catalog lists the types the engine knows in this build. Slices add their
 // types here as they add the adapters that send them (docs/adr/0004-events.md).
 // Payload shapes aren't frozen until the slice that sends the real event.
@@ -326,6 +330,18 @@ func Catalog() []Kind {
 			build: func(_ string, v map[string]string) (any, *Actor, error) {
 				n, _ := strconv.ParseInt(v["counter"], 10, 64)
 				return map[string]any{"timer_id": v["timer_id"], "name": v["name"], "counter": n, "manual": false}, nil, nil
+			},
+		},
+		{
+			Type: ButtonPressed, Label: "Button pressed",
+			Description: "You pressed one of your buttons, on the Live screen or elsewhere.",
+			Sources:     []string{"buttons"},
+			Fields: []Field{
+				{Name: "button_id", Label: "Button", Kind: "text", Default: "brb", Max: 64, Path: "button_id"},
+				{Name: "label", Label: "Its label", Kind: "text", Default: "Be right back", Max: 40},
+			},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"button_id": v["button_id"], "label": v["label"], "from": "live"}, nil, nil
 			},
 		},
 		obsKind("broadcast.stream.started", "Stream started", "OBS started streaming.", nil,

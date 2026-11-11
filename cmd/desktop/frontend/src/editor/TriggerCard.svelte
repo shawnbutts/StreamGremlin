@@ -117,6 +117,16 @@
           </select>
           {#if !env.timers.length}<span class="sg-muted field-hint">No timers yet: make one on the Timers screen.</span>{/if}
         </label>
+      {:else if m.kind === 'button'}
+        <label class="field">
+          <span>{m.label}</span>
+          <select class="sg-input" value={typeof v === 'string' ? v : ''} onchange={(e) => setWhere(m.path, e.currentTarget.value || undefined)}>
+            <option value="">Any button</option>
+            {#each env.buttons as b (b.id)}<option value={b.id}>{b.label}</option>{/each}
+            {#if typeof v === 'string' && v && !env.buttons.some((b) => b.id === v)}<option value={v}>{v} (not found)</option>{/if}
+          </select>
+          {#if !env.buttons.length}<span class="sg-muted field-hint">No buttons yet: make one on the Live screen.</span>{/if}
+        </label>
       {:else if m.kind === 'on_off'}
         <label class="field">
           <span>{m.label}</span>

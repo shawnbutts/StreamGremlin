@@ -2,10 +2,13 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 // Save parses and stores a definition. Unchanged content keeps its version.
@@ -269,4 +272,29 @@ func usesAction(steps []Step, prefix string) bool {
 		}
 	}
 	return false
+}
+
+// Starting returns the running workflows an event starts: on, in a group
+// that's on, with a trigger that matches it. The Live screen says which a
+// button press started (D-075).
+func (e *Engine) Starting(ctx context.Context, r events.Record) ([]Summary, error) {
+	all, err := e.st.list(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	payload := map[string]any{}
+	_ = json.Unmarshal(r.Payload, &payload)
+	out := []Summary{}
+	for _, w := range all {
+		if !w.Running {
+			continue
+		}
+		for _, t := range w.Triggers {
+			if t.matches(r, payload) {
+				out = append(out, w)
+				break
+			}
+		}
+	}
+	return out, nil
 }

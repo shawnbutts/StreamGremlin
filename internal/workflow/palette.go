@@ -10,7 +10,8 @@ type MatchField struct {
 	Path  string `json:"path"`
 	Label string `json:"label"`
 	// Kind: command (a chat command, without "!"), who (a chatter.role
-	// list), text, scene, source, on_off or timer (a timer's id).
+	// list), text, scene, source, on_off, timer (a timer's id) or button
+	// (a button's id).
 	Kind string `json:"kind"`
 	Help string `json:"help,omitempty"`
 }
@@ -205,6 +206,10 @@ func Triggers() []TriggerEntry {
 			Match: []MatchField{{Path: "timer_id", Label: "Timer", Kind: "timer"}},
 			Values: []Value{{Token: "timer", Label: "The timer's name", Expr: "event.payload.name"},
 				{Token: "counter", Label: "How many times it has gone off", Expr: "event.payload.counter"}}},
+		{Type: "buttons.button.pressed", Label: "You press a button", Category: "Buttons",
+			Help:   "You press one of your buttons: on the Live screen, or later on a Stream Deck. No viewer is behind it.",
+			Match:  []MatchField{{Path: "button_id", Label: "Button", Kind: "button"}},
+			Values: []Value{{Token: "button", Label: "The button's label", Expr: "event.payload.label"}}},
 		{Type: "broadcast.stream.started", Label: "The stream starts", Category: "Stream", Help: "OBS starts streaming.",
 			Match: []MatchField{}, Values: []Value{}},
 		{Type: "broadcast.stream.stopped", Label: "The stream stops", Category: "Stream", Help: "OBS stops streaming.",

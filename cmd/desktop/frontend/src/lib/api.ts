@@ -72,7 +72,11 @@ export interface UISettings {
   density: Density;
   /** Screens shown under "More…" in the sidebar, by id. */
   more: string[];
+  /** Where the Live screen shows the buttons. */
+  live_buttons: LivePlace;
 }
+
+export type LivePlace = 'right' | 'top';
 
 export const getUISettings = () => api<UISettings>('GET', '/v1/settings/ui');
 /** Change some appearance settings; the rest keep what's saved. */
@@ -125,8 +129,12 @@ export interface EventPage {
 }
 
 /** The newest events, or with `after`, the ones after that cursor, waiting up to `wait` seconds. */
-export function getEvents(opts: { after?: number; wait?: number; limit?: number; q?: string }, signal?: AbortSignal) {
+export function getEvents(
+  opts: { after?: number; wait?: number; limit?: number; q?: string; types?: string[] },
+  signal?: AbortSignal,
+) {
   const q = new URLSearchParams();
+  if (opts.types?.length) q.set('types', opts.types.join(','));
   if (opts.after !== undefined) q.set('after', String(opts.after));
   if (opts.wait) q.set('wait', String(opts.wait));
   if (opts.limit) q.set('limit', String(opts.limit));
@@ -432,7 +440,7 @@ export interface PaletteValue {
 export interface MatchField {
   path: string;
   label: string;
-  kind: 'command' | 'who' | 'text' | 'scene' | 'source' | 'on_off' | 'timer';
+  kind: 'command' | 'who' | 'text' | 'scene' | 'source' | 'on_off' | 'timer' | 'button';
   help?: string;
 }
 
@@ -1619,3 +1627,35 @@ export const rollbackPackage = (id: string, permissions: string[] = []) => {
 export const removePackage = (id: string) =>
   api<{ package: Package; overlays: string[]; workflows?: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
 export const getPackageAudit = () => api<{ audit: PackageAuditEntry[] }>('GET', '/v1/packages/audit');
+
+// Buttons (D-075): the Live screen's, pressed to run workflows.
+export const BUTTON_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink'] as const;
+export type ButtonColor = '' | (typeof BUTTON_COLORS)[number];
+
+export interface LiveButton {
+  id: string;
+  label: string;
+  color: ButtonColor;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  /** The running workflows a press starts. */
+  starts: WorkflowSummary[];
+}
+
+export interface PressResult {
+  button: Omit<LiveButton, 'starts'>;
+  event: EventRecord;
+  /** The same request again: nothing ran twice. */
+  duplicate: boolean;
+  started: WorkflowSummary[];
+}
+
+export const getButtons = () => api<{ buttons: LiveButton[] }>('GET', '/v1/buttons');
+export const saveButton = (id: string, label: string, color: ButtonColor) =>
+  api<Omit<LiveButton, 'starts'>>('PUT', `/v1/buttons/${encodeURIComponent(id)}`, { label, color });
+export const deleteButton = (id: string) => api<void>('DELETE', `/v1/buttons/${encodeURIComponent(id)}`);
+export const orderButtons = (order: string[]) => api<{ buttons: LiveButton[] }>('PUT', '/v1/button-order', { order });
+/** Press a button. The same requestId again is the same press. */
+export const pressButton = (id: string, requestId: string) =>
+  api<PressResult>('POST', `/v1/buttons/${encodeURIComponent(id)}/press`, { request_id: requestId });

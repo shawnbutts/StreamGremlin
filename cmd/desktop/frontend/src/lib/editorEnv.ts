@@ -1,7 +1,7 @@
 // What every part of the workflow editor needs to know, shared through
 // Svelte context so nested step lists don't pass it down by hand.
 import { getContext, setContext } from 'svelte';
-import type { ActionInfo, CommandEntry, Overlay, PaletteValue, Problem, Reward, Sound, TimerStatus, TriggerEntry, WorkflowSummary } from './api';
+import type { ActionInfo, CommandEntry, LiveButton, Overlay, PaletteValue, Problem, Reward, Sound, TimerStatus, TriggerEntry, WorkflowSummary } from './api';
 
 export interface EditorEnv {
   triggers: TriggerEntry[];
@@ -13,6 +13,8 @@ export interface EditorEnv {
   workflows: WorkflowSummary[];
   /** Timers, for "A timer goes off" and "Turn a timer on or off". */
   timers: TimerStatus[];
+  /** Buttons, for "You press a button". */
+  buttons: LiveButton[];
   /** The sound library, for "Play a sound". */
   sounds: Sound[];
   /** Overlays, for "Show an alert". */

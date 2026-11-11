@@ -13,6 +13,7 @@
     getRewards,
     getWorkflowGroups,
     getTimers,
+    getButtons,
     getPalette,
     getSceneItems,
     getVariables,
@@ -78,6 +79,7 @@
     // svelte-ignore state_referenced_locally
     workflows,
     timers: [],
+    buttons: [],
     sounds: [],
     overlays: [],
     rewards: [],
@@ -109,6 +111,11 @@
     getTimers()
       .then((r) => {
         env.timers = r.timers;
+      })
+      .catch(() => undefined);
+    getButtons()
+      .then((r) => {
+        env.buttons = r.buttons;
       })
       .catch(() => undefined);
     getSounds()

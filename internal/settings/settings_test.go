@@ -31,7 +31,7 @@ func TestUIDefaultsThenSaves(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(ui, DefaultUI()) || !reflect.DeepEqual(ui.More, []string{"timers", "quotes", "wheels", "rewards", "polls"}) {
 		t.Fatalf("default: %+v, %v", ui, err)
 	}
-	want := UI{Theme: ThemeMidnight, TextSize: "large", Density: "compact", More: []string{"rewards", "connections", "rewards"}}
+	want := UI{Theme: ThemeMidnight, TextSize: "large", Density: "compact", LiveButtons: "top", More: []string{"rewards", "connections", "rewards"}}
 	for i := 0; i < 2; i++ { // saving twice is harmless
 		if _, err := s.SetUI(ctx, want); err != nil {
 			t.Fatal(err)
@@ -39,7 +39,7 @@ func TestUIDefaultsThenSaves(t *testing.T) {
 	}
 	ui, err = s.UI(ctx)
 	// More comes back in sidebar order, once each.
-	if err != nil || ui.Theme != ThemeMidnight || ui.TextSize != "large" || ui.Density != "compact" ||
+	if err != nil || ui.Theme != ThemeMidnight || ui.TextSize != "large" || ui.Density != "compact" || ui.LiveButtons != "top" ||
 		!reflect.DeepEqual(ui.More, []string{"connections", "rewards"}) {
 		t.Fatalf("after save: %+v, %v", ui, err)
 	}
@@ -64,7 +64,7 @@ func TestOlderUISettingsGetDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	ui, err := s.UI(ctx)
-	if err != nil || ui.Theme != ThemeLight || ui.TextSize != "standard" || ui.Density != "comfortable" ||
+	if err != nil || ui.Theme != ThemeLight || ui.TextSize != "standard" || ui.Density != "comfortable" || ui.LiveButtons != "right" ||
 		!reflect.DeepEqual(ui.More, []string{"quotes"}) {
 		t.Fatalf("%+v %v", ui, err)
 	}
@@ -76,6 +76,7 @@ func TestUIRejectsWhatItCantUse(t *testing.T) {
 		func(u *UI) { u.Theme = "purple" },
 		func(u *UI) { u.TextSize = "huge" },
 		func(u *UI) { u.Density = "airy" },
+		func(u *UI) { u.LiveButtons = "left" },
 		func(u *UI) { u.More = []string{"home"} },      // always shown
 		func(u *UI) { u.More = []string{"workflows"} }, // always shown
 		func(u *UI) { u.More = []string{"nope"} },
