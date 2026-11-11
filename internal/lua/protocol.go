@@ -45,7 +45,7 @@ const (
 
 // frame is one message either way. Only the fields of its Type are set.
 type frame struct {
-	Type string `json:"type"` // run, log, done, memory
+	Type string `json:"type"` // run, load, call, log, host, reply, done, memory
 	ID   uint64 `json:"id,omitempty"`
 
 	// run
@@ -57,6 +57,19 @@ type frame struct {
 
 	// log
 	Message string `json:"message,omitempty"`
+
+	// load and call, for plugins (docs/adr/0038-lua-plugins.md)
+	Plugin      map[string]any `json:"plugin,omitempty"`
+	Settings    map[string]any `json:"settings,omitempty"`
+	Permissions []string       `json:"permissions,omitempty"`
+	Actions     []string       `json:"actions,omitempty"`
+	Action      string         `json:"action,omitempty"`
+	Key         string         `json:"key,omitempty"`
+
+	// host (the worker asks the engine to act) and reply
+	Op     string `json:"op,omitempty"`
+	OK     bool   `json:"ok,omitempty"`
+	Reason string `json:"reason,omitempty"`
 
 	// done
 	Result     any    `json:"result,omitempty"`

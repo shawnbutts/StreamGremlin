@@ -18,14 +18,16 @@ const (
 	// CodeConfirmPublisher: a package would replace another publisher's;
 	// send it again with ?publisher= its new publisher's name.
 	CodeConfirmPublisher = "confirm_publisher"
-	CodeDeleted          = "deleted"       // the id belongs to a deleted workflow; restore it first
-	CodeCommandTaken     = "command_taken" // another workflow already answers that chat command
-	CodeUnavailable      = "unavailable"
-	CodeRateLimited      = "rate_limited"
-	CodeNotSent          = "not_sent" // Twitch accepted the request but didn't post it
-	CodeNotConnected     = "not_connected"
-	CodeUnknownOutcome   = "unknown_outcome" // the connection dropped before an answer: it may or may not have happened
-	CodeInternal         = "internal"
+	// CodeConfirmPermissions: a plugin's permissions weren't all approved.
+	CodeConfirmPermissions = "confirm_permissions"
+	CodeDeleted            = "deleted"       // the id belongs to a deleted workflow; restore it first
+	CodeCommandTaken       = "command_taken" // another workflow already answers that chat command
+	CodeUnavailable        = "unavailable"
+	CodeRateLimited        = "rate_limited"
+	CodeNotSent            = "not_sent" // Twitch accepted the request but didn't post it
+	CodeNotConnected       = "not_connected"
+	CodeUnknownOutcome     = "unknown_outcome" // the connection dropped before an answer: it may or may not have happened
+	CodeInternal           = "internal"
 )
 
 // ErrorBody is the shape of every error response.

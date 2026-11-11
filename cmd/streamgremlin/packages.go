@@ -11,17 +11,23 @@ import (
 	"strings"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
 )
 
 const packagesUsage = `usage:
-  streamgremlin packages [-json]              installed add-ons: wheel looks (themes)
-  streamgremlin packages install FILE [-yes] [-publisher NAME]
+  streamgremlin packages [-json]              installed add-ons: wheel looks (themes) and Lua plugins
+  streamgremlin packages install FILE [-yes] [-publisher NAME] [-allow PERMISSIONS]
                                               install a ZIP, or update to it; without -yes, only
                                               says what it is. Replacing another publisher's
-                                              also needs -publisher with the new one's name
+                                              also needs -publisher with the new one's name; a
+                                              plugin needs -allow with each permission it asks for
+  streamgremlin packages on|off ID            turn a plugin on or off
+  streamgremlin packages set ID KEY=VALUE...  change a plugin's settings (it starts again, fresh)
+  streamgremlin packages activity ID [-json]  what a plugin has asked StreamGremlin to do
   streamgremlin packages rollback ID [-yes]   back to the version before the installed one
-  streamgremlin packages remove ID [-yes]     remove one; overlays using it go back to Classic
+  streamgremlin packages remove ID [-yes]     remove one; overlays using a look go back to Classic,
+                                              workflows using a plugin's steps are turned off
   streamgremlin packages history [-json]      installs, updates, roll backs, removals and refusals
 
 Publishers are as the package states them: StreamGremlin can't verify
@@ -32,7 +38,15 @@ to whoever made it: the real result is always in chat.`
 
 type packageView struct {
 	packages.Package
-	UsedBy []string `json:"used_by"`
+	UsedBy    []string `json:"used_by"`
+	Workflows []string `json:"workflows"`
+}
+
+func orNone(list []string) string {
+	if len(list) == 0 {
+		return "none"
+	}
+	return strings.Join(list, ", ")
 }
 
 // versionAnswer is what an install, update or roll back did.
@@ -77,6 +91,7 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	asJSON := fs.Bool("json", false, "print JSON")
 	yes := fs.Bool("yes", false, "do it, without only saying what would happen")
 	publisher := fs.String("publisher", "", "the new publisher's name, exactly, to replace another publisher's add-on")
+	allow := fs.String("allow", "", "a plugin's permissions, comma-separated: each one it asks for")
 	// Flags may come after the file or id.
 	var pos []string
 	for len(args) > 0 {
@@ -110,6 +125,26 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return 0
 		}
 		for _, p := range out.Packages {
+			if p.Plugin != nil {
+				state := "off"
+				switch {
+				case p.Plugin.Enabled:
+					state = "on"
+				case p.Plugin.Error != "":
+					state = "off (" + p.Plugin.Error + ")"
+				}
+				perms := []string{}
+				for _, x := range p.Plugin.Permissions {
+					perms = append(perms, x.Name)
+				}
+				used := "no workflows use it"
+				if len(p.Workflows) > 0 {
+					used = "used by " + strings.Join(p.Workflows, ", ")
+				}
+				fmt.Fprintf(stdout, "%s  %s %s, Lua plugin, published by %s (not verified); %s; permissions: %s; %s\n", p.ID, p.Name, p.Version,
+					p.Publisher, state, orNone(perms), used)
+				continue
+			}
 			used := "not used yet"
 			if len(p.UsedBy) > 0 {
 				used = "used by " + strings.Join(p.UsedBy, ", ")
@@ -140,7 +175,11 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		if code := apiExit(c.DoRaw(ctx, "POST", "/v1/packages/check", data, &pv), stderr); code != 0 {
 			return code
 		}
-		fmt.Fprintf(stdout, "%s %s: a wheel look, published by %s (not verified).\n", pv.Name, pv.Version, pv.Publisher)
+		kind := "a wheel look"
+		if pv.Plugin != nil {
+			kind = "a Lua plugin"
+		}
+		fmt.Fprintf(stdout, "%s %s: %s, published by %s (not verified).\n", pv.Name, pv.Version, kind, pv.Publisher)
 		if pv.Update && pv.Installed != nil {
 			what := "An update"
 			if pv.Older {
@@ -161,11 +200,28 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprint(stdout, " It has its own sounds.")
 		}
 		fmt.Fprintln(stdout)
-		fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
-			"StreamGremlin's settings. It's told the result StreamGremlin drew, but what it draws is up to whoever made it: the real result is "+
-			"always in chat. StreamGremlin can't check how it draws the odds.")
-		fmt.Fprintln(stdout, `In OBS, it only loads while the wheel's browser source has "Page permissions" at "No access to OBS"; `+
-			"otherwise Classic shows instead.")
+		if pv.Plugin != nil {
+			fmt.Fprintln(stdout, "This plugin runs its own Lua in a separate process. It can't reach your files, the internet or your accounts, "+
+				"only what you allow below. It keeps its own memory while it's on, and it's installed off.")
+			fmt.Fprintln(stdout, "Steps it adds to workflows:")
+			for _, a := range pv.Plugin.Actions {
+				fmt.Fprintf(stdout, "  %s.%s  %s: %s\n", pv.ID, a.Name, a.Label, a.Description)
+			}
+			if len(pv.Plugin.Permissions) == 0 {
+				fmt.Fprintln(stdout, "It asks for no permissions.")
+			} else {
+				fmt.Fprintln(stdout, "It asks for these permissions:")
+				for _, x := range pv.Plugin.Permissions {
+					fmt.Fprintf(stdout, "  %s  %s\n", x.Name, x.What)
+				}
+			}
+		} else {
+			fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
+				"StreamGremlin's settings. It's told the result StreamGremlin drew, but what it draws is up to whoever made it: the real result is "+
+				"always in chat. StreamGremlin can't check how it draws the odds.")
+			fmt.Fprintln(stdout, `In OBS, it only loads while the wheel's browser source has "Page permissions" at "No access to OBS"; `+
+				"otherwise Classic shows instead.")
+		}
 		if pv.Same {
 			fmt.Fprintln(stdout, "It's installed already.")
 			return 0
@@ -173,6 +229,15 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		confirm := ""
 		if pv.PublisherChange {
 			confirm = fmt.Sprintf(" -publisher %q", pv.Publisher)
+		}
+		var asked []string
+		if pv.Plugin != nil {
+			for _, x := range pv.Plugin.Permissions {
+				asked = append(asked, x.Name)
+			}
+			if len(asked) > 0 {
+				confirm += " -allow " + strings.Join(asked, ",")
+			}
 		}
 		if !*yes {
 			fmt.Fprintf(stdout, "Run again with -yes%s to install it.\n", confirm)
@@ -182,9 +247,16 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "To replace %s's add-on, confirm the new publisher by name: -publisher %q\n", pv.Installed.Publisher, pv.Publisher)
 			return 1
 		}
+		if pv.Plugin != nil && *allow != strings.Join(asked, ",") {
+			fmt.Fprintf(stderr, "%s asks for %s: approve each with -allow %s\n", pv.Name, orNone(asked), strings.Join(asked, ","))
+			return 1
+		}
 		q := url.Values{"digest": {pv.Digest}}
 		if pv.PublisherChange {
 			q.Set("publisher", *publisher)
+		}
+		if *allow != "" {
+			q.Set("permissions", *allow)
 		}
 		var a versionAnswer
 		if code := apiExit(c.DoRaw(ctx, "POST", "/v1/packages?"+q.Encode(), data, &a), stderr); code != 0 {
@@ -195,7 +267,84 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			a.moved(stdout)
 			return 0
 		}
+		if a.Plugin != nil {
+			fmt.Fprintf(stdout, "Installed %s %s, off. Turn it on with: streamgremlin packages on %s\n", a.Name, a.Version, a.ID)
+			return 0
+		}
 		fmt.Fprintf(stdout, "Installed %s %s. Pick it for a wheel overlay: streamgremlin overlays look NAME -look %s\n", a.Name, a.Version, a.ID)
+		return 0
+	case (sub == "on" || sub == "off") && len(pos) == 1:
+		var p packages.Package
+		if code := apiExit(c.Do(ctx, "PUT", "/v1/packages/"+url.PathEscape(pos[0])+"/enabled", map[string]bool{"enabled": sub == "on"}, &p), stderr); code != 0 {
+			return code
+		}
+		if sub == "on" {
+			fmt.Fprintf(stdout, "%s is on.\n", p.Name)
+		} else {
+			fmt.Fprintf(stdout, "%s is off. Its steps fail until it's on again; its workflows stay on.\n", p.Name)
+		}
+		return 0
+	case sub == "set" && len(pos) >= 2:
+		var cur packages.Package
+		var list struct {
+			Packages []packages.Package `json:"packages"`
+		}
+		if code := apiExit(c.Do(ctx, "GET", "/v1/packages", nil, &list), stderr); code != 0 {
+			return code
+		}
+		for _, p := range list.Packages {
+			if p.ID == pos[0] {
+				cur = p
+			}
+		}
+		if cur.Plugin == nil {
+			fmt.Fprintf(stderr, "%s isn't an installed plugin\n", pos[0])
+			return 1
+		}
+		values := map[string]any{}
+		for _, kv := range pos[1:] {
+			k, v, ok := strings.Cut(kv, "=")
+			if !ok {
+				fmt.Fprintf(stderr, "%s: settings are KEY=VALUE\n", kv)
+				return 2
+			}
+			val, err := settingValue(&overlays.Theme{Name: cur.Name, Settings: cur.Settings}, k, v)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 2
+			}
+			values[k] = val
+		}
+		var p packages.Package
+		if code := apiExit(c.Do(ctx, "PUT", "/v1/packages/"+url.PathEscape(pos[0])+"/settings", map[string]any{"settings": values}, &p), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Saved %s's settings.", p.Name)
+		if p.Plugin != nil && p.Plugin.Enabled {
+			fmt.Fprint(stdout, " It started again, fresh, to read them.")
+		}
+		if p.Plugin != nil && p.Plugin.Error != "" {
+			fmt.Fprintf(stdout, " It's off: %s.", p.Plugin.Error)
+		}
+		fmt.Fprintln(stdout)
+		return 0
+	case sub == "activity" && len(pos) == 1:
+		var out struct {
+			Activity []packages.Activity `json:"activity"`
+		}
+		if code := apiExit(c.Do(ctx, "GET", "/v1/packages/"+url.PathEscape(pos[0])+"/activity", nil, &out), stderr); code != 0 {
+			return code
+		}
+		if *asJSON {
+			return printJSON(stdout, out.Activity)
+		}
+		if len(out.Activity) == 0 {
+			fmt.Fprintln(stdout, "Nothing yet.")
+		}
+		for i := len(out.Activity) - 1; i >= 0; i-- {
+			e := out.Activity[i]
+			fmt.Fprintf(stdout, "%s  %-9s %-7s %s\n", e.At.Local().Format("2006-01-02 15:04:05"), e.Call, e.Outcome, e.Detail)
+		}
 		return 0
 	case sub == "rollback" && len(pos) == 1:
 		var out struct {
@@ -254,11 +403,15 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if len(found.UsedBy) > 0 {
 				fmt.Fprintf(stdout, " These overlays go back to the Classic look: %s.", strings.Join(found.UsedBy, ", "))
 			}
+			if len(found.Workflows) > 0 {
+				fmt.Fprintf(stdout, " These workflows use its steps and are turned off (not deleted): %s.", strings.Join(found.Workflows, ", "))
+			}
 			fmt.Fprintln(stdout, "\nRun again with -yes to remove it.")
 			return 0
 		}
 		var res struct {
-			Overlays []string `json:"overlays"`
+			Overlays  []string `json:"overlays"`
+			Workflows []string `json:"workflows"`
 		}
 		if code := apiExit(c.Do(ctx, "DELETE", "/v1/packages/"+url.PathEscape(pos[0]), nil, &res), stderr); code != 0 {
 			return code
@@ -266,6 +419,9 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "Removed %s.", found.Name)
 		if len(res.Overlays) > 0 {
 			fmt.Fprintf(stdout, " Back to Classic: %s.", strings.Join(res.Overlays, ", "))
+		}
+		if len(res.Workflows) > 0 {
+			fmt.Fprintf(stdout, " Workflows that used it (now off): %s.", strings.Join(res.Workflows, ", "))
 		}
 		fmt.Fprintln(stdout)
 		return 0

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -201,4 +202,38 @@ func (e *Engine) Stats(ctx context.Context) (Stats, error) { return e.st.stats(c
 // streamer marked them as seen) if that's within the last 24 hours.
 func (e *Engine) StatsSince(ctx context.Context, seen time.Time) (Stats, error) {
 	return e.st.stats(ctx, seen)
+}
+
+// UsingActions are the workflows (not deleted) with a step whose action
+// starts with prefix: a plugin's "<id>.".
+func (e *Engine) UsingActions(ctx context.Context, prefix string) ([]Summary, error) {
+	all, err := e.st.list(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	out := []Summary{}
+	for _, w := range all {
+		d, _, err := e.Definition(ctx, w.ID)
+		if err != nil {
+			return nil, err
+		}
+		if usesAction(d.Steps, prefix) || usesAction(d.Finally, prefix) {
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+
+func usesAction(steps []Step, prefix string) bool {
+	for _, s := range steps {
+		if strings.HasPrefix(s.Action, prefix) || usesAction(s.Do, prefix) || usesAction(s.Else, prefix) || usesAction(s.Steps, prefix) {
+			return true
+		}
+		for _, b := range s.Choose {
+			if usesAction(b.Steps, prefix) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -26,6 +26,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -148,6 +149,11 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	lr := lua.NewRunner(lua.Options{})
 	t.Cleanup(lr.Close)
 	actions.Register(reg, actions.Services{Lua: lr, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Gives: gv, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
+	pm := plugins.New(plugins.Options{Store: pkgs, Actions: reg, Chat: tw})
+	if err := pm.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pm.Close)
 	vars := variables.New(db)
 	wf := workflow.New(workflow.Options{DB: db, Inbox: inbox, Actions: reg, Variables: vars})
 	if err := wf.Start(context.Background()); err != nil {
@@ -164,7 +170,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

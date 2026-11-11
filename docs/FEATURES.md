@@ -152,7 +152,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 |---|---|---|
 | Lua scripts in supervised worker processes | 0003, D-014; built in M5 (ADR-0037, D-069) | Lua & plugins |
 | Plugins as separate processes | 0041, D-065 | Lua & plugins |
-| Lua plugins (the first plugin kind) | 0067, D-093 | Lua & plugins |
+| Lua plugins (the first plugin kind) | 0067, D-093; part 1 built in M5 (ADR-0038, D-070) | Lua & plugins |
 | Plugins shipping workflows; uninstall turns them off. Ownership, install, update and uninstall are designed as an ADR before any plugin code. | D-106, D-107; designed in M5 (ADR-0036, D-063) | Lua & plugins |
 | Points API for plugins: award, charge, refund, and escrow for rounds, with odds "stated by the plugin" | 0054, D-081 | Lua & plugins |
 | Custom overlay themes for wheels: three built-in looks (workshop, neon arcade, a selector board), and themes installed from a ZIP, scripted, sandboxed, never deciding a result | D-062; the concept in `tmp/streamgremlin-theme-starter`; designed in M5 (ADR-0036, D-063); built-in looks built in M5 (D-064), with their own sounds (D-065); installing and removing built in M5 (D-066); updating and rolling back built in M5 (D-068), add-on looks only at OBS's "No access" (D-067) | Lua & plugins |

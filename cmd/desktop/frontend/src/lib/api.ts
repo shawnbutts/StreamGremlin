@@ -1408,11 +1408,59 @@ export interface Package {
   kept: string[];
   /** The version Roll back returns to, if any. */
   rollback_to?: string;
+  /** A Lua plugin's (docs/adr/0038-lua-plugins.md). */
+  plugin?: PluginInfo;
+}
+
+export interface PluginParam {
+  name: string;
+  label: string;
+  kind: 'text' | 'number' | 'switch' | 'choice';
+  required?: boolean;
+  default?: unknown;
+  min?: number;
+  max?: number;
+  options?: string[];
+  hint?: string;
+}
+
+export interface PluginAction {
+  name: string;
+  label: string;
+  description: string;
+  params?: PluginParam[];
+}
+
+export interface PluginInfo {
+  /** Turned on; error says why it stopped, when it failed. */
+  enabled: boolean;
+  error?: string;
+  /** What it asks for, and what each lets it do. */
+  permissions: { name: string; what: string }[];
+  actions: PluginAction[];
+  /** Its settings' values, defaults filled in. */
+  values: Record<string, unknown>;
+  /** Seconds a call may take. */
+  timeout: number;
+  script: string;
+}
+
+/** One thing a plugin asked StreamGremlin to do. */
+export interface PluginActivity {
+  seq: number;
+  at: string;
+  version: string;
+  /** chat.send, or log */
+  call: string;
+  outcome: 'ok' | 'refused' | 'failed';
+  detail: string;
 }
 
 export interface InstalledPackage extends Package {
   /** The overlays whose look it is. */
   used_by: string[];
+  /** The workflows using a plugin's steps. */
+  workflows?: string[];
 }
 
 export interface PackagePreview extends Package {
@@ -1442,7 +1490,7 @@ export interface PackageAuditEntry {
   at: string;
   package_id: string;
   version: string;
-  action: 'install' | 'update' | 'rollback' | 'remove' | 'refuse';
+  action: 'install' | 'update' | 'rollback' | 'remove' | 'refuse' | 'on' | 'off' | 'settings' | 'failed';
   detail: string;
 }
 
@@ -1483,14 +1531,25 @@ export const checkPackage = (file: Blob) => postBytes<PackagePreview>('/v1/packa
  * Install what was checked: digest is the one the streamer was shown;
  * publisher, the new publisher's name as typed, when it replaces another's.
  */
-export const installPackage = (file: Blob, digest: string, publisher = '') =>
+export const installPackage = (file: Blob, digest: string, publisher = '', permissions: string[] = []) =>
   postBytes<VersionAnswer>(
-    `/v1/packages?digest=${encodeURIComponent(digest)}${publisher ? `&publisher=${encodeURIComponent(publisher)}` : ''}`,
+    `/v1/packages?digest=${encodeURIComponent(digest)}${publisher ? `&publisher=${encodeURIComponent(publisher)}` : ''}${
+      permissions.length ? `&permissions=${encodeURIComponent(permissions.join(','))}` : ''
+    }`,
     file,
   );
+/** Turn a plugin on (loading it) or off. */
+export const setPackageEnabled = (id: string, enabled: boolean) =>
+  api<Package>('PUT', `/v1/packages/${encodeURIComponent(id)}/enabled`, { enabled });
+/** Change a plugin's settings; one that's on starts again, fresh. */
+export const setPackageSettings = (id: string, settings: Record<string, unknown>) =>
+  api<Package>('PUT', `/v1/packages/${encodeURIComponent(id)}/settings`, { settings });
+/** What a plugin has asked StreamGremlin to do, newest first. */
+export const getPackageActivity = (id: string) =>
+  api<{ activity: PluginActivity[] }>('GET', `/v1/packages/${encodeURIComponent(id)}/activity`);
 /** Back to the version before (rollback_to). */
 export const rollbackPackage = (id: string) =>
   api<VersionAnswer>('POST', `/v1/packages/${encodeURIComponent(id)}/rollback`);
 export const removePackage = (id: string) =>
-  api<{ package: Package; overlays: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
+  api<{ package: Package; overlays: string[]; workflows?: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
 export const getPackageAudit = () => api<{ audit: PackageAuditEntry[] }>('GET', '/v1/packages/audit');

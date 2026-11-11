@@ -265,6 +265,16 @@ func (t Theme) setting(key string) (Setting, bool) {
 	return Setting{}, false
 }
 
+// Check reports what's wrong with v as this setting's value (a plugin's
+// settings use the same kinds as a theme's).
+func (s Setting) Check(v any) error { return s.check(v) }
+
+// FillSettings is settings' values: each saved one that's still valid, the
+// default for the rest.
+func FillSettings(settings []Setting, saved map[string]any) map[string]any {
+	return Theme{Settings: settings}.themeSettings(saved)
+}
+
 func (s Setting) check(v any) error {
 	label := strings.ToLower(s.Label)
 	switch s.Kind {

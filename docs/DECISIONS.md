@@ -1218,3 +1218,21 @@ Decided 2026-11-11 under D-007, building on D-014. The user: "proceed with slice
 - **Trying a script:** **Try it** in the step, `POST /v1/lua/try` (`workflows.write`) and `streamgremlin lua try FILE`. It runs with a made-up test chat message from TestViewer.
 - **Parameters can carry a `max_length`,** checked when a workflow is saved, so an over-long script shows then, not mid-stream.
 - Details are in [ADR-0037](adr/0037-lua-scripts.md).
+
+## D-070. Lua plugins, in two parts (M5 slice 5)
+
+Decided 2026-11-11 under D-007, building on D-063 and D-069. Asked whether plugins get their own screen, the answer was the one Add-ons screen ADR-0036 decided, with looks and plugins in one list. The user: "proceed".
+
+- **Plugins are on the Add-ons screen,** beside looks: one install, one list, one history. A plugin adds an on/off switch, its permissions, its steps, its settings and what it has done.
+- **Slice 5 is in two parts,** as slice 3 was:
+  - **5a:** installing with each permission approved; on and off; settings; the plugin's steps in workflows; `sg.chat` with `chat.send`; the activity log; removing (its workflows turned off); the CLI; the example plugin **Dice tray**.
+  - **5b:** updates and roll back for plugins, the workflows a plugin offers, `events.publish` and its events as triggers, and timers.
+- **A plugin's state lives in its worker** while it's on: a game's scores are the script's own variables. They start over when it's turned off, its settings change, its worker dies, or StreamGremlin restarts. Keeping state across restarts would be storage StreamGremlin backs up and migrates for someone else's code; it waits until a plugin needs it.
+- **Permissions are all or nothing:** exactly those asked for must be approved, as StreamWisp did.
+- **A plugin's steps are External:** test events never run them, as its effects are its own.
+- **One call at a time per plugin,** within the manifest's timeout (1 to 30 seconds, default 10). A worker that dies is started again, fresh; five in 10 minutes turn the plugin off as failed, saying why.
+- **`sg.chat` sends as the bot when one is signed in,** else as the streamer, at most 20 a minute and 500 characters. It never raises: it returns false and why. Its echo is never taken as the streamer chatting.
+- **Every call is in the plugin's activity:** chat messages (sent, refused and why, failed) and log lines. The last 1,000 are kept, and go with the plugin.
+- **A plugin's number values are taken as text,** so they can come from chat, and are checked against the manifest when the step runs.
+- Details are in [ADR-0038](adr/0038-lua-plugins.md).
+

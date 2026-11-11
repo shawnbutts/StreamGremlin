@@ -80,6 +80,13 @@
       returns is the step’s result for the steps after it. It runs in a separate process, stopped at its time limit, and can’t reach chat, OBS,
       files or the internet. Try it in the step before saving.
     </dd>
+    <dt>Plugins</dt>
+    <dd>
+      Add-ons that add steps to your workflows, written in Lua by other people. Install one from a ZIP on Add-ons: it shows the
+      steps it adds and asks you to allow each thing it wants to do, like sending chat. It’s installed off; turn it on with its
+      switch. It runs in a separate process, can’t reach your files, the internet or your accounts, and keeps its own memory
+      while it’s on. “What it has done” lists everything it asked StreamGremlin to do.
+    </dd>
     <dt>Unknown</dt>
     <dd>When StreamGremlin can’t check something (Twitch didn’t answer, OBS is closed) it says Unknown rather than guessing it’s fine.</dd>
   </dl>

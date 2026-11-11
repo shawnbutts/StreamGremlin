@@ -1,0 +1,146 @@
+//go:build acceptance
+
+package acceptance
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const diceRollWorkflow = `{"schema":"streamgremlin.workflow/v1","id":"chat.roll","name":"Roll",
+	"triggers":[{"type":"chat.command.received","where":{"command":"roll"}}],
+	"steps":[{"id":"roll","action":"dice-tray.roll_and_say","with":{"dice":"${event.payload.args}"}}]}`
+
+const diceBestWorkflow = `{"schema":"streamgremlin.workflow/v1","id":"chat.best","name":"Best",
+	"triggers":[{"type":"chat.command.received","where":{"command":"best"}}],
+	"steps":[{"id":"best","action":"dice-tray.best"},
+	         {"action":"chat.send","with":{"message":"${steps.best.output.text}","as":"streamer"}}]}`
+
+// A Lua plugin through the real engine, CLI and a stand-in Twitch
+// (docs/adr/0038-lua-plugins.md): installed only with its permissions,
+// off until turned on, answering chat through its own steps and sg.chat,
+// keeping its state, every call in its activity, settings restarting it,
+// on again after a restart, and removed with its workflows turned off.
+func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	e := startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
+			return out
+		}
+		return ""
+	})
+	said := func(text string) func() string {
+		return func() string {
+			for _, m := range tw.ChatLog() {
+				if strings.Contains(m.Text, text) {
+					return ""
+				}
+			}
+			return "no " + text
+		}
+	}
+
+	zipPath := filepath.Join(t.TempDir(), "dice-tray.zip")
+	zipFolder(t, filepath.Join("..", "..", "examples", "plugins", "dice-tray"), zipPath)
+	out, _, code := cli(t, dir, "packages", "install", zipPath)
+	if code != 0 || !strings.Contains(out, "a Lua plugin, published by StreamGremlin examples (not verified)") ||
+		!strings.Contains(out, "dice-tray.roll_and_say") || !strings.Contains(out, "chat.send  Send messages in your chat") ||
+		!strings.Contains(out, "-yes -allow chat.send") {
+		t.Fatalf("check:\n%s", out)
+	}
+	if _, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 1 || !strings.Contains(errOut, "-allow chat.send") {
+		t.Fatalf("without -allow: %d %s", code, errOut)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.0.0, off") {
+		t.Fatalf("install: %d %s%s", code, out, errOut)
+	}
+
+	files := t.TempDir()
+	for _, w := range []string{diceRollWorkflow, diceBestWorkflow} {
+		if out, errOut, code := cli(t, dir, "workflows", "save", writeFile(t, files, "w.json", w)); code != 0 {
+			t.Fatal(out, errOut)
+		}
+	}
+	cli(t, dir, "workflows", "on", "chat.roll")
+	cli(t, dir, "workflows", "on", "chat.best")
+
+	// Off: the step fails, saying so.
+	tw.Say("streamer", "Fan", "!roll 2")
+	eventually(t, "the failed run", func() string {
+		out, _, _ := cli(t, dir, "runs", "-workflow", "chat.roll")
+		if !strings.Contains(out, "failed") {
+			return out
+		}
+		return ""
+	})
+	out, _, _ = cli(t, dir, "runs", "-workflow", "chat.roll")
+	if trace, _, _ := cli(t, dir, "runs", "show", strings.Fields(out)[0]); !strings.Contains(trace, "Dice tray is off") {
+		t.Fatalf("off trace:\n%s", trace)
+	}
+
+	// On: it answers chat itself and keeps the session's rolls.
+	if out, errOut, code := cli(t, dir, "packages", "on", "dice-tray"); code != 0 || !strings.Contains(out, "Dice tray is on") {
+		t.Fatal(out, errOut)
+	}
+	tw.Say("streamer", "Fan", "!roll 2")
+	eventually(t, "Fan's roll", said("Fan rolled "))
+	tw.Say("streamer", "Pal", "!roll 3")
+	eventually(t, "Pal's roll", said("Pal rolled "))
+	tw.Say("streamer", "Pal", "!best")
+	eventually(t, "the best", said("(2 rolls so far)"))
+
+	out, _, _ = cli(t, dir, "packages", "activity", "dice-tray")
+	if !strings.Contains(out, "log       ok      Dice tray ready: d6") || strings.Count(out, "chat.send ok      ") != 2 {
+		t.Fatalf("activity:\n%s", out)
+	}
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Lua plugin, published by StreamGremlin examples (not verified); on; permissions: chat.send; used by Best, Roll") {
+		t.Fatalf("list:\n%s", out)
+	}
+
+	// Settings start it again, fresh.
+	if out, errOut, code := cli(t, dir, "packages", "set", "dice-tray", "sides=20"); code != 0 || !strings.Contains(out, "started again, fresh") {
+		t.Fatal(out, errOut)
+	}
+	if _, errOut, code := cli(t, dir, "packages", "set", "dice-tray", "sides=200"); code == 0 || !strings.Contains(errOut, "from 2 to 100") {
+		t.Fatalf("200 sides: %s", errOut)
+	}
+	tw.Say("streamer", "Pal", "!best")
+	eventually(t, "the session started over", said("No rolls yet this session."))
+
+	// A restart: it's on again, with its new settings.
+	e.kill()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	eventually(t, "chat again", func() string {
+		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
+			return out
+		}
+		return ""
+	})
+	tw.Say("streamer", "Fan", "!roll 1")
+	eventually(t, "a d20 roll", said("(d20)"))
+
+	// Removing turns its workflows off.
+	out, _, _ = cli(t, dir, "packages", "remove", "dice-tray")
+	if !strings.Contains(out, "These workflows use its steps and are turned off (not deleted): Best, Roll") {
+		t.Fatalf("remove check:\n%s", out)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "remove", "dice-tray", "-yes"); code != 0 || !strings.Contains(out, "Workflows that used it (now off): Best, Roll") {
+		t.Fatal(out, errOut)
+	}
+	if out, _, _ := cli(t, dir, "workflows"); strings.Contains(out, "chat.roll  on") {
+		t.Fatalf("still on:\n%s", out)
+	}
+	out, _, _ = cli(t, dir, "packages", "history")
+	for _, want := range []string{"install  dice-tray", "on       dice-tray", "settings dice-tray", "remove   dice-tray"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("history has no %q:\n%s", want, out)
+		}
+	}
+}

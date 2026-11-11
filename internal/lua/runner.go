@@ -240,8 +240,11 @@ func (r *Runner) give(p *proc) {
 	p.kill()
 }
 
-func (r *Runner) start() (*proc, error) {
-	argv := r.opts.Command
+func (r *Runner) start() (*proc, error) { return startProc(r.opts) }
+
+// startProc starts a worker; extra arguments go after its memory cap.
+func startProc(opts Options, extra ...string) (*proc, error) {
+	argv := opts.Command
 	if len(argv) == 0 {
 		exe, err := os.Executable()
 		if err != nil {
@@ -249,10 +252,10 @@ func (r *Runner) start() (*proc, error) {
 		}
 		argv = []string{exe}
 	}
-	args := append(append([]string{}, argv[1:]...), WorkerArg, "-memory", strconv.FormatInt(r.opts.Memory, 10))
+	args := append(append(append([]string{}, argv[1:]...), WorkerArg, "-memory", strconv.FormatInt(opts.Memory, 10)), extra...)
 	cmd := exec.Command(argv[0], args...) //nolint:gosec // our own executable
 	// Never the engine's environment: it may hold credentials.
-	cmd.Env = append(baseEnv(), r.opts.Env...)
+	cmd.Env = append(baseEnv(), opts.Env...)
 	cmd.Dir = os.TempDir()
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -262,7 +265,7 @@ func (r *Runner) start() (*proc, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &proc{cmd: cmd, in: stdin, memoryCap: r.opts.Memory, frames: make(chan frame, 16), exited: make(chan struct{})}
+	p := &proc{cmd: cmd, in: stdin, memoryCap: opts.Memory, frames: make(chan frame, 16), exited: make(chan struct{})}
 	cmd.Stderr = &p.stderr
 	if err := cmd.Start(); err != nil {
 		return nil, err
@@ -329,6 +332,12 @@ func (p *proc) kill() {
 
 // run sends f and waits for its done, the time limit and grace, or ctx.
 func (p *proc) run(ctx context.Context, f frame, limit time.Duration, log *slog.Logger) (Result, error) {
+	return p.exchange(ctx, f, limit, log, nil)
+}
+
+// exchange sends f and waits for its done, answering the worker's host
+// calls with host (a plugin's; nil refuses them as a protocol error).
+func (p *proc) exchange(ctx context.Context, f frame, limit time.Duration, log *slog.Logger, host func(frame) frame) (Result, error) {
 	var res Result
 	fail := func(kind, msg string) (Result, error) {
 		return res, &Error{Kind: kind, Message: msg, Log: res.Log, LogDropped: res.LogDropped}
@@ -369,6 +378,11 @@ func (p *proc) run(ctx context.Context, f frame, limit time.Duration, log *slog.
 			case g.ID != f.ID:
 				p.kill()
 				return fail(KindCrashed, "the Lua worker broke the protocol")
+			case g.Type == "host" && host != nil:
+				if err := writeFrame(p.in, host(g)); err != nil {
+					p.kill()
+					return fail(KindCrashed, "the Lua worker stopped unexpectedly")
+				}
 			case g.Type == "log":
 				res.Log = append(res.Log, cut(g.Message, MaxLogLine))
 				if len(res.Log) > MaxLogLines {

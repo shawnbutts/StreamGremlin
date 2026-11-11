@@ -157,6 +157,14 @@ func (r *Registry) Add(a Action) {
 	r.actions[a.Name] = &a
 }
 
+// Remove takes an action out (a plugin's, when it's removed). Workflows
+// that use it fail that step, saying there's no such action.
+func (r *Registry) Remove(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.actions, name)
+}
+
 // Get returns the action named name.
 func (r *Registry) Get(name string) (*Action, bool) {
 	if r == nil {

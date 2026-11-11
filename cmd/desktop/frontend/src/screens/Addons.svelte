@@ -1,7 +1,9 @@
 <script lang="ts">
-  // Add-ons (docs/adr/0036-packages-plugins-and-themes.md): wheel looks
-  // installed from a ZIP. Installing shows what it is first and asks;
-  // removing says which overlays go back to Classic.
+  // Add-ons (docs/adr/0036-packages-plugins-and-themes.md): wheel looks and
+  // Lua plugins (docs/adr/0038-lua-plugins.md) installed from a ZIP.
+  // Installing shows what it is first and asks, a plugin's permissions one
+  // by one; removing says which overlays go back to Classic and which
+  // workflows are turned off.
   import { onMount } from 'svelte';
   import {
     ApiError,
@@ -17,6 +19,7 @@
     type VersionAnswer,
   } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
+  import PluginCard from './PluginCard.svelte';
   import { eventTime } from '../lib/events';
 
   const MAX_BYTES = 16 * 1024 * 1024;
@@ -33,7 +36,10 @@
   let rollingBack = $state<InstalledPackage | undefined>();
   // Another publisher's version: their name, typed, to replace the installed one.
   let confirmPublisher = $state('');
-  const confirmed = $derived(!preview?.publisher_change || confirmPublisher === preview.publisher);
+  // A plugin's permissions, each ticked.
+  let approved = $state<Record<string, boolean>>({});
+  const allApproved = $derived(!preview?.plugin || preview.plugin.permissions.every((x) => approved[x.name]));
+  const confirmed = $derived((!preview?.publisher_change || confirmPublisher === preview.publisher) && allApproved);
 
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const kb = (n: number) => (n < 1e6 ? `${Math.max(1, Math.round(n / 1e3))} KB` : `${(n / 1e6).toFixed(1)} MB`);
@@ -43,6 +49,10 @@
     rollback: 'Rolled back',
     remove: 'Removed',
     refuse: 'Refused',
+    on: 'Turned on',
+    off: 'Turned off',
+    settings: 'Settings changed for',
+    failed: 'Stopped',
   };
 
   async function load() {
@@ -70,6 +80,7 @@
     file = undefined;
     preview = undefined;
     confirmPublisher = '';
+    approved = {};
     const input = document.getElementById('package-file') as HTMLInputElement | null;
     if (input) input.value = '';
   }
@@ -78,6 +89,7 @@
   async function pick(e: Event) {
     const f = (e.currentTarget as HTMLInputElement).files?.[0];
     preview = undefined;
+    approved = {};
     error = '';
     notice = '';
     file = f;
@@ -102,8 +114,15 @@
     busy = true;
     error = '';
     try {
-      const a = await installPackage(file, p.digest, p.publisher_change ? confirmPublisher : '');
-      notice = a.from
+      const a = await installPackage(
+        file,
+        p.digest,
+        p.publisher_change ? confirmPublisher : '',
+        p.plugin ? p.plugin.permissions.map((x) => x.name) : [],
+      );
+      notice = a.plugin
+        ? `Installed ${a.name} ${a.version}. It’s off: turn it on below when you’re ready, then add its steps to a workflow.`
+        : a.from
         ? `Updated ${a.name} from ${a.from} to ${a.version}.${a.overlays.length ? ` ${a.overlays.map((o) => o.overlay).join(', ')} use${a.overlays.length === 1 ? 's' : ''} it now.` : ''}${resets(a)}`
         : `Installed ${a.name} ${a.version}. Pick it for a wheel overlay under Look, on Overlays.`;
       clearFile();
@@ -138,7 +157,9 @@
     notice = '';
     try {
       const r = await removePackage(p.id);
-      notice = `Removed ${p.name}.${r.overlays.length ? ` Back to the Classic look: ${r.overlays.join(', ')}.` : ''}`;
+      notice = `Removed ${p.name}.${r.overlays.length ? ` Back to the Classic look: ${r.overlays.join(', ')}.` : ''}${
+        r.workflows?.length ? ` Turned off (not deleted): ${r.workflows.join(', ')}.` : ''
+      }`;
     } catch (e) {
       error = message(e);
     } finally {
@@ -150,9 +171,9 @@
 
 <h1>Add-ons</h1>
 <p class="sg-muted screen-intro">
-  Wheel looks made by other people, installed from a ZIP file. Each runs in a sandbox: it can’t reach the internet, your
-  accounts or StreamGremlin’s settings. It’s told the result StreamGremlin drew, but what it draws is up to whoever made it:
-  the real result is always in chat and on the Wheels screen.
+  Wheel looks and Lua plugins made by other people, installed from a ZIP file. A look runs in a sandbox in OBS: it can’t
+  reach the internet, your accounts or StreamGremlin’s settings, and the real result is always in chat and on the Wheels
+  screen. A plugin adds steps to your workflows; it runs in a separate process and can only do what you allow it.
 </p>
 
 <section class="sg-panel card" aria-labelledby="addons-heading" aria-busy={busy}>
@@ -160,10 +181,13 @@
   {#if loadError}
     <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
   {:else if list.length === 0}
-    <p class="sg-muted">Nothing installed yet. Install a wheel look from a ZIP below.</p>
+    <p class="sg-muted">Nothing installed yet. Install a wheel look or a plugin from a ZIP below.</p>
   {/if}
   <ul class="secret-list" aria-label="Installed add-ons">
     {#each list as p (p.id)}
+      {#if p.plugin}
+        <li class="secret-row"><PluginCard {p} {busy} onchanged={load} onremove={() => (removing = p)} /></li>
+      {:else}
       <li class="secret-row">
         <div>
           <strong>{p.name}</strong>
@@ -186,6 +210,7 @@
           >
         </div>
       </li>
+      {/if}
     {/each}
   </ul>
   <p class="saved" role="status">{notice}</p>
@@ -193,12 +218,12 @@
 </section>
 
 <section class="sg-panel card" aria-labelledby="install-heading">
-  <h2 id="install-heading">Install a wheel look</h2>
+  <h2 id="install-heading">Install an add-on</h2>
   <label class="field">
-    <span>A look’s ZIP file</span>
+    <span>A look’s or plugin’s ZIP file</span>
     <input id="package-file" class="sg-input" type="file" accept=".zip,application/zip" disabled={busy} onchange={pick} />
   </label>
-  <p class="sg-muted field-hint">A ZIP made by compressing a look’s folder works too. Nothing is installed until you say so.</p>
+  <p class="sg-muted field-hint">A ZIP made by compressing its folder works too. Nothing is installed until you say so.</p>
   {#if preview}
     <div class="install-preview" aria-label="What it is">
       {#if preview.update && preview.installed}
@@ -211,7 +236,7 @@
       {:else}
         <h3>{preview.name} {preview.version}</h3>
       {/if}
-      <p>A wheel look, published by {preview.publisher} <strong>(not verified)</strong>.</p>
+      <p>{preview.plugin ? 'A Lua plugin' : 'A wheel look'}, published by {preview.publisher} <strong>(not verified)</strong>.</p>
       {#if preview.publisher_change && preview.installed}
         <div class="publisher-change" role="group" aria-labelledby="publisher-change-heading">
           <p id="publisher-change-heading">
@@ -232,6 +257,31 @@
         {preview.sounds ? 'It has its own sounds.' : ''}
         {preview.license ? `License: ${preview.license}.` : ''}
       </p>
+      {#if preview.plugin}
+        {@const pl = preview.plugin}
+        <p>
+          This plugin runs its own Lua in a separate process. It can’t reach your files, the internet or your accounts, only
+          what you allow below. It keeps its own memory while it’s on. It’s installed off.
+        </p>
+        <p><strong>Steps it adds to workflows:</strong></p>
+        <ul class="plugin-steps">
+          {#each pl.actions as a (a.name)}<li><strong>{a.label}</strong>: {a.description}</li>{/each}
+        </ul>
+        {#if pl.permissions.length}
+          <fieldset class="permissions">
+            <legend>It asks for permission to do these. Tick each one you allow:</legend>
+            {#each pl.permissions as x (x.name)}
+              <label class="choice-inline">
+                <input type="checkbox" checked={approved[x.name] === true} onchange={(e) => (approved[x.name] = e.currentTarget.checked)} />
+                {x.what}
+              </label>
+            {/each}
+            <p class="sg-muted field-hint">It can only be installed with all of them allowed.</p>
+          </fieldset>
+        {:else}
+          <p>It asks for no permissions: it only does what its steps give back.</p>
+        {/if}
+      {:else}
       <p>
         This look runs its own code in OBS and the app’s previews. It can’t reach the internet, your accounts or
         StreamGremlin’s settings. It’s told the result StreamGremlin drew, but what it draws is up to whoever made it: the real
@@ -242,6 +292,7 @@
         In OBS, it only loads while the wheel’s browser source has “Page permissions” at “No access to OBS”, the setting OBS
         starts with; otherwise Classic shows instead.
       </p>
+      {/if}
       {#if preview.same}
         <p class="saved">It’s installed already.</p>
         <button type="button" class="button" onclick={clearFile}>Done</button>
@@ -290,7 +341,9 @@
   {@const r = removing}
   <ConfirmDialog
     title={`Remove ${r.name}?`}
-    message={`Its files are deleted; its history stays.${r.used_by.length ? ` These overlays go back to the Classic look: ${r.used_by.join(', ')}.` : ''}`}
+    message={`Its files are deleted; its history stays.${r.used_by.length ? ` These overlays go back to the Classic look: ${r.used_by.join(', ')}.` : ''}${
+      r.workflows?.length ? ` These workflows use its steps and are turned off, not deleted: ${r.workflows.join(', ')}.` : ''
+    }${r.plugin ? ' Its settings and what it has done are deleted too.' : ''}`}
     confirmLabel="Remove"
     onconfirm={() => remove(r)}
     oncancel={() => (removing = undefined)}
@@ -316,6 +369,19 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+  .permissions {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-left: 4px solid var(--sg-warning);
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .plugin-steps {
+    margin: 0 0 8px;
   }
   .history-list {
     margin: 0;

@@ -43,6 +43,29 @@ type Package struct {
 	// RollbackTo is the version Roll back returns to, if any: the highest
 	// kept version below this one.
 	RollbackTo string `json:"rollback_to,omitempty"`
+
+	// A Lua plugin's (docs/adr/0038-lua-plugins.md).
+	Plugin *PluginInfo `json:"plugin,omitempty"`
+}
+
+// PluginInfo is what a Lua plugin is and how it's set.
+type PluginInfo struct {
+	// Enabled: turned on. Error says why it stopped, when it failed.
+	Enabled bool   `json:"enabled"`
+	Error   string `json:"error,omitempty"`
+	// Permissions it asks for, with what each lets it do.
+	Permissions []PermissionInfo `json:"permissions"`
+	Actions     []Action         `json:"actions"`
+	// Values are its settings' values (defaults filled in).
+	Values  map[string]any `json:"values"`
+	Timeout int            `json:"timeout"`
+	Script  string         `json:"script"`
+}
+
+// PermissionInfo is a permission and what it lets a plugin do.
+type PermissionInfo struct {
+	Name string `json:"name"`
+	What string `json:"what"`
 }
 
 // Preview is what a package is, before installing it: what the app shows
@@ -70,10 +93,24 @@ func describe(r *Read, now time.Time) Package {
 	m := r.Manifest
 	p := Package{ID: m.ID, Kind: m.Kind, Name: m.Name, Version: m.Version, Publisher: m.Publisher, Description: m.Description,
 		License: m.License, Homepage: m.Homepage, Digest: r.Digest, Size: r.Size, Files: len(r.Files), InstalledAt: now, UpdatedAt: now}
-	if m.Theme != nil {
-		p.Settings = m.Theme.Settings
-	}
+	fromManifest(&p, m)
 	return p
+}
+
+// fromManifest fills what the manifest says about settings and a plugin.
+func fromManifest(p *Package, m Manifest) {
+	switch {
+	case m.Theme != nil:
+		p.Settings = m.Theme.Settings
+	case m.Lua != nil:
+		p.Settings = m.Lua.Settings
+		info := &PluginInfo{Permissions: []PermissionInfo{}, Actions: m.Lua.Actions, Timeout: m.Lua.TimeoutSeconds(), Script: m.Lua.Script,
+			Values: overlays.FillSettings(m.Lua.Settings, nil)}
+		for _, name := range m.Lua.Permissions {
+			info.Permissions = append(info.Permissions, PermissionInfo{Name: name, What: Permissions[name]})
+		}
+		p.Plugin = info
+	}
 }
 
 // Check reads a package and says what installing it would do. Nothing is
@@ -84,8 +121,10 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 		return Preview{}, nil, err
 	}
 	pv := Preview{Package: describe(r, time.Time{})}
-	th := overlays.InstalledTheme(r.Manifest.ID, "", "", r.Manifest.Version, "", r.Digest, r.Manifest.Theme.Entry, nil, r.Paths())
-	pv.Sounds = len(th.Settings) > 0
+	if r.Manifest.Theme != nil {
+		th := overlays.InstalledTheme(r.Manifest.ID, "", "", r.Manifest.Version, "", r.Digest, r.Manifest.Theme.Entry, nil, r.Paths())
+		pv.Sounds = len(th.Settings) > 0
+	}
 	cur, err := s.Get(ctx, r.Manifest.ID)
 	switch {
 	case errors.Is(err, ErrNotFound):
@@ -106,6 +145,9 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 		case stored != "" && stored != r.Digest:
 			return pv, r, fmt.Errorf("%w: %s %s is installed or kept, and this is a different package with the same version: ask its publisher for a new version",
 				ErrConflict, cur.Name, r.Manifest.Version)
+		case r.Manifest.Kind == KindLua:
+			return pv, r, fmt.Errorf("%w: %s %s is installed: remove it first to install %s (updating plugins comes in a later version)",
+				ErrConflict, cur.Name, cur.Version, r.Manifest.Version)
 		default:
 			pv.Update = true
 			pv.Older = CompareVersions(r.Manifest.Version, cur.Version) < 0
@@ -123,6 +165,22 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 // exactly what's installed changes nothing (false). from is the version
 // an update replaced.
 func (s *Store) Install(ctx context.Context, data []byte, digest, publisher string, now time.Time) (p Package, from string, changed bool, err error) {
+	return s.InstallWith(ctx, data, Approval{Digest: digest, Publisher: publisher}, now)
+}
+
+// Approval is what the streamer confirmed when installing: the digest they
+// were shown, the new publisher's name when it replaces another's, and a
+// plugin's permissions, each approved.
+type Approval struct {
+	Digest      string
+	Publisher   string
+	Permissions []string
+}
+
+// InstallWith is Install with a plugin's permissions: exactly those it asks
+// for must be approved, or nothing is installed (ErrConfirmPermissions).
+func (s *Store) InstallWith(ctx context.Context, data []byte, a Approval, now time.Time) (p Package, from string, changed bool, err error) {
+	digest, publisher := a.Digest, a.Publisher
 	pv, r, err := s.Check(ctx, data)
 	if err != nil {
 		if r != nil {
@@ -135,6 +193,10 @@ func (s *Store) Install(ctx context.Context, data []byte, digest, publisher stri
 	}
 	if pv.Same {
 		return *pv.Installed, "", false, nil
+	}
+	if r.Manifest.Lua != nil && !samePermissions(r.Manifest.Lua.Permissions, a.Permissions) {
+		return Package{}, "", false, fmt.Errorf("%w: %s asks for %s: approve exactly those to install it", ErrConfirmPermissions, r.Manifest.Name,
+			permissionList(r.Manifest.Lua.Permissions))
 	}
 	if pv.PublisherChange && publisher != r.Manifest.Publisher {
 		return Package{}, "", false, fmt.Errorf("%w: %s is installed from %s (not verified), and this says %s (not verified): confirm the new publisher by name to replace it",
@@ -162,6 +224,13 @@ func (s *Store) Install(ctx context.Context, data []byte, digest, publisher stri
 		}
 		if err := storeVersion(ctx, tx, r, ts); err != nil {
 			return err
+		}
+		if r.Manifest.Lua != nil {
+			for _, perm := range r.Manifest.Lua.Permissions {
+				if _, err := tx.ExecContext(ctx, "INSERT INTO package_permissions (package_id, permission) VALUES (?, ?)", r.Manifest.ID, perm); err != nil {
+					return err
+				}
+			}
 		}
 		return auditTx(ctx, tx, r.Manifest.ID, r.Manifest.Version, "install",
 			fmt.Sprintf("%s %s, published by %s (not verified), digest %s", r.Manifest.Name, r.Manifest.Version, r.Manifest.Publisher, r.Digest), ts)
@@ -195,7 +264,7 @@ func storeVersion(ctx context.Context, tx *sql.Tx, r *Read, ts string) error {
 	return nil
 }
 
-const listQuery = `SELECT p.id, p.kind, p.publisher, p.current_version, p.installed_at, p.updated_at, v.digest, v.manifest, v.size,
+const listQuery = `SELECT p.id, p.kind, p.publisher, p.current_version, p.installed_at, p.updated_at, p.enabled, p.state_error, v.digest, v.manifest, v.size,
 	(SELECT COUNT(*) FROM package_files f WHERE f.package_id = p.id AND f.version = p.current_version)
 	FROM packages p JOIN package_versions v ON v.package_id = p.id AND v.version = p.current_version`
 
@@ -203,8 +272,9 @@ type scanner interface{ Scan(...any) error }
 
 func scanPackage(row scanner) (Package, error) {
 	var p Package
-	var installed, updated, manifest string
-	if err := row.Scan(&p.ID, &p.Kind, &p.Publisher, &p.Version, &installed, &updated, &p.Digest, &manifest, &p.Size, &p.Files); err != nil {
+	var installed, updated, manifest, stateErr string
+	var enabled bool
+	if err := row.Scan(&p.ID, &p.Kind, &p.Publisher, &p.Version, &installed, &updated, &enabled, &stateErr, &p.Digest, &manifest, &p.Size, &p.Files); err != nil {
 		return p, err
 	}
 	var m Manifest
@@ -212,8 +282,9 @@ func scanPackage(row scanner) (Package, error) {
 		return p, fmt.Errorf("packages: %s's manifest: %w", p.ID, err)
 	}
 	p.Name, p.Description, p.License, p.Homepage = m.Name, m.Description, m.License, m.Homepage
-	if m.Theme != nil {
-		p.Settings = m.Theme.Settings
+	fromManifest(&p, m)
+	if p.Plugin != nil {
+		p.Plugin.Enabled, p.Plugin.Error = enabled, stateErr
 	}
 	p.InstalledAt, _ = storage.ParseTimestamp(installed)
 	p.UpdatedAt, _ = storage.ParseTimestamp(updated)
@@ -227,6 +298,9 @@ func (s *Store) Get(ctx context.Context, id string) (Package, error) {
 		return Package{}, ErrNotFound
 	}
 	if err != nil {
+		return p, err
+	}
+	if err := s.fillPlugin(ctx, &p); err != nil {
 		return p, err
 	}
 	return p, s.fillKept(ctx, &p)
@@ -255,6 +329,9 @@ func (s *Store) List(ctx context.Context) ([]Package, error) {
 		if err := s.fillKept(ctx, &out[i]); err != nil {
 			return nil, err
 		}
+		if err := s.fillPlugin(ctx, &out[i]); err != nil {
+			return nil, err
+		}
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Name < out[j].Name || out[i].Name == out[j].Name && out[i].ID < out[j].ID
@@ -270,8 +347,11 @@ func (s *Store) Remove(ctx context.Context, id string, now time.Time) (Package, 
 		return Package{}, err
 	}
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, "DELETE FROM package_files WHERE package_id = ?", id); err != nil {
-			return err
+		for _, q := range []string{"DELETE FROM package_files WHERE package_id = ?", "DELETE FROM package_settings WHERE package_id = ?",
+			"DELETE FROM package_permissions WHERE package_id = ?", "DELETE FROM package_activity WHERE package_id = ?"} {
+			if _, err := tx.ExecContext(ctx, q, id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.ExecContext(ctx, "DELETE FROM package_versions WHERE package_id = ?", id); err != nil {
 			return err

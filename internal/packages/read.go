@@ -63,6 +63,8 @@ var (
 	// ErrConfirm: the package would replace another publisher's, and the
 	// streamer hasn't confirmed the new publisher by name.
 	ErrConfirm = errors.New("packages: confirm")
+	// ErrConfirmPermissions: a plugin's permissions weren't all approved.
+	ErrConfirmPermissions = errors.New("packages: confirm permissions")
 )
 
 func invalid(format string, a ...any) error {
@@ -82,6 +84,7 @@ type Manifest struct {
 	Kind        string `json:"kind"`
 	API         string `json:"api"`
 	Theme       *Theme `json:"theme,omitempty"`
+	Lua         *Lua   `json:"lua,omitempty"`
 }
 
 // Theme is a theme's part of the manifest.
@@ -230,6 +233,22 @@ func ReadZip(data []byte) (*Read, error) {
 			return nil, invalid("the theme's page %s isn't in the package", m.Theme.Entry)
 		}
 	}
+	if m.Kind == KindLua {
+		for p := range r.Files {
+			if !slices.Contains(luaTypes, strings.ToLower(path.Ext(p))) {
+				return nil, invalid("%s: a Lua plugin has only its script, JSON and text (%s)", p, strings.Join(luaTypes, " "))
+			}
+		}
+		script, ok := r.Files[m.Lua.Script]
+		switch {
+		case !ok:
+			return nil, invalid("the plugin's script %s isn't in the package", m.Lua.Script)
+		case len(script) > MaxScriptBytes:
+			return nil, invalid("the plugin's script is over %d KB", MaxScriptBytes>>10)
+		case !utf8.Valid(script):
+			return nil, invalid("the plugin's script isn't UTF-8 text")
+		}
+	}
 	r.Digest = digest(r)
 	return r, nil
 }
@@ -346,10 +365,10 @@ func parseManifest(raw []byte) (Manifest, error) {
 		return m, invalid("this package is for StreamGremlin's package API %q; this version has API %q", m.API, API)
 	}
 	if m.Kind == KindLua {
-		return m, invalid("%s is a Lua plugin: this version of StreamGremlin can't install those yet", m.Name)
+		return m, checkLua(m)
 	}
-	if m.Theme == nil {
-		return m, invalid("a theme's manifest has a theme section")
+	if m.Theme == nil || m.Lua != nil {
+		return m, invalid("a theme's manifest has a theme section, and no lua section")
 	}
 	t := m.Theme
 	if !slices.Equal(t.For, []string{"wheel"}) {
@@ -358,32 +377,13 @@ func parseManifest(raw []byte) (Manifest, error) {
 	if checkPath(t.Entry) != nil || strings.ToLower(path.Ext(t.Entry)) != ".html" {
 		return m, invalid("the theme's entry is its page: an .html file in the package")
 	}
-	if len(t.Settings) > MaxSettings {
-		return m, invalid("a theme has up to %d settings", MaxSettings)
-	}
-	seen := map[string]bool{}
-	for _, s := range t.Settings {
-		if !keyPattern.MatchString(s.Key) {
-			return m, invalid("setting %q: a key is up to 32 lowercase letters, digits and _, starting with a letter", s.Key)
-		}
-		if seen[s.Key] {
-			return m, invalid("setting %q is there twice", s.Key)
-		}
-		seen[s.Key] = true
-		if s.Key == "sounds" {
+	for _, st := range t.Settings {
+		if st.Key == "sounds" {
 			return m, invalid(`setting "sounds" is StreamGremlin's: it's added for a theme with start.wav, end.wav or cheer.wav beside its page`)
 		}
-		for _, w := range strings.Split(s.Key, "_") {
-			if slices.Contains(secretWords, w) {
-				return m, invalid("setting %q: settings never hold secrets, so none is named like one", s.Key)
-			}
-		}
-		if strings.TrimSpace(s.Label) == "" || !plain(s.Label, 60) || !plain(s.Hint, 120) {
-			return m, invalid("setting %q: a label is up to 60 characters, a hint up to 120", s.Key)
-		}
-		if err := overlays.CheckSetting(s); err != nil {
-			return m, invalid("%s", strings.TrimPrefix(err.Error(), overlays.ErrInvalid.Error()+": "))
-		}
+	}
+	if err := checkSettings(t.Settings); err != nil {
+		return m, err
 	}
 	return m, nil
 }

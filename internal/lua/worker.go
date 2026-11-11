@@ -21,6 +21,12 @@ import (
 	glua "github.com/yuin/gopher-lua"
 )
 
+// stderr and exit are the process's, apart for tests.
+var (
+	stderr = func() io.Writer { return os.Stderr }
+	exit   = os.Exit
+)
+
 // RunWorkerIfAsked makes this process a Lua worker, and never returns, when
 // its first argument is WorkerArg. Every binary that runs the engine calls it
 // first thing in main (and test binaries that run scripts, in TestMain).
@@ -35,6 +41,7 @@ func workerMain(args []string, in io.Reader, out io.Writer) int {
 	fs := flag.NewFlagSet(WorkerArg, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	memory := fs.Int64("memory", DefaultMemory, "heap cap in bytes")
+	plugin := fs.Bool("plugin", false, "run one plugin, loaded by the first frame")
 	if err := fs.Parse(args); err != nil || *memory < 1<<20 {
 		fmt.Fprintln(os.Stderr, "lua worker: bad arguments")
 		return 2
@@ -42,6 +49,9 @@ func workerMain(args []string, in io.Reader, out io.Writer) int {
 	w := &worker{out: out}
 	debug.SetMemoryLimit(*memory / 4 * 3)
 	go w.watchMemory(*memory)
+	if *plugin {
+		return w.servePlugin(in)
+	}
 	for {
 		f, err := readFrame(in)
 		if errors.Is(err, io.EOF) {

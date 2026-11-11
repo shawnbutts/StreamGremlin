@@ -19,6 +19,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -68,6 +69,8 @@ type Deps struct {
 	Gives         *gives.Service
 	// Lua runs scripts tried from the step editor.
 	Lua *lua.Runner
+	// Plugins runs installed Lua plugins.
+	Plugins *plugins.Manager
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time
@@ -160,7 +163,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(packageRoutes(d), luaRoutes(d)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), luaRoutes(d)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

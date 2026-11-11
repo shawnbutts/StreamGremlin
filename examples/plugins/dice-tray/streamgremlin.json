@@ -1,0 +1,45 @@
+{
+  "format": "streamgremlin.package/v1",
+  "id": "dice-tray",
+  "name": "Dice tray",
+  "version": "1.0.0",
+  "publisher": "StreamGremlin examples",
+  "description": "Rolls dice for chat and keeps the session's best roll: an example of a Lua plugin.",
+  "license": "MIT",
+  "kind": "lua",
+  "api": "1",
+  "lua": {
+    "script": "plugin.lua",
+    "permissions": ["chat.send"],
+    "timeout": 5,
+    "actions": [
+      {
+        "name": "roll",
+        "label": "Roll dice",
+        "description": "Rolls dice and gives back the total, each die, and a line to say.",
+        "params": [
+          { "name": "dice", "label": "How many dice", "kind": "number", "default": 1, "min": 1, "max": 10 },
+          { "name": "who", "label": "Who's rolling", "kind": "text", "max": 60, "hint": "Empty: the viewer who typed the command" }
+        ]
+      },
+      {
+        "name": "roll_and_say",
+        "label": "Roll dice and say it in chat",
+        "description": "Rolls dice and says the result in chat itself, with a cheer for the best roll of the session.",
+        "params": [
+          { "name": "dice", "label": "How many dice", "kind": "number", "default": 1, "min": 1, "max": 10 },
+          { "name": "who", "label": "Who's rolling", "kind": "text", "max": 60, "hint": "Empty: the viewer who typed the command" }
+        ]
+      },
+      {
+        "name": "best",
+        "label": "The session's best roll",
+        "description": "Who has the best roll since the plugin was turned on, and how many rolls there have been."
+      }
+    ],
+    "settings": [
+      { "key": "sides", "label": "Sides on each die", "kind": "number", "default": 6, "min": 2, "max": 100 },
+      { "key": "cheer", "label": "Cheer a new best roll in chat", "kind": "switch", "default": true }
+    ]
+  }
+}

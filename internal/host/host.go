@@ -33,6 +33,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -90,6 +91,7 @@ type Host struct {
 	earning   *earning.Service
 	gives     *gives.Service
 	lua       *lua.Runner
+	plugins   *plugins.Manager
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -195,6 +197,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
+	// Plugins' steps are registered before workflows load
+	// (docs/adr/0038-lua-plugins.md).
+	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Logger: log})
+	if err := h.plugins.Start(ctx); err != nil {
+		return nil, err
+	}
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
 	if err := h.workflows.Start(ctx); err != nil {
@@ -259,6 +267,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Earning:    h.earning,
 		Gives:      h.gives,
 		Lua:        h.lua,
+		Plugins:    h.plugins,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -427,6 +436,9 @@ func (h *Host) cleanup() {
 	}
 	if h.lua != nil {
 		h.lua.Close() // after workflows: their runs' scripts have finished
+	}
+	if h.plugins != nil {
+		h.plugins.Close() // after workflows: their runs' calls have finished
 	}
 	if h.obs != nil {
 		h.obs.Close()

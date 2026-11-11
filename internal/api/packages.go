@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"code.streamgremlin.com/streamgremlin/internal/packages"
+	"code.streamgremlin.com/streamgremlin/internal/plugins"
 )
 
 // Packages: installed overlay themes, and later Lua plugins
@@ -17,7 +18,8 @@ import (
 func packageError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 	var tooBig *http.MaxBytesError
 	msg := err.Error()
-	for _, prefix := range []string{"packages: invalid: ", "packages: conflict: ", "packages: full: ", "packages: confirm: "} {
+	for _, prefix := range []string{"packages: invalid: ", "packages: conflict: ", "packages: full: ", "packages: confirm: ",
+		"packages: confirm permissions: ", "plugins: off: ", "plugins: didn't load: "} {
 		msg = strings.TrimPrefix(msg, prefix)
 	}
 	switch {
@@ -29,6 +31,10 @@ func packageError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 		writeError(w, http.StatusConflict, CodeConflict, msg)
 	case errors.Is(err, packages.ErrConfirm):
 		writeError(w, http.StatusConflict, CodeConfirmPublisher, msg)
+	case errors.Is(err, packages.ErrConfirmPermissions):
+		writeError(w, http.StatusConflict, CodeConfirmPermissions, msg)
+	case errors.Is(err, plugins.ErrLoad), errors.Is(err, plugins.ErrOff):
+		writeError(w, http.StatusConflict, CodeConflict, msg)
 	case errors.Is(err, packages.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, "no such package is installed")
 	default:
@@ -41,6 +47,8 @@ type PackageView struct {
 	packages.Package
 	// UsedBy are the overlays whose look it is, by name.
 	UsedBy []string `json:"used_by"`
+	// Workflows are those using a plugin's steps, by name.
+	Workflows []string `json:"workflows,omitempty"`
 }
 
 var digestPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -101,7 +109,9 @@ func packageRoutes(d Deps) []Route {
 	return []Route{
 		{
 			Method: "GET", Path: "/v1/packages",
-			Summary:    "Installed packages (overlay themes), with their version, publisher (as stated, not verified), settings, and the overlays using each.",
+			Summary: "Installed packages (overlay themes and Lua plugins), with their version, publisher (as stated, not verified), " +
+				"settings, and the overlays using each; for a plugin, whether it's on (or why it failed), its permissions, steps and " +
+				"settings' values, and the workflows using it.",
 			Permission: PermPackagesRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				list, err := d.Packages.List(r.Context())
@@ -120,6 +130,12 @@ func packageRoutes(d Deps) []Route {
 					for _, o := range all {
 						if o.Look.Theme == p.ID {
 							v.UsedBy = append(v.UsedBy, o.Name)
+						}
+					}
+					if p.Plugin != nil {
+						if v.Workflows, err = plugins.Using(r.Context(), d.Workflows, p.ID); err != nil {
+							internalError(w, r, d.Logger, err)
+							return
 						}
 					}
 					out = append(out, v)
@@ -151,7 +167,8 @@ func packageRoutes(d Deps) []Route {
 				"/v1/packages/check gave (anything else is refused). Another version of an installed id updates it (the old one " +
 				"is kept, to roll back to) and moves the overlays using it, each keeping the settings the new version takes. One " +
 				"from another publisher than the installed one also needs ?publisher= the new publisher's name, exactly " +
-				"(otherwise 409 confirm_publisher). Exactly what's installed again is harmless (200).",
+				"(otherwise 409 confirm_publisher). A Lua plugin needs ?permissions= exactly the permissions it asks for, comma-separated, " +
+				"each approved (otherwise 409 confirm_permissions); it's installed off. Exactly what's installed again is harmless (200).",
 			Permission: PermPackagesWrite, MaxBody: packages.MaxZipBytes + 1,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				dg := r.URL.Query().Get("digest")
@@ -163,7 +180,12 @@ func packageRoutes(d Deps) []Route {
 				if !ok {
 					return
 				}
-				p, from, created, err := d.Packages.Install(r.Context(), data, dg, r.URL.Query().Get("publisher"), d.Now())
+				var perms []string
+				if q := r.URL.Query().Get("permissions"); q != "" {
+					perms = strings.Split(q, ",")
+				}
+				p, from, created, err := d.Packages.InstallWith(r.Context(), data,
+					packages.Approval{Digest: dg, Publisher: r.URL.Query().Get("publisher"), Permissions: perms}, d.Now())
 				if err != nil {
 					d.Logger.Warn("package refused", "err", err)
 					packageError(w, r, d, err)
@@ -173,8 +195,15 @@ func packageRoutes(d Deps) []Route {
 					writeJSON(w, http.StatusOK, VersionAnswer{Package: p, Overlays: []Changed{}})
 					return
 				}
-				changed, err := switchVersion(r.Context(), d, p.ID)
-				if err != nil {
+				changed := []Changed{}
+				if p.Plugin != nil {
+					if d.Plugins != nil {
+						if err := d.Plugins.Installed(r.Context(), p.ID); err != nil {
+							internalError(w, r, d.Logger, err)
+							return
+						}
+					}
+				} else if changed, err = switchVersion(r.Context(), d, p.ID); err != nil {
 					internalError(w, r, d.Logger, err)
 					return
 				}
@@ -204,14 +233,23 @@ func packageRoutes(d Deps) []Route {
 		},
 		{
 			Method: "DELETE", Path: "/v1/packages/{id}",
-			Summary: "Remove a package: every overlay using a theme goes back to the Classic look first. Its files and versions " +
-				"are deleted; its audit stays. Answers the package and the overlays changed.",
+			Summary: "Remove a package: every overlay using a theme goes back to the Classic look first; a plugin is stopped and " +
+				"every workflow using its steps is turned off (never deleted). Its files, versions, settings and activity are deleted; " +
+				"its audit stays. Answers the package, the overlays changed and the workflows using it.",
 			Permission: PermPackagesWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				id := r.PathValue("id")
-				if _, err := d.Packages.Get(r.Context(), id); err != nil {
+				cur, err := d.Packages.Get(r.Context(), id)
+				if err != nil {
 					packageError(w, r, d, err)
 					return
+				}
+				workflows := []string{}
+				if cur.Plugin != nil && d.Plugins != nil {
+					if workflows, err = d.Plugins.Removing(r.Context(), id, d.Workflows); err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
 				}
 				// Classic first, so no overlay is ever left with a look
 				// that isn't there.
@@ -236,8 +274,8 @@ func packageRoutes(d Deps) []Route {
 				for _, o := range changed {
 					d.Hub.Changed(o)
 				}
-				d.Logger.Info("package removed", "package", p.ID, "version", p.Version, "overlays_to_classic", names)
-				writeJSON(w, http.StatusOK, map[string]any{"package": p, "overlays": names})
+				d.Logger.Info("package removed", "package", p.ID, "version", p.Version, "overlays_to_classic", names, "workflows_off", workflows)
+				writeJSON(w, http.StatusOK, map[string]any{"package": p, "overlays": names, "workflows": workflows})
 			},
 		},
 		{
