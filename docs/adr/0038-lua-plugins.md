@@ -3,6 +3,13 @@
 - **Status:** Accepted
 - **Date:** 2026-11-11
 
+> **Amended by D-073 (2026-11-11), slice 5c:**
+> - **Events.** A plugin declares its events in `lua.events` (name, label, description, `values` offered as `{tokens}`). It needs `events.publish`, "Start your workflows with its own events (at most 10 a second)". Each event is `plugin.<id>.<name>` (the id's `-` as `_`), source `plugin:<id>`, confirmed, caused by the event of the call that sent it.
+> - **`sg.emit(name, payload [, id])` → ok, reason** never raises an error. It's refused without the permission, for an undeclared name, past 10 a second, for an id used before, and during a call started by one of the plugin's own events, so plugins can't loop. Every emit is in the activity.
+> - **Its events are triggers** in the editor, after StreamGremlin's, marked "(add-on)" (`/v1/palette`'s `add_on`). Removing a plugin turns off the workflows its events start.
+> - **Timers.** `sg.after(seconds, fn)` → id, with 1 to 86,400 seconds and up to 100 waiting; `sg.cancel(id)` → whether one was waiting. The worker reports the waiting timers in each `done` frame (`timers`), and the engine sends a `fire` frame when the next is due, one at a time with calls, within the plugin's timeout. Timers are lost with the plugin's memory.
+> - The protocol gains `fire`, a `host` frame's `name` and `payload`, and `done`'s `timers`.
+
 > **Amended by D-072 (2026-11-11), slice 5b:** plugins are updated and rolled back as looks are (ADR-0036, D-068). An update or roll back asks only when that version asks for a permission not approved now, and then for every one it asks for (`?permissions=` on `POST /v1/packages` and `POST /v1/packages/{id}/rollback`, 409 `confirm_permissions`). The check's `plugin_update`, and a plugin's `rollback`, name the new permissions, the steps that version doesn't have, the workflows using them (turned off when it's installed) and the settings that go back to their default. A plugin that's on is loaded again, fresh, as that version. Its events and timers move to slice 5c.
 - **Based on:** [ADR-0036](0036-packages-plugins-and-themes.md) (what a package and a plugin own: install, settings, removal, the Add-ons screen); [ADR-0037](0037-lua-scripts.md) (the Lua sandbox and worker); StreamWisp's ADR-0041 (out-of-process plugins) and ADR-0067 (plugins in Lua), D-106, D-107 and D-111.
 
@@ -17,7 +24,7 @@ ADR-0036 decided what a plugin owns and left its script, permissions, actions an
 - **5a:** the manifest's `lua` section; installing with each permission approved; on and off; settings; the plugin's steps; `chat.send`; the call log; removing (its workflows turned off); the Add-ons screen and the CLI; an example plugin.
 - **Templates** (D-071), between the two: a plugin's `templates/` in the gallery, in the add-on's own section.
 - **5b:** updates and roll back for plugins (asking again for more permissions, naming workflows that use removed steps). Built: D-072.
-- **5c:** `events.publish` and its events as triggers; timers (`sg.after`).
+- **5c:** `events.publish` and its events as triggers; timers (`sg.after`). Built: D-073.
 - Slice 6 adds points (ADR-0036).
 
 Until 5b, installing another version of an installed plugin was refused, saying to remove it first (as themes were in 3a).
@@ -77,6 +84,8 @@ As ADR-0036, and:
 | `sg.permissions` | the approved permissions |
 | `sg.action(name, fn)` | handles a declared action, only while loading. `fn(call)` gets `call.args` (the step's values), `call.event` (the run's event, as in ADR-0037) and `call.key` (the step's idempotency key: the same when the same step runs again); what it returns is the step's output |
 | `sg.log(...)`, `print(...)` | a line in StreamGremlin's log and the plugin's activity; up to 100 a call (or while loading), more are counted, not kept |
+| `sg.emit(name, payload [, id])` → `ok, reason` | with `events.publish` (D-073): sends one of its declared events, `plugin.<id>.<name>`, to start workflows. At most 10 a second; never from a call its own event started; an `id` (such as `call.key`) sends it once. Never raises an error |
+| `sg.after(seconds, fn)` → `id`, `sg.cancel(id)` → `bool` | a timer (D-073): `fn()` runs once, 1 to 86,400 seconds later, one at a time with calls, within the plugin's timeout; up to 100 waiting; gone with the plugin's memory |
 | `sg.chat(message)` → `ok, reason` | with `chat.send`: sends to your chat, as the bot when one is signed in, else as you. At most 500 characters and 20 a minute. It never raises an error: it returns false and why (no permission, not signed in, too many, Twitch refused it) |
 
 Everything else is ADR-0037's sandbox: no files, network, `os` beyond the clock, modules or bytecode; `math.random` from `crypto/rand`. Host calls aren't allowed while loading.

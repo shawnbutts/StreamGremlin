@@ -33,7 +33,7 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 	})
 	v1 := filepath.Join(t.TempDir(), "dice-tray.zip")
 	zipFolder(t, filepath.Join("..", "..", "examples", "plugins", "dice-tray"), v1)
-	if out, errOut, code := cli(t, dir, "packages", "install", v1, "-yes", "-allow", "chat.send"); code != 0 {
+	if out, errOut, code := cli(t, dir, "packages", "install", v1, "-yes", "-allow", "chat.send,events.publish"); code != 0 {
 		t.Fatal(out, errOut)
 	}
 	files := t.TempDir()
@@ -48,13 +48,13 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 	cli(t, dir, "packages", "on", "dice-tray")
 
 	// The test version drops "Roll dice" and allows at most 12 sides.
-	v2 := filepath.Join(t.TempDir(), "dice-tray-1.2.0.zip")
-	zipFolder(t, filepath.Join("..", "testdata", "dice-tray-1.2.0"), v2)
+	v2 := filepath.Join(t.TempDir(), "dice-tray-2.0.0.zip")
+	zipFolder(t, filepath.Join("..", "testdata", "dice-tray-update"), v2)
 	if out, errOut, code := cli(t, dir, "packages", "set", "dice-tray", "sides=20"); code != 0 {
 		t.Fatal(out, errOut)
 	}
 	out, _, _ := cli(t, dir, "packages", "install", v2)
-	for _, want := range []string{"An update: 1.1.0 is installed", "It asks for the permissions you allowed already: chat.send.",
+	for _, want := range []string{"An update: 1.2.0 is installed", "It asks for the permissions you allowed already: chat.send, events.publish.",
 		"Steps it doesn't have: Roll dice (dice-tray.roll). These workflows use them and are turned off (not deleted): Throw.",
 		"Settings that go back to their default: Sides on each die.",
 		"Run again with -yes to install it."} {
@@ -63,15 +63,15 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 		}
 	}
 	out, errOut, code := cli(t, dir, "packages", "install", v2, "-yes")
-	if code != 0 || !strings.Contains(out, "Updated Dice tray from 1.1.0 to 1.2.0. These workflows used a step it doesn't have and are turned off (not deleted): Throw.") ||
-		!strings.Contains(out, "Back to the default: Sides on each die.") || !strings.Contains(out, "It started again, fresh, as 1.2.0.") {
+	if code != 0 || !strings.Contains(out, "Updated Dice tray from 1.2.0 to 2.0.0. These workflows used a step it doesn't have and are turned off (not deleted): Throw.") ||
+		!strings.Contains(out, "Back to the default: Sides on each die.") || !strings.Contains(out, "It started again, fresh, as 2.0.0.") {
 		t.Fatal(out, errOut)
 	}
 	if out, _, _ := cli(t, dir, "workflows"); !strings.Contains(out, "chat.throw") || strings.Contains(out, "chat.throw  on") {
 		t.Fatalf("workflows:\n%s", out)
 	}
 	tw.Say("streamer", "Fan", "!roll")
-	eventually(t, "a roll from 1.2.0", func() string {
+	eventually(t, "a roll from 2.0.0", func() string {
 		for _, m := range tw.ChatLog() {
 			if strings.Contains(m.Text, "Fan rolled a ") && strings.Contains(m.Text, "(d6)") {
 				return ""
@@ -79,23 +79,23 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 		}
 		return "no roll"
 	})
-	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Dice tray 1.2.0") || !strings.Contains(out, "can roll back to 1.1.0") {
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Dice tray 2.0.0") || !strings.Contains(out, "can roll back to 1.2.0") {
 		t.Fatalf("list:\n%s", out)
 	}
 
 	// Roll back: "Roll dice" is there again; nothing else is turned off.
 	out, _, _ = cli(t, dir, "packages", "rollback", "dice-tray")
-	if !strings.Contains(out, "Rolling Dice tray back from 1.2.0 to 1.1.0") || !strings.Contains(out, "Run again with -yes to roll back.") {
+	if !strings.Contains(out, "Rolling Dice tray back from 2.0.0 to 1.2.0") || !strings.Contains(out, "Run again with -yes to roll back.") {
 		t.Fatalf("rollback check:\n%s", out)
 	}
 	if out, errOut, code := cli(t, dir, "packages", "rollback", "dice-tray", "-yes"); code != 0 ||
-		!strings.Contains(out, "Rolled Dice tray back from 1.2.0 to 1.1.0. It started again, fresh, as 1.1.0.") {
+		!strings.Contains(out, "Rolled Dice tray back from 2.0.0 to 1.2.0. It started again, fresh, as 1.2.0.") {
 		t.Fatal(out, errOut)
 	}
 	if out, errOut, code := cli(t, dir, "workflows", "on", "chat.throw"); code != 0 {
 		t.Fatal(out, errOut)
 	}
-	if out, _, _ := cli(t, dir, "packages", "activity", "dice-tray"); !strings.Contains(out, "Dice tray 1.2.0 ready: d6") {
+	if out, _, _ := cli(t, dir, "packages", "activity", "dice-tray"); !strings.Contains(out, "Dice tray 2.0.0 ready: d6") {
 		t.Errorf("activity:\n%s", out)
 	}
 	out, _, _ = cli(t, dir, "packages", "history")

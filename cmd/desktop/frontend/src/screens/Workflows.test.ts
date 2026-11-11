@@ -83,6 +83,15 @@ const palette: Palette = {
       match: [{ path: 'scene_name', label: 'Only for scene', kind: 'scene' }],
       values: [{ token: 'scene', label: 'The new scene', expr: 'event.payload.scene_name' }],
     },
+    {
+      type: 'plugin.dice_tray.round_ended',
+      label: 'A dice round ends',
+      category: 'Dice tray',
+      help: 'A round closed. From Dice tray, published by Someone (not verified).',
+      match: [],
+      values: [{ token: 'winner', label: 'The winner', expr: 'event.payload.winner' }],
+      add_on: 'dice-tray',
+    },
   ],
   actions: [
     // An add-on's step, listed first by the engine, shown after StreamGremlin's own.
@@ -504,6 +513,10 @@ describe('Workflows', () => {
     const groups = Array.from(byLabel(el, 'Add a step').querySelectorAll('optgroup')).map((g) => g.label);
     expect(groups.slice(-2)).toEqual(['Dice tray (add-on)', 'Flow']);
     expect(byLabel(el, 'Add a step').textContent).toContain('Roll dice (add-on)');
+    // An add-on's events come last among the triggers, marked as an add-on's.
+    const when = el.querySelector<HTMLSelectElement>('.trigger-pick select')!;
+    expect(Array.from(when.querySelectorAll('optgroup')).map((g) => g.label).at(-1)).toBe('Dice tray (add-on)');
+    expect(when.textContent).toContain('A dice round ends (add-on)');
     set(byLabel<HTMLSelectElement>(el, 'Add a step'), 'action:dice-tray.roll');
     expect(el.textContent).toContain('Roll dice (from the Dice tray add-on)');
     button(el, 'Remove step 2')!.click();

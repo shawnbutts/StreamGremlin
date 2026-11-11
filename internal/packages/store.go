@@ -72,6 +72,14 @@ type PluginInfo struct {
 	Templates []TemplateInfo `json:"templates"`
 	// Rollback is what rolling back to RollbackTo would do (D-072).
 	Rollback *PluginChange `json:"rollback,omitempty"`
+	// Events are those it can send, to start workflows (D-073).
+	Events []EventInfo `json:"events"`
+}
+
+// EventInfo is one of a plugin's events, with its type.
+type EventInfo struct {
+	Event
+	Type string `json:"type"`
 }
 
 // PermissionNames are the names of the permissions it asks for.
@@ -151,6 +159,10 @@ func fromManifest(p *Package, m Manifest) {
 			info.Permissions = append(info.Permissions, PermissionInfo{Name: name, What: Permissions[name]})
 		}
 		info.Templates = []TemplateInfo{}
+		info.Events = []EventInfo{}
+		for _, e := range m.Lua.Events {
+			info.Events = append(info.Events, EventInfo{Event: e, Type: EventType(m.ID, e.Name)})
+		}
 		p.Plugin = info
 	}
 }

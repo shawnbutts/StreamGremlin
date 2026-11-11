@@ -7,11 +7,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -71,6 +73,16 @@ func (f *fakeWorkflows) UsingActions(_ context.Context, prefix string) ([]workfl
 	return out, nil
 }
 
+func (f *fakeWorkflows) UsingTriggers(_ context.Context, prefix string) ([]workflow.Summary, error) {
+	out := []workflow.Summary{}
+	for _, w := range f.list {
+		if strings.HasPrefix(f.uses[w.ID], prefix) {
+			out = append(out, w)
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeWorkflows) SetEnabled(_ context.Context, id string, on bool) error {
 	f.off = append(f.off, id)
 	return nil
@@ -115,8 +127,38 @@ type rig struct {
 	store *packages.Store
 	reg   *workflow.Registry
 	chat  *fakeChat
+	inbox *fakeInbox
 	m     *Manager
 	now   time.Time
+}
+
+type fakeInbox struct {
+	mu   sync.Mutex
+	got  []events.Envelope
+	seen map[string]bool
+}
+
+func (f *fakeInbox) Accept(_ context.Context, env events.Envelope) (events.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if env.SourceEventID != "" {
+		if f.seen[env.SourceEventID] {
+			return events.Result{}, events.ErrConflict
+		}
+		f.seen[env.SourceEventID] = true
+	}
+	f.got = append(f.got, env)
+	return events.Result{}, nil
+}
+
+func (f *fakeInbox) types() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for _, e := range f.got {
+		out = append(out, e.Type)
+	}
+	return out
 }
 
 func newRig(t *testing.T) *rig {
@@ -130,8 +172,9 @@ func newRig(t *testing.T) *rig {
 	if _, err := db.Migrate(context.Background(), dir); err != nil {
 		t.Fatal(err)
 	}
-	r := &rig{store: packages.NewStore(db), reg: workflow.NewRegistry(), chat: &fakeChat{}, now: time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)}
-	r.m = New(Options{Store: r.store, Actions: r.reg, Chat: r.chat, Now: func() time.Time { return r.now }})
+	r := &rig{store: packages.NewStore(db), reg: workflow.NewRegistry(), chat: &fakeChat{}, inbox: &fakeInbox{seen: map[string]bool{}},
+		now: time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)}
+	r.m = New(Options{Store: r.store, Actions: r.reg, Chat: r.chat, Inbox: r.inbox, Now: func() time.Time { return r.now }})
 	t.Cleanup(r.m.Close)
 	return r
 }
@@ -184,16 +227,16 @@ func TestTheExamplePlugin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pv.Kind != "lua" || pv.Plugin == nil || len(pv.Plugin.Permissions) != 1 || pv.Plugin.Permissions[0].Name != "chat.send" ||
-		!strings.Contains(pv.Plugin.Permissions[0].What, "Send messages in your chat") || len(pv.Plugin.Actions) != 3 {
+	if pv.Kind != "lua" || pv.Plugin == nil || len(pv.Plugin.Permissions) != 2 || pv.Plugin.Permissions[0].Name != "chat.send" ||
+		!strings.Contains(pv.Plugin.Permissions[0].What, "Send messages in your chat") || len(pv.Plugin.Actions) != 4 {
 		t.Fatalf("preview: %+v", pv.Plugin)
 	}
-	for _, perms := range [][]string{nil, {"chat.send", "chat.send"}, {"chat.send", "points.give"}} {
+	for _, perms := range [][]string{nil, {"chat.send"}, {"chat.send", "chat.send"}, {"chat.send", "points.give"}} {
 		if _, err := r.store.InstallWith(ctx, data, packages.Approval{Digest: pv.Digest, Permissions: perms}, r.now); !errors.Is(err, packages.ErrConfirmPermissions) {
 			t.Errorf("%v: %v", perms, err)
 		}
 	}
-	r.install(t, data, "chat.send")
+	r.install(t, data, "chat.send", "events.publish")
 
 	// Installed off: its steps are there, and fail saying so.
 	a, ok := r.reg.Get("dice-tray.roll")
@@ -281,11 +324,11 @@ func TestPluginRefusals(t *testing.T) {
 	// The example without chat.send.
 	noChat := zipFolder(t, example, func(name string, b []byte) []byte {
 		if name == "streamgremlin.json" {
-			return bytes.Replace(b, []byte(`"permissions": ["chat.send"],`), nil, 1)
+			return bytes.Replace(b, []byte(`"chat.send", "events.publish"`), []byte(`"events.publish"`), 1)
 		}
 		return b
 	})
-	r.install(t, noChat)
+	r.install(t, noChat, "events.publish")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +349,7 @@ func TestPluginRefusals(t *testing.T) {
 func TestChatLimits(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +383,7 @@ func TestPluginFailures(t *testing.T) {
 		}
 		return b
 	})
-	r.install(t, broken, "chat.send")
+	r.install(t, broken, "chat.send", "events.publish")
 	err := r.m.SetEnabled(ctx, "dice-tray", true)
 	if !errors.Is(err, ErrLoad) || !strings.Contains(err.Error(), "syntax error") {
 		t.Fatalf("broken: %v", err)
@@ -364,7 +407,7 @@ sg.action("best", function() return 1 end)`)
 		}
 		return b
 	})
-	r.install(t, bomb, "chat.send")
+	r.install(t, bomb, "chat.send", "events.publish")
 	r.m.opts.Lua.Memory = 32 << 20
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
@@ -389,7 +432,7 @@ sg.action("best", function() return 1 end)`)
 func TestStartLoadsPluginsLeftOn(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +465,7 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pv.Plugin.Templates) != 2 || pv.Plugin.Templates[0].Title != "!best: the session's best roll" {
+	if len(pv.Plugin.Templates) != 4 || pv.Plugin.Templates[0].Title != "!best: the session's best roll" {
 		t.Fatalf("templates: %+v", pv.Plugin.Templates)
 	}
 	for _, c := range []struct{ from, to, want string }{
@@ -453,9 +496,9 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 	}
 
 	// Installed: in the gallery, under the plugin's name, saying it's off.
-	r.install(t, zipFolder(t, example, nil), "chat.send")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
 	ts, err := r.store.AddOnTemplates(ctx)
-	if err != nil || len(ts) != 2 || ts[1].ID != "dice-tray/roll" || ts[1].Category != "Dice tray" || ts[1].AddOn == nil || ts[1].AddOn.Enabled {
+	if err != nil || len(ts) != 4 || ts[2].ID != "dice-tray/roll" || ts[2].Category != "Dice tray" || ts[2].AddOn == nil || ts[2].AddOn.Enabled {
 		t.Fatalf("gallery: %+v %v", ts, err)
 	}
 }
@@ -463,7 +506,7 @@ func TestPluginTemplatesAreChecked(t *testing.T) {
 // "!roll" with nothing after it rolls the default, one die.
 func TestEmptyNumberIsTheDefault(t *testing.T) {
 	r := newRig(t)
-	r.install(t, zipFolder(t, example, nil), "chat.send")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
 	if err := r.m.SetEnabled(context.Background(), "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
@@ -479,18 +522,18 @@ func TestEmptyNumberIsTheDefault(t *testing.T) {
 func TestUpdatingAPlugin(t *testing.T) {
 	r := newRig(t)
 	ctx := context.Background()
-	r.install(t, zipFolder(t, example, nil), "chat.send")
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish")
 	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := r.step(t, "dice-tray.roll", nil); err != nil {
 		t.Fatal(err)
 	}
-	// 1.2.0 drops "Roll dice", keeping "Roll dice and say it".
+	// 1.4.0 drops "Roll dice", keeping "Roll dice and say it".
 	v2 := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			s := strings.Replace(string(b), `"version": "1.1.0"`, `"version": "1.2.0"`, 1)
+			s := strings.Replace(string(b), `"version": "1.2.0"`, `"version": "1.4.0"`, 1)
 			i := strings.Index(s, `{
         "name": "roll",`)
 			j := strings.Index(s, `{
@@ -522,12 +565,12 @@ func TestUpdatingAPlugin(t *testing.T) {
 	if _, ok := r.reg.Get("dice-tray.roll"); ok {
 		t.Error("the dropped step is still there")
 	}
-	// Loaded again as 1.2.0: the session starts over.
+	// Loaded again as 1.4.0: the session starts over.
 	out, err := r.step(t, "dice-tray.best", nil)
 	if err != nil || out.(map[string]any)["rolls"] != int64(0) {
 		t.Fatalf("after the update: %v %v", out, err)
 	}
-	if list, _ := r.store.ActivityOf(ctx, "dice-tray", 1); len(list) == 0 || list[0].Version != "1.2.0" {
+	if list, _ := r.store.ActivityOf(ctx, "dice-tray", 1); len(list) == 0 || list[0].Version != "1.4.0" {
 		t.Errorf("activity: %+v", list)
 	}
 
@@ -547,7 +590,7 @@ func TestUpdatingAPlugin(t *testing.T) {
 	broken := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			return bytes.Replace(b, []byte(`"version": "1.1.0"`), []byte(`"version": "1.3.0"`), 1)
+			return bytes.Replace(b, []byte(`"version": "1.2.0"`), []byte(`"version": "1.5.0"`), 1)
 		case "plugin.lua":
 			return append(b, []byte("\nlocal x = = 1\n")...)
 		}
@@ -562,5 +605,150 @@ func TestUpdatingAPlugin(t *testing.T) {
 	}
 	if p, _ := r.store.Get(ctx, "dice-tray"); p.Plugin.Enabled || !strings.Contains(p.Plugin.Error, "line") {
 		t.Errorf("broken: %+v", p.Plugin)
+	}
+}
+
+// eventually waits up to 5 seconds for check to say nothing.
+func eventually(t *testing.T, what string, check func() string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		msg := check()
+		if msg == "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s: %s", what, msg)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// A plugin's events and timers (D-073): its events are triggers in the
+// editor; a round's timer closes it, saying so in chat and sending its
+// event; what it may not send is refused.
+func TestPluginEventsAndTimers(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	// Rounds of a second, for the test.
+	r.install(t, zipFolder(t, example, func(name string, b []byte) []byte {
+		if name == "streamgremlin.json" {
+			return bytes.Replace(b, []byte(`"default": 60, "min": 10`), []byte(`"default": 60, "min": 1`), 1)
+		}
+		return b
+	}), "chat.send", "events.publish")
+	triggers := r.reg.AddOnTriggers()
+	if len(triggers) != 2 || triggers[0].Type != "plugin.dice_tray.round_ended" || triggers[0].AddOn != "dice-tray" ||
+		triggers[0].Category != "Dice tray" || triggers[0].Values[0].Expr != "event.payload.winner" ||
+		!strings.Contains(triggers[0].Help, "published by StreamGremlin examples (not verified)") {
+		t.Fatalf("triggers: %+v", triggers)
+	}
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	out, err := r.step(t, "dice-tray.open_round", map[string]any{"seconds": "1"})
+	if err != nil || out.(map[string]any)["open"] != true {
+		t.Fatalf("open: %v %v", out, err)
+	}
+	if _, err := r.step(t, "dice-tray.roll", map[string]any{"who": "Pal", "dice": "3"}); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the round's end", func() string {
+		for _, m := range r.chat.texts() {
+			if strings.HasPrefix(m, "The dice round is over: Pal wins with ") {
+				return ""
+			}
+		}
+		return strings.Join(r.chat.texts(), " | ")
+	})
+	eventually(t, "its event", func() string {
+		if !slices.Contains(r.inbox.types(), "plugin.dice_tray.round_ended") {
+			return strings.Join(r.inbox.types(), ",")
+		}
+		return ""
+	})
+	r.inbox.mu.Lock()
+	var ended events.Envelope
+	for _, e := range r.inbox.got {
+		if e.Type == "plugin.dice_tray.round_ended" {
+			ended = e
+		}
+	}
+	r.inbox.mu.Unlock()
+	if ended.Source != "plugin:dice-tray" || ended.DeliveryQuality != events.Confirmed || !strings.Contains(string(ended.Payload), `"winner":"Pal"`) ||
+		!strings.Contains(string(ended.Payload), `"rolls":1`) {
+		t.Errorf("event: %+v %s", ended, ended.Payload)
+	}
+	act := strings.Join(activity(t, r, "dice-tray"), "\n")
+	if !strings.Contains(act, `events.publish ok: round_ended {"rolls":1,"total":`) {
+		t.Errorf("activity:\n%s", act)
+	}
+
+	// What it may not send.
+	m := r.m
+	m.mu.Lock()
+	run := m.running["dice-tray"]
+	m.mu.Unlock()
+	for _, c := range []struct {
+		call lua.HostCall
+		want string
+	}{
+		{lua.HostCall{Op: "emit", Name: "teleported"}, `"teleported" isn't one of the events`},
+		{lua.HostCall{Op: "emit", Name: "new_best", Event: map[string]any{"source": "plugin:dice-tray"}}, "could go round forever"},
+		{lua.HostCall{Op: "emit", Name: "new_best", Key: "j1"}, ""},
+		{lua.HostCall{Op: "emit", Name: "new_best", Key: "j1"}, "sent with that id already"},
+	} {
+		ok, why := m.emit(ctx, "dice-tray", run, c.call)
+		if c.want == "" && !ok || c.want != "" && (ok || !strings.Contains(why, c.want)) {
+			t.Errorf("%+v: %v %q, want %q", c.call, ok, why, c.want)
+		}
+	}
+	r.now = r.now.Add(time.Second)
+	sent := 0
+	for range EventsPerSecond + 2 {
+		if ok, _ := m.emit(ctx, "dice-tray", run, lua.HostCall{Op: "emit", Name: "new_best"}); ok {
+			sent++
+		}
+	}
+	if sent != EventsPerSecond {
+		t.Errorf("%d sent in a second", sent)
+	}
+
+	// Removing turns off the workflows its events start.
+	wf := &fakeWorkflows{list: []workflow.Summary{{ID: "plugin.champion", Name: "Champion", Enabled: true}, {ID: "chat.other", Name: "Other", Enabled: true}},
+		uses: map[string]string{"plugin.champion": "plugin.dice_tray.round_ended", "chat.other": "chat.send"}}
+	names, err := r.m.Removing(ctx, "dice-tray", wf)
+	if err != nil || strings.Join(names, ",") != "Champion" || strings.Join(wf.off, ",") != "plugin.champion" {
+		t.Fatalf("removing: %v %v %v", names, wf.off, err)
+	}
+	if len(r.reg.AddOnTriggers()) != 0 {
+		t.Error("its triggers outlived it")
+	}
+}
+
+// Turning a plugin off stops its timers.
+func TestTimersStopWithThePlugin(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.install(t, zipFolder(t, example, func(name string, b []byte) []byte {
+		if name == "streamgremlin.json" {
+			return bytes.Replace(b, []byte(`"default": 60, "min": 10`), []byte(`"default": 60, "min": 1`), 1)
+		}
+		return b
+	}), "chat.send", "events.publish")
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.step(t, "dice-tray.open_round", map[string]any{"seconds": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.m.SetEnabled(ctx, "dice-tray", false); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+	for _, m := range r.chat.texts() {
+		if strings.Contains(m, "is over") {
+			t.Fatalf("the round closed after the plugin was turned off: %q", m)
+		}
 	}
 }

@@ -444,6 +444,8 @@ export interface TriggerEntry {
   more?: boolean;
   match: MatchField[];
   values: PaletteValue[];
+  /** The add-on whose event it is (D-073). */
+  add_on?: string;
 }
 
 export interface Palette {
@@ -1451,6 +1453,17 @@ export interface PluginInfo {
   templates: { id: string; title: string }[];
   /** What rolling back to rollback_to would do. */
   rollback?: PluginChange;
+  /** Events it sends, to start workflows (D-073). */
+  events: PluginEvent[];
+}
+
+/** One of a plugin's events, as plugin.<id>.<name>. */
+export interface PluginEvent {
+  name: string;
+  type: string;
+  label: string;
+  description: string;
+  values?: { name: string; label: string }[];
 }
 
 /** What moving a plugin to another version does (D-072). */
@@ -1472,7 +1485,7 @@ export interface PluginActivity {
   seq: number;
   at: string;
   version: string;
-  /** chat.send, or log */
+  /** chat.send, events.publish, timer, or log */
   call: string;
   outcome: 'ok' | 'refused' | 'failed';
   detail: string;

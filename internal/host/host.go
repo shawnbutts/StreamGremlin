@@ -199,7 +199,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Overlays: ovs, Hub: h.hub})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
-	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Logger: log})
+	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Inbox: inbox, Logger: log})
 	if err := h.plugins.Start(ctx); err != nil {
 		return nil, err
 	}

@@ -39,6 +39,11 @@ func TestLuaPluginsAreChecked(t *testing.T) {
 		want string
 	}{
 		{swap(`"chat.send"`, `"points.give"`), `permission "points.give" isn't one`},
+		{swap(`"settings":[`, `"events":[{"name":"won","label":"Won","description":"Someone won."}],"settings":[`), "asks for the events.publish permission"},
+		{swap(`"chat.send"`, `"chat.send","events.publish"`), "is for a plugin with events: it has none"},
+		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"Won","label":"Won","description":"d"}],`), `event "Won": a name`},
+		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"won","label":"Won","description":"d"},{"name":"won","label":"W","description":"d"}],`), `event "won" is there twice`},
+		{swap(`"chat.send"],`, `"chat.send","events.publish"],"events":[{"name":"won","label":"Won","description":"d","values":[{"name":"who","label":""}]}],`), `value "who"`},
 		{swap(`"chat.send"`, `"chat.send","chat.send"`), "there twice"},
 		{swap(`"script":"plugin.lua"`, `"script":"plugin.js"`), "a .lua file"},
 		{swap(`"script":"plugin.lua"`, `"script":"../plugin.lua"`), "a .lua file"},
@@ -63,6 +68,22 @@ func TestLuaPluginsAreChecked(t *testing.T) {
 		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%v, want %q", err, c.want)
 		}
+	}
+}
+
+func TestPluginEvents(t *testing.T) {
+	r, err := ReadZip(zipOf(t, file{name: "streamgremlin.json", body: strings.Replace(fmt.Sprintf(luaManifest, ""), `"chat.send"],`,
+		`"chat.send","events.publish"],"events":[{"name":"won","label":"Someone wins","description":"A round ends.","values":[{"name":"winner","label":"The winner"}]}],`, 1)},
+		file{name: "plugin.lua", body: "x"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Manifest.Lua.Events) != 1 || EventType("dice-tray", "won") != "plugin.dice_tray.won" {
+		t.Fatalf("%+v", r.Manifest.Lua.Events)
+	}
+	p := describe(r, now)
+	if len(p.Plugin.Events) != 1 || p.Plugin.Events[0].Type != "plugin.dice.won" || p.Plugin.Events[0].Values[0].Name != "winner" {
+		t.Errorf("info: %+v", p.Plugin.Events)
 	}
 }
 

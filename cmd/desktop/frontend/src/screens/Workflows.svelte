@@ -174,7 +174,9 @@
       : !runs(w)
         ? `It’s on, but its group (${w.group}) is off, so it doesn’t run.`
         : !testable(w)
-          ? 'Its trigger can’t be imitated by a test event yet.'
+          ? w.triggers.every((t) => t.type.startsWith('plugin.'))
+            ? 'An add-on’s event starts it: use the add-on to try it.'
+            : 'Its trigger can’t be imitated by a test event yet.'
           : '';
 
   // The list in sections: each group (by name), then the ones in none.

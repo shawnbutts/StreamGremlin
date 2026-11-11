@@ -40,6 +40,7 @@ const dice: InstalledPackage = {
   plugin: {
     enabled: false, timeout: 5, script: 'plugin.lua', values: { sides: 6, cheer: true },
     templates: [{ id: 'roll', title: '!roll: roll dice in chat' }],
+    events: [{ name: 'round_ended', type: 'plugin.dice_tray.round_ended', label: 'A dice round ends', description: 'A round closed.' }],
     permissions: [{ name: 'chat.send', what: 'Send messages in your chat, as the bot when one is signed in (at most 20 a minute)' }],
     actions: [
       { name: 'roll', label: 'Roll dice', description: 'Rolls dice.' },
@@ -123,6 +124,7 @@ describe('plugins on Add-ons', () => {
     expect(preview.textContent).toContain('Roll dice');
     expect(preview.textContent).not.toContain('OBS');
     expect(preview.textContent).toContain('Templates it adds to the gallery, in its own section: !roll: roll dice in chat.');
+    expect(preview.textContent!.replace(/\s+/g, ' ')).toContain('Events it sends, to start your workflows: A dice round ends: A round closed.');
     const install = button(target, 'Install Dice tray')!;
     expect(install.disabled).toBe(true);
     await noViolations('preview');
@@ -144,6 +146,7 @@ describe('plugins on Add-ons', () => {
     expect(card.textContent).toContain('Send messages in your chat');
     expect(card.textContent).toContain('Used by Roll.');
     expect(card.textContent).toContain('Find them in the gallery under “Dice tray (add-on)”');
+    expect(card.textContent).toContain('Events it sends: A dice round ends. Find them under “When” in a workflow, under “Dice tray (add-on)”.');
     expect(card.textContent).toContain('Off. Its steps fail until you turn it on.');
     await noViolations('installed');
 

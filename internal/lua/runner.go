@@ -53,6 +53,10 @@ type Result struct {
 	Log        []string
 	LogDropped int
 	Took       time.Duration
+
+	// done: the worker answered (a plugin's timers are then current).
+	done   bool
+	timers []timerDue
 }
 
 // Error is how a script ended badly. Log has what it wrote first.
@@ -392,6 +396,7 @@ func (p *proc) exchange(ctx context.Context, f frame, limit time.Duration, log *
 				log.Info("lua log", "line", g.Message)
 			case g.Type == "done":
 				res.LogDropped = g.LogDropped
+				res.done, res.timers = true, g.Timers
 				if g.Kind != "" {
 					return fail(g.Kind, g.Error)
 				}

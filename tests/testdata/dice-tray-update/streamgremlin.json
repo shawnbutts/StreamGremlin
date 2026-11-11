@@ -2,7 +2,7 @@
   "format": "streamgremlin.package/v1",
   "id": "dice-tray",
   "name": "Dice tray",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "publisher": "StreamGremlin examples",
   "description": "Rolls dice for chat and keeps the session's best roll: an example of a Lua plugin.",
   "license": "MIT",
@@ -10,7 +10,7 @@
   "api": "1",
   "lua": {
     "script": "plugin.lua",
-    "permissions": ["chat.send"],
+    "permissions": ["chat.send", "events.publish"],
     "timeout": 5,
     "actions": [
       {
@@ -23,9 +23,38 @@
         ]
       },
       {
+        "name": "open_round",
+        "label": "Open a dice round",
+        "description": "Opens a round for a while: rolls in it count, then it says who rolled highest and sends A dice round ends.",
+        "params": [
+          { "name": "seconds", "label": "How long it stays open (seconds)", "kind": "number", "default": 60, "min": 10, "max": 600 }
+        ]
+      },
+      {
         "name": "best",
         "label": "The session's best roll",
         "description": "Who has the best roll since the plugin was turned on, and how many rolls there have been."
+      }
+    ],
+    "events": [
+      {
+        "name": "round_ended",
+        "label": "A dice round ends",
+        "description": "A round opened with Open a dice round closed: who rolled highest, with what, and how many rolled.",
+        "values": [
+          { "name": "winner", "label": "The winner's name (empty with no rolls)" },
+          { "name": "total", "label": "The winning roll" },
+          { "name": "rolls", "label": "How many rolls there were" }
+        ]
+      },
+      {
+        "name": "new_best",
+        "label": "A new best roll",
+        "description": "Someone beat the session's best roll.",
+        "values": [
+          { "name": "who", "label": "Who rolled it" },
+          { "name": "total", "label": "The roll" }
+        ]
       }
     ],
     "settings": [

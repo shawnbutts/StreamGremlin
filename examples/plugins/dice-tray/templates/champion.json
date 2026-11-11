@@ -1,0 +1,29 @@
+{
+  "template": {
+    "id": "champion",
+    "title": "Cheer a dice round's winner",
+    "description": "When a dice round ends with a winner, says congratulations in chat. Change the message to make it yours.",
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "plugin.dice-tray-champion",
+    "name": "Dice round winner (Dice tray)",
+    "group": "Dice tray",
+    "triggers": [
+      {
+        "type": "plugin.dice_tray.round_ended"
+      }
+    ],
+    "steps": [
+      {
+        "id": "cheer",
+        "action": "chat.send",
+        "if": "event.payload.winner != \"\"",
+        "with": {
+          "message": "Congratulations ${event.payload.winner}, dice champion with ${event.payload.total}!"
+        }
+      }
+    ]
+  }
+}

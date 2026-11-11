@@ -31,6 +31,7 @@
   const value = (key: string) => (key in edits ? edits[key] : plugin.values[key]);
   const changed = $derived(Object.keys(edits).some((k) => edits[k] !== plugin.values[k]));
   const OUTCOMES: Record<PluginActivity['outcome'], string> = { ok: 'done', refused: 'refused', failed: 'failed' };
+  const CALLS: Record<string, string> = { log: 'Logged', 'chat.send': 'Chat', 'events.publish': 'Event', timer: 'Timer' };
 
   async function toggle(on: boolean) {
     working = true;
@@ -132,6 +133,12 @@
     <strong>Steps it adds:</strong>
     {plugin.actions.map((a) => a.label).join(', ')}. Find them under “{p.name}” when you add a step.
   </p>
+  {#if plugin.events?.length}
+    <p class="field-hint">
+      <strong>Events it sends:</strong>
+      {plugin.events.map((e) => e.label).join(', ')}. Find them under “When” in a workflow, under “{p.name} (add-on)”.
+    </p>
+  {/if}
   {#if plugin.templates.length}
     <p class="field-hint">
       <strong>Templates:</strong>
@@ -198,7 +205,7 @@
         {#each activity as a (a.seq)}
           <li>
             <span class="sg-muted">{eventTime(a.at)}</span>
-            {a.call === 'log' ? 'Logged' : a.call === 'chat.send' ? 'Chat' : a.call}
+            {CALLS[a.call] ?? a.call}
             {#if a.call !== 'log'}<span class={a.outcome === 'ok' ? '' : 'error'}>({OUTCOMES[a.outcome]})</span>{/if}:
             {a.detail}
           </li>

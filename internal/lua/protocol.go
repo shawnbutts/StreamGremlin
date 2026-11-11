@@ -45,7 +45,7 @@ const (
 
 // frame is one message either way. Only the fields of its Type are set.
 type frame struct {
-	Type string `json:"type"` // run, load, call, log, host, reply, done, memory
+	Type string `json:"type"` // run, load, call, fire, log, host, reply, done, memory
 	ID   uint64 `json:"id,omitempty"`
 
 	// run
@@ -66,16 +66,31 @@ type frame struct {
 	Action      string         `json:"action,omitempty"`
 	Key         string         `json:"key,omitempty"`
 
-	// host (the worker asks the engine to act) and reply
-	Op     string `json:"op,omitempty"`
-	OK     bool   `json:"ok,omitempty"`
-	Reason string `json:"reason,omitempty"`
+	// fire: run a timer the plugin set (D-073)
+	Timer int `json:"timer,omitempty"`
+
+	// host (the worker asks the engine to act) and reply; an emit's name
+	// and payload, its id in Key
+	Op      string         `json:"op,omitempty"`
+	Name    string         `json:"name,omitempty"`
+	Payload map[string]any `json:"payload,omitempty"`
+	OK      bool           `json:"ok,omitempty"`
+	Reason  string         `json:"reason,omitempty"`
 
 	// done
 	Result     any    `json:"result,omitempty"`
 	Error      string `json:"error,omitempty"`
 	Kind       string `json:"kind,omitempty"`
 	LogDropped int    `json:"log_dropped,omitempty"`
+	// Timers, in a plugin's done, are every timer it has waiting.
+	Timers []timerDue `json:"timers,omitempty"`
+}
+
+// timerDue is a timer waiting in a plugin: its id, and how long until it's
+// due.
+type timerDue struct {
+	ID   int   `json:"id"`
+	InMS int64 `json:"in_ms"`
 }
 
 var errFrameTooBig = errors.New("lua: a frame is larger than 1 MiB")

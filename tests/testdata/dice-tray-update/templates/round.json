@@ -1,0 +1,38 @@
+{
+  "template": {
+    "id": "round",
+    "title": "!diceround: a timed dice round",
+    "description": "Mods and you type !diceround to open a 60-second round: rolls in it count, then Dice tray says who rolled highest.",
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.dice-tray-round",
+    "name": "Dice round (Dice tray)",
+    "group": "Dice tray",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "diceround",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "id": "open",
+        "action": "dice-tray.open_round",
+        "with": {
+          "seconds": "60"
+        }
+      }
+    ]
+  }
+}

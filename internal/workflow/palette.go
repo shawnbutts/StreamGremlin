@@ -32,6 +32,8 @@ type TriggerEntry struct {
 	More     bool         `json:"more,omitempty"` // behind "More triggers…"
 	Match    []MatchField `json:"match"`
 	Values   []Value      `json:"values"`
+	// AddOn is the add-on whose event it is (D-073).
+	AddOn string `json:"add_on,omitempty"`
 }
 
 var (
@@ -50,7 +52,9 @@ type Palette struct {
 }
 
 // Palette returns what the editor offers in this build.
-func (e *Engine) Palette() Palette { return Palette{Triggers: Triggers(), Actions: e.reg.List()} }
+func (e *Engine) Palette() Palette {
+	return Palette{Triggers: append(Triggers(), e.reg.AddOnTriggers()...), Actions: e.reg.List()}
+}
 
 var (
 	who     = MatchField{Path: "chatter.role", Label: "Who can use it", Kind: "who"}

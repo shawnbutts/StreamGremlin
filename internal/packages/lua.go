@@ -21,6 +21,9 @@ const (
 	DefaultTimeout   = 10
 	MaxTimeout       = 30
 	PermChatSend     = "chat.send"
+	PermEvents       = "events.publish"
+	MaxEvents        = 20
+	MaxEventValues   = 20
 	paramTextDefault = 200
 )
 
@@ -28,6 +31,13 @@ const (
 // the words the install screen shows.
 var Permissions = map[string]string{
 	PermChatSend: "Send messages in your chat, as the bot when one is signed in (at most 20 a minute)",
+	PermEvents:   "Start your workflows with its own events (at most 10 a second)",
+}
+
+// EventType is the event type a plugin's event has: plugin.<id>.<name>,
+// with the id's - as _ (event types are lowercase words and _).
+func EventType(id, name string) string {
+	return "plugin." + strings.ReplaceAll(id, "-", "_") + "." + name
 }
 
 // TemplateDir holds a plugin's templates, one JSON file each, in the
@@ -80,6 +90,23 @@ type Lua struct {
 	Timeout     int                `json:"timeout,omitempty"` // seconds a call may take; 0 is DefaultTimeout
 	Actions     []Action           `json:"actions"`
 	Settings    []overlays.Setting `json:"settings,omitempty"`
+	// Events it can send, to start workflows (D-073): with events.publish.
+	Events []Event `json:"events,omitempty"`
+}
+
+// Event is one kind of event a plugin sends, as plugin.<id>.<name>.
+type Event struct {
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	// Values are fields of its payload offered in messages as {name}.
+	Values []EventValue `json:"values,omitempty"`
+}
+
+// EventValue is a field of an event's payload, as messages can include it.
+type EventValue struct {
+	Name  string `json:"name"`
+	Label string `json:"label"`
 }
 
 // Action is a step a plugin offers, as <id>.<name>.
@@ -159,6 +186,43 @@ func checkLua(m Manifest) error {
 	}
 	if err := checkSettings(l.Settings); err != nil {
 		return err
+	}
+	return checkEvents(l)
+}
+
+// checkEvents: events need events.publish, and events.publish needs events.
+func checkEvents(l *Lua) error {
+	asks := slices.Contains(l.Permissions, PermEvents)
+	switch {
+	case len(l.Events) > 0 && !asks:
+		return invalid("a plugin with events asks for the %s permission", PermEvents)
+	case len(l.Events) == 0 && asks:
+		return invalid("the %s permission is for a plugin with events: it has none", PermEvents)
+	case len(l.Events) > MaxEvents:
+		return invalid("a plugin has up to %d events", MaxEvents)
+	}
+	names := map[string]bool{}
+	for _, e := range l.Events {
+		if !namePattern.MatchString(e.Name) {
+			return invalid("event %q: a name is up to 32 lowercase letters, digits and _, starting with a letter", e.Name)
+		}
+		if names[e.Name] {
+			return invalid("event %q is there twice", e.Name)
+		}
+		names[e.Name] = true
+		if strings.TrimSpace(e.Label) == "" || !plain(e.Label, 60) || strings.TrimSpace(e.Description) == "" || !plain(e.Description, 300) {
+			return invalid("event %q: a label is up to 60 characters and a description up to 300, neither empty", e.Name)
+		}
+		if len(e.Values) > MaxEventValues {
+			return invalid("event %q: up to %d values", e.Name, MaxEventValues)
+		}
+		vals := map[string]bool{}
+		for _, v := range e.Values {
+			if !namePattern.MatchString(v.Name) || vals[v.Name] || strings.TrimSpace(v.Label) == "" || !plain(v.Label, 60) {
+				return invalid("event %q, value %q: each has a different name (lowercase letters, digits and _) and a label up to 60 characters", e.Name, v.Name)
+			}
+			vals[v.Name] = true
+		}
 	}
 	return nil
 }

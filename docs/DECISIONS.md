@@ -1264,3 +1264,32 @@ Decided 2026-11-11, building slice 5b after the user's "proceed". ADR-0036 and A
 - **A plugin that's on is loaded again as the new version,** fresh: its memory starts over, and the screens say so before you confirm. One that won't load is left off, saying why, as when it's turned on. A failure from the version before is cleared.
 - **Roll back** to a version that asks for more says so in its dialog, whose button reads **Allow and roll back**: confirming it is the approval. In the terminal it needs `-allow`.
 - The audit records the permissions, the steps removed and the settings reset with each update and roll back.
+
+## D-073. Lua plugins' events and timers (M5 slice 5c)
+
+Decided 2026-11-11, building slice 5c after the user's "proceed". ADR-0036 had given plugins `<id>.<event>` events with source `plugin:<id>`, and ADR-0038 left `events.publish` and timers (`sg.after`) to this slice. StreamWisp's ADR-0041 and ADR-0067 had both. This records how they're built.
+
+- **A plugin declares its events** in its manifest's `lua.events`: up to 20, each a name, a label, a description, and the payload's values that messages can include (`{winner}`). It needs the new **`events.publish`** permission, "Start your workflows with its own events", approved like `chat.send`. A plugin with events asks for it, and one without events can't.
+- **The event type is `plugin.<id>.<name>`,** with the id's `-` as `_` (`plugin.dice_tray.round_ended`). Event types are three or more lowercase words, and a plugin's id can have `-`. Its source is `plugin:<id>`, it's recorded as confirmed, and its cause is the event of the call that sent it.
+- **`sg.emit(name, payload [, id])` → ok, reason,** like `sg.chat`: it never raises an error. It's refused, and the refusal recorded in the plugin's activity, when:
+  - the plugin lacks the permission;
+  - the name isn't declared;
+  - more than 10 a second are sent;
+  - an id is used twice;
+  - **the call was started by one of this plugin's own events.** A workflow started by a plugin's event that calls the same plugin could otherwise send events in a circle forever.
+
+  The optional id makes a retried step send its event once: the example passes `call.key`.
+- **In the editor,** a plugin's events are triggers under **When**, after StreamGremlin's own, in a group "Dice tray (add-on)", each marked "(add-on)", with their values as `{tokens}`. `/v1/palette` adds them with `add_on`. A workflow started only by an add-on's event can't be tested with a test event, and Workflows says to use the add-on.
+- **Removing a plugin turns off the workflows its events start,** as well as those using its steps.
+- **Timers: `sg.after(seconds, fn)` → id, `sg.cancel(id)` → whether it was waiting.**
+  - Seconds are 1 to 86,400 (a day), with up to 100 waiting. A timer can be set while the script loads, in a call, or in another timer.
+  - The worker tells the engine which timers are waiting after each call. The engine fires the next one due, one at a time with the plugin's calls, within the plugin's timeout.
+  - A timer can send chat and events. Its log lines go in the activity, and so does a timer that fails. One that stops the worker counts as a crash.
+  - Timers are the plugin's memory: they're gone when it's turned off, its settings change, it's updated, its worker restarts or StreamGremlin stops.
+- **The protocol** gains a `fire` frame, `name` and `payload` in a `host` frame, and `timers` in a plugin's `done` frame.
+- **Dice tray 1.2.0:**
+  - **Open a dice round:** rolls in it count, and its timer closes it, saying who won;
+  - two events: **A dice round ends** and **A new best roll**;
+  - two templates: **!diceround** and **Cheer a dice round's winner**, which its event starts.
+
+  The update test version is now `tests/testdata/dice-tray-update`, 2.0.0.

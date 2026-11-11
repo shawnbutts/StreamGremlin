@@ -16,7 +16,11 @@
 
   const env = editorEnv();
   const entry = $derived(env.triggers.find((t) => t.type === trigger.type));
-  const categories = $derived([...new Set(env.triggers.map((t) => t.category))]);
+  // StreamGremlin's own events first, then each add-on's, marked as one (D-073).
+  const categories = $derived([
+    ...new Set([...env.triggers.filter((t) => !t.add_on), ...env.triggers.filter((t) => t.add_on)].map((t) => t.category)),
+  ]);
+  const addOnCategory = (c: string) => env.triggers.some((t) => t.category === c && t.add_on);
   const known = $derived(new Set(entry?.match.map((m) => m.path) ?? []));
   const other = $derived(Object.entries(trigger.where ?? {}).filter(([k]) => !known.has(k)));
   const path = $derived(`$.triggers[${index}]`);
@@ -45,9 +49,9 @@
       <span>When</span>
       <select class="sg-input" value={trigger.type} onchange={(e) => changeType(e.currentTarget.value)}>
         {#each categories as c (c)}
-          <optgroup label={c}>
+          <optgroup label={addOnCategory(c) ? `${c} (add-on)` : c}>
             {#each env.triggers.filter((t) => t.category === c && (env.more || !t.more || t.type === trigger.type)) as t (t.type)}
-              <option value={t.type}>{t.label}</option>
+              <option value={t.type}>{t.add_on ? `${t.label} (add-on)` : t.label}</option>
             {/each}
           </optgroup>
         {/each}

@@ -4,6 +4,7 @@
 
 local rolls = 0
 local best = nil -- {total = n, who = "name"}
+local round = nil -- an open round: {rolls = n, best = {total, who}}
 
 local function roller(call)
   local who = call.args.who
@@ -26,6 +27,16 @@ local function roll(call)
   local new_best = best == nil or total > best.total
   if new_best then
     best = {total = total, who = who}
+    if rolls > 1 then
+      -- The step's key: the same step run again sends it once.
+      sg.emit("new_best", {who = who, total = total}, call.key)
+    end
+  end
+  if round then
+    round.rolls = round.rolls + 1
+    if round.best == nil or total > round.best.total then
+      round.best = {total = total, who = who}
+    end
   end
   local text
   if dice == 1 then
@@ -52,6 +63,31 @@ sg.action("roll_and_say", function(call)
   end
   r.said = ok
   return r
+end)
+
+-- When a round's time is up: say who won, and send the event.
+local function close_round()
+  local r = round
+  round = nil
+  if r.best == nil then
+    sg.chat("The dice round is over: nobody rolled.")
+    sg.emit("round_ended", {winner = "", total = 0, rolls = 0})
+    return
+  end
+  sg.chat(string.format("The dice round is over: %s wins with %d (%d rolls).", r.best.who, r.best.total, r.rolls))
+  sg.emit("round_ended", {winner = r.best.who, total = r.best.total, rolls = r.rolls})
+end
+
+sg.action("open_round", function(call)
+  if round then
+    return {open = false, text = "A dice round is open already."}
+  end
+  local seconds = math.floor(call.args.seconds or 60)
+  round = {rolls = 0}
+  sg.after(seconds, close_round)
+  local text = string.format("A dice round is open for %d seconds: type !roll to join.", seconds)
+  sg.chat(text)
+  return {open = true, seconds = seconds, text = text}
 end)
 
 sg.action("best", function()

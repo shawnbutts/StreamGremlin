@@ -225,6 +225,29 @@ func (e *Engine) UsingActions(ctx context.Context, prefix string) ([]Summary, er
 	return out, nil
 }
 
+// UsingTriggers are the workflows (not deleted) with a trigger whose type
+// starts with prefix: a plugin's events, "plugin.<id>." (D-073).
+func (e *Engine) UsingTriggers(ctx context.Context, prefix string) ([]Summary, error) {
+	all, err := e.st.list(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	out := []Summary{}
+	for _, w := range all {
+		d, _, err := e.Definition(ctx, w.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range d.Triggers {
+			if strings.HasPrefix(t.Type, prefix) {
+				out = append(out, w)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 // matchAction: a prefix ending in "." matches every action under it,
 // anything else one action exactly.
 func matchAction(action, prefix string) bool {

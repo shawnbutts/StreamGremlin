@@ -28,7 +28,23 @@ type pluginWorker struct {
 	inCall   bool
 	lines    int
 	dropped  int
+	// timers waiting (D-073), by id.
+	timers    map[int]*waiting
+	lastTimer int
 }
+
+// waiting is a timer the plugin set.
+type waiting struct {
+	fn  *glua.LFunction
+	due time.Time
+}
+
+// Timers' limits.
+const (
+	MaxTimers       = 100
+	MinTimerSeconds = 1
+	MaxTimerSeconds = 24 * 60 * 60
+)
 
 // servePlugin loads the plugin from the first frame, then answers calls
 // until in closes.
@@ -38,8 +54,9 @@ func (w *worker) servePlugin(in io.Reader) int {
 		fmt.Fprintln(stderr(), "lua worker: protocol error: the first frame isn't load")
 		return 1
 	}
-	p := &pluginWorker{worker: w, in: in, handlers: map[string]*glua.LFunction{}}
+	p := &pluginWorker{worker: w, in: in, handlers: map[string]*glua.LFunction{}, timers: map[int]*waiting{}}
 	done := p.load(f)
+	done.Timers = p.due()
 	if err := w.send(done); err != nil || done.Kind != "" {
 		return 0
 	}
@@ -48,11 +65,21 @@ func (w *worker) servePlugin(in io.Reader) int {
 		if errors.Is(err, io.EOF) {
 			return 0
 		}
-		if err != nil || f.Type != "call" {
-			fmt.Fprintln(stderr(), "lua worker: protocol error:", err, f.Type)
+		var done frame
+		switch {
+		case err != nil:
+			fmt.Fprintln(stderr(), "lua worker: protocol error:", err)
+			return 1
+		case f.Type == "call":
+			done = p.call(f)
+		case f.Type == "fire":
+			done = p.fire(f)
+		default:
+			fmt.Fprintln(stderr(), "lua worker: protocol error:", f.Type)
 			return 1
 		}
-		if err := w.send(p.call(f)); err != nil {
+		done.Timers = p.due()
+		if err := w.send(done); err != nil {
 			return 1
 		}
 	}
@@ -93,6 +120,9 @@ func (p *pluginWorker) load(f frame) (done frame) {
 	sg.RawSetString("permissions", perms)
 	sg.RawSetString("action", L.NewFunction(p.luaAction))
 	sg.RawSetString("chat", L.NewFunction(p.luaChat))
+	sg.RawSetString("emit", L.NewFunction(p.luaEmit))
+	sg.RawSetString("after", L.NewFunction(p.luaAfter))
+	sg.RawSetString("cancel", L.NewFunction(p.luaCancel))
 	fn, err := L.Load(strings.NewReader(f.Script), "script")
 	if err != nil {
 		done.Kind, done.Error = KindScript, friendly(err)
@@ -137,7 +167,7 @@ func (p *pluginWorker) luaAction(L *glua.LState) int {
 // decides, and says why not.
 func (p *pluginWorker) luaChat(L *glua.LState) int {
 	msg := L.CheckString(1)
-	ok, reason := p.host("chat", msg)
+	ok, reason := p.host(frame{Op: "chat", Message: msg})
 	L.Push(glua.LBool(ok))
 	if ok {
 		L.Push(glua.LNil)
@@ -147,12 +177,117 @@ func (p *pluginWorker) luaChat(L *glua.LState) int {
 	return 2
 }
 
+// luaEmit is sg.emit(name, payload [, id]) → ok, reason: one of the
+// plugin's events, to start workflows. Like sg.chat, it never raises.
+func (p *pluginWorker) luaEmit(L *glua.LState) int {
+	name := L.CheckString(1)
+	t := L.OptTable(2, L.NewTable())
+	id := L.OptString(3, "")
+	fail := func(why string) int {
+		L.Push(glua.LFalse)
+		L.Push(glua.LString(why))
+		return 2
+	}
+	c := &fromLua{}
+	v, err := c.table(t, 0)
+	if err != nil {
+		return fail("the payload can't be sent: " + strings.TrimPrefix(err.Error(), "output: "))
+	}
+	payload, isMap := v.(map[string]any)
+	if !isMap {
+		return fail("the payload is a table of names and values, like {winner = \"Fan\"}")
+	}
+	ok, reason := p.host(frame{Op: "emit", Name: name, Payload: payload, Key: id})
+	L.Push(glua.LBool(ok))
+	if ok {
+		L.Push(glua.LNil)
+	} else {
+		L.Push(glua.LString(reason))
+	}
+	return 2
+}
+
+// luaAfter is sg.after(seconds, fn) → id: fn runs once, that many seconds
+// later, while the plugin stays on.
+func (p *pluginWorker) luaAfter(L *glua.LState) int {
+	secs := float64(L.CheckNumber(1))
+	fn := L.CheckFunction(2)
+	if secs < MinTimerSeconds || secs > MaxTimerSeconds {
+		L.RaiseError("sg.after: seconds is %d to %d", MinTimerSeconds, MaxTimerSeconds)
+	}
+	if len(p.timers) >= MaxTimers {
+		L.RaiseError("sg.after: a plugin has up to %d timers waiting", MaxTimers)
+	}
+	p.lastTimer++
+	p.timers[p.lastTimer] = &waiting{fn: fn, due: time.Now().Add(time.Duration(secs * float64(time.Second)))}
+	L.Push(glua.LNumber(p.lastTimer))
+	return 1
+}
+
+// luaCancel is sg.cancel(id) → whether that timer was waiting.
+func (p *pluginWorker) luaCancel(L *glua.LState) int {
+	n, ok := L.Get(1).(glua.LNumber)
+	_, waiting := p.timers[int(n)]
+	if ok && waiting {
+		delete(p.timers, int(n))
+	}
+	L.Push(glua.LBool(ok && waiting))
+	return 1
+}
+
+// due is every timer waiting, for the engine.
+func (p *pluginWorker) due() []timerDue {
+	now := time.Now()
+	out := make([]timerDue, 0, len(p.timers))
+	for id, w := range p.timers {
+		out = append(out, timerDue{ID: id, InMS: max(w.due.Sub(now).Milliseconds(), 0)})
+	}
+	slices.SortFunc(out, func(a, b timerDue) int { return a.ID - b.ID })
+	return out
+}
+
+// fire runs a timer the engine says is due. One cancelled meanwhile does
+// nothing.
+func (p *pluginWorker) fire(f frame) (done frame) {
+	done = frame{Type: "done", ID: f.ID}
+	p.callID, p.lines, p.dropped = f.ID, 0, 0
+	defer func() {
+		if r := recover(); r != nil {
+			done.Kind, done.Error = KindScript, fmt.Sprintf("the interpreter failed: %v", r)
+		}
+		done.LogDropped = p.dropped
+	}()
+	w, ok := p.timers[f.Timer]
+	if !ok {
+		return done
+	}
+	delete(p.timers, f.Timer)
+	L := p.L
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(f.TimeoutMS)*time.Millisecond)
+	defer cancel()
+	p.inCall = true
+	L.SetContext(ctx)
+	L.Push(w.fn)
+	err := L.PCall(0, 0, nil)
+	L.RemoveContext()
+	p.inCall = false
+	L.SetTop(0)
+	switch {
+	case err != nil && ctx.Err() != nil:
+		done.Kind, done.Error = KindTimeout, "the timer ran longer than its time limit"
+	case err != nil:
+		done.Kind, done.Error = KindScript, friendly(err)
+	}
+	return done
+}
+
 // host asks the engine to act and waits for its answer.
-func (p *pluginWorker) host(op, message string) (bool, string) {
+func (p *pluginWorker) host(g frame) (bool, string) {
 	if !p.inCall {
 		return false, "StreamGremlin can't be asked to do anything while the script loads"
 	}
-	if err := p.send(frame{Type: "host", ID: p.callID, Op: op, Message: message}); err != nil {
+	g.Type, g.ID = "host", p.callID
+	if err := p.send(g); err != nil {
 		return false, "StreamGremlin didn't answer"
 	}
 	reply, err := readFrame(p.in)

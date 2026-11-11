@@ -304,6 +304,12 @@
         <ul class="plugin-steps">
           {#each pl.actions as a (a.name)}<li><strong>{a.label}</strong>: {a.description}</li>{/each}
         </ul>
+        {#if pl.events.length}
+          <p><strong>Events it sends, to start your workflows:</strong></p>
+          <ul class="plugin-steps">
+            {#each pl.events as e (e.name)}<li><strong>{e.label}</strong>: {e.description}</li>{/each}
+          </ul>
+        {/if}
         {#if pl.templates.length}
           <p>
             <strong>Templates it adds to the gallery</strong>, in its own section: {pl.templates.map((t) => t.title).join(', ')}.

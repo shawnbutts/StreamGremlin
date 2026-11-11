@@ -137,10 +137,52 @@ func (c Call) Bool(name string, def bool) (bool, error) {
 type Registry struct {
 	mu      sync.RWMutex
 	actions map[string]*Action
+	// triggers are add-ons' events as the editor offers them, by add-on.
+	triggers map[string][]TriggerEntry
 }
 
 // NewRegistry returns an empty registry.
-func NewRegistry() *Registry { return &Registry{actions: map[string]*Action{}} }
+func NewRegistry() *Registry {
+	return &Registry{actions: map[string]*Action{}, triggers: map[string][]TriggerEntry{}}
+}
+
+// SetTriggers sets the events an add-on offers as triggers (D-073); none
+// takes them out.
+func (r *Registry) SetTriggers(addOn string, ts []TriggerEntry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(ts) == 0 {
+		delete(r.triggers, addOn)
+		return
+	}
+	for i := range ts {
+		ts[i].AddOn = addOn
+		if ts[i].Match == nil {
+			ts[i].Match = []MatchField{}
+		}
+		if ts[i].Values == nil {
+			ts[i].Values = []Value{}
+		}
+	}
+	r.triggers[addOn] = ts
+}
+
+// AddOnTriggers are every add-on's triggers, by add-on, in the order each
+// gave them.
+func (r *Registry) AddOnTriggers() []TriggerEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	ids := make([]string, 0, len(r.triggers))
+	for id := range r.triggers {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := []TriggerEntry{}
+	for _, id := range ids {
+		out = append(out, r.triggers[id]...)
+	}
+	return out
+}
 
 // Add registers an action. Names are unique.
 func (r *Registry) Add(a Action) {

@@ -6,6 +6,7 @@ package plugins
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
@@ -25,11 +27,12 @@ import (
 
 // Limits on what a plugin asks for.
 const (
-	MaxChatRunes   = 500
-	ChatPerMinute  = 20
-	MaxCrashes     = 5
-	CrashWindow    = 10 * time.Minute
-	activityPerRun = lua.MaxLogLines
+	MaxChatRunes    = 500
+	ChatPerMinute   = 20
+	EventsPerSecond = 10
+	MaxCrashes      = 5
+	CrashWindow     = 10 * time.Minute
+	activityPerRun  = lua.MaxLogLines
 )
 
 // Chat sends to the streamer's chat (the Twitch service, or a stand-in).
@@ -40,7 +43,13 @@ type Chat interface {
 // Workflows is what the manager needs from the workflow engine.
 type Workflows interface {
 	UsingActions(ctx context.Context, prefix string) ([]workflow.Summary, error)
+	UsingTriggers(ctx context.Context, prefix string) ([]workflow.Summary, error)
 	SetEnabled(ctx context.Context, id string, on bool) error
+}
+
+// Inbox takes the events plugins send (the event inbox).
+type Inbox interface {
+	Accept(ctx context.Context, env events.Envelope) (events.Result, error)
 }
 
 // Options configure a Manager.
@@ -48,6 +57,8 @@ type Options struct {
 	Store   *packages.Store
 	Actions *workflow.Registry
 	Chat    Chat
+	// Inbox takes plugins' events (D-073); without it they're refused.
+	Inbox Inbox
 	// Lua configures the workers (tests point Command at themselves).
 	Lua    lua.Options
 	Logger *slog.Logger
@@ -72,6 +83,9 @@ type running struct {
 	plugin  *lua.Plugin
 	crashes []time.Time
 	chat    []time.Time // sends in the last minute
+	emits   []time.Time // events in the last second
+	events  map[string]bool
+	timer   *time.Timer // for the plugin's next timer
 	stopped bool
 }
 
@@ -132,6 +146,9 @@ func (r *running) stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.stopped = true
+	if r.timer != nil {
+		r.timer.Stop()
+	}
 	if r.plugin != nil {
 		r.plugin.Close()
 	}
@@ -161,6 +178,16 @@ func (m *Manager) register(p packages.Package, man packages.Manifest) {
 		})
 		names = append(names, name)
 	}
+	var triggers []workflow.TriggerEntry
+	for _, e := range man.Lua.Events {
+		t := workflow.TriggerEntry{Type: packages.EventType(p.ID, e.Name), Label: e.Label, Category: p.Name,
+			Help: fmt.Sprintf("%s From %s, published by %s (not verified).", strings.TrimSpace(e.Description), p.Name, p.Publisher)}
+		for _, v := range e.Values {
+			t.Values = append(t.Values, workflow.Value{Token: v.Name, Label: v.Label, Expr: "event.payload." + v.Name})
+		}
+		triggers = append(triggers, t)
+	}
+	m.opts.Actions.SetTriggers(p.ID, triggers)
 	m.mu.Lock()
 	m.actions[p.ID] = names
 	m.mu.Unlock()
@@ -174,6 +201,7 @@ func (m *Manager) unregister(id string) {
 	for _, n := range names {
 		m.opts.Actions.Remove(n)
 	}
+	m.opts.Actions.SetTriggers(id, nil)
 }
 
 // params are a plugin action's values as workflow parameters: text can
@@ -316,7 +344,10 @@ func (m *Manager) start(ctx context.Context, id string) error {
 	}
 	spec := lua.PluginSpec{ID: id, Name: p.Name, Version: p.Version, Script: string(script), Settings: p.Plugin.Values,
 		Permissions: approved, Actions: actions, Timeout: time.Duration(man.Lua.TimeoutSeconds()) * time.Second}
-	r := &running{spec: spec}
+	r := &running{spec: spec, events: map[string]bool{}}
+	for _, e := range man.Lua.Events {
+		r.events[e.Name] = true
+	}
 	plugin, res, err := lua.StartPlugin(m.opts.Lua, spec, m.host(id, p.Version, r))
 	m.logLines(ctx, id, p.Version, res.Log, res.LogDropped)
 	if err != nil {
@@ -337,6 +368,7 @@ func (m *Manager) start(ctx context.Context, id string) error {
 	if old != nil {
 		old.stop()
 	}
+	m.schedule(id, r)
 	return nil
 }
 
@@ -372,6 +404,7 @@ func (m *Manager) Call(ctx context.Context, id, action string, args, event map[s
 		return lua.Result{}, err
 	}
 	res, err := plugin.Call(ctx, action, args, event, key)
+	m.schedule(id, r)
 	m.logLines(ctx, id, r.spec.Version, res.Log, res.LogDropped)
 	var le *lua.Error
 	if errors.As(err, &le) {
@@ -382,6 +415,48 @@ func (m *Manager) Call(ctx context.Context, id, action string, args, event map[s
 		return res, fmt.Errorf("%s: %s", r.spec.Name, le.Message)
 	}
 	return res, err
+}
+
+// schedule sets the plugin's next timer going, replacing the one before:
+// the worker says which are waiting after each call.
+func (m *Manager) schedule(id string, r *running) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.timer != nil {
+		r.timer.Stop()
+		r.timer = nil
+	}
+	if r.stopped || r.plugin == nil {
+		return
+	}
+	tid, at, ok := r.plugin.NextTimer()
+	if !ok {
+		return
+	}
+	r.timer = time.AfterFunc(max(time.Until(at), 0), func() { m.fire(id, r, tid) })
+}
+
+// fire runs a plugin's timer that's due, one at a time with its calls. A
+// timer that fails is in its activity; one that stops its worker counts as
+// a crash.
+func (m *Manager) fire(id string, r *running, timer int) {
+	ctx := context.Background()
+	plugin, err := m.alive(ctx, id, r)
+	if err != nil {
+		return
+	}
+	res, err := plugin.Fire(ctx, timer)
+	m.logLines(ctx, id, r.spec.Version, res.Log, res.LogDropped)
+	var le *lua.Error
+	if errors.As(err, &le) {
+		m.logLines(ctx, id, r.spec.Version, le.Log, le.LogDropped)
+		m.activity(ctx, id, r.spec.Version, "timer", "failed", le.Message)
+		m.log.Warn("plugin timer failed", "plugin", id, "err", le.Message)
+		if plugin.Dead() {
+			m.crashed(ctx, id, r, le.Message)
+		}
+	}
+	m.schedule(id, r)
 }
 
 // alive returns the plugin's worker, starting it again if it died.
@@ -446,9 +521,31 @@ func (m *Manager) activity(ctx context.Context, id, version, call, outcome, deta
 // host does what a plugin asks, within its approved permissions, and
 // records it.
 func (m *Manager) host(id, version string, r *running) lua.HostFunc {
-	return func(ctx context.Context, op, message string) (bool, string) {
-		switch op {
+	return func(ctx context.Context, c lua.HostCall) (bool, string) {
+		switch c.Op {
+		case "emit":
+			ok, why := m.emit(ctx, id, r, c)
+			outcome := "ok"
+			switch {
+			case !ok && strings.HasPrefix(why, "refused: "):
+				outcome, why = "refused", strings.TrimPrefix(why, "refused: ")
+			case !ok:
+				outcome = "failed"
+			}
+			b, _ := json.Marshal(c.Payload)
+			detail := c.Name + " " + string(b)
+			if why != "" {
+				detail += " (" + why + ")"
+			}
+			m.activity(ctx, id, version, packages.PermEvents, outcome, detail)
+			if outcome != "ok" {
+				m.log.Warn("plugin event not sent", "plugin", id, "event", c.Name, "why", why)
+			} else {
+				m.log.Info("plugin sent an event", "plugin", id, "event", c.Name)
+			}
+			return ok, why
 		case "chat":
+			message := c.Message
 			ok, why := m.chat(ctx, id, r, message)
 			outcome := "ok"
 			switch {
@@ -469,9 +566,67 @@ func (m *Manager) host(id, version string, r *running) lua.HostFunc {
 			}
 			return ok, why
 		}
-		m.activity(ctx, id, version, op, "refused", "StreamGremlin has no such call")
-		return false, "StreamGremlin has no call " + op
+		m.activity(ctx, id, version, c.Op, "refused", "StreamGremlin has no such call")
+		return false, "StreamGremlin has no call " + c.Op
 	}
+}
+
+// emit records a plugin's event (D-073): "refused: …" when it may not.
+func (m *Manager) emit(ctx context.Context, id string, r *running, c lua.HostCall) (bool, string) {
+	if !slices.Contains(r.spec.Permissions, packages.PermEvents) {
+		return false, "refused: it doesn't have permission to send events"
+	}
+	if !r.events[c.Name] {
+		return false, fmt.Sprintf("refused: %q isn't one of the events in its streamgremlin.json", c.Name)
+	}
+	if src, _ := c.Event["source"].(string); src == "plugin:"+id {
+		return false, "refused: its own event started this, and an event it sends can't start another: that could go round forever"
+	}
+	now := m.opts.Now()
+	r.mu.Lock()
+	keep := r.emits[:0]
+	for _, t := range r.emits {
+		if now.Sub(t) < time.Second {
+			keep = append(keep, t)
+		}
+	}
+	r.emits = keep
+	if len(r.emits) >= EventsPerSecond {
+		r.mu.Unlock()
+		return false, fmt.Sprintf("refused: at most %d events a second", EventsPerSecond)
+	}
+	r.emits = append(r.emits, now)
+	r.mu.Unlock()
+	if m.opts.Inbox == nil {
+		return false, "events aren't available"
+	}
+	payload := c.Payload
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return false, "refused: the payload can't be sent"
+	}
+	env := events.Envelope{Type: packages.EventType(id, c.Name), Source: "plugin:" + id, Payload: raw, DeliveryQuality: events.Confirmed}
+	if c.Key != "" {
+		env.SourceEventID = c.Name + ":" + c.Key
+	}
+	if cause, _ := c.Event["id"].(string); cause != "" {
+		env.CausationID = cause
+	}
+	res, err := m.opts.Inbox.Accept(ctx, env)
+	switch {
+	case errors.Is(err, events.ErrConflict):
+		return false, "refused: an event was sent with that id already"
+	case errors.Is(err, events.ErrInvalid):
+		return false, "refused: " + strings.TrimPrefix(err.Error(), events.ErrInvalid.Error()+": ")
+	case err != nil:
+		return false, err.Error()
+	case res.Duplicate:
+		return false, "refused: an event was sent with that id already"
+	}
+	return true, ""
 }
 
 // chat sends a plugin's message: "refused: …" when it may not.
@@ -512,14 +667,32 @@ func (m *Manager) chat(ctx context.Context, id string, r *running, message strin
 	return true, ""
 }
 
-// Removing stops a plugin, turns off the workflows that use its steps
-// (naming them) and takes its steps out. The caller then removes it from
-// the store.
+// using are the workflows using a plugin's steps or started by its events.
+func using(ctx context.Context, wf Workflows, id string) ([]workflow.Summary, error) {
+	steps, err := wf.UsingActions(ctx, id+".")
+	if err != nil {
+		return nil, err
+	}
+	triggered, err := wf.UsingTriggers(ctx, packages.EventType(id, ""))
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range triggered {
+		if !slices.ContainsFunc(steps, func(x workflow.Summary) bool { return x.ID == w.ID }) {
+			steps = append(steps, w)
+		}
+	}
+	return steps, nil
+}
+
+// Removing stops a plugin, turns off the workflows that use its steps or
+// its events (naming them) and takes its steps out. The caller then
+// removes it from the store.
 func (m *Manager) Removing(ctx context.Context, id string, wf Workflows) ([]string, error) {
 	m.stop(id)
 	names := []string{}
 	if wf != nil {
-		using, err := wf.UsingActions(ctx, id+".")
+		using, err := using(ctx, wf, id)
 		if err != nil {
 			return nil, err
 		}
@@ -599,9 +772,9 @@ func UsingSteps(ctx context.Context, wf Workflows, steps []string) ([]workflow.S
 	return out, nil
 }
 
-// Using names the workflows that use a plugin's steps.
+// Using names the workflows that use a plugin's steps or its events.
 func Using(ctx context.Context, wf Workflows, id string) ([]string, error) {
-	using, err := wf.UsingActions(ctx, id+".")
+	using, err := using(ctx, wf, id)
 	if err != nil {
 		return nil, err
 	}

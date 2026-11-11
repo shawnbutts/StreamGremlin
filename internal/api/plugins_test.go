@@ -17,7 +17,8 @@ func examplePlugin(t *testing.T, change ...func(name string, b []byte) []byte) s
 	dir := filepath.Join("..", "..", "examples", "plugins", "dice-tray")
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	for _, name := range []string{"streamgremlin.json", "plugin.lua", "README.md", "templates/roll.json", "templates/best.json"} {
+	for _, name := range []string{"streamgremlin.json", "plugin.lua", "README.md", "templates/roll.json", "templates/best.json",
+		"templates/round.json", "templates/champion.json"} {
 		b, err := os.ReadFile(filepath.Join(dir, name)) //nolint:gosec // the repository's own example
 		if err != nil {
 			t.Fatal(err)
@@ -55,14 +56,14 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 		}
 	}
 	_ = json.Unmarshal([]byte(out), &pv)
-	if code != 200 || len(pv.Plugin.Permissions) != 1 || pv.Plugin.Permissions[0].Name != "chat.send" || len(pv.Plugin.Actions) != 3 {
+	if code != 200 || len(pv.Plugin.Permissions) != 2 || pv.Plugin.Permissions[0].Name != "chat.send" || len(pv.Plugin.Actions) != 4 {
 		t.Fatal(code, out)
 	}
 	if code, out := call("POST", "/v1/packages?digest="+pv.Digest, data); code != 409 || !strings.Contains(out, "confirm_permissions") ||
-		!strings.Contains(out, "asks for chat.send") {
+		!strings.Contains(out, "asks for chat.send, events.publish") {
 		t.Fatal(code, out)
 	}
-	if code, out := call("POST", "/v1/packages?digest="+pv.Digest+"&permissions=chat.send", data); code != 201 {
+	if code, out := call("POST", "/v1/packages?digest="+pv.Digest+"&permissions=chat.send,events.publish", data); code != 201 {
 		t.Fatal(code, out)
 	}
 	// Its steps are there for workflows, while it's off.
@@ -70,9 +71,22 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 		t.Fatal(code, out)
 	}
 	_, out = call("GET", "/v1/packages", "")
-	if !strings.Contains(out, `"enabled":false`) || !strings.Contains(out, `"workflows":["Roll"]`) || !strings.Contains(out, `"values":{"cheer":true,"sides":6}`) {
+	if !strings.Contains(out, `"enabled":false`) || !strings.Contains(out, `"workflows":["Roll"]`) || !strings.Contains(out, `"values":{"cheer":true,"sides":6}`) ||
+		!strings.Contains(out, `"type":"plugin.dice_tray.new_best"`) {
 		t.Fatal(out)
 	}
+
+	// Its events are triggers in the editor, marked as the add-on's.
+	_, out = call("GET", "/v1/palette", "")
+	if !strings.Contains(out, `"type":"plugin.dice_tray.round_ended","label":"A dice round ends","category":"Dice tray"`) ||
+		!strings.Contains(out, `"add_on":"dice-tray"`) || !strings.Contains(out, `{"token":"winner","label":"The winner's name (empty with no rolls)","expr":"event.payload.winner"}`) {
+		t.Fatal(out)
+	}
+	if code, out := call("PUT", "/v1/workflows/plugin.champion", `{"schema":"streamgremlin.workflow/v1","id":"plugin.champion","name":"Champion",
+		"triggers":[{"type":"plugin.dice_tray.round_ended"}],"steps":[{"id":"s","action":"chat.send","with":{"message":"GG ${event.payload.winner}"}}]}`); code != 200 && code != 201 {
+		t.Fatal(code, out)
+	}
+	call("PUT", "/v1/workflows/plugin.champion/enabled", `{"enabled": true}`)
 
 	// Its templates are in the gallery, in its own section.
 	_, out = call("GET", "/v1/templates", "")
@@ -108,11 +122,16 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 	// Removed: its workflow is turned off, not deleted.
 	call("PUT", "/v1/workflows/chat.roll/enabled", `{"enabled": true}`)
 	code, out = call("DELETE", "/v1/packages/dice-tray", "")
-	if code != 200 || !strings.Contains(out, `"workflows":["Roll"]`) {
+	if code != 200 || !strings.Contains(out, `"workflows":["Roll","Champion"]`) {
 		t.Fatal(code, out)
 	}
-	if _, out := call("GET", "/v1/workflows/chat.roll", ""); !strings.Contains(out, `"enabled":false`) {
-		t.Fatal("still on:", out)
+	for _, id := range []string{"chat.roll", "plugin.champion"} {
+		if _, out := call("GET", "/v1/workflows/"+id, ""); !strings.Contains(out, `"enabled":false`) {
+			t.Fatal("still on:", out)
+		}
+	}
+	if _, out := call("GET", "/v1/palette", ""); strings.Contains(out, "plugin.dice_tray") {
+		t.Fatal("its triggers outlived it:", out)
 	}
 	if _, out := call("GET", "/v1/templates", ""); strings.Contains(out, "dice-tray/") || strings.Contains(out, `"Dice tray"`) {
 		t.Fatal("its templates outlived it:", out)
@@ -122,16 +141,16 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 	}
 }
 
-// diceVersion is the example at another version: with permissions, and
-// without the "roll" step when dropRoll.
+// diceVersion is the example at another version: without chat.send when
+// !perms, and without the "roll" step when dropRoll.
 func diceVersion(t *testing.T, version string, perms bool, dropRoll bool) string {
 	return examplePlugin(t, func(name string, b []byte) []byte {
 		s := string(b)
 		switch name {
 		case "streamgremlin.json":
-			s = strings.Replace(s, `"version": "1.1.0"`, `"version": "`+version+`"`, 1)
+			s = strings.Replace(s, `"version": "1.2.0"`, `"version": "`+version+`"`, 1)
 			if !perms {
-				s = strings.Replace(s, `"permissions": ["chat.send"],`, "", 1)
+				s = strings.Replace(s, `"chat.send", "events.publish"`, `"events.publish"`, 1)
 			}
 			if dropRoll {
 				i := strings.Index(s, "{\n        \"name\": \"roll\",")
@@ -166,9 +185,9 @@ func TestPluginUpdatesThroughTheAPI(t *testing.T) {
 		_ = json.Unmarshal([]byte(out), &pv)
 		return pv.Digest
 	}
-	// 1.0.0 asks for nothing.
+	// 1.0.0 asks only to send events.
 	v1 := diceVersion(t, "1.0.0", false, false)
-	if code, out := call("POST", "/v1/packages?digest="+digest(v1), v1); code != 201 {
+	if code, out := call("POST", "/v1/packages?digest="+digest(v1)+"&permissions=events.publish", v1); code != 201 {
 		t.Fatal(code, out)
 	}
 	if code, out := call("PUT", "/v1/workflows/chat.roll", diceWorkflowAPI); code != 200 && code != 201 {
@@ -189,7 +208,7 @@ func TestPluginUpdatesThroughTheAPI(t *testing.T) {
 		!strings.Contains(out, "asks for more: chat.send") {
 		t.Fatal(code, out)
 	}
-	code, out = call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send", v2)
+	code, out = call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send,events.publish", v2)
 	if code != 201 || !strings.Contains(out, `"from":"1.0.0"`) || !strings.Contains(out, `"workflows":["Roll"]`) || !strings.Contains(out, `"enabled":true`) {
 		t.Fatal(code, out)
 	}
@@ -200,7 +219,7 @@ func TestPluginUpdatesThroughTheAPI(t *testing.T) {
 	// Its roll back is described, with nothing to approve; rolling back
 	// brings the step back and turns nothing off.
 	_, out = call("GET", "/v1/packages", "")
-	if !strings.Contains(out, `"rollback_to":"1.0.0"`) || !strings.Contains(out, `"rollback":{"new_permissions":[],"permissions":[],"removed_steps":[],"reset":[],"workflows":[]}`) {
+	if !strings.Contains(out, `"rollback_to":"1.0.0"`) || !strings.Contains(out, `"rollback":{"new_permissions":[],"permissions":["events.publish"],"removed_steps":[],"reset":[],"workflows":[]}`) {
 		t.Fatal(out)
 	}
 	code, out = call("POST", "/v1/packages/dice-tray/rollback", "")
@@ -209,15 +228,15 @@ func TestPluginUpdatesThroughTheAPI(t *testing.T) {
 	}
 	// Forward again, then to a version without permissions; rolling back to
 	// 1.2.0 then needs chat.send approved.
-	call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send", v2)
+	call("POST", "/v1/packages?digest="+d2+"&permissions=chat.send,events.publish", v2)
 	v3 := diceVersion(t, "1.3.0", false, true)
-	if code, out := call("POST", "/v1/packages?digest="+digest(v3), v3); code != 201 {
+	if code, out := call("POST", "/v1/packages?digest="+digest(v3)+"&permissions=events.publish", v3); code != 201 {
 		t.Fatal(code, out)
 	}
 	if code, out := call("POST", "/v1/packages/dice-tray/rollback", ""); code != 409 || !strings.Contains(out, "confirm_permissions") {
 		t.Fatal(code, out)
 	}
-	if code, out := call("POST", "/v1/packages/dice-tray/rollback?permissions=chat.send", ""); code != 200 || !strings.Contains(out, `"version":"1.2.0"`) {
+	if code, out := call("POST", "/v1/packages/dice-tray/rollback?permissions=chat.send,events.publish", ""); code != 200 || !strings.Contains(out, `"version":"1.2.0"`) {
 		t.Fatal(code, out)
 	}
 	_, out = call("GET", "/v1/packages/audit", "")

@@ -12,13 +12,19 @@ import (
 type hostLog struct {
 	mu    sync.Mutex
 	calls []string
+	got   []HostCall
 	allow bool
 }
 
-func (h *hostLog) fn(ctx context.Context, op, msg string) (bool, string) {
+func (h *hostLog) fn(ctx context.Context, c HostCall) (bool, string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.calls = append(h.calls, op+":"+msg)
+	h.got = append(h.got, c)
+	if c.Op == "emit" {
+		h.calls = append(h.calls, c.Op+":"+c.Name)
+	} else {
+		h.calls = append(h.calls, c.Op+":"+c.Message)
+	}
 	if !h.allow {
 		return false, "it doesn't have permission to send chat"
 	}
@@ -31,7 +37,7 @@ func startPlugin(t *testing.T, script string, opts Options, h *hostLog) (*Plugin
 		h = &hostLog{allow: true}
 	}
 	p, res, err := StartPlugin(opts, PluginSpec{ID: "dice", Name: "Dice", Version: "1.0.0", Script: script,
-		Settings: map[string]any{"sides": float64(6)}, Permissions: []string{"chat.send"}, Actions: []string{"roll", "count", "say", "slow", "nothing"},
+		Settings: map[string]any{"sides": float64(6)}, Permissions: []string{"chat.send"}, Actions: []string{"roll", "count", "say", "slow", "nothing", "later", "cancel", "emit"},
 		Timeout: 2 * time.Second}, h.fn)
 	if p != nil {
 		t.Cleanup(p.Close)
@@ -211,5 +217,113 @@ end)`, Options{}, nil)
 	close(errs)
 	for err := range errs {
 		t.Error(err)
+	}
+}
+
+const timerPlugin = `
+local fired = {}
+local pending = nil
+sg.after(1, function() fired[#fired + 1] = "loaded" end)
+sg.action("later", function(call)
+  pending = sg.after(call.args.seconds, function()
+    fired[#fired + 1] = call.args.name
+    sg.chat("timer " .. call.args.name)
+  end)
+  return pending
+end)
+sg.action("cancel", function() return sg.cancel(pending) end)
+sg.action("count", function() return table.concat(fired, ",") end)
+sg.action("emit", function(call)
+  local ok, why = sg.emit("won", {winner = "Fan", total = 12}, call.key)
+  return {ok = ok, why = why}
+end)
+sg.action("slow", function()
+  local ok, err = pcall(sg.after, 0.5, function() end)
+  local ok2, err2 = pcall(sg.after, 1, "not a function")
+  return {err, err2}
+end)
+`
+
+// Timers (D-073): set while loading or in a call, reported to the engine,
+// fired by it one at a time; cancelled ones never fire.
+func TestPluginTimers(t *testing.T) {
+	h := &hostLog{allow: true}
+	p, _, err := startPlugin(t, timerPlugin, Options{}, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := p.Timers()
+	if len(ids) != 1 {
+		t.Fatalf("after loading: %v", ids)
+	}
+	r, le := call(t, p, "later", map[string]any{"seconds": float64(2), "name": "a"})
+	if le != nil {
+		t.Fatal(le)
+	}
+	a := int(r.Value.(int64))
+	r, _ = call(t, p, "later", map[string]any{"seconds": float64(3), "name": "b"})
+	b := int(r.Value.(int64))
+	if _, le := call(t, p, "cancel", nil); le != nil {
+		t.Fatal(le)
+	}
+	due := p.Timers()
+	if len(due) != 2 || due[a].IsZero() || !due[b].IsZero() {
+		t.Fatalf("waiting: %v (a %d, b %d)", due, a, b)
+	}
+	if at := due[a]; time.Until(at) < time.Second || time.Until(at) > 2*time.Second {
+		t.Errorf("a is due in %v", time.Until(at))
+	}
+	id, _, ok := p.NextTimer()
+	if !ok || id == a {
+		t.Fatalf("next: %d %v", id, ok)
+	}
+	for _, id := range []int{id, a, b} {
+		if _, err := p.Fire(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r, _ := call(t, p, "count", nil); r.Value != "loaded,a" {
+		t.Errorf("fired: %v", r.Value)
+	}
+	if len(p.Timers()) != 0 {
+		t.Errorf("still waiting: %v", p.Timers())
+	}
+	if strings.Join(h.calls, "|") != "chat:timer a" || h.got[0].Event != nil {
+		t.Errorf("host calls: %q %+v", h.calls, h.got)
+	}
+	r, _ = call(t, p, "slow", nil)
+	errs := r.Value.([]any)
+	if !strings.Contains(errs[0].(string), "sg.after: seconds is 1 to 86400") || !strings.Contains(errs[1].(string), "function") {
+		t.Errorf("bad timers: %v", errs)
+	}
+}
+
+func TestPluginTimerLimit(t *testing.T) {
+	p, _, err := startPlugin(t, `for i = 1, 100 do sg.after(60, function() end) end
+sg.action("later", function() local ok, err = pcall(sg.after, 60, function() end); return err end)`, Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := call(t, p, "later", nil); !strings.Contains(r.Value.(string), "100 timers") {
+		t.Errorf("101st: %v", r.Value)
+	}
+}
+
+// sg.emit asks the engine, with the event name, payload, id and the call's
+// event.
+func TestPluginEmits(t *testing.T) {
+	h := &hostLog{allow: true}
+	p, _, err := startPlugin(t, timerPlugin, Options{}, h)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, le := call(t, p, "emit", nil)
+	if le != nil || r.Value.(map[string]any)["ok"] != true {
+		t.Fatalf("emit: %v %v", le, r.Value)
+	}
+	g := h.got[0]
+	if g.Op != "emit" || g.Name != "won" || g.Payload["winner"] != "Fan" || g.Payload["total"] != int64(12) || g.Key != "job/1" ||
+		g.Event["actor"] == nil {
+		t.Errorf("host call: %+v", g)
 	}
 }

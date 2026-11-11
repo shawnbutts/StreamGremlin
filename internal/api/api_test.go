@@ -149,7 +149,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	lr := lua.NewRunner(lua.Options{})
 	t.Cleanup(lr.Close)
 	actions.Register(reg, actions.Services{Lua: lr, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Gives: gv, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
-	pm := plugins.New(plugins.Options{Store: pkgs, Actions: reg, Chat: tw})
+	pm := plugins.New(plugins.Options{Store: pkgs, Actions: reg, Chat: tw, Inbox: inbox})
 	if err := pm.Start(context.Background()); err != nil {
 		t.Fatal(err)
 	}
