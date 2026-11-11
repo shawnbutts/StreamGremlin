@@ -37,7 +37,9 @@ export function obsReach(p) {
 /**
  * opts: setTimeout, now, reducedMotion, cue (sounds), classic (the Classic
  * wheel view, for spins the look can't show), report(status, detail).
- * Returns { spin(v), update(theme), url, stop() }.
+ * between() is called after each spin, before the next; it may stop this
+ * view (for a new version). Returns { spin(v), update(theme), url, busy(),
+ * stop() }; stop returns the spins still waiting.
  */
 export function themedWheelView(win, stage, theme, opts) {
   const doc = win.document;
@@ -118,6 +120,7 @@ export function themedWheelView(win, stage, theme, opts) {
     if (my !== gen) return;
     current = null;
     busy = false;
+    if (opts.between) opts.between();
     next();
   }
 
@@ -198,11 +201,14 @@ export function themedWheelView(win, stage, theme, opts) {
       settings = t.settings || {};
       if (ready) post('theme.settings.updated', { settings });
     },
+    id: theme.id,
+    busy: () => busy,
     stop() {
       stopped = true;
       gen++;
       win.removeEventListener('message', onMessage);
       frame.remove();
+      return queue.splice(0);
     },
   };
 }

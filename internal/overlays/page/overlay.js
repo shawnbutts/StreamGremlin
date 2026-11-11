@@ -285,6 +285,7 @@ export function start(win, opts = {}) {
   // OBS answers; 'unknown' if it can't say or doesn't in time; else 0-5.
   let obsLevel = null;
   let lastTheme;
+  let pendingTheme; // a new version of the look on screen, waiting for its spin to finish
   let refused = ''; // the add-on look and level last refused, said once
   const obs = (() => {
     try {
@@ -342,6 +343,7 @@ export function start(win, opts = {}) {
     const blocked = addOn ? addOnBlocked() : '';
     lookSounds = valid && !blocked && theme.sounds && typeof theme.sounds === 'object' ? theme.sounds : null;
     if (blocked) {
+      pendingTheme = undefined;
       if (themed) themed.stop();
       themed = null;
       wheel = classicView(false);
@@ -354,18 +356,38 @@ export function start(win, opts = {}) {
       return;
     }
     if (!valid) {
+      pendingTheme = undefined;
       if (themed) themed.stop();
       themed = null;
       wheel = classicView(false);
       return;
     }
     if (themed && themed.url === theme.url) {
+      pendingTheme = undefined;
       themed.update(theme);
       return;
     }
-    if (themed) themed.stop();
-    themed = themedWheelView(win, stage, theme, { setTimeout: later, now: opts.now, reducedMotion, cue, classic: classicView, report });
+    // A new version of the look mid-spin (an update or roll back): that
+    // spin finishes first; the next is in the new version.
+    if (themed && themed.id === theme.id && themed.busy()) {
+      pendingTheme = theme;
+      return;
+    }
+    pendingTheme = undefined;
+    const waiting = themed ? themed.stop() : [];
+    themed = themedWheelView(win, stage, theme, {
+      setTimeout: later,
+      now: opts.now,
+      reducedMotion,
+      cue,
+      classic: classicView,
+      report,
+      between: () => {
+        if (pendingTheme !== undefined) setWheel(pendingTheme);
+      },
+    });
     wheel = themed;
+    for (const v of waiting) themed.spin(v);
   }
 
   function onMessage(ev) {

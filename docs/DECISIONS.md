@@ -1176,3 +1176,30 @@ Decided 2026-11-11 under D-007, building on D-064 and D-066. The user's live che
   - Overlays: leave Page permissions at "No access to OBS"; an add-on look only loads there, otherwise Classic shows;
   - Add-ons and `packages install`: when the look will load in OBS.
 - Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.
+
+## D-068. Updating and rolling back installed looks (M5 slice 3b)
+
+Decided 2026-11-11 under D-007, building on D-063 and D-066. The user, on the proposal for the rest of slice 3b: "proceed".
+
+- **Installing another version of an installed look updates it.** The check shows "Paper wheel 1.1.0 → 1.2.0", and says when it's an older version than the installed one.
+  - **The installed version is kept,** so it can be rolled back to. Installing a kept version again reuses its stored files. A kept version with other files is refused: a version is one fixed thing.
+  - **Overlays using it switch together.** Each keeps the settings the new version still has and accepts; the rest go back to the new version's defaults, and the answer names them per overlay.
+  - **A spin showing when the version changes finishes in the old one.** The next spin is in the new one, and spins waiting move with it.
+- **Two versions are kept besides the installed one:** the highest below it first, then the lowest above it. Older ones are deleted.
+- **Roll back goes to the highest kept version below the installed one,** with that version's publisher. The version rolled back from is kept, so updating to it again is possible. There's nothing to roll back to below the lowest. Roll back asks first: on Add-ons, a dialog naming the overlays that switch back; in the terminal, `packages rollback ID` without `-yes` only says what it would do.
+- **Another publisher's version needs that publisher's name typed exactly** (AGENTS.md: never replace another publisher's pack without an exact identity check):
+  - on Add-ons, the check names both publishers, says neither is verified and that someone else may have used the same id, and Update stays off until the name matches;
+  - in the terminal, `-publisher NAME` with `-yes`;
+  - the API answers 409 `confirm_publisher` without `?publisher=`. The audit records "the publisher changed from X, confirmed by name".
+- **The wording about what a look shows is corrected.** "It only shows the result StreamGremlin drew" claimed what StreamGremlin can't check: a look is told the drawn result, but draws what its maker chose. The screens, the CLI and the ADR now say so, and that the real result is always in chat and on the Wheels screen.
+- **A hostile test look** is in `tests/testdata/hostile-wheel` (test data, never an example). It tries what a look mustn't do and lists on screen what was blocked and what worked:
+  - reach the internet or the engine;
+  - open a WebSocket, read the overlay page or its link;
+  - keep data, read cookies, open a window, use OBS's page API (read only).
+
+  It also floods the page, sends what a look may not, claims reveals, finishes others' spins, and shows a made-up winner. A setting freezes it for 3 seconds as a spin starts. Tests check:
+  - it's served sandboxed with scripts only, no connections, frames, workers or forms;
+  - the real overlay page keeps to the engine's clock and the real result whatever it sends.
+
+  What the browser's sandbox blocks is checked in OBS, in the live check.
+- Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.

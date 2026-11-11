@@ -11,6 +11,7 @@ let selectorTheme: (win: unknown, opts?: unknown) => unknown;
 let workshop: { style: unknown };
 let neon: { style: unknown };
 let paperWheel: (win: unknown, opts?: unknown) => void;
+let hostile: (win: unknown, opts?: unknown) => { tries: [string, string][] };
 let geometry: {
   chances: (c: unknown[]) => string[];
   spans: (c: unknown[]) => [number, number][];
@@ -31,6 +32,7 @@ beforeAll(async () => {
   neon = (await load('themes/neon-arcade/main.js')) as never;
   geometry = (await load('themes/shared/wheel.js')) as never;
   paperWheel = (await load('../../examples/themes/paper-wheel/wheel.js')).paperWheel as never;
+  hostile = (await load('../../tests/testdata/hostile-wheel/hostile.js')).hostile as never;
 });
 
 afterEach(() => {
@@ -396,6 +398,66 @@ describe('the overlay page with a wheel look', () => {
       q.fromLook('theme.ready', { apiVersion: '1', obsApi: true, obsLevel: null });
       expect(q.status.textContent).toBe('Look: Workshop ready; OBS page API reachable; OBS didn’t tell the look its level');
     });
+  });
+
+  it('a new version of the look mid-spin: that spin finishes first, and the next is in the new version', () => {
+    const { ws, c, frame, fromLook, posted } = page();
+    fromLook('theme.ready', {});
+    ws.fire('message', spin('s1'));
+    const v2 = url.replace('/v1/', '/v2/');
+    ws.fire('message', hello({ ...theme, url: v2 }));
+    expect(document.querySelectorAll('iframe').length).toBe(1);
+    expect(document.querySelector('iframe')).toBe(frame); // still the old one, mid-spin
+    ws.fire('message', spin('s2', 1, 2)); // waits its turn
+    c.advance(6500);
+    expect(posted.some((m) => m.type === 'winner.reveal')).toBe(true);
+    expect(document.querySelector('iframe')).toBe(frame);
+    c.advance(4000); // s1 done: the new version, with s2 carried over
+    const now = document.querySelector('iframe')!;
+    expect(now).not.toBe(frame);
+    expect(now.src).toBe(v2);
+    expect(document.querySelectorAll('iframe').length).toBe(1);
+    expect(ws.sent.at(-1)).toMatchObject({ type: 'theme', status: 'fallback' }); // s2, before the new one is ready
+    // Not mid-spin: at once.
+    c.advance(20000);
+    ws.fire('message', hello({ ...theme, url }));
+    expect(document.querySelector('iframe')!.src).toBe(url);
+  });
+
+  // D-068: the hostile test look's own misbehaviour, against the real
+  // page. (What the sandbox blocks is checked in a browser: the live check.)
+  it('a hostile look can’t finish a spin early, end others’ spins, reveal a result, or flood the page', () => {
+    const hostileUrl = `http://127.0.0.1:50123/t/hostile-wheel/1.0.0/${'ab'.repeat(32)}/index.html`;
+    const { ws, c, frame, posted, sounds } = page('?status=1', hello({ id: 'hostile-wheel', name: 'Hostile wheel (test)', url: hostileUrl, settings: {}, odds_checked: false, add_on: true }));
+    // The look's window: its own document; what it sends arrives as the frame's.
+    const lookDoc = document.implementation.createHTMLDocument('look');
+    lookDoc.body.innerHTML = '<p id="claim"></p><ul id="tries"></ul>';
+    const listeners: ((ev: { source: unknown; data: unknown }) => void)[] = [];
+    const parent = {
+      postMessage: (m: unknown) => window.dispatchEvent(new MessageEvent('message', { source: frame.contentWindow as Window, data: m })),
+    };
+    hostile({ document: lookDoc, parent, addEventListener: (_k: string, fn: (typeof listeners)[0]) => listeners.push(fn) }, { setTimeout: c.setTimeout, probe: false });
+    // What the page sends the look reaches it.
+    (frame.contentWindow as unknown as { postMessage: unknown }).postMessage = (m: { type: string; payload: Record<string, unknown> }) => {
+      posted.push(m);
+      listeners.forEach((fn) => fn({ source: parent, data: m }));
+    };
+    expect(ws.sent.at(-1)).toMatchObject({ type: 'theme', status: 'ready' });
+    ws.fire('message', spin('s1'));
+    ws.fire('message', spin('s2', 1, 2));
+    // It said it finished, flooded, and claimed a reveal: nothing moved.
+    expect(frame.classList.contains('on')).toBe(true);
+    expect(posted.filter((m) => m.type === 'winner.reveal')).toEqual([]);
+    expect(posted.filter((m) => m.type === 'spin.start').length).toBe(1);
+    expect(sounds).toEqual(['drumroll']);
+    c.advance(6500); // on the engine's clock: the real result
+    expect(posted.filter((m) => m.type === 'winner.reveal')).toEqual([{ protocolVersion: 1, type: 'winner.reveal', payload: { spinId: 's1', label: 'Mario' } }]);
+    expect(sounds).toEqual(['drumroll', 'clunk', 'cheer']);
+    // What it draws is its own: a made-up winner. Chat has the real one.
+    expect(lookDoc.getElementById('claim')!.textContent).toContain('Not the real winner');
+    c.advance(4000);
+    expect(posted.filter((m) => m.type === 'spin.start').map((m) => m.payload.spinId)).toEqual(['s1', 's2']);
+    expect(ws.sent.filter((m) => m.type === 'theme' && m.status !== 'ready')).toEqual([]);
   });
 
   it('drops what the look may not send: other windows, other kinds, too much, too often', () => {

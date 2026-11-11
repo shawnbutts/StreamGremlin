@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -357,6 +358,46 @@ func TestInstalledThemes(t *testing.T) {
 	}
 	if reset, err := s.ResetTheme(ctx, "cosy-wheel", now); err != nil || len(reset) != 0 {
 		t.Fatal(reset, err)
+	}
+}
+
+// A new version (an update or roll back): each overlay keeps the settings
+// it still takes; the rest go back to the new version's defaults, named.
+func TestOverlaysFitANewVersion(t *testing.T) {
+	ctx := context.Background()
+	s, _, _ := newStore(t)
+	c := NewCatalogue()
+	s.UseThemes(c)
+	c.SetInstalled([]Theme{installedTheme()})
+	l := DefaultLook()
+	l.Theme, l.ThemeSettings = "cosy-wheel", map[string]any{"size": float64(4), "paper": "Sky"}
+	if _, _, err := s.Create(ctx, "wheel", KindWheel, l, now); err != nil {
+		t.Fatal(err)
+	}
+	l.ThemeSettings = map[string]any{"size": float64(2)}
+	if _, _, err := s.Create(ctx, "other", KindWheel, l, now); err != nil {
+		t.Fatal(err)
+	}
+	// 2.0.0: size now 1-3, no "paper", a new setting.
+	c.SetInstalled([]Theme{InstalledTheme("cosy-wheel", "Cosy wheel", "", "2.0.0", "Someone", strings.Repeat("cd", 32), "page/index.html",
+		[]Setting{{Key: "size", Label: "Size", Kind: SettingNumber, Default: 3, Min: 1, Max: 3},
+			{Key: "glow", Label: "Glow", Kind: SettingSwitch, Default: true}}, []string{"page/index.html"})})
+	got, err := s.RefitTheme(ctx, "cosy-wheel", now)
+	if err != nil || len(got) != 2 {
+		t.Fatal(got, err)
+	}
+	byName := map[string]Refit{}
+	for _, r := range got {
+		byName[r.Overlay.Name] = r
+	}
+	if r := byName["wheel"]; !slices.Equal(r.Reset, []string{"Size", "paper"}) || r.Overlay.Look.ThemeSettings != nil {
+		t.Fatal(r)
+	}
+	if r := byName["other"]; len(r.Reset) != 0 || r.Overlay.Look.ThemeSettings["size"] != float64(2) {
+		t.Fatal(r)
+	}
+	if o, _ := s.Get(ctx, "wheel"); o.Look.Theme != "cosy-wheel" || o.Look.ThemeSettings != nil {
+		t.Fatal(o.Look)
 	}
 }
 

@@ -16,7 +16,10 @@ import (
 
 func packageError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 	var tooBig *http.MaxBytesError
-	msg := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(err.Error(), "packages: invalid: "), "packages: conflict: "), "packages: full: ")
+	msg := err.Error()
+	for _, prefix := range []string{"packages: invalid: ", "packages: conflict: ", "packages: full: ", "packages: confirm: "} {
+		msg = strings.TrimPrefix(msg, prefix)
+	}
 	switch {
 	case errors.As(err, &tooBig):
 		writeError(w, http.StatusRequestEntityTooLarge, CodePayloadTooLarge, "a package is up to 16 MB")
@@ -24,6 +27,8 @@ func packageError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 		writeError(w, http.StatusBadRequest, CodeInvalidRequest, msg)
 	case errors.Is(err, packages.ErrConflict), errors.Is(err, packages.ErrFull):
 		writeError(w, http.StatusConflict, CodeConflict, msg)
+	case errors.Is(err, packages.ErrConfirm):
+		writeError(w, http.StatusConflict, CodeConfirmPublisher, msg)
 	case errors.Is(err, packages.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, "no such package is installed")
 	default:
@@ -48,6 +53,40 @@ func refreshThemes(ctx context.Context, d Deps) error {
 	}
 	d.Themes.SetInstalled(themes)
 	return nil
+}
+
+// Changed is what a new version did to an overlay using it: settings it
+// had that the new version doesn't take are back to their defaults.
+type Changed struct {
+	Overlay string   `json:"overlay"`
+	Reset   []string `json:"reset"`
+}
+
+// switchVersion tells overlays a package's version changed: they move to
+// it together, each keeping the settings the new version still takes.
+func switchVersion(ctx context.Context, d Deps, id string) ([]Changed, error) {
+	if err := refreshThemes(ctx, d); err != nil {
+		return nil, err
+	}
+	refits, err := d.Overlays.RefitTheme(ctx, id, d.Now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Changed, 0, len(refits))
+	for _, rf := range refits {
+		d.Hub.Changed(rf.Overlay)
+		out = append(out, Changed{Overlay: rf.Overlay.Name, Reset: rf.Reset})
+	}
+	return out, nil
+}
+
+// VersionAnswer is an install, update or roll back's answer.
+type VersionAnswer struct {
+	packages.Package
+	// From is the version installed before, for an update or roll back.
+	From string `json:"from,omitempty"`
+	// Overlays are those using it, and what each had reset.
+	Overlays []Changed `json:"overlays"`
 }
 
 func packageRoutes(d Deps) []Route {
@@ -109,8 +148,10 @@ func packageRoutes(d Deps) []Route {
 		{
 			Method: "POST", Path: "/v1/packages",
 			Summary: "Install a package the streamer was shown and confirmed: the body is its ZIP again, ?digest= the digest " +
-				"/v1/packages/check gave (anything else is refused). Installed, nothing changes until an overlay uses it. " +
-				"Exactly what's installed again is harmless (200).",
+				"/v1/packages/check gave (anything else is refused). Another version of an installed id updates it (the old one " +
+				"is kept, to roll back to) and moves the overlays using it, each keeping the settings the new version takes. One " +
+				"from another publisher than the installed one also needs ?publisher= the new publisher's name, exactly " +
+				"(otherwise 409 confirm_publisher). Exactly what's installed again is harmless (200).",
 			Permission: PermPackagesWrite, MaxBody: packages.MaxZipBytes + 1,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				dg := r.URL.Query().Get("digest")
@@ -122,22 +163,43 @@ func packageRoutes(d Deps) []Route {
 				if !ok {
 					return
 				}
-				p, created, err := d.Packages.Install(r.Context(), data, dg, d.Now())
+				p, from, created, err := d.Packages.Install(r.Context(), data, dg, r.URL.Query().Get("publisher"), d.Now())
 				if err != nil {
 					d.Logger.Warn("package refused", "err", err)
 					packageError(w, r, d, err)
 					return
 				}
-				if err := refreshThemes(r.Context(), d); err != nil {
+				if !created {
+					writeJSON(w, http.StatusOK, VersionAnswer{Package: p, Overlays: []Changed{}})
+					return
+				}
+				changed, err := switchVersion(r.Context(), d, p.ID)
+				if err != nil {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				code := http.StatusOK
-				if created {
-					code = http.StatusCreated
-					d.Logger.Info("package installed", "package", p.ID, "version", p.Version, "publisher", p.Publisher, "digest", p.Digest)
+				d.Logger.Info("package installed", "package", p.ID, "version", p.Version, "from", from, "publisher", p.Publisher, "digest", p.Digest)
+				writeJSON(w, http.StatusCreated, VersionAnswer{Package: p, From: from, Overlays: changed})
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/packages/{id}/rollback",
+			Summary: "Roll a package back to the version before the installed one (its rollback_to), kept from an earlier update. " +
+				"Overlays using it move back together, keeping the settings that version takes. 409 when there's none.",
+			Permission: PermPackagesWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				p, from, err := d.Packages.Rollback(r.Context(), r.PathValue("id"), d.Now())
+				if err != nil {
+					packageError(w, r, d, err)
+					return
 				}
-				writeJSON(w, code, p)
+				changed, err := switchVersion(r.Context(), d, p.ID)
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
+				d.Logger.Info("package rolled back", "package", p.ID, "version", p.Version, "from", from)
+				writeJSON(w, http.StatusOK, VersionAnswer{Package: p, From: from, Overlays: changed})
 			},
 		},
 		{

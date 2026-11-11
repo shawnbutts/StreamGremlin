@@ -60,6 +60,9 @@ var (
 	ErrNotFound = errors.New("packages: not installed")
 	ErrConflict = errors.New("packages: conflict")
 	ErrFull     = errors.New("packages: full")
+	// ErrConfirm: the package would replace another publisher's, and the
+	// streamer hasn't confirmed the new publisher by name.
+	ErrConfirm = errors.New("packages: confirm")
 )
 
 func invalid(format string, a ...any) error {

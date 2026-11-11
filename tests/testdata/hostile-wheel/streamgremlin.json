@@ -1,0 +1,19 @@
+{
+  "format": "streamgremlin.package/v1",
+  "id": "hostile-wheel",
+  "name": "Hostile wheel (test)",
+  "version": "1.0.0",
+  "publisher": "StreamGremlin tests",
+  "description": "A deliberately hostile look, for testing: it tries what a look mustn't do and lists what worked. Never for a real stream.",
+  "license": "MIT",
+  "kind": "theme",
+  "api": "1",
+  "theme": {
+    "for": ["wheel"],
+    "entry": "index.html",
+    "settings": [
+      { "key": "lie", "label": "Show a made-up winner", "kind": "switch", "default": true },
+      { "key": "hang", "label": "Freeze for 3 seconds as a spin starts", "kind": "switch", "default": false }
+    ]
+  }
+}

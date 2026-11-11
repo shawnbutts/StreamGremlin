@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -401,6 +402,65 @@ func (s *Store) UsingTheme(ctx context.Context, id string) ([]Overlay, error) {
 		if o.Look.Theme == id && id != "" {
 			out = append(out, o)
 		}
+	}
+	return out, nil
+}
+
+// Refit is an overlay whose look is a theme that changed version, and the
+// settings it had that the new version doesn't take: they're back to the
+// new version's defaults.
+type Refit struct {
+	Overlay Overlay  `json:"overlay"`
+	Reset   []string `json:"reset"` // the settings' labels (or keys, when the new version has no such setting), sorted
+}
+
+// RefitTheme fits every overlay using theme id to the version now in the
+// catalogue, after an update or a roll back: a saved setting that version
+// still has, of a value it takes, is kept; the rest are dropped, so they
+// take its defaults. Returns every overlay using it, as it is now, with
+// what was reset.
+func (s *Store) RefitTheme(ctx context.Context, id string, now time.Time) ([]Refit, error) {
+	t, ok := s.themes.Theme(id)
+	if !ok {
+		return nil, fmt.Errorf("overlays: no theme %q to fit to", id)
+	}
+	using, err := s.UsingTheme(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Refit, 0, len(using))
+	for _, o := range using {
+		l := o.Look
+		kept := map[string]any{}
+		reset := []string{}
+		for k, v := range l.ThemeSettings {
+			if st, ok := t.setting(k); ok && st.check(v) == nil {
+				kept[k] = v
+			} else if ok {
+				reset = append(reset, st.Label)
+			} else {
+				reset = append(reset, k)
+			}
+		}
+		sort.Strings(reset)
+		if len(reset) == 0 {
+			out = append(out, Refit{Overlay: o, Reset: reset})
+			continue
+		}
+		if len(kept) == 0 {
+			kept = nil
+		}
+		l.ThemeSettings = kept
+		raw, _ := json.Marshal(l)
+		changed, err := scan(s.db.QueryRowContext(ctx, `UPDATE overlays SET look = ?, updated_at = ? WHERE name = ? RETURNING `+columns,
+			string(raw), storage.Timestamp(now), o.Name))
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // deleted just now
+		}
+		if err != nil {
+			return out, fmt.Errorf("overlays: fit to a new version: %w", err)
+		}
+		out = append(out, Refit{Overlay: changed, Reset: reset})
 	}
 	return out, nil
 }

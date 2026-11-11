@@ -1,0 +1,30 @@
+html,
+body {
+  margin: 0;
+  background: transparent;
+  font: 22px/1.35 system-ui, sans-serif;
+  color: #fff;
+}
+#board {
+  position: fixed;
+  inset: 40px;
+  padding: 20px 28px;
+  background: rgb(120 0 0 / 88%);
+  border: 4px dashed #ffde59;
+}
+h1 {
+  margin: 0 0 8px;
+}
+#claim {
+  font-size: 40px;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+.worked {
+  color: #ffde59;
+  font-weight: 700;
+}

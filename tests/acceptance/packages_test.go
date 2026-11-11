@@ -149,3 +149,168 @@ func TestInstalledLooksThroughTheCLI(t *testing.T) {
 		t.Fatal(out)
 	}
 }
+
+// copyLook copies the example look to a folder of the same name, with
+// its manifest changed by edit, for a new version of it.
+func copyLook(t *testing.T, edit func(string) string) string {
+	t.Helper()
+	src := filepath.Join("..", "..", "examples", "themes", "paper-wheel")
+	dst := filepath.Join(t.TempDir(), "paper-wheel")
+	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
+		t.Fatal(err)
+	}
+	m := filepath.Join(dst, "streamgremlin.json")
+	b, err := os.ReadFile(m) //nolint:gosec // a test's own copy
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(m, []byte(edit(string(b))), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(t.TempDir(), "paper-wheel.zip")
+	zipFolder(t, dst, zipPath)
+	return zipPath
+}
+
+// Updating, rolling back, and another publisher's version, through the
+// real engine and CLI (D-068): overlays move with each version, keeping
+// the settings it takes; a version not installed is never served.
+func TestUpdatingAndRollingBackThroughTheCLI(t *testing.T) {
+	dir := t.TempDir()
+	startEngine(t, dir)
+	v1 := copyLook(t, func(m string) string { return m })
+	if out, errOut, code := cli(t, dir, "packages", "install", v1, "-yes"); code != 0 || !strings.Contains(out, "Installed Paper wheel 1.1.0") {
+		t.Fatal(out, errOut)
+	}
+	out, errOut, code := cli(t, dir, "overlays", "add", "-wheel", "wheel")
+	if code != 0 {
+		t.Fatal(out, errOut)
+	}
+	p := openPage(t, linkIn(t, out))
+	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-look", "paper-wheel", "-set", "paper=Blush", "-set", "outline=5"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "1.1.0 in the hello", func() string { return p.has("hello", "/t/paper-wheel/1.1.0/") })
+
+	// 1.2.0 drops Blush: an update, and the overlay's paper goes back to the default.
+	v2 := copyLook(t, func(m string) string {
+		return strings.Replace(strings.Replace(m, `"version": "1.1.0"`, `"version": "1.2.0"`, 1), `["Cream", "Sky", "Blush"]`, `["Cream", "Sky"]`, 1)
+	})
+	if out, _, code := cli(t, dir, "packages", "install", v2); code != 0 || !strings.Contains(out, "An update: 1.1.0 is installed, and is kept") {
+		t.Fatal(out)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "install", v2, "-yes"); code != 0 ||
+		!strings.Contains(out, "Updated Paper wheel from 1.1.0 to 1.2.0. Using it: wheel. On wheel, Paper went back to the default.") {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "1.2.0 in the hello", func() string { return p.has("hello", "/t/paper-wheel/1.2.0/") })
+	if out, _, _ := cli(t, dir, "overlays", "-json"); strings.Contains(out, "Blush") || !strings.Contains(out, `"outline": 5`) {
+		t.Fatal("settings after the update:", out)
+	}
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Paper wheel 1.2.0") || !strings.Contains(out, "can roll back to 1.1.0") {
+		t.Fatal(out)
+	}
+
+	// Rolled back: asked first, then the overlay moves back.
+	if out, _, code := cli(t, dir, "packages", "rollback", "paper-wheel"); code != 0 || !strings.Contains(out, "keeps 1.2.0") ||
+		!strings.Contains(out, "switch back with it: wheel") {
+		t.Fatal(out)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "rollback", "paper-wheel", "-yes"); code != 0 ||
+		!strings.Contains(out, "Rolled Paper wheel back from 1.2.0 to 1.1.0.") {
+		t.Fatal(out, errOut)
+	}
+	eventually(t, "back to 1.1.0", func() string {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		last := ""
+		for _, m := range p.got {
+			if strings.HasPrefix(m, "hello ") {
+				last = m
+			}
+		}
+		if !strings.Contains(last, "/t/paper-wheel/1.1.0/") {
+			return "the last hello isn't 1.1.0"
+		}
+		return ""
+	})
+	if _, errOut, code := cli(t, dir, "packages", "rollback", "paper-wheel", "-yes"); code == 0 || !strings.Contains(errOut, "no version") {
+		t.Fatal("rolled back past the first:", errOut)
+	}
+
+	// Another publisher's: -yes alone isn't enough.
+	v3 := copyLook(t, func(m string) string {
+		return strings.Replace(strings.Replace(m, `"version": "1.1.0"`, `"version": "1.3.0"`, 1),
+			`"publisher": "StreamGremlin examples"`, `"publisher": "Someone Else"`, 1)
+	})
+	if out, _, _ := cli(t, dir, "packages", "install", v3); !strings.Contains(out, "Another publisher") || !strings.Contains(out, `-publisher "Someone Else"`) {
+		t.Fatal(out)
+	}
+	if _, errOut, code := cli(t, dir, "packages", "install", v3, "-yes"); code == 0 || !strings.Contains(errOut, `-publisher "Someone Else"`) {
+		t.Fatal("replaced without the name:", errOut)
+	}
+	if _, errOut, code := cli(t, dir, "packages", "install", v3, "-yes", "-publisher", "someone else"); code == 0 {
+		t.Fatal("replaced with the wrong name:", errOut)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "install", v3, "-yes", "-publisher", "Someone Else"); code != 0 ||
+		!strings.Contains(out, "Updated Paper wheel from 1.1.0 to 1.3.0") {
+		t.Fatal(out, errOut)
+	}
+	out, _, _ = cli(t, dir, "packages", "history")
+	for _, want := range []string{"install", "update", "rollback", "the publisher changed from StreamGremlin examples, confirmed by name"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("history without %q:\n%s", want, out)
+		}
+	}
+}
+
+// The hostile test look (D-068) installs like any look: no check of a
+// package's files can tell what its code does. What holds it is how it's
+// served: sandboxed with scripts only (no same origin, top navigation,
+// pop-ups, forms or modals), no connections, frames or workers.
+func TestAHostileLookIsServedSandboxed(t *testing.T) {
+	dir := t.TempDir()
+	startEngine(t, dir)
+	zipPath := filepath.Join(t.TempDir(), "hostile-wheel.zip")
+	zipFolder(t, filepath.Join("..", "testdata", "hostile-wheel"), zipPath)
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 0 || !strings.Contains(out, "Installed Hostile wheel (test) 1.0.0") {
+		t.Fatal(out, errOut)
+	}
+	out, errOut, code := cli(t, dir, "overlays", "add", "-wheel", "wheel")
+	if code != 0 {
+		t.Fatal(out, errOut)
+	}
+	p := openPage(t, linkIn(t, out))
+	if out, errOut, code := cli(t, dir, "overlays", "look", "wheel", "-look", "hostile-wheel"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	var url string
+	eventually(t, "its link", func() string {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		for _, m := range p.got {
+			if u := regexp.MustCompile(`"url":"(http://127\.0\.0\.1:\d+/t/hostile-wheel/1\.0\.0/[0-9a-f]{64}/)index\.html"`).FindStringSubmatch(m); u != nil {
+				url = u[1]
+				return ""
+			}
+		}
+		return "no link yet"
+	})
+	eventually(t, "marked an add-on", func() string { return p.has("hello", `"add_on":true`) })
+	for _, f := range []string{"index.html", "hostile.js", "style.css"} {
+		res, err := http.Get(url + f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		csp := res.Header.Get("Content-Security-Policy")
+		if res.StatusCode != 200 || !strings.HasPrefix(csp, "sandbox allow-scripts;") || strings.Count(csp, "allow-") != 1 {
+			t.Fatalf("%s: %d %q", f, res.StatusCode, csp)
+		}
+		for _, want := range []string{"default-src 'none'", "connect-src 'none'", "frame-src 'none'", "worker-src 'none'", "form-action 'none'", "media-src 'none'"} {
+			if !strings.Contains(csp, want) {
+				t.Fatalf("%s: no %s in %q", f, want, csp)
+			}
+		}
+	}
+}

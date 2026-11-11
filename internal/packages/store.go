@@ -38,6 +38,11 @@ type Package struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	// Settings are a theme's settings, as each overlay using it may set them.
 	Settings []overlays.Setting `json:"settings,omitempty"`
+	// Kept are the other versions kept for rolling back, newest first.
+	Kept []string `json:"kept"`
+	// RollbackTo is the version Roll back returns to, if any: the highest
+	// kept version below this one.
+	RollbackTo string `json:"rollback_to,omitempty"`
 }
 
 // Preview is what a package is, before installing it: what the app shows
@@ -51,6 +56,14 @@ type Preview struct {
 	Same bool `json:"same"`
 	// Sounds: the theme has its own sounds (D-065).
 	Sounds bool `json:"sounds"`
+	// Update: another version is installed, and installing this one
+	// replaces it (the installed one is kept, to roll back to).
+	Update bool `json:"update"`
+	// Older: this version is below the installed one.
+	Older bool `json:"older"`
+	// PublisherChange: the installed one says another publisher. Installing
+	// needs the new publisher confirmed by name.
+	PublisherChange bool `json:"publisher_change"`
 }
 
 func describe(r *Read, now time.Time) Package {
@@ -80,15 +93,23 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 		return Preview{}, nil, err
 	default:
 		pv.Installed = &cur
+		if cur.Kind != r.Manifest.Kind {
+			return pv, r, fmt.Errorf("%w: %s is installed as a %s: this is a %s with the same id", ErrConflict, cur.Name, cur.Kind, r.Manifest.Kind)
+		}
+		stored, err := s.versionDigest(ctx, cur.ID, r.Manifest.Version)
+		if err != nil {
+			return Preview{}, nil, err
+		}
 		switch {
 		case cur.Version == r.Manifest.Version && cur.Digest == r.Digest:
 			pv.Same = true
-		case cur.Version == r.Manifest.Version:
-			return pv, r, fmt.Errorf("%w: %s %s is installed, and this is a different package with the same version: ask its publisher for a new version",
-				ErrConflict, cur.Name, cur.Version)
+		case stored != "" && stored != r.Digest:
+			return pv, r, fmt.Errorf("%w: %s %s is installed or kept, and this is a different package with the same version: ask its publisher for a new version",
+				ErrConflict, cur.Name, r.Manifest.Version)
 		default:
-			return pv, r, fmt.Errorf("%w: %s %s is installed; updating it comes in a later version of StreamGremlin, so remove it first",
-				ErrConflict, cur.Name, cur.Version)
+			pv.Update = true
+			pv.Older = CompareVersions(r.Manifest.Version, cur.Version) < 0
+			pv.PublisherChange = cur.Publisher != r.Manifest.Publisher
 		}
 	}
 	return pv, r, nil
@@ -96,24 +117,34 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 
 // Install stores a package the streamer was shown and confirmed: digest
 // is the one they were shown, so what's installed is what they saw.
-// Installing exactly what's installed changes nothing (false).
-func (s *Store) Install(ctx context.Context, data []byte, digest string, now time.Time) (Package, bool, error) {
+// Another version of an installed id is an update: the installed version
+// is kept, to roll back to. One from another publisher needs publisher,
+// the new publisher's name exactly as the package states it. Installing
+// exactly what's installed changes nothing (false). from is the version
+// an update replaced.
+func (s *Store) Install(ctx context.Context, data []byte, digest, publisher string, now time.Time) (p Package, from string, changed bool, err error) {
 	pv, r, err := s.Check(ctx, data)
 	if err != nil {
 		if r != nil {
 			s.audit(ctx, r.Manifest.ID, r.Manifest.Version, "refuse", err.Error(), now)
 		}
-		return Package{}, false, err
+		return Package{}, "", false, err
 	}
 	if digest != r.Digest {
-		return Package{}, false, fmt.Errorf("%w: this isn't the package that was checked: check it again", ErrInvalid)
+		return Package{}, "", false, fmt.Errorf("%w: this isn't the package that was checked: check it again", ErrInvalid)
 	}
 	if pv.Same {
-		return *pv.Installed, false, nil
+		return *pv.Installed, "", false, nil
 	}
-	manifest, _ := json.Marshal(r.Manifest)
+	if pv.PublisherChange && publisher != r.Manifest.Publisher {
+		return Package{}, "", false, fmt.Errorf("%w: %s is installed from %s (not verified), and this says %s (not verified): confirm the new publisher by name to replace it",
+			ErrConfirm, pv.Installed.Name, pv.Installed.Publisher, r.Manifest.Publisher)
+	}
 	ts := storage.Timestamp(now)
 	err = s.withTx(ctx, func(tx *sql.Tx) error {
+		if pv.Update {
+			return update(ctx, tx, pv, r, ts)
+		}
 		var n int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM packages").Scan(&n); err != nil {
 			return err
@@ -129,27 +160,39 @@ func (s *Store) Install(ctx context.Context, data []byte, digest string, now tim
 		if k, _ := res.RowsAffected(); k == 0 {
 			return fmt.Errorf("%w: %s was installed just now", ErrConflict, r.Manifest.ID)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO package_versions (package_id, version, digest, manifest, size, installed_at)
-			VALUES (?, ?, ?, ?, ?, ?)`, r.Manifest.ID, r.Manifest.Version, r.Digest, string(manifest), r.Size, ts); err != nil {
+		if err := storeVersion(ctx, tx, r, ts); err != nil {
 			return err
-		}
-		for _, p := range r.Paths() {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO package_files (package_id, version, path, sha256, data) VALUES (?, ?, ?, ?, ?)`,
-				r.Manifest.ID, r.Manifest.Version, p, r.Hashes[p], r.Files[p]); err != nil {
-				return err
-			}
 		}
 		return auditTx(ctx, tx, r.Manifest.ID, r.Manifest.Version, "install",
 			fmt.Sprintf("%s %s, published by %s (not verified), digest %s", r.Manifest.Name, r.Manifest.Version, r.Manifest.Publisher, r.Digest), ts)
 	})
 	if err != nil {
 		if !errors.Is(err, ErrFull) && !errors.Is(err, ErrConflict) {
-			return Package{}, false, fmt.Errorf("packages: install: %w", err)
+			return Package{}, "", false, fmt.Errorf("packages: install: %w", err)
 		}
-		return Package{}, false, err
+		return Package{}, "", false, err
 	}
-	p, err := s.Get(ctx, r.Manifest.ID)
-	return p, true, err
+	if pv.Update {
+		from = pv.Installed.Version
+	}
+	p, err = s.Get(ctx, r.Manifest.ID)
+	return p, from, true, err
+}
+
+// storeVersion stores a version and its files.
+func storeVersion(ctx context.Context, tx *sql.Tx, r *Read, ts string) error {
+	manifest, _ := json.Marshal(r.Manifest)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO package_versions (package_id, version, digest, manifest, size, installed_at)
+		VALUES (?, ?, ?, ?, ?, ?)`, r.Manifest.ID, r.Manifest.Version, r.Digest, string(manifest), r.Size, ts); err != nil {
+		return err
+	}
+	for _, p := range r.Paths() {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO package_files (package_id, version, path, sha256, data) VALUES (?, ?, ?, ?, ?)`,
+			r.Manifest.ID, r.Manifest.Version, p, r.Hashes[p], r.Files[p]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 const listQuery = `SELECT p.id, p.kind, p.publisher, p.current_version, p.installed_at, p.updated_at, v.digest, v.manifest, v.size,
@@ -183,7 +226,10 @@ func (s *Store) Get(ctx context.Context, id string) (Package, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return Package{}, ErrNotFound
 	}
-	return p, err
+	if err != nil {
+		return p, err
+	}
+	return p, s.fillKept(ctx, &p)
 }
 
 // List returns every installed package, by name.
@@ -201,10 +247,19 @@ func (s *Store) List(ctx context.Context) ([]Package, error) {
 		}
 		out = append(out, p)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	_ = rows.Close()
+	for i := range out {
+		if err := s.fillKept(ctx, &out[i]); err != nil {
+			return nil, err
+		}
+	}
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Name < out[j].Name || out[i].Name == out[j].Name && out[i].ID < out[j].ID
 	})
-	return out, rows.Err()
+	return out, nil
 }
 
 // Remove deletes a package: its versions, files and settings. Its audit

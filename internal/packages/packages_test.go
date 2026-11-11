@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -197,15 +198,16 @@ func TestInstallingAskedForAndRemoving(t *testing.T) {
 	if list, _ := s.List(ctx); len(list) != 0 {
 		t.Fatal(list)
 	}
-	if _, _, err := s.Install(ctx, data, strings.Repeat("0", 64), now); !errors.Is(err, ErrInvalid) {
+	if _, _, _, err := s.Install(ctx, data, strings.Repeat("0", 64), "", now); !errors.Is(err, ErrInvalid) {
 		t.Fatal(err)
 	}
-	p, created, err := s.Install(ctx, data, pv.Digest, now)
-	if err != nil || !created || p.Name != "Cosy wheel" || p.Publisher != "Someone" || p.Digest != pv.Digest || len(p.Settings) != 3 {
+	p, from, created, err := s.Install(ctx, data, pv.Digest, "", now)
+	if err != nil || !created || from != "" || p.Name != "Cosy wheel" || p.Publisher != "Someone" || p.Digest != pv.Digest || len(p.Settings) != 3 ||
+		len(p.Kept) != 0 || p.RollbackTo != "" {
 		t.Fatal(p, created, err)
 	}
 	// Again: nothing changes.
-	if _, created, err := s.Install(ctx, data, pv.Digest, now); err != nil || created {
+	if _, _, created, err := s.Install(ctx, data, pv.Digest, "", now); err != nil || created {
 		t.Fatal(created, err)
 	}
 	pv, _, _ = s.Check(ctx, data)
@@ -217,11 +219,7 @@ func TestInstallingAskedForAndRemoving(t *testing.T) {
 	if _, _, err := s.Check(ctx, other); !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "same version") {
 		t.Fatal(err)
 	}
-	if _, _, err := s.Install(ctx, other, "", now); !errors.Is(err, ErrConflict) {
-		t.Fatal(err)
-	}
-	// Another version: updating comes in slice 3b.
-	if _, _, err := s.Check(ctx, theme(t, strings.Replace(manifest, "1.0.0", "1.1.0", 1))); !errors.Is(err, ErrConflict) {
+	if _, _, _, err := s.Install(ctx, other, "", "", now); !errors.Is(err, ErrConflict) {
 		t.Fatal(err)
 	}
 	// Its files, and its theme with its sounds.
@@ -260,7 +258,7 @@ func TestInstallingAskedForAndRemoving(t *testing.T) {
 		}
 	}
 	// Installed again after removing.
-	if _, created, err := s.Install(ctx, data, pv.Digest, now); err != nil || !created {
+	if _, _, created, err := s.Install(ctx, data, pv.Digest, "", now); err != nil || !created {
 		t.Fatal(err)
 	}
 	// A version's files never change.
@@ -279,9 +277,149 @@ func TestThereIsALimitOnPackages(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, _, err = s.Install(ctx, data, pv.Digest, now)
+		_, _, _, err = s.Install(ctx, data, pv.Digest, "", now)
 		if i < MaxPackages && err != nil || i == MaxPackages && !errors.Is(err, ErrFull) {
 			t.Fatal(i, err)
 		}
+	}
+}
+
+func TestVersionsAreOrderedAsSemverSays(t *testing.T) {
+	ordered := []string{"0.9.0", "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11",
+		"1.0.0-rc.1", "1.0.0", "1.0.1", "1.2.0", "1.10.0", "2.0.0"}
+	for i := range ordered {
+		for j := range ordered {
+			want := compareInts(i, j)
+			if got := CompareVersions(ordered[i], ordered[j]); got != want {
+				t.Errorf("%s vs %s: %d, want %d", ordered[i], ordered[j], got, want)
+			}
+		}
+	}
+}
+
+// install checks and installs a version of the test theme.
+func install(t *testing.T, s *Store, version, publisher, confirm string, extra ...file) (Package, string, error) {
+	t.Helper()
+	m := strings.Replace(manifest, `"version":"1.0.0"`, `"version":"`+version+`"`, 1)
+	m = strings.Replace(m, `"publisher":"Someone"`, `"publisher":"`+publisher+`"`, 1)
+	data := theme(t, m, extra...)
+	pv, _, err := s.Check(context.Background(), data)
+	if err != nil {
+		return Package{}, "", err
+	}
+	p, from, _, err := s.Install(context.Background(), data, pv.Digest, confirm, now)
+	return p, from, err
+}
+
+func TestUpdatingKeepsTwoVersionsToRollBackTo(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, _, err := install(t, s, "1.0.0", "Someone", ""); err != nil {
+		t.Fatal(err)
+	}
+	// What an update looks like before it's installed.
+	pv, _, err := s.Check(ctx, theme(t, strings.Replace(manifest, "1.0.0", "1.1.0", 1)))
+	if err != nil || !pv.Update || pv.Older || pv.PublisherChange || pv.Same || pv.Installed.Version != "1.0.0" {
+		t.Fatal(pv, err)
+	}
+	p, from, err := install(t, s, "1.1.0", "Someone", "")
+	if err != nil || from != "1.0.0" || p.Version != "1.1.0" || p.RollbackTo != "1.0.0" || !slices.Equal(p.Kept, []string{"1.0.0"}) {
+		t.Fatal(p, from, err)
+	}
+	if _, err := s.File(ctx, "cosy-wheel", "1.0.0", "index.html"); err != nil {
+		t.Fatal("the old version's files went:", err)
+	}
+	if _, _, err := install(t, s, "1.2.0", "Someone", ""); err != nil {
+		t.Fatal(err)
+	}
+	p, _, err = install(t, s, "2.0.0", "Someone", "")
+	// 1.0.0 goes: two kept besides the installed one.
+	if err != nil || !slices.Equal(p.Kept, []string{"1.2.0", "1.1.0"}) || p.RollbackTo != "1.2.0" {
+		t.Fatal(p, err)
+	}
+	if _, err := s.File(ctx, "cosy-wheel", "1.0.0", "index.html"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("1.0.0 kept:", err)
+	}
+	// Roll back, and again: each time to the one before. The one rolled back from is kept.
+	p, from, err = s.Rollback(ctx, "cosy-wheel", now)
+	if err != nil || from != "2.0.0" || p.Version != "1.2.0" || !slices.Equal(p.Kept, []string{"2.0.0", "1.1.0"}) || p.RollbackTo != "1.1.0" {
+		t.Fatal(p, from, err)
+	}
+	p, _, err = s.Rollback(ctx, "cosy-wheel", now)
+	if err != nil || p.Version != "1.1.0" || p.RollbackTo != "" {
+		t.Fatal(p, err)
+	}
+	if _, _, err := s.Rollback(ctx, "cosy-wheel", now); !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "no version") {
+		t.Fatal(err)
+	}
+	// Installing a kept version again uses what's kept; with other files it's refused.
+	p, from, err = install(t, s, "2.0.0", "Someone", "")
+	if err != nil || from != "1.1.0" || p.Version != "2.0.0" {
+		t.Fatal(p, from, err)
+	}
+	if _, _, err := install(t, s, "1.2.0", "Someone", "", file{name: "extra.js", body: "x"}); !errors.Is(err, ErrConflict) ||
+		!strings.Contains(err.Error(), "same version") {
+		t.Fatal(err)
+	}
+	// An older version is an update too, said to be older.
+	pv, _, _ = s.Check(ctx, theme(t, strings.Replace(manifest, "1.0.0", "0.9.0", 1)))
+	if !pv.Update || !pv.Older {
+		t.Fatal(pv)
+	}
+	themes, _ := s.Themes(ctx)
+	if len(themes) != 1 || themes[0].Version != "2.0.0" {
+		t.Fatal(themes)
+	}
+	audit, _ := s.Audit(ctx, 20)
+	var actions []string
+	for _, a := range audit {
+		actions = append(actions, a.Action+" "+a.Version)
+	}
+	want := []string{"update 2.0.0", "rollback 1.1.0", "rollback 1.2.0", "update 2.0.0", "update 1.2.0", "update 1.1.0", "install 1.0.0"}
+	if !slices.Equal(actions, want) || !strings.Contains(audit[0].Detail, "1.1.0 to 2.0.0") {
+		t.Fatal(actions, audit[0].Detail)
+	}
+}
+
+// AGENTS.md: a pack never replaces another publisher's without an exact
+// identity check.
+func TestAnotherPublishersVersionNeedsTheirNameExactly(t *testing.T) {
+	ctx := context.Background()
+	s, _ := newStore(t)
+	if _, _, err := install(t, s, "1.0.0", "Someone", ""); err != nil {
+		t.Fatal(err)
+	}
+	m := strings.Replace(strings.Replace(manifest, "1.0.0", "1.1.0", 1), `"publisher":"Someone"`, `"publisher":"Someone Else"`, 1)
+	data := theme(t, m)
+	pv, _, err := s.Check(ctx, data)
+	if err != nil || !pv.Update || !pv.PublisherChange || pv.Installed.Publisher != "Someone" || pv.Publisher != "Someone Else" {
+		t.Fatal(pv, err)
+	}
+	for _, wrong := range []string{"", "Someone", "someone else", "Someone Else ", "Cosy wheel"} {
+		if _, _, _, err := s.Install(ctx, data, pv.Digest, wrong, now); !errors.Is(err, ErrConfirm) ||
+			!strings.Contains(err.Error(), "confirm the new publisher by name") {
+			t.Fatalf("%q: %v", wrong, err)
+		}
+	}
+	if p, _ := s.Get(ctx, "cosy-wheel"); p.Version != "1.0.0" || p.Publisher != "Someone" {
+		t.Fatal("changed without confirming:", p)
+	}
+	p, _, _, err := s.Install(ctx, data, pv.Digest, "Someone Else", now)
+	if err != nil || p.Publisher != "Someone Else" || p.Version != "1.1.0" {
+		t.Fatal(p, err)
+	}
+	audit, _ := s.Audit(ctx, 1)
+	if !strings.Contains(audit[0].Detail, "the publisher changed from Someone, confirmed by name") {
+		t.Fatal(audit[0].Detail)
+	}
+	// Rolling back returns to the version the streamer had, with its publisher.
+	p, _, err = s.Rollback(ctx, "cosy-wheel", now)
+	if err != nil || p.Publisher != "Someone" {
+		t.Fatal(p, err)
+	}
+	// Another kind with the same id is refused.
+	lua := strings.Replace(strings.Replace(manifest, `"kind":"theme"`, `"kind":"lua"`, 1), "1.0.0", "1.2.0", 1)
+	if _, _, err := s.Check(ctx, theme(t, lua)); err == nil {
+		t.Fatal("a lua package with a theme's id")
 	}
 }

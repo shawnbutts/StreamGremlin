@@ -1402,6 +1402,10 @@ export interface Package {
   installed_at: string;
   updated_at: string;
   settings?: ThemeSetting[];
+  /** Other versions kept, to roll back to, newest first. */
+  kept: string[];
+  /** The version Roll back returns to, if any. */
+  rollback_to?: string;
 }
 
 export interface InstalledPackage extends Package {
@@ -1415,6 +1419,20 @@ export interface PackagePreview extends Package {
   same: boolean;
   /** It has its own sounds. */
   sounds: boolean;
+  /** Another version is installed: this replaces it (that one is kept). */
+  update: boolean;
+  /** This version is below the installed one. */
+  older: boolean;
+  /** The installed one says another publisher: installing needs this one's publisher typed. */
+  publisher_change: boolean;
+}
+
+/** What an install, update or roll back did. */
+export interface VersionAnswer extends Package {
+  /** The version before, for an update or roll back. */
+  from?: string;
+  /** The overlays using it, and the settings each had reset to the new version's defaults. */
+  overlays: { overlay: string; reset: string[] }[];
 }
 
 export interface PackageAuditEntry {
@@ -1443,9 +1461,18 @@ async function postBytes<T>(path: string, file: Blob): Promise<T> {
 export const getPackages = () => api<{ packages: InstalledPackage[] }>('GET', '/v1/packages');
 /** What a ZIP is and what installing it would do; stores nothing. */
 export const checkPackage = (file: Blob) => postBytes<PackagePreview>('/v1/packages/check', file);
-/** Install what was checked: digest is the one the streamer was shown. */
-export const installPackage = (file: Blob, digest: string) =>
-  postBytes<Package>(`/v1/packages?digest=${encodeURIComponent(digest)}`, file);
+/**
+ * Install what was checked: digest is the one the streamer was shown;
+ * publisher, the new publisher's name as typed, when it replaces another's.
+ */
+export const installPackage = (file: Blob, digest: string, publisher = '') =>
+  postBytes<VersionAnswer>(
+    `/v1/packages?digest=${encodeURIComponent(digest)}${publisher ? `&publisher=${encodeURIComponent(publisher)}` : ''}`,
+    file,
+  );
+/** Back to the version before (rollback_to). */
+export const rollbackPackage = (id: string) =>
+  api<VersionAnswer>('POST', `/v1/packages/${encodeURIComponent(id)}/rollback`);
 export const removePackage = (id: string) =>
   api<{ package: Package; overlays: string[] }>('DELETE', `/v1/packages/${encodeURIComponent(id)}`);
 export const getPackageAudit = () => api<{ audit: PackageAuditEntry[] }>('GET', '/v1/packages/audit');

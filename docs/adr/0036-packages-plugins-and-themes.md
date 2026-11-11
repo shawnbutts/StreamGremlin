@@ -15,6 +15,14 @@
 > - an installed theme's files are served only while that version is the one installed; the theme server checks the id, version and digest against what's installed;
 > - the Add-ons screen and `streamgremlin packages [install FILE [-yes] | remove ID [-yes] | history]`; `overlays look NAME -look ID -set KEY=VALUE`; `GET /v1/packages/audit` shows the audit.
 
+> **Amended by D-068 (2026-11-11), slice 3b:**
+> - installing another version of an installed id updates it (`POST /v1/packages`, answering `from` and, per overlay, the settings reset); a version already kept is reused, one kept with other files refused;
+> - kept: two versions besides the installed one, the highest below it first, then the lowest above it; **Roll back** (`POST /v1/packages/{id}/rollback`, `packages rollback ID`) goes to the highest kept below the installed one, with that version's publisher, keeping the one rolled back from;
+> - another publisher's version: `?publisher=` with the new publisher's name, exactly, or 409 `confirm_publisher`; the app asks for it typed, the CLI for `-publisher NAME`;
+> - overlays fit each new version: settings it still takes are kept, the rest reset and named; a spin on screen finishes in the old version;
+> - a look is told the drawn result but draws what its maker chose: the wording "it only shows the result StreamGremlin drew" is replaced, and the screens say the real result is always in chat;
+> - the hostile test look, `tests/testdata/hostile-wheel`, is installed and served by the acceptance tests and driven against the overlay page in the unit tests.
+
 > **Amended by D-067 (2026-11-11):** OBS's page API (`window.obsstudio`) reaches a look's sandboxed frame; the live check showed it. A look reports the level OBS gives its frame (`obsLevel` in `theme.ready`, from `getControlLevel`). The overlay page asks OBS its own level and frames an add-on look (`add_on` in the hello, or any link off the built-in path) only at level 0, "No access to OBS"; at a higher level, an unknown one, or while asking, Classic shows, and why is reported once. Built-in looks load at any level. See "OBS's own page API" below.
 
 > **Amended by D-065 (2026-11-10):** looks can have their own sounds, played by the overlay page; a theme's policy now has `media-src 'none'`. See "Sounds play in the overlay page" below.
@@ -79,7 +87,7 @@ A version's digest is the SHA-256 of its sorted paths and file digests. **An id 
 1. The app reads the ZIP, as for sounds, and the engine checks it (above). Nothing is stored yet.
 2. The app shows what it is and asks:
    - its name, version and kind, and "published by X (not verified)";
-   - for a theme: "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or StreamGremlin's settings, and it only shows the result StreamGremlin drew.";
+   - for a theme: "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or StreamGremlin's settings. It's told the result StreamGremlin drew, but what it draws is up to whoever made it: the real result is always in chat." (D-068: an earlier wording, "it only shows the result StreamGremlin drew", claimed what can't be checked);
    - for a Lua plugin: each permission it asks for, ticked one by one, and the workflows it offers (D-106, below).
 3. Confirmed, it's stored and audited.
 

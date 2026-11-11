@@ -331,7 +331,10 @@
             </label>
             {#if chosenTheme}
               {#if chosenTheme.publisher}
-                <p class="sg-muted field-hint">An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified).</p>
+                <p class="sg-muted field-hint">
+                  An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified). It’s told the result
+                  StreamGremlin drew, but what it draws is up to whoever made it: the real result is always in chat.
+                </p>
               {/if}
               <p class="sg-muted field-hint">
                 {chosenTheme.description}
@@ -379,8 +382,8 @@
                 {/if}
               {/each}
               <p class="sg-muted field-hint">
-                The look runs in a sandbox: it can’t reach the internet, your accounts or StreamGremlin, and only shows the result
-                StreamGremlin drew. In OBS, leave this browser source’s “Page permissions” at “No access to OBS”: a look never needs it,
+                The look runs in a sandbox: it can’t reach the internet, your accounts or StreamGremlin, and it’s only told the
+                result StreamGremlin drew. In OBS, leave this browser source’s “Page permissions” at “No access to OBS”: a look never needs it,
                 and OBS would let the look use whatever it allows. An add-on look only loads at “No access to OBS”; otherwise Classic
                 shows instead.
               </p>
