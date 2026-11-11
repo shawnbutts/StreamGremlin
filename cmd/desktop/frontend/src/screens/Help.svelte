@@ -73,6 +73,13 @@
     <dd>Twitch polls and channel point predictions (Affiliates and Partners): start them from the Polls screen or a workflow, watch the votes, end polls, and lock, resolve or cancel predictions. Twitch runs one of each at a time.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
+    <dt>Lua scripts</dt>
+    <dd>
+      For what the built-in steps don’t do: “Run a Lua script” (under More steps) runs a few lines of Lua you write in the step. It reads the values
+      you pass as <code>sg.args</code> and the event as <code>sg.event</code>, writes lines to the trace with <code>sg.log</code>, and what it
+      returns is the step’s result for the steps after it. It runs in a separate process, stopped at its time limit, and can’t reach chat, OBS,
+      files or the internet. Try it in the step before saving.
+    </dd>
     <dt>Unknown</dt>
     <dd>When StreamGremlin can’t check something (Twitch didn’t answer, OBS is closed) it says Unknown rather than guessing it’s fine.</dd>
   </dl>

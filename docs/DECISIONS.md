@@ -1203,3 +1203,18 @@ Decided 2026-11-11 under D-007, building on D-063 and D-066. The user, on the pr
 
   What the browser's sandbox blocks is checked in OBS, in the live check.
 - Details are in [ADR-0036](adr/0036-packages-plugins-and-themes.md)'s amendment.
+
+## D-069. Lua scripts (M5 slice 4)
+
+Decided 2026-11-11 under D-007, building on D-014. The user: "proceed with slice 4".
+
+- **A step, "Run a Lua script" (`lua.run`),** under More steps. The script is written in the step, like Streamer.bot's "Execute C# Code", not kept in a library of its own. It's literal: `${…}` is refused on save, so chat can never become code. Values reach it through "Values to pass" (`sg.args`), with the event as `sg.event`.
+- **What it returns is the step's result** (`${steps.<id>.output.result}`), beside its log lines (`sg.log` and `print`, up to 100).
+- **A script changes nothing outside itself in this slice:** no chat, OBS, points or variables. The steps after it act on its result. So a retried or duplicated run is harmless, and a test event runs it for real. Calls that change things come with plugins' approved permissions in slice 5.
+- **Lua 5.1 through gopher-lua v1.1.2,** as StreamWisp used (its ADR-0003). It runs in a worker process: the app's own binary, started with `__lua-worker`, never with the engine's environment. The engine kills a worker 250 ms past its time limit. A worker's heap is capped at 64 MiB.
+- **Time limit:** 1 second unless the step says otherwise, from 0.1 to 30.
+- **`math.random` uses `crypto/rand`,** since a script may pick a winner. `math.randomseed` does nothing.
+- **`string.format` is StreamGremlin's own,** as Lua 5.1 has it, with widths of at most 99. gopher-lua's hands the format to Go's `fmt`, where a huge width allocates without limit.
+- **Trying a script:** **Try it** in the step, `POST /v1/lua/try` (`workflows.write`) and `streamgremlin lua try FILE`. It runs with a made-up test chat message from TestViewer.
+- **Parameters can carry a `max_length`,** checked when a workflow is saved, so an over-long script shows then, not mid-stream.
+- Details are in [ADR-0037](adr/0037-lua-scripts.md).

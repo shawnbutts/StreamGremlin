@@ -14,6 +14,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -65,6 +66,8 @@ type Deps struct {
 	Points        *points.Ledger
 	Earning       *earning.Service
 	Gives         *gives.Service
+	// Lua runs scripts tried from the step editor.
+	Lua *lua.Runner
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
 	Now         func() time.Time
@@ -157,7 +160,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), packageRoutes(d)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(packageRoutes(d), luaRoutes(d)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

@@ -22,6 +22,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/host"
 	"code.streamgremlin.com/streamgremlin/internal/logging"
+	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/overview"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 )
@@ -65,6 +66,8 @@ Commands:
             packages                      list
             packages install FILE [-yes]  say what it is; -yes installs it
             packages remove ID [-yes], packages history
+  lua       Try a Lua script as a "Run a Lua script" step would (streamgremlin lua help).
+            lua try FILE [-arg NAME=VALUE] [-time-limit S]
   rewards   Channel point rewards (streamgremlin rewards help).
             rewards                       list
             rewards add -cost N TITLE     make one
@@ -95,7 +98,10 @@ The data folder defaults to $STREAMGREMLIN_DATA_DIR, else the per-user folder
 for this system.
 `
 
-func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
+func main() {
+	lua.RunWorkerIfAsked() // the engine runs Lua scripts in copies of this binary
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
 
 func run(args []string, stdout, stderr io.Writer) int {
 	global := flag.NewFlagSet(brand.Slug, flag.ContinueOnError)
@@ -144,6 +150,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return overlaysCmd(dir, rest, stdout, stderr)
 	case "packages":
 		return packagesCmd(dir, rest, stdout, stderr)
+	case "lua":
+		return luaCmd(dir, rest, stdout, stderr)
 	case "rewards":
 		return rewardsCmd(dir, rest, stdout, stderr)
 	case "first-words":

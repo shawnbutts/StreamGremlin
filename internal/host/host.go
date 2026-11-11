@@ -28,6 +28,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
@@ -88,6 +89,7 @@ type Host struct {
 	viewers   *viewers.Service
 	earning   *earning.Service
 	gives     *gives.Service
+	lua       *lua.Runner
 	maint     *maintenance.Service
 	hub       *overlays.Hub
 	ovSrv     *http.Server
@@ -189,8 +191,9 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if opts.TestMinute > 0 && opts.TwitchAuthURL != "" {
 		h.earning.SetMinute(opts.TestMinute)
 	}
+	h.lua = lua.NewRunner(lua.Options{Logger: log})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	vars := variables.New(h.db)
 	h.workflows = workflow.New(workflow.Options{DB: h.db, Inbox: inbox, Actions: reg, Variables: vars, Logger: log})
@@ -255,6 +258,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Points:     ledger,
 		Earning:    h.earning,
 		Gives:      h.gives,
+		Lua:        h.lua,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -420,6 +424,9 @@ func (h *Host) cleanup() {
 	}
 	if h.workflows != nil {
 		h.workflows.Close() // first: running jobs still need Twitch and OBS for their finally steps
+	}
+	if h.lua != nil {
+		h.lua.Close() // after workflows: their runs' scripts have finished
 	}
 	if h.obs != nil {
 		h.obs.Close()

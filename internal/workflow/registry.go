@@ -24,6 +24,9 @@ type Param struct {
 	// Literal parameters must be written out, never computed with ${…},
 	// so chat can never choose them (which workflow to run, say).
 	Literal bool `json:"literal,omitempty"`
+	// MaxLength, when set, caps a text value's length in bytes (a Lua
+	// script's 64 KiB), checked when the workflow is saved.
+	MaxLength int `json:"max_length,omitempty"`
 	// Editor says how the plain-words editor shows it: message (text with
 	// values), scene, source, workflow, seconds or variable. Empty means
 	// by Type.

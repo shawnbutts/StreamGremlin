@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	cel.dev/cel-go v0.32.0
 	github.com/coder/websocket v1.8.14
+	github.com/yuin/gopher-lua v1.1.2
 	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.60.1

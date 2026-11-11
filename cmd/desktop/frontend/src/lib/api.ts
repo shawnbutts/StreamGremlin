@@ -403,6 +403,8 @@ export interface ActionParam {
   editor?: string;
   /** What leaving an optional parameter unset does, in words. */
   default_hint?: string;
+  /** The most bytes a text value may have (a Lua script's 64 KiB). */
+  max_length?: number;
 }
 
 export interface ActionInfo {
@@ -1457,6 +1459,22 @@ async function postBytes<T>(path: string, file: Blob): Promise<T> {
   if (!resp.ok) throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
   return data as T;
 }
+
+/** What trying a Lua script gave (docs/adr/0037-lua-scripts.md). */
+export interface LuaTried {
+  ok: boolean;
+  result: unknown;
+  log: string[];
+  log_dropped?: number;
+  error?: string;
+  /** script, timeout, memory, output or crashed */
+  kind?: string;
+  took_ms: number;
+}
+
+/** Run a script once, as its step would, with a made-up test chat message. */
+export const tryLua = (script: string, args?: Record<string, unknown>, timeLimit?: number) =>
+  api<LuaTried>('POST', '/v1/lua/try', { script, ...(args ? { args } : {}), ...(timeLimit !== undefined ? { time_limit: timeLimit } : {}) });
 
 export const getPackages = () => api<{ packages: InstalledPackage[] }>('GET', '/v1/packages');
 /** What a ZIP is and what installing it would do; stores nothing. */

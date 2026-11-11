@@ -21,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/desktop"
 	"code.streamgremlin.com/streamgremlin/internal/host"
 	"code.streamgremlin.com/streamgremlin/internal/logging"
+	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 )
 
@@ -34,6 +35,7 @@ var dist embed.FS
 var icon []byte
 
 func main() {
+	lua.RunWorkerIfAsked() // the engine runs Lua scripts in copies of the app
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

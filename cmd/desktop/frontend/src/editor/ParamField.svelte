@@ -5,6 +5,7 @@
   import type { ActionParam } from '../lib/api';
   import { toDisplay, toTemplate, typedValue, type StepDef } from '../lib/editor';
   import { allValues, editorEnv } from '../lib/editorEnv';
+  import LuaScript from './LuaScript.svelte';
   import MessageInput from './MessageInput.svelte';
 
   let { param, step = $bindable() }: { param: ActionParam; step: StepDef } = $props();
@@ -70,7 +71,9 @@
   const textOf = (v: unknown) => (typeof v === 'string' ? toDisplay(v, named) : v === undefined ? '' : String(v));
 </script>
 
-{#if param.editor === 'message'}
+{#if param.editor === 'code'}
+  <LuaScript {param} bind:step />
+{:else if param.editor === 'message'}
   {#if versions}
     <div class="versions" role="group" aria-label={`${param.label}: one of these, picked at random`}>
       <span class="versions-title">{param.label}: one of these, picked at random each time</span>

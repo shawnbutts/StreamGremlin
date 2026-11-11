@@ -400,7 +400,14 @@ func (v *validator) literal(path string, p *Param, raw json.RawMessage) {
 		v.add(path, "written out, not computed with ${…}")
 		return
 	}
-	if json.Unmarshal(raw, &s) != nil || strings.Contains(s, "${") {
+	if json.Unmarshal(raw, &s) != nil {
+		return
+	}
+	if p.MaxLength > 0 && len(s) > p.MaxLength {
+		v.add(path, "at most %d KiB", p.MaxLength>>10)
+		return
+	}
+	if strings.Contains(s, "${") {
 		return
 	}
 	switch {

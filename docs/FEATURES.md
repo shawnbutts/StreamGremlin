@@ -150,7 +150,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
-| Lua scripts in supervised worker processes | 0003, D-014 | Lua & plugins |
+| Lua scripts in supervised worker processes | 0003, D-014; built in M5 (ADR-0037, D-069) | Lua & plugins |
 | Plugins as separate processes | 0041, D-065 | Lua & plugins |
 | Lua plugins (the first plugin kind) | 0067, D-093 | Lua & plugins |
 | Plugins shipping workflows; uninstall turns them off. Ownership, install, update and uninstall are designed as an ADR before any plugin code. | D-106, D-107; designed in M5 (ADR-0036, D-063) | Lua & plugins |
