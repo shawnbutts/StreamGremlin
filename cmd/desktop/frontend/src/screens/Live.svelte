@@ -182,6 +182,66 @@
   let confirmBan = $state<ChatLine | undefined>();
   const canModerate = (l: ChatLine) => youIn && !l.test && !!l.userId && l.userId !== twitch?.streamer.user_id;
 
+  // The gear beside a name opens a small menu of quick actions, so they
+  // stay next to the name however long the message is.
+  let gearMenu = $state<{ line: ChatLine; anchor: DOMRect; from: HTMLElement } | undefined>();
+  let menuEl = $state<HTMLElement | undefined>();
+
+  function toggleGear(l: ChatLine, el: HTMLElement) {
+    if (gearMenu?.line.seq === l.seq) {
+      closeGear(true);
+      return;
+    }
+    gearMenu = { line: l, anchor: el.getBoundingClientRect(), from: el };
+    tick().then(() => menuEl?.querySelector<HTMLElement>('[role="menuitem"]')?.focus());
+  }
+
+  function closeGear(restoreFocus: boolean) {
+    const from = gearMenu?.from;
+    gearMenu = undefined;
+    if (restoreFocus) from?.focus();
+  }
+
+  // The menu's line and gear are read before it closes, since closing
+  // clears them.
+  function gearPick(run: (l: ChatLine, from: HTMLElement) => void) {
+    if (!gearMenu) return;
+    const { line, from } = gearMenu;
+    closeGear(false);
+    run(line, from);
+  }
+
+  function gearKey(e: KeyboardEvent) {
+    const items = Array.from(menuEl?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const go = (n: number) => {
+      e.preventDefault();
+      items[(n + items.length) % items.length]?.focus();
+    };
+    if (e.key === 'ArrowDown') go(i + 1);
+    else if (e.key === 'ArrowUp') go(i - 1);
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(items.length - 1);
+    else if (e.key === 'Escape' || e.key === 'Tab') {
+      if (e.key === 'Escape') e.preventDefault();
+      closeGear(e.key === 'Escape');
+    }
+  }
+
+  function gearOutside(e: PointerEvent) {
+    if (!gearMenu) return;
+    const t = e.target as Node;
+    if (menuEl?.contains(t) || gearMenu.from.contains(t)) return;
+    closeGear(false);
+  }
+
+  function gearStyle(a: DOMRect): string {
+    if (typeof window === 'undefined') return '';
+    const w = 220;
+    const left = Math.max(8, Math.min(a.left, window.innerWidth - w - 8));
+    return window.innerHeight - a.bottom > 180 ? `left:${left}px;top:${a.bottom + 2}px` : `left:${left}px;bottom:${window.innerHeight - a.top + 2}px`;
+  }
+
   async function moderateLine(l: ChatLine, action: ModAction, extra: { seconds?: number; message_id?: string } = {}) {
     modNotice = '';
     modProblem = '';
@@ -261,6 +321,7 @@
   }
 
   function onScroll() {
+    if (gearMenu) closeGear(false);
     if (!logEl) return;
     atBottom = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 24;
     if (atBottom) unseen = 0;
@@ -525,25 +586,18 @@
               onpointerenter={(e) => hoverName(l, e.currentTarget)}
               onpointerleave={leaveName}
               onclick={(e) => openCard(l, e.currentTarget)}>{l.name}</button
-            >{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
+            >{#if canModerate(l)}<button
+                type="button"
+                class="live-gear"
+                aria-label={`Moderate ${l.name}`}
+                aria-haspopup="menu"
+                aria-expanded={gearMenu?.line.seq === l.seq}
+                onclick={(e) => toggleGear(l, e.currentTarget)}><span aria-hidden="true">⚙&#xFE0E;</span></button
+              >{/if}{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
                 class="live-badge">Test</span
               >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}{#if l.suspicious}<span
                 class="live-badge live-suspicious">Suspicious: {l.suspicious}</span
               >{/if}{#if l.deleted}<span class="live-badge">Deleted</span>{/if}<span class="live-text">: {l.text}</span>
-            {#if canModerate(l) && !l.deleted}
-              <!-- Quick tools for the pointer; the card (click the name) has every action for the keyboard. -->
-              <span class="live-tools">
-                {#if l.messageId}<button type="button" class="button" tabindex="-1" aria-label={`Delete ${l.name}’s message`}
-                    onclick={() => moderateLine(l, 'delete', { message_id: l.messageId })}>Delete</button
-                  >{/if}
-                <button type="button" class="button" tabindex="-1" aria-label={`Time out ${l.name} for 10 minutes`}
-                  onclick={() => moderateLine(l, 'timeout', { seconds: 600 })}>10 min</button
-                >
-                <button type="button" class="button button-danger" tabindex="-1" aria-label={`Ban ${l.name}`} onclick={() => (confirmBan = l)}
-                  >Ban…</button
-                >
-              </span>
-            {/if}
           </li>
         {/each}
       </ol>
@@ -731,6 +785,26 @@
   </div>
 {/if}
 
+<svelte:document onpointerdown={gearOutside} />
+{#if gearMenu}
+  {@const l = gearMenu.line}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="live-gear-menu" role="menu" aria-label={`Moderate ${l.name}`} style={gearStyle(gearMenu.anchor)} bind:this={menuEl} onkeydown={gearKey} tabindex="-1">
+    {#if l.messageId && !l.deleted}
+      <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => moderateLine(l, 'delete', { message_id: l.messageId }))}
+        >Delete message</button
+      >
+    {/if}
+    <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => moderateLine(l, 'timeout', { seconds: 600 }))}
+      >Time out 10 minutes</button
+    >
+    <button type="button" role="menuitem" tabindex="-1" class="live-gear-danger" onclick={() => gearPick((l) => (confirmBan = l))}>Ban…</button>
+    <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick(openCard)}
+      >More in their card…</button
+    >
+  </div>
+{/if}
+
 {#if confirmBan}
   {@const who = confirmBan}
   <ConfirmDialog
@@ -853,17 +927,55 @@
   .live-line {
     position: relative;
   }
-  .live-tools {
-    display: none;
-    margin-left: 0.5rem;
-    gap: 0.25rem;
+  .live-gear {
+    margin-left: 0.15rem;
+    padding: 0 0.25rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: var(--sg-muted);
+    font: inherit;
+    line-height: 1.2;
+    cursor: pointer;
+    opacity: 0.55;
   }
-  .live-line:hover .live-tools {
-    display: inline-flex;
+  .live-line:hover .live-gear,
+  .live-gear:focus-visible,
+  .live-gear[aria-expanded='true'] {
+    opacity: 1;
+    color: var(--sg-foreground);
   }
-  .live-tools .button {
-    font-size: 0.8rem;
-    padding: 0.05rem 0.4rem;
+  .live-gear:hover,
+  .live-gear[aria-expanded='true'] {
+    border-color: var(--sg-border);
+  }
+  .live-gear-menu {
+    position: fixed;
+    z-index: 30;
+    min-width: 12rem;
+    display: grid;
+    padding: 0.25rem;
+    background: var(--sg-surface-raised);
+    border: 1px solid var(--sg-border);
+    border-radius: 6px;
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  }
+  .live-gear-menu button {
+    text-align: left;
+    padding: 0.35rem 0.6rem;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--sg-foreground);
+    font: inherit;
+    cursor: pointer;
+  }
+  .live-gear-menu button:hover,
+  .live-gear-menu button:focus-visible {
+    background: var(--sg-surface-hover);
+  }
+  .live-gear-menu .live-gear-danger {
+    color: var(--sg-danger);
   }
   .live-deleted .live-text {
     text-decoration: line-through;

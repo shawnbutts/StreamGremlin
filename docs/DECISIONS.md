@@ -1383,4 +1383,5 @@ Decided 2026-11-11. The user asked whether external sites like CommanderRoot cou
 - **No third-party bot lists:** CommanderRoot and TwitchInsights have no documented API, would send viewers' names to someone else, and list helpful bots too. If a "known bot" note is wanted later, it would be a list the streamer imports as a file.
 - **The bot doesn't moderate yet.** D-075 allowed it; it waits until someone asks, with its own scopes.
 - **Nine scopes are added** to the streamer's sign-in (ADR-0041). The streamer signs in again once.
+- **Quick actions sit in a gear menu beside the name** (changed 2026-11-12 after the live check). They were at the end of the message, shown on hover. The user: "for really long messages, putting at that end seems clunky. can we move them into a small button (gear icon) as a dropdown to the right of the username?" The gear opens Delete message, Time out 10 minutes, Ban… and More in their card…. It can be reached with Tab, unlike the old hover buttons, and the menu works with arrow keys and Escape.
 

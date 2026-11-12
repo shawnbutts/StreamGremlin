@@ -389,19 +389,46 @@ describe('Live moderating', () => {
     const el = start();
     await settle(60);
     const lineOf = (name: string) => Array.from(el.querySelectorAll('.live-line')).find((li) => li.querySelector('.live-name')?.textContent === name)!;
-    // No tools on your own line or a test line.
-    expect(lineOf('Gremlin').querySelector('.live-tools')).toBeNull();
-    expect(lineOf('Tester').querySelector('.live-tools')).toBeNull();
-    const tools = lineOf('Fan').querySelector('.live-tools')!;
-    button(tools, '10 min')!.click();
+    // No gear on your own line or a test line.
+    expect(lineOf('Gremlin').querySelector('.live-gear')).toBeNull();
+    expect(lineOf('Tester').querySelector('.live-gear')).toBeNull();
+    // The gear sits right after the name, so long messages don't push it away.
+    const gear = lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!;
+    expect(gear.previousElementSibling?.classList.contains('live-name')).toBe(true);
+    expect(gear.getAttribute('aria-label')).toBe('Moderate Fan');
+    expect(gear.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    const menu = () => document.querySelector<HTMLElement>('[role="menu"]');
+    const item = (text: string) =>
+      Array.from(menu()!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find((b) => b.textContent?.trim() === text)!;
+    gear.click();
+    flushSync();
+    expect(gear.getAttribute('aria-expanded')).toBe('true');
+    expect(Array.from(menu()!.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim())).toEqual([
+      'Delete message',
+      'Time out 10 minutes',
+      'Ban…',
+      'More in their card…',
+    ]);
+    await noViolations('gear menu');
+    item('Time out 10 minutes').click();
     await settle(20);
+    expect(menu()).toBeNull(); // choosing closes it
     expect(posts(calls)[0]).toMatchObject({ action: 'timeout', seconds: 600, user_id: 'u3', login: 'fan', platform: 'twitch', from: 'live' });
     expect(el.textContent).toContain('Timed out Fan for 10 minutes.');
-    button(tools, 'Delete')!.click();
+    gear.click();
+    flushSync();
+    item('Delete message').click();
     await settle(20);
     expect(posts(calls)[1]).toMatchObject({ action: 'delete', message_id: 'm3' });
     expect(lineOf('Fan').textContent).toContain('Deleted');
-    expect(lineOf('Fan').querySelector('.live-tools')).toBeNull();
+    // A deleted line keeps its gear, without Delete.
+    lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click();
+    flushSync();
+    expect(Array.from(menu()!.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim())).not.toContain('Delete message');
+    lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click(); // the gear again closes it
+    flushSync();
+    expect(menu()).toBeNull();
     // Each request has its own id.
     expect(posts(calls)[0].request_id).not.toBe(posts(calls)[1].request_id);
   });
@@ -416,8 +443,11 @@ describe('Live moderating', () => {
     });
     const el = start();
     await settle(60);
-    button(el.querySelector('.live-tools')!, 'Ban…')!.click();
+    el.querySelector<HTMLButtonElement>('.live-gear')!.click();
     flushSync();
+    button(document.querySelector('[role="menu"]')!, 'Ban…')!.click();
+    flushSync();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
     const dialog = document.querySelector('[role="alertdialog"], [role="dialog"]')!;
     expect(dialog.textContent).toContain('Ban Fan?');
     expect(posts(calls)).toHaveLength(0);
@@ -426,6 +456,51 @@ describe('Live moderating', () => {
     await settle(20);
     expect(posts(calls)[0]).toMatchObject({ action: 'ban', user_id: 'u3' });
     expect(el.querySelector('[role="alert"]')!.textContent).toContain('Not done: Twitch refused');
+  });
+
+  it('works the gear menu from the keyboard, and opens the card from it', async () => {
+    engine({ events: [chat(3, 'Fan', 'hello'), chat(4, 'Pal', 'hi')] });
+    const el = start();
+    await settle(60);
+    const gear = el.querySelector<HTMLButtonElement>('.live-gear')!;
+    const key = (target: Element, k: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+    gear.focus();
+    gear.click();
+    await settle(5);
+    const items = () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menu"] [role="menuitem"]'));
+    expect(document.activeElement).toBe(items()[0]); // focus moves into the menu
+    key(document.activeElement!, 'ArrowDown');
+    expect(document.activeElement).toBe(items()[1]);
+    key(document.activeElement!, 'ArrowUp');
+    key(document.activeElement!, 'ArrowUp'); // wraps
+    expect(document.activeElement).toBe(items()[items().length - 1]);
+    key(document.activeElement!, 'Home');
+    expect(document.activeElement).toBe(items()[0]);
+    key(document.activeElement!, 'Escape');
+    flushSync();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(gear); // focus comes back
+    // A click elsewhere closes it.
+    gear.click();
+    flushSync();
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    flushSync();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    // Only one menu at a time.
+    gear.click();
+    flushSync();
+    el.querySelectorAll<HTMLButtonElement>('.live-gear')[1].click();
+    flushSync();
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1);
+    expect(el.querySelectorAll('.live-gear')[1].getAttribute('aria-expanded')).toBe('true');
+    expect(gear.getAttribute('aria-expanded')).toBe('false');
+    // The last item opens the card, pinned, with every action.
+    gear.click();
+    flushSync();
+    button(document.querySelector('[role="menu"]')!, 'More in their card…')!.click();
+    await settle(30);
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Fan');
   });
 
   it('marks a suspicious user’s message, in either order, and shows one chat didn’t carry', async () => {
