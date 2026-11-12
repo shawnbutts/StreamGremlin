@@ -116,13 +116,13 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     expect(globalSettings.token).toBeTruthy(); // kept in global settings, never action settings
     expect(JSON.stringify(got.filter((m) => m.event === 'setSettings'))).not.toContain(String(globalSettings.token));
     expect(JSON.stringify(got.filter((m) => m.event === 'sendToPropertyInspector'))).not.toContain(String(globalSettings.token));
-    await until('the key drawn', () => (last('setTitle')?.payload?.title === 'Be right\nback' ? true : undefined));
-    expect(decodeURIComponent(String(last('setImage')?.payload?.image))).toContain('#3e8ed0');
+    await until('the key drawn', () => (decodeURIComponent(String(last('setImage')?.payload?.image)).includes('Be right') ? true : undefined));
+    expect(decodeURIComponent(String(last('setImage')?.payload?.image))).toContain('fill="#3e8ed0"');
+    expect(last('setTitle')?.payload?.title).toBe('');
 
     // A Nerd Fonts icon, shown alone, draws on the key as in the app.
     cli('buttons', 'set', 'brb', '-icon', 'nf-md-coffee', '-hide-label');
-    await until('the Nerd Fonts icon', () => (last('setTitle')?.payload?.title === '' ? true : undefined));
-    expect(decodeURIComponent(String(last('setImage')?.payload?.image))).toMatch(/<path transform="[^"]*scale\([\d.]+ -[\d.]+\)[^"]*" fill="#ffffff" d="M/);
+    await until('the Nerd Fonts icon', () => (/<path transform="[^"]*scale\([\d.]+ -[\d.]+\)[^"]*" fill="#111114" d="M/.test(decodeURIComponent(String(last('setImage')?.payload?.image))) ? true : undefined));
 
     // Pressing: nothing on starts from it, so the key says so.
     n = got.length;

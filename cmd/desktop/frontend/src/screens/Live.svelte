@@ -1170,8 +1170,6 @@
     min-height: 0;
     padding: 0;
     justify-content: center;
-    border-left-width: 1px;
-    border-bottom: 4px solid var(--live-color, var(--sg-border));
   }
   .live-press {
     width: 100%;
@@ -1184,11 +1182,21 @@
     color: var(--sg-foreground);
     background: var(--sg-surface-raised);
     border: 1px solid var(--sg-border);
-    border-left: 5px solid var(--live-color, var(--sg-border));
     border-radius: 6px;
     padding: 0.3rem 0.55rem;
     cursor: pointer;
     text-align: left;
+  }
+  /* A coloured button is filled with its colour, with dark ink: at least
+     4.5:1 on every colour (contrast.test.ts), whatever the theme. */
+  .live-press[data-color] {
+    --live-ink: #111114;
+    background: var(--live-color);
+    border-color: var(--live-color);
+    color: var(--live-ink);
+  }
+  .live-press[data-color]:hover:not(:disabled) {
+    filter: brightness(0.92);
   }
   .live-press :global(svg) {
     flex: none;

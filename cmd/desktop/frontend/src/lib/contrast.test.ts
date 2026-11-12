@@ -64,3 +64,21 @@ describe('cursors', () => {
     expect(rule?.[1]).not.toContain('progress');
   });
 });
+
+// Live's buttons are filled with their colour (D-076), with dark text and
+// icons: readable on every colour, in every theme, since the fill is the
+// same in all of them.
+describe('button colours', () => {
+  const live = readFileSync(resolve(process.cwd(), 'src/screens/Live.svelte'), 'utf8');
+  const colours = [...live.matchAll(/\[data-color='([a-z]+)'\]\s*\{\s*--live-color:\s*(#[0-9a-fA-F]{6})/g)].map((m) => [m[1], m[2]]);
+  const ink = live.match(/--live-ink:\s*(#[0-9a-fA-F]{6})/)?.[1];
+
+  it('has all eight, and one ink for them', () => {
+    expect(colours.map((c) => c[0])).toEqual(['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink']);
+    expect(ink).toBeDefined();
+  });
+  it.each(colours)('text on %s (%s) is at least 4.5:1', (_name, hex) => {
+    expect(ratio(ink!, hex)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+

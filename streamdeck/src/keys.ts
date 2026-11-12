@@ -37,25 +37,40 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 /** A plain key with a mark in the middle (?, !, …). */
 function plain(mark: string, color = '#8a8a96'): string {
   return svg(
-    `<rect width="144" height="144" rx="16" fill="#1c1c22"/><text x="72" y="74" font-family="Helvetica, Arial, sans-serif" font-size="56" font-weight="700" fill="${color}" text-anchor="middle" dominant-baseline="middle">${esc(mark)}</text>`,
+    `<rect width="144" height="144" rx="16" fill="${PLAIN}"/><text x="72" y="74" font-family="Helvetica, Arial, sans-serif" font-size="56" font-weight="700" fill="${color}" text-anchor="middle" dominant-baseline="middle">${esc(mark)}</text>`,
   );
 }
 
+/** Dark ink on every button colour (at least 5:1, as on Live); light on the plain key. */
+const INK = '#111114';
+const PLAIN = '#1c1c22';
+
+type Drawer = (size: number, y: number, ink: string) => string;
+
 /** How to draw a button's icon at a size and height, if it can be drawn. */
-function iconDrawer(icon: string, nerd?: NerdLookup): ((size: number, y: number) => string) | undefined {
+function iconDrawer(icon: string, nerd?: NerdLookup): Drawer | undefined {
   if (icon.startsWith('tabler:')) {
     const nodes = icons[icon.slice('tabler:'.length)];
-    return nodes && ((size, y) => drawIcon(nodes, size, y));
+    return nodes && ((size, y, ink) => drawIcon(nodes, size, y, ink));
   }
   if (icon.startsWith('nf:')) {
     const g = nerd?.(icon.slice('nf:'.length));
-    return g && ((size, y) => drawGlyph(g, size, y));
+    return g && ((size, y, ink) => drawGlyph(g, size, y, ink));
   }
   return undefined;
 }
 
+/** The label in up to three lines: under an icon, or in the middle. */
+function drawLabel(label: string, ink: string, underIcon: boolean): string {
+  const lines = titleLines(label).split('\n');
+  const step = 25;
+  const first = underIcon ? 134 - (lines.length - 1) * step : 72 - (lines.length * step) / 2 + 18;
+  const spans = lines.map((l, i) => `<tspan x="72" y="${first + i * step}">${esc(l)}</tspan>`).join('');
+  return `<text font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${ink}" text-anchor="middle">${spans}</text>`;
+}
+
 /** A font glyph's outline, fitted into a square and flipped (fonts draw y up). */
-function drawGlyph(g: Glyph, size: number, y: number): string {
+function drawGlyph(g: Glyph, size: number, y: number, ink: string): string {
   const [x0, y0, x1, y1] = g.bounds;
   const w = Math.max(1, x1 - x0);
   const h = Math.max(1, y1 - y0);
@@ -63,10 +78,10 @@ function drawGlyph(g: Glyph, size: number, y: number): string {
   const tx = 72 - (w * s) / 2;
   const ty = y + (size - h * s) / 2 + h * s;
   const n = (v: number) => Number(v.toFixed(4));
-  return `<path transform="translate(${n(tx)} ${n(ty)}) scale(${n(s)} -${n(s)}) translate(${-x0} ${-y0})" fill="#ffffff" d="${esc(g.d)}"/>`;
+  return `<path transform="translate(${n(tx)} ${n(ty)}) scale(${n(s)} -${n(s)}) translate(${-x0} ${-y0})" fill="${ink}" d="${esc(g.d)}"/>`;
 }
 
-function drawIcon(nodes: Node[], size: number, y: number): string {
+function drawIcon(nodes: Node[], size: number, y: number, ink: string): string {
   const s = size / 24;
   const parts = nodes
     .map(([tag, attrs]) => {
@@ -78,7 +93,7 @@ function drawIcon(nodes: Node[], size: number, y: number): string {
       return `<${tag} ${a}/>`;
     })
     .join('');
-  return `<g transform="translate(${72 - size / 2} ${y}) scale(${s})" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${parts}</g>`;
+  return `<g transform="translate(${72 - size / 2} ${y}) scale(${s})" fill="none" stroke="${ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${parts}</g>`;
 }
 
 /** Breaks a label into up to three short lines, for the key's title. */
@@ -109,13 +124,16 @@ export function keyView(o: { state: DeckState; buttonId?: string; buttons?: Deck
   const b = o.buttons?.find((x) => x.id === o.buttonId);
   if (!b) return { title: 'Button\ngone', image: plain('?') };
 
+  // The whole key is the button's colour, as on Live (D-076). Stream Deck's
+  // own title stays empty: the label is drawn here, in ink that reads on it.
   const icon = iconDrawer(b.icon, nerd);
-  const color = COLORS[b.color] ?? '#55555f';
+  const fill = COLORS[b.color];
+  const ink = fill ? INK : '#ffffff';
   const onlyIcon = !!icon && b.hideLabel;
   const body =
-    `<rect width="144" height="144" rx="16" fill="#1c1c22"/>` +
-    `<rect y="124" width="144" height="20" fill="${color}"/>` +
-    (icon ? icon(onlyIcon ? 80 : 56, onlyIcon ? 24 : 14) : '');
+    `<rect width="144" height="144" rx="16" fill="${fill ?? PLAIN}"/>` +
+    (icon ? icon(onlyIcon ? 80 : 56, onlyIcon ? 32 : 10, ink) : '') +
+    (onlyIcon ? '' : drawLabel(b.label, ink, !!icon));
   const dim = b.starts === 0 ? `<g opacity="0.4">${body}</g>` : body;
-  return { title: onlyIcon ? '' : titleLines(b.label), image: svg(dim) };
+  return { title: '', image: svg(dim) };
 }
