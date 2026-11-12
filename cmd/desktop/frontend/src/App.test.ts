@@ -106,9 +106,8 @@ describe('App', () => {
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Live');
-    // Live uses the window's whole width (D-082); other screens keep a
-    // readable width.
-    expect(el.querySelector('main')!.classList.contains('main-full')).toBe(true);
+    // Live fills the window's height too (D-082): chat takes what's left.
+    expect(el.querySelector('main')!.classList.contains('main-fit')).toBe(true);
     await noViolations('live');
     // Timers, Quotes and Rewards start under More…, so the numbers go on.
     const keyTo = async (key: string, title: string) => {
@@ -117,8 +116,13 @@ describe('App', () => {
       await settle();
       expect(el.querySelector('h1')?.textContent).toBe(title);
     };
+    // A screen opens at its top, whatever the last one was scrolled to.
+    // (jsdom doesn't scroll, so the test watches what's set.)
+    let top = 400;
+    Object.defineProperty(el.querySelector('main')!, 'scrollTop', { get: () => top, set: (v: number) => (top = v), configurable: true });
     await keyTo('3', 'Connections');
-    expect(el.querySelector('main')!.classList.contains('main-full')).toBe(false);
+    expect(top).toBe(0);
+    expect(el.querySelector('main')!.classList.contains('main-fit')).toBe(false);
     await noViolations('connections');
     await keyTo('4', 'Events');
     await noViolations('events');
@@ -239,19 +243,34 @@ describe('App appearance', () => {
   });
 });
 
-// The layout as the window resizes (D-082): the sidebar a fixed width on
-// the left; on Live, the buttons a fixed width on the right, and chat
-// taking the rest, shrinking to fit.
+// The layout as the window resizes (D-082): the window never scrolls as a
+// whole, so it never shows scroll bars for "more window" than there is;
+// the sidebar stays left, and every screen takes the rest of the width,
+// scrolling inside only when its content is taller. Live fills the height,
+// with the buttons pinned right and chat taking the rest.
 describe('resizing', () => {
   const css = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
   const live = readFileSync(resolve(process.cwd(), 'src/screens/Live.svelte'), 'utf8');
-  it('lets the main area fill and shrink beside the sidebar', () => {
-    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*220px minmax\(0, 1fr\)/);
-    expect(css).toMatch(/main\.main-full\s*\{[^}]*max-width:\s*none/);
+  const rule = (src: string, selector: string) => {
+    const at = src.search(new RegExp(`(^|\\n)\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{`));
+    expect(at, selector).toBeGreaterThanOrEqual(0);
+    return src.slice(at, src.indexOf('}', at));
+  };
+  it('keeps the page the window’s size, scrolling only inside', () => {
+    expect(rule(css, 'html,\nbody')).toMatch(/overflow:\s*hidden/);
+    expect(rule(css, '.shell')).toMatch(/height:\s*100vh/);
+    expect(rule(css, '.shell')).toMatch(/grid-template-columns:\s*220px minmax\(0, 1fr\)/);
+    expect(rule(css, 'main')).toMatch(/overflow:\s*auto/);
+    expect(rule(css, 'main')).toMatch(/min-height:\s*0/);
   });
-  it('pins Live’s buttons to the right at a fixed width, chat taking the rest', () => {
-    expect(live).toMatch(/\.live\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--live-side\)/);
+  it('lets every screen use the whole width', () => {
+    expect(rule(css, 'main')).not.toMatch(/max-width/);
+  });
+  it('fits Live to the window: no sizes from the viewport, chat filling what’s left', () => {
+    expect(live).not.toMatch(/100vh/);
+    expect(rule(css, 'main.main-fit')).toMatch(/flex-direction:\s*column/);
+    expect(rule(live, '.live')).toMatch(/flex:\s*1/);
+    expect(rule(live, '.live')).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\) var\(--live-side\)/);
     expect(live).toMatch(/--live-side:\s*16rem/);
   });
 });
-

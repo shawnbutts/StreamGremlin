@@ -65,6 +65,12 @@
   const moreShown = $derived(moreOpen || moreScreens.some((s) => s.id === screen));
 
   let screen = $state<Screen>('home');
+  // Screens scroll inside main (D-082); each screen opens at its top.
+  let mainEl = $state<HTMLElement | undefined>();
+  $effect(() => {
+    void screen;
+    if (mainEl) mainEl.scrollTop = 0;
+  });
   // A viewer to open on the Viewers screen (from Points' top viewers).
   let viewerId = $state<string | undefined>();
   $effect(() => {
@@ -204,7 +210,7 @@
     </ul>
   </nav>
 
-  <main id="main" tabindex="-1" class:main-full={screen === 'live'}>
+  <main id="main" tabindex="-1" bind:this={mainEl} class:main-fit={screen === 'live'}>
     {#if info.state === 'starting'}
       <section class="sg-panel card" aria-live="polite">
         <h1>Starting StreamGremlin…</h1>

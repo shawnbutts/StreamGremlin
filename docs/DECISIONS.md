@@ -1417,5 +1417,10 @@ Decided 2026-11-12. The user passed on a streamer's request: "can we support dyn
 - **Who it's for:** every streamer who keeps StreamGremlin open beside OBS while live, often on a second screen.
 - **The window opens where it was,** at the size it was, and maximised if it was. Its place is saved half a second after moving or resizing stops, and when it closes. It's saved to `window.json` in the data folder, as the desktop shell's own state: the engine never reads it.
 - **Never off-screen:** at start the window goes back on the screen it most overlaps. It's kept whole and at least its minimum size. When too little of it would show on any screen (a monitor that's been unplugged), it opens centred instead. A minimised window isn't saved; a maximised one keeps the size to come back to.
-- **Live uses the whole width.** The sidebar stays 220 px on the left and the buttons and chat modes 16rem on the right; chat takes everything between and resizes sideways with the window. Other screens keep their readable width. Only a window narrower than about 760 px stacks the buttons above chat.
+- **Live uses the whole width.** The sidebar stays 220 px on the left and the buttons and chat modes 16rem on the right; chat takes everything between and resizes sideways with the window. Only a window narrower than about 760 px stacks the buttons above chat.
+- **Fixed after the user's check** (2026-11-12): "there seems to be a scroll bar in the right and bottom of the window that can't be removed. no matter how large i make the window in any direction, the scroll bar shows and shows there is more of the window than is being displayed. also, the resize seems to only work ont he live screen and not the others".
+  - **No more page scroll bars:** the page is now exactly the window and never scrolls as a whole. Each screen scrolls inside its own area, and only when its content is taller than the window. Live's chat had been sized from the window's height minus a fixed amount that was too small, so the page always overflowed.
+  - **Every screen uses the whole width,** not just Live (they had been capped at 900 px).
+  - **On Live:** chat fills the height that's left, and the buttons column scrolls by itself when it has more than fits.
+  - **Switching screens:** each screen opens at its top.
 

@@ -947,32 +947,35 @@
      chat takes the rest of the window's width, and resizes with it (D-082). */
   .live {
     --live-side: 16rem;
+    flex: 1 0 auto;
+    min-height: 22rem;
     display: grid;
     gap: 1rem;
     grid-template-columns: minmax(0, 1fr) var(--live-side);
+    grid-template-rows: minmax(0, 1fr);
     grid-template-areas: 'chat buttons';
-    align-items: start;
   }
   .live[data-place='top'] {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(18rem, 1fr);
     grid-template-areas: 'buttons' 'chat';
   }
+  /* Chat fills its cell; its log scrolls inside. */
   .live-chat {
     grid-area: chat;
     display: flex;
     flex-direction: column;
-    min-height: 24rem;
-    height: calc(100vh - 9rem);
+    min-height: 0;
   }
-  .live[data-place='top'] .live-chat {
-    height: auto;
-    min-height: 20rem;
-  }
+  /* The side keeps its own height, and scrolls when it has more than fits. */
   .live-side {
     grid-area: buttons;
     display: grid;
     gap: 1rem;
     align-content: start;
+    align-self: start;
+    max-height: 100%;
+    overflow-y: auto;
   }
   .live-mode-list {
     display: flex;
@@ -1337,10 +1340,8 @@
   @media (max-width: 47.5rem) {
     .live {
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(18rem, 1fr);
       grid-template-areas: 'buttons' 'chat';
-    }
-    .live-chat {
-      height: auto;
     }
   }
 </style>
