@@ -1446,6 +1446,7 @@ Decided 2026-11-12. The user: "i'd like to get some beta testers. do we need to 
   - **macOS:** the app is signed ad hoc, so it isn't called damaged, and the guide says how to allow it in Privacy & Security.
   - **Before a wider beta:** signing still comes first (Apple Developer Program; a Windows certificate, checked for current options then).
 - **Installers:** `make release VERSION=… TWITCH_CLIENT_ID=…` builds a Windows installer (per user, no administrator) and a universal macOS dmg, both checked by `tests/release`. See [ADR-0043](adr/0043-beta-installers.md).
+- **The Windows installer installs the Stream Deck plugin if asked.** The user asked where it puts the plugin, then: "add the checkbox on the installer's". Its last page has **Install the Stream Deck plugin**, unticked, beside "Open StreamGremlin" and "Show the beta guide". On macOS the plugin is in the dmg.
 - **Reports go to the user,** who tells each tester how to reach them. The beta guide and Help say to tell whoever invited you, with what happened, the version, the system and the logs.
 - **The beta guide,** [docs/BETA.md](BETA.md), ships in both installers. It warns that beta data may need a fresh start at the first public release (ADR-0001).
 - **Help covers every screen,** checked by a test against the sidebar. New entries: Giveaways, Points, Viewers, Wheels, Add-ons (wheel looks as well as plugins), Ads, Backups and the window. Help also has a "Something went wrong?" section, with the version and the logs folder.

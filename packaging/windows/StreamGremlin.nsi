@@ -27,6 +27,7 @@ SetCompressor /SOLID lzma
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "x64.nsh"
+!include "nsDialogs.nsh"
 
 Name "${APP}"
 OutFile "${OUT}"
@@ -55,6 +56,9 @@ VIAddVersionKey "LegalCopyright" "Copyright 2026 the StreamGremlin authors. Apac
 !define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\Read me first.txt"
 !define MUI_FINISHPAGE_SHOWREADME_TEXT "Show the beta guide"
 !define MUI_FINISHPAGE_SHOWREADME_NOTCHECKED
+; A third box, "Install the Stream Deck plugin", added by FinishShow.
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW FinishShow
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE FinishLeave
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_COMPONENTS
@@ -63,6 +67,34 @@ VIAddVersionKey "LegalCopyright" "Copyright 2026 the StreamGremlin authors. Apac
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+
+Var DeckBox
+
+; Modern UI's finish page has room for two boxes of its own; this one goes
+; 20 units below the second (110u), as Modern UI spaces its own. Unticked:
+; not everyone has a Stream Deck.
+Function FinishShow
+  ${NSD_CreateCheckbox} 120u 130u 195u 10u "Install the Stream Deck plugin"
+  Pop $DeckBox
+  SetCtlColors $DeckBox "${MUI_TEXTCOLOR}" "${MUI_BGCOLOR}"
+  ; As Modern UI does for its own boxes: in high contrast, the text colour
+  ; only shows without the theme.
+  ${If} ${IsHighContrastModeActive}
+    System::Call 'UXTHEME::SetWindowTheme(p$DeckBox,w" ",w" ")'
+  ${EndIf}
+FunctionEnd
+
+; Opening the plugin file hands it to Stream Deck, which asks to install it.
+Function FinishLeave
+  ${NSD_GetState} $DeckBox $0
+  ${If} $0 == ${BST_CHECKED}
+    ClearErrors
+    ExecShell "open" "$INSTDIR\Stream Deck\com.streamgremlin.streamdeck.streamDeckPlugin"
+    ${If} ${Errors}
+      MessageBox MB_OK|MB_ICONINFORMATION "Stream Deck didn't open the plugin. Install Stream Deck 7.1 or later from Elgato, then double-click com.streamgremlin.streamdeck.streamDeckPlugin in $INSTDIR\Stream Deck."
+    ${EndIf}
+  ${EndIf}
+FunctionEnd
 
 Function .onInit
   ${IfNot} ${RunningX64}

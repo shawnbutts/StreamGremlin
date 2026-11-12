@@ -44,6 +44,7 @@ Then `tests/release` (build tag `release`) checks what was built:
   - the Stream Deck plugin in `Stream Deck\`;
   - the icon, the licences, and the beta guide as "Read me first.txt".
 - **Shortcuts and Apps & features:** a Start menu shortcut, a desktop shortcut that can be unticked, and an entry in Apps & features.
+- **The last page:** boxes to open StreamGremlin, show the beta guide, and **Install the Stream Deck plugin**. That third box is added beside Modern UI's two and starts unticked. Ticking it opens the plugin file, which Stream Deck takes and asks to install; when nothing opens it, the installer says to install Stream Deck 7.1 or later and where the file is (added 2026-11-12, at the user's request).
 - **Updating:** installing over an older version replaces the programs and keeps the data. A running StreamGremlin holds its `.exe` open, so the installer and uninstaller ask to close it first and retry.
 - **WebView2:** checked at Microsoft's documented registry key. When it's missing, the installer offers Microsoft's download page.
 - **The uninstaller removes only what was installed:** each file by name, then only empty folders, never a whole folder. It also removes WebView2's cache for the window (`%AppData%\StreamGremlin.exe`, an exact path) and its Apps & features entry. It keeps the data folder and Credential Manager, and says where they are.

@@ -46,7 +46,7 @@
   <h2 id="help-how">How it works</h2>
   <dl class="help-terms">
     <dt>Connections</dt>
-    <dd>Your Twitch account (and, if you like, a bot account that answers under its own name) and OBS. Sign-ins and passwords are kept in your system’s keyring, never in files or logs. <strong>Stream Deck</strong> pairs the StreamGremlin plugin (install it by double-clicking <code>com.streamgremlin.streamdeck.streamDeckPlugin</code>, which comes with StreamGremlin: in the Stream Deck folder where it’s installed on Windows, and in the disk image on macOS; it needs Stream Deck 7.1 or later) with a one-time code typed into a key’s settings; a paired Stream Deck can only see and press your buttons, and <strong>Forget…</strong> stops it.</dd>
+    <dd>Your Twitch account (and, if you like, a bot account that answers under its own name) and OBS. Sign-ins and passwords are kept in your system’s keyring, never in files or logs. <strong>Stream Deck</strong> pairs the StreamGremlin plugin (install it by double-clicking <code>com.streamgremlin.streamdeck.streamDeckPlugin</code>, which comes with StreamGremlin: on Windows, tick “Install the Stream Deck plugin” at the end of installing, or find it in the Stream Deck folder where StreamGremlin is installed; on macOS, it’s in the disk image; it needs Stream Deck 7.1 or later) with a one-time code typed into a key’s settings; a paired Stream Deck can only see and press your buttons, and <strong>Forget…</strong> stops it.</dd>
     <dt>Live</dt>
     <dd>
       The screen for while you’re live: your Twitch chat in the middle, with a box to send as you or the bot, and your buttons

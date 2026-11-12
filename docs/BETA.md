@@ -23,9 +23,12 @@ Installing on Windows (10 or 11, 64-bit)
 StreamGremlin's window needs Microsoft Edge WebView2, which Windows 10 and
 11 include. If it's missing, the installer offers Microsoft's download.
 
+On the installer's last page, tick "Install the Stream Deck plugin" if you
+have a Stream Deck: Stream Deck asks to install it.
+
 The installer also puts these in StreamGremlin's folder
 (%LocalAppData%\Programs\StreamGremlin):
-- the Stream Deck plugin, in "Stream Deck";
+- the Stream Deck plugin, in "Stream Deck", to install it later;
 - the command line, cli\streamgremlin.exe.
 
 
@@ -58,7 +61,8 @@ Getting started
 - Help (Ctrl+/ on Windows, Cmd+/ on macOS) explains every screen.
 
 Stream Deck (Stream Deck 7.1 or later): double-click
-com.streamgremlin.streamdeck.streamDeckPlugin to install it. Drag "Press a
+com.streamgremlin.streamdeck.streamDeckPlugin to install it (on Windows, or
+tick the box at the end of installing). Drag "Press a
 button" onto a key, then in the key's settings type the pairing code from
 Connections, Stream Deck, "Pair a Stream Deck".
 
