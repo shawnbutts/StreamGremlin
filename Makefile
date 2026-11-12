@@ -36,7 +36,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: notices notices-check windows streamdeck mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -53,11 +53,13 @@ fmt: $(GOLANGCI_LINT) ## Format Go code
 
 lint: $(GOLANGCI_LINT) ## Lint Go code (includes the format check)
 	$(GOLANGCI_LINT) run ./...
+	$(GOLANGCI_LINT) run --build-tags release ./tests/release
 	cd $(DESKTOP) && $(GOLANGCI_LINT) run --config ../../.golangci.yml ./...
 
 vet: ## go vet, with the acceptance tests included
 	$(GO) vet ./...
 	$(GO) vet -tags acceptance ./tests/acceptance
+	$(GO) vet -tags release ./tests/release
 
 test: ## Unit tests with the race detector
 	$(GO) test -race ./...
@@ -112,6 +114,71 @@ streamdeck: node-check build ## Check, test and pack the Stream Deck plugin into
 	$(NPM_DECK) run validate
 	$(NPM_DECK) run pack
 
+# Beta and release installers (D-084), built on macOS:
+#   make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
+# writes bin/release/StreamGremlin-VERSION-windows-x64-setup.exe (NSIS:
+# brew install makensis), StreamGremlin-VERSION-macos.dmg (a universal app)
+# and SHA256SUMS.txt, then checks them (tests/release). Both are unsigned
+# during the beta.
+RELEASE := $(BIN)/release
+MAC_STAGE := $(RELEASE)/macos-stage
+MAC_APP := $(MAC_STAGE)/StreamGremlin.app
+MAC_TMP := $(RELEASE)/macos-build
+WIN_STAGE := $(RELEASE)/windows-stage
+MAC_CGO := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
+ICONS := brand-kit/streamgremlin-icon
+
+release-check:
+	@test -n "$(TWITCH_CLIENT_ID)" || { echo "Set TWITCH_CLIENT_ID: release builds sign in with StreamGremlin's own Twitch app (D-005)."; exit 1; }
+	@$(GO) run ./cmd/release winversion "$(VERSION)" >/dev/null
+	@test "$$(uname -s)" = Darwin || { echo "Release builds need macOS, for the dmg."; exit 1; }
+	@command -v makensis >/dev/null || { echo "Release builds need NSIS: brew install makensis"; exit 1; }
+
+release: release-check verify release-windows release-macos ## Beta installers for Windows and macOS into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
+	cd $(RELEASE) && shasum -a 256 StreamGremlin-$(VERSION)-* > SHA256SUMS.txt
+	RELEASE_DIR=$(RELEASE) RELEASE_VERSION=$(VERSION) $(GO) test -tags release -count=1 ./tests/release
+	@echo "Installers in $(RELEASE): send testers the .exe or .dmg and docs/BETA.md."
+
+release-windows: windows streamdeck
+	rm -rf $(WIN_STAGE) && mkdir -p $(WIN_STAGE)/cli "$(WIN_STAGE)/Stream Deck"
+	cp $(BIN)/windows/app/StreamGremlin.exe $(WIN_STAGE)/
+	cp $(BIN)/windows/streamgremlin.exe $(WIN_STAGE)/cli/
+	cp $(BIN)/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin "$(WIN_STAGE)/Stream Deck/"
+	cp docs/BETA.md "$(WIN_STAGE)/Read me first.txt"
+	cp LICENSE $(WIN_STAGE)/LICENSE.txt
+	cp THIRD-PARTY-NOTICES.md THIRD-PARTY-LICENSES.txt $(WIN_STAGE)/
+	$(GO) run ./cmd/release ico $(WIN_STAGE)/StreamGremlin.ico $(ICONS)-16.png $(ICONS)-32.png $(ICONS)-48.png $(ICONS)-64.png $(ICONS)-128.png $(ICONS)-256.png
+	makensis -V2 -DVERSION=$(VERSION) -DWINVERSION=$$($(GO) run ./cmd/release winversion $(VERSION)) \
+		-DSRC=$(WIN_STAGE) -DOUT=$(RELEASE)/StreamGremlin-$(VERSION)-windows-x64-setup.exe packaging/windows/StreamGremlin.nsi
+
+# A universal app (Apple silicon and Intel), with the command line in
+# Contents/Helpers: in Contents/MacOS, streamgremlin and StreamGremlin would
+# be the same file. Signed ad hoc only, which a downloaded app needs to open
+# at all; the beta guide says how to allow it.
+release-macos: desktop-ui streamdeck
+	rm -rf $(MAC_STAGE) $(MAC_TMP)
+	mkdir -p $(MAC_APP)/Contents/MacOS $(MAC_APP)/Contents/Helpers $(MAC_APP)/Contents/Resources $(MAC_TMP)/StreamGremlin.iconset
+	cd $(DESKTOP) && $(MAC_CGO) GOARCH=arm64 CC="clang -arch arm64" $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(MAC_TMP)/app-arm64 .
+	cd $(DESKTOP) && $(MAC_CGO) GOARCH=amd64 CC="clang -arch x86_64" $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(MAC_TMP)/app-amd64 .
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(MAC_TMP)/cli-arm64 ./cmd/streamgremlin
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(MAC_TMP)/cli-amd64 ./cmd/streamgremlin
+	lipo -create -output $(MAC_APP)/Contents/MacOS/StreamGremlin $(MAC_TMP)/app-arm64 $(MAC_TMP)/app-amd64
+	lipo -create -output $(MAC_APP)/Contents/Helpers/streamgremlin $(MAC_TMP)/cli-arm64 $(MAC_TMP)/cli-amd64
+	$(GO) run ./cmd/release plist $(VERSION) $(MAC_APP)/Contents/Info.plist
+	for s in 16 32 128 256 512; do \
+		cp $(ICONS)-$$s.png $(MAC_TMP)/StreamGremlin.iconset/icon_$${s}x$${s}.png && \
+		cp $(ICONS)-$$((s * 2)).png $(MAC_TMP)/StreamGremlin.iconset/icon_$${s}x$${s}@2x.png || exit 1; \
+	done
+	iconutil -c icns -o $(MAC_APP)/Contents/Resources/StreamGremlin.icns $(MAC_TMP)/StreamGremlin.iconset
+	cp LICENSE THIRD-PARTY-NOTICES.md THIRD-PARTY-LICENSES.txt $(MAC_APP)/Contents/Resources/
+	codesign --force --sign - $(MAC_APP)/Contents/Helpers/streamgremlin
+	codesign --force --sign - $(MAC_APP)
+	ln -s /Applications $(MAC_STAGE)/Applications
+	cp $(BIN)/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin $(MAC_STAGE)/
+	cp docs/BETA.md "$(MAC_STAGE)/Read me first.txt"
+	hdiutil create -quiet -ov -volname "StreamGremlin $(VERSION)" -srcfolder $(MAC_STAGE) -fs HFS+ -format UDZO \
+		-o $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg
+
 # THIRD-PARTY-LICENSES.txt holds the licence of every Go module built into
 # the app and CLI, on every platform; THIRD-PARTY-NOTICES.md must name each.
 notices: ## Rewrite THIRD-PARTY-LICENSES.txt after Go modules change
@@ -123,4 +190,4 @@ notices-check:
 verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

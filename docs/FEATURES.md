@@ -197,7 +197,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
-| Release builds: macOS dmg, Windows installer, a Linux package, reproducible archives, SBOMs | 0052 | Release |
+| Release builds: macOS dmg, Windows installer, a Linux package, reproducible archives, SBOMs | 0052 | Release. Beta installers for Windows and macOS built (D-084, ADR-0043) |
 | Upgrade and install tests: containers for Linux, the user's Mac and Windows machines for installers | — | Release |
 | Website built from the Help docs, on streamgremlin.com | 0055 | Release |
 | Fuzzing, load tests, route guard sweep | 0050 | Release |

@@ -49,6 +49,16 @@ Tests never touch your real keyring. To check it on purpose, run the one opt-in 
 STREAMGREMLIN_TEST_OS_KEYRING=1 go test ./internal/secrets -run TestRealKeyring -v
 ```
 
+## Beta installers
+
+On a Mac with Xcode's command-line tools and NSIS (`brew install makensis`):
+
+```sh
+make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
+```
+
+It runs `make verify`, then writes the Windows installer, the macOS disk image and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). Both are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
+
 ## Build for Windows from a Mac
 
 The Windows app and CLI cross-compile from macOS (or Linux) with no Windows tools:

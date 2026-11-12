@@ -6,7 +6,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** milestone M1, the Spine, is done ([results](docs/milestones/M1.md)). Building M2, the everyday bot ([progress](docs/milestones/M2.md)). Nothing for streamers yet. Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Status:** milestones M1 (the Spine), M2 (the everyday bot), M3 (giveaways, points and wheels) and M5 (Lua and plugins) are done. M7 (the Live screen, moderating and Stream Deck) is built and awaiting its real-stream check ([progress](docs/milestones/M7.md)). A first beta, unsigned, is for a few invited testers: see the [beta guide](docs/BETA.md). Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documents
 
@@ -26,6 +26,7 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 | [docs/adr/](docs/adr/) | Architecture decisions for storage, protocols, file formats and security |
 | [brand-kit/](brand-kit/README.md) | Mascot, icons, banner and UI theme |
 | [streamdeck/](streamdeck/) | The Stream Deck plugin: `make streamdeck` builds its installer |
+| [docs/BETA.md](docs/BETA.md) | The beta guide for testers: installing, reporting problems, where data is |
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | What the app bundles from others, and their licences |
 
 ## Where the code lives

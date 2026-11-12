@@ -4,6 +4,7 @@
   import { engineInfo, getUISettings, putUISettings, type EngineInfo, type TextSize } from './lib/api';
   import { appearance, applyAppearance, stepTextSize } from './lib/appearance.svelte';
   import { startPlayer } from './lib/player';
+  import { pinned, screens, type Screen } from './lib/screens';
   import { applyTheme } from './lib/theme';
   import Connections from './screens/Connections.svelte';
   import Events from './screens/Events.svelte';
@@ -26,36 +27,6 @@
   import Workflows from './screens/Workflows.svelte';
 
   let { pollMs = 300 }: { pollMs?: number } = $props();
-
-  type Screen = 'home' | 'live' | 'connections' | 'events' | 'workflows' | 'timers' | 'quotes' | 'sounds' | 'overlays' | 'giveaways' | 'points' | 'viewers' | 'wheels' | 'rewards' | 'polls' | 'variables' | 'addons' | 'help' | 'settings';
-  // The sidebar (docs/adr/0019-app-comfort.md): the main screens in this
-  // order, then "More…" with the ones the streamer moved there, then
-  // Settings and Help, always last. Home, Live, Events, Workflows, Settings
-  // and Help never move. Ctrl/⌘+1–9 go to the main screens in order; Settings
-  // is Ctrl/⌘+comma and Help Ctrl/⌘+/, as in most apps.
-  const screens: { id: Screen; label: string }[] = [
-    { id: 'home', label: 'Home' },
-    { id: 'live', label: 'Live' },
-    { id: 'connections', label: 'Connections' },
-    { id: 'events', label: 'Events' },
-    { id: 'workflows', label: 'Workflows' },
-    { id: 'timers', label: 'Timers' },
-    { id: 'quotes', label: 'Quotes' },
-    { id: 'sounds', label: 'Sounds' },
-    { id: 'overlays', label: 'Overlays' },
-    { id: 'giveaways', label: 'Giveaways' },
-    { id: 'points', label: 'Points' },
-    { id: 'viewers', label: 'Viewers' },
-    { id: 'wheels', label: 'Wheels' },
-    { id: 'rewards', label: 'Rewards' },
-    { id: 'polls', label: 'Polls' },
-    { id: 'variables', label: 'Variables' },
-    { id: 'addons', label: 'Add-ons' },
-  ];
-  const pinned: { id: Screen; label: string; key: string }[] = [
-    { id: 'settings', label: 'Settings', key: ',' },
-    { id: 'help', label: 'Help', key: '/' },
-  ];
 
   const mainScreens = $derived(
     screens.filter((s) => !appearance.more.includes(s.id)).map((s, i) => ({ ...s, key: i < 9 ? String(i + 1) : undefined })),

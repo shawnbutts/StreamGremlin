@@ -1,0 +1,183 @@
+//go:build release
+
+// Package release checks the installers `make release` built (D-084):
+// what each holds, that the programs in them are the version asked for,
+// for the right systems, with StreamGremlin's Twitch app built in, and that
+// the macOS app is whole and signed. Run by `make release` with
+// RELEASE_DIR and RELEASE_VERSION set; needs macOS, 7z and hdiutil.
+package release
+
+import (
+	"bytes"
+	"debug/buildinfo"
+	"debug/pe"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+)
+
+func env(t *testing.T) (dir, version string) {
+	t.Helper()
+	dir, version = os.Getenv("RELEASE_DIR"), os.Getenv("RELEASE_VERSION")
+	if dir == "" || version == "" {
+		t.Fatal("set RELEASE_DIR and RELEASE_VERSION (make release does)")
+	}
+	return dir, version
+}
+
+func run(t *testing.T, name string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command(name, args...).CombinedOutput() //nolint:gosec // Fixed tools on paths this test makes.
+	if err != nil {
+		t.Fatalf("%s %s: %v\n%s", name, strings.Join(args, " "), err, out)
+	}
+	return string(out)
+}
+
+// checkBuild checks a program is for the right system, and holds the
+// version and StreamGremlin's Twitch app ID it was built with. -trimpath
+// leaves -ldflags out of Go's build record, so the values are looked for
+// in the program itself. The ID comes from TWITCH_CLIENT_ID, which make
+// passes on; it's never printed (it isn't committed anywhere, AGENTS.md).
+func checkBuild(t *testing.T, path, version, goos string) {
+	t.Helper()
+	info, err := buildinfo.ReadFile(path)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	for _, s := range info.Settings {
+		if s.Key == "GOOS" && s.Value != goos {
+			t.Errorf("%s is for %q", filepath.Base(path), s.Value)
+		}
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(b, []byte(version)) {
+		t.Errorf("%s isn't version %s", filepath.Base(path), version)
+	}
+	id := os.Getenv("TWITCH_CLIENT_ID")
+	if id == "" {
+		t.Fatal("set TWITCH_CLIENT_ID (make release passes it on)")
+	}
+	if !bytes.Contains(b, []byte(id)) {
+		t.Errorf("%s doesn't have StreamGremlin's Twitch app built in", filepath.Base(path))
+	}
+}
+
+func TestChecksums(t *testing.T) {
+	dir, version := env(t)
+	sums, err := os.ReadFile(filepath.Join(dir, "SHA256SUMS.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg"} {
+		if !strings.Contains(string(sums), f) {
+			t.Errorf("SHA256SUMS.txt misses %s", f)
+		}
+	}
+	cmd := exec.Command("shasum", "-a", "256", "-c", "SHA256SUMS.txt")
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("checksums: %v\n%s", err, out)
+	}
+}
+
+func TestWindowsInstaller(t *testing.T) {
+	dir, version := env(t)
+	setup := filepath.Join(dir, "StreamGremlin-"+version+"-windows-x64-setup.exe")
+	listing := run(t, "7z", "l", "-ba", "-slt", setup)
+	var files []string
+	for _, line := range strings.Split(listing, "\n") {
+		if p, ok := strings.CutPrefix(strings.TrimSpace(line), "Path = "); ok {
+			files = append(files, strings.ReplaceAll(p, `\`, "/"))
+		}
+	}
+	for _, want := range []string{
+		"StreamGremlin.exe", "cli/streamgremlin.exe", "Stream Deck/com.streamgremlin.streamdeck.streamDeckPlugin",
+		"StreamGremlin.ico", "Read me first.txt", "LICENSE.txt", "THIRD-PARTY-NOTICES.md", "THIRD-PARTY-LICENSES.txt",
+	} {
+		if !slices.Contains(files, want) {
+			t.Errorf("the installer misses %s; it has %q", want, files)
+		}
+	}
+
+	out := t.TempDir()
+	run(t, "7z", "x", "-y", "-o"+out, setup, "StreamGremlin.exe", "cli/streamgremlin.exe")
+	for _, exe := range []string{"StreamGremlin.exe", "cli/streamgremlin.exe"} {
+		path := filepath.Join(out, exe)
+		f, err := pe.Open(path)
+		if err != nil {
+			t.Fatalf("%s: %v", exe, err)
+		}
+		if f.Machine != pe.IMAGE_FILE_MACHINE_AMD64 {
+			t.Errorf("%s is for machine %#x", exe, f.Machine)
+		}
+		sub := f.OptionalHeader.(*pe.OptionalHeader64).Subsystem
+		_ = f.Close()
+		// The app is a window, with no console; the command line is a console program.
+		if want := map[string]uint16{"StreamGremlin.exe": pe.IMAGE_SUBSYSTEM_WINDOWS_GUI, "cli/streamgremlin.exe": pe.IMAGE_SUBSYSTEM_WINDOWS_CUI}[exe]; sub != want {
+			t.Errorf("%s subsystem %d, want %d", exe, sub, want)
+		}
+		checkBuild(t, path, version, "windows")
+	}
+}
+
+func TestMacDMG(t *testing.T) {
+	dir, version := env(t)
+	dmg := filepath.Join(dir, "StreamGremlin-"+version+"-macos.dmg")
+	mnt := t.TempDir()
+	run(t, "hdiutil", "attach", "-readonly", "-nobrowse", "-noautoopen", "-mountpoint", mnt, dmg)
+	t.Cleanup(func() { _ = exec.Command("hdiutil", "detach", "-force", mnt).Run() }) //nolint:gosec // The test's own mount point.
+
+	if target, err := os.Readlink(filepath.Join(mnt, "Applications")); err != nil || target != "/Applications" {
+		t.Errorf("no Applications link: %q %v", target, err)
+	}
+	for _, f := range []string{"com.streamgremlin.streamdeck.streamDeckPlugin", "Read me first.txt"} {
+		if _, err := os.Stat(filepath.Join(mnt, f)); err != nil {
+			t.Error(err)
+		}
+	}
+
+	app := filepath.Join(mnt, "StreamGremlin.app")
+	exe := filepath.Join(app, "Contents", "MacOS", "StreamGremlin")
+	cli := filepath.Join(app, "Contents", "Helpers", "streamgremlin")
+	for _, f := range []string{"Resources/StreamGremlin.icns", "Resources/LICENSE", "Resources/THIRD-PARTY-NOTICES.md", "Resources/THIRD-PARTY-LICENSES.txt"} {
+		if _, err := os.Stat(filepath.Join(app, "Contents", f)); err != nil {
+			t.Error(err)
+		}
+	}
+	plist := filepath.Join(app, "Contents", "Info.plist")
+	for key, want := range map[string]string{"CFBundleExecutable": "StreamGremlin", "CFBundleShortVersionString": version, "LSMinimumSystemVersion": "13.0", "CFBundleIconFile": "StreamGremlin"} {
+		if got := strings.TrimSpace(run(t, "plutil", "-extract", key, "raw", plist)); got != want {
+			t.Errorf("Info.plist %s = %q, want %q", key, got, want)
+		}
+	}
+
+	// Apple silicon and Intel, both.
+	for _, bin := range []string{exe, cli} {
+		archs := strings.Fields(run(t, "lipo", "-archs", bin))
+		slices.Sort(archs)
+		if !slices.Equal(archs, []string{"arm64", "x86_64"}) {
+			t.Errorf("%s is for %v", filepath.Base(bin), archs)
+		}
+		checkBuild(t, bin, version, "darwin")
+	}
+	// A whole, valid (ad hoc) signature: without one, macOS calls a
+	// downloaded app damaged rather than offering Open Anyway.
+	run(t, "codesign", "--verify", "--strict", "--deep", app)
+	if out := run(t, "codesign", "-dv", app); !strings.Contains(out, "Signature=adhoc") {
+		t.Errorf("not signed ad hoc:\n%s", out)
+	}
+
+	// The command line runs, and says its version.
+	cmd := exec.Command(cli, "version") //nolint:gosec // The CLI from the dmg under test.
+	cmd.Env = append(os.Environ(), "STREAMGREMLIN_DATA_DIR="+t.TempDir())
+	if out, err := cmd.CombinedOutput(); err != nil || !strings.Contains(string(out), version) {
+		t.Errorf("streamgremlin version: %v\n%s", err, out)
+	}
+}

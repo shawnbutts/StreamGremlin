@@ -1436,3 +1436,17 @@ Decided 2026-11-12. The user: "update the license list. can we manually upgrade 
   - `make verify` fails when the file is out of date, or when the notices miss a module. A new dependency therefore can't slip in uncredited.
 - **zod 4 in the plugin:** zod 3 had a memory-use advisory (GHSA-mrhx-c7xc-m3w5), accepted in ADR-0042 because Elgato's SDK asks for zod 3. Elgato's code turns out to use only zod 4's API (`zod/v4-mini`), which zod 4 still provides. The plugin now forces zod 4.6.7 with an npm override, and `npm audit` is clean. ADR-0042 records why that's safe and when to drop the override.
 
+## D-084. A first beta: unsigned installers for a small group (amends D-005)
+
+Decided 2026-11-12. The user: "i'd like to get some beta testers. do we need to update anything in the help docs? can we build a window installer?" Asked how, the user chose unsigned builds for a small group, on Windows and macOS. On reports: "i'll manually tell each tester in this stage".
+
+- **Who it's for:** a few streamers the user invites, on Windows and macOS.
+- **Unsigned for this small group,** amending D-005, which planned signing before any outside tester:
+  - **Windows:** SmartScreen warns, and the guide says "More info", then "Run anyway".
+  - **macOS:** the app is signed ad hoc, so it isn't called damaged, and the guide says how to allow it in Privacy & Security.
+  - **Before a wider beta:** signing still comes first (Apple Developer Program; a Windows certificate, checked for current options then).
+- **Installers:** `make release VERSION=… TWITCH_CLIENT_ID=…` builds a Windows installer (per user, no administrator) and a universal macOS dmg, both checked by `tests/release`. See [ADR-0043](adr/0043-beta-installers.md).
+- **Reports go to the user,** who tells each tester how to reach them. The beta guide and Help say to tell whoever invited you, with what happened, the version, the system and the logs.
+- **The beta guide,** [docs/BETA.md](BETA.md), ships in both installers. It warns that beta data may need a fresh start at the first public release (ADR-0001).
+- **Help covers every screen,** checked by a test against the sidebar. New entries: Giveaways, Points, Viewers, Wheels, Add-ons (wheel looks as well as plugins), Ads, Backups and the window. Help also has a "Something went wrong?" section, with the version and the logs folder.
+

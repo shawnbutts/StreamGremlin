@@ -11,12 +11,18 @@
   }: { shortcuts?: { label: string; key: string }[]; ongo?: (screen: string) => void } = $props();
 
   let dataDir = $state('');
+  let version = $state('');
+  // The logs folder, written with the data folder's own separator.
+  const logsDir = $derived(dataDir ? dataDir + (dataDir.includes('\\') ? '\\' : '/') + 'logs' : '');
   const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
   const mod = mac ? '⌘' : 'Ctrl';
 
   onMount(() => {
     getStatus()
-      .then((s) => (dataDir = s.data_dir))
+      .then((s) => {
+        dataDir = s.data_dir;
+        version = `${s.version} (${s.commit})`;
+      })
       .catch(() => undefined);
   });
 </script>
@@ -40,7 +46,7 @@
   <h2 id="help-how">How it works</h2>
   <dl class="help-terms">
     <dt>Connections</dt>
-    <dd>Your Twitch account (and, if you like, a bot account that answers under its own name) and OBS. Sign-ins and passwords are kept in your system’s keyring, never in files or logs. <strong>Stream Deck</strong> pairs the StreamGremlin plugin (install it by double-clicking <code>com.streamgremlin.streamdeck.streamDeckPlugin</code>; it needs Stream Deck 7.1 or later) with a one-time code typed into a key’s settings; a paired Stream Deck can only see and press your buttons, and <strong>Forget…</strong> stops it.</dd>
+    <dd>Your Twitch account (and, if you like, a bot account that answers under its own name) and OBS. Sign-ins and passwords are kept in your system’s keyring, never in files or logs. <strong>Stream Deck</strong> pairs the StreamGremlin plugin (install it by double-clicking <code>com.streamgremlin.streamdeck.streamDeckPlugin</code>, which comes with StreamGremlin: in the Stream Deck folder where it’s installed on Windows, and in the disk image on macOS; it needs Stream Deck 7.1 or later) with a one-time code typed into a key’s settings; a paired Stream Deck can only see and press your buttons, and <strong>Forget…</strong> stops it.</dd>
     <dt>Live</dt>
     <dd>
       The screen for while you’re live: your Twitch chat in the middle, with a box to send as you or the bot, and your buttons
@@ -89,6 +95,23 @@
     <dd>Your Twitch channel point rewards (Affiliates and Partners have them). Make rewards here, pause them, and mark redemptions done or refund them, by hand or with “Complete or refund the redemption” in a workflow. Rewards made on Twitch can start workflows, but only ones made here can be changed.</dd>
     <dt>Polls</dt>
     <dd>Twitch polls and channel point predictions (Affiliates and Partners): start them from the Polls screen or a workflow, watch the votes, end polls, and lock, resolve or cancel predictions. Twitch runs one of each at a time.</dd>
+    <dt>Giveaways</dt>
+    <dd>
+      Viewers enter by typing a command in chat, once each; you can limit who may enter (followers, account age, subscribers)
+      and give subscribers more chances, which chat is told. StreamGremlin draws winners with a secure random source and records
+      every draw, so <strong>Check the draws</strong> can confirm them. A practice giveaway uses test chat from Events and
+      sends nothing. You can also draw at once from everyone who chatted recently.
+    </dd>
+    <dt>Points</dt>
+    <dd>
+      Your channel’s own points (name them what you like): how viewers earn them (chatting, time in chat, follows, subs,
+      cheers), giving to everyone, and who holds how many. Workflows give and take points with “Give points” and “Take
+      points”. Nothing is ever changed or deleted: a mistake is undone, and nobody goes below zero.
+    </dd>
+    <dt>Viewers</dt>
+    <dd>Everyone who has chatted, followed, subscribed or cheered, from your real chat and events. Find a viewer to see their record and points, give or take points, export their record, or forget them if they ask.</dd>
+    <dt>Wheels</dt>
+    <dd>A wheel of choices, like the next game. Each spin is drawn with a secure random source and recorded; a wheel overlay in OBS spins to that result, and each wedge is drawn at its real size, so the odds you see are the real odds. Workflows spin one with “Spin a wheel”.</dd>
     <dt>Variables</dt>
     <dd>Values workflows keep between streams: for everyone (a death counter), per viewer (their lurk count), or private to one workflow.</dd>
     <dt>Lua scripts</dt>
@@ -98,9 +121,10 @@
       returns is the step’s result for the steps after it. It runs in a separate process, stopped at its time limit, and can’t reach chat, OBS,
       files or the internet. Try it in the step before saving.
     </dd>
-    <dt>Plugins</dt>
+    <dt>Add-ons</dt>
     <dd>
-      Add-ons that add steps to your workflows, written in Lua by other people. Install one from a ZIP on Add-ons: it shows the
+      Wheel looks and plugins made by other people, installed from a ZIP file. A wheel look runs in a sandbox in OBS, and
+      the real result is always in chat and on Wheels. A plugin adds steps to your workflows, written in Lua. Install one from a ZIP on Add-ons: it shows the
       steps it adds and asks you to allow each thing it wants to do, like sending chat. It’s installed off; turn it on with its
       switch. Its steps are marked “(add-on)” in Add a step, and any templates it brings are in the gallery in its own section.
       It runs in a separate process, can’t reach your files, the internet or your accounts, and keeps its own memory while it’s on. “What it has done” lists everything it asked StreamGremlin to do.
@@ -110,6 +134,12 @@
       To update one, install its new version: it says first what changes, and asks only for permissions you haven’t allowed.
       Roll back returns to the version before.
     </dd>
+    <dt>Ads</dt>
+    <dd>For Affiliates and Partners, the Ads card on Home shows your next ad and your snoozes, and runs or snoozes one. A running break shows an estimate of the time left: Twitch doesn’t say when ads end.</dd>
+    <dt>Backups</dt>
+    <dd>Settings → Backups copies everything StreamGremlin keeps, every day and whenever you ask. Restoring one asks first and backs up what it replaces. Sign-ins aren’t in backups.</dd>
+    <dt>The window</dt>
+    <dd>Opens where you left it, at the same size. Live stretches with it: chat in the middle, your buttons on the right.</dd>
     <dt>Unknown</dt>
     <dd>When StreamGremlin can’t check something (Twitch didn’t answer, OBS is closed) it says Unknown rather than guessing it’s fine.</dd>
   </dl>
@@ -136,12 +166,29 @@
   <h2 id="help-data">Your data</h2>
   <p>
     Everything StreamGremlin keeps (workflows, runs, events, variables and settings) is in one folder on this computer{#if dataDir}:
-      <code>{dataDir}</code>{/if}. Nothing is sent anywhere but Twitch and OBS.
+      <code>{dataDir}</code>{/if}. Nothing is sent anywhere but Twitch and OBS. Sign-ins and passwords are in your system’s
+    keyring, not in that folder.
   </p>
+  {#if version}
+    <p>This is StreamGremlin <strong>{version}</strong>.</p>
+  {/if}
   <p>
     The <code>streamgremlin</code> command does what the app does, from a terminal: try <code>streamgremlin status</code>,
     <code>streamgremlin workflows</code> or <code>streamgremlin help</code>.
   </p>
+</section>
+
+<section class="sg-panel card" aria-labelledby="help-report">
+  <h2 id="help-report">Something went wrong?</h2>
+  <p>Tell whoever invited you to the beta (or wherever you got StreamGremlin). The most useful report has:</p>
+  <ul>
+    <li>what you did, what you expected, and what happened instead (a screenshot helps);</li>
+    <li>the version{#if version}: <strong>{version}</strong>{/if}, and Windows or macOS;</li>
+    <li>
+      the log files from the logs folder{#if logsDir}, <code>{logsDir}</code>{/if}. Logs never contain your passwords or sign-ins,
+      but they do have chat names and messages from your stream.
+    </li>
+  </ul>
 </section>
 
 <section class="sg-panel card" aria-labelledby="help-credits">
