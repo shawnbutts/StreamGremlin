@@ -6,16 +6,22 @@ that suit a button, subsets the font to them, and writes:
 
   src/assets/nerd/symbols.woff2      the font
   src/assets/nerd/glyphs.json        {name: codepoint}, like "md-microphone"
+  ../../../streamdeck/com.streamgremlin.streamdeck.sdPlugin/icons/nerd-paths.json.gz
+                                     each icon as an SVG path, for Stream
+                                     Deck keys, which can't use the font
 
 Needs fonttools and brotli. Run from cmd/desktop/frontend:
 
   python3 tools/nerd-symbols.py SymbolsNerdFont-Regular.ttf glyphnames.json
 """
 
+import gzip
 import json
 import sys
 
 from fontTools import subset
+from fontTools.pens.boundsPen import BoundsPen
+from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.ttLib import TTFont
 
 # Material Design, Font Awesome (and its extension), Devicons, Codicons,
@@ -45,7 +51,29 @@ def main(font_path: str, names_path: str) -> None:
     font.save("src/assets/nerd/symbols.woff2")
     with open("src/assets/nerd/glyphs.json", "w", encoding="utf-8") as f:
         json.dump({"version": meta.get("version", ""), "glyphs": glyphs}, f, separators=(",", ":"))
+    write_paths(TTFont("src/assets/nerd/symbols.woff2"), glyphs, meta.get("version", ""))
     print(f"{len(glyphs)} icons from Nerd Fonts {meta.get('version', '?')}")
+
+
+def write_paths(font: TTFont, glyphs: dict, version: str) -> None:
+    """Each icon's outline in font units (y up), with its bounds."""
+    cmap, gs = font.getBestCmap(), font.getGlyphSet()
+    out = {}
+    for name, cp in glyphs.items():
+        g = cmap.get(cp)
+        if g is None:
+            continue
+        bounds = BoundsPen(gs)
+        gs[g].draw(bounds)
+        if bounds.bounds is None:
+            continue
+        pen = SVGPathPen(gs, lambda v: "%.0f" % v)
+        gs[g].draw(pen)
+        out[name] = [pen.getCommands(), [round(v) for v in bounds.bounds]]
+    data = {"version": version, "unitsPerEm": font["head"].unitsPerEm, "glyphs": out}
+    path = "../../../streamdeck/com.streamgremlin.streamdeck.sdPlugin/icons/nerd-paths.json.gz"
+    with gzip.GzipFile(path, "wb", mtime=0) as f:  # mtime 0: the same input gives the same file
+        f.write(json.dumps(data, separators=(",", ":"), sort_keys=True).encode())
 
 
 if __name__ == "__main__":

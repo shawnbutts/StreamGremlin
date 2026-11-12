@@ -19,11 +19,24 @@ describe('keyView', () => {
     expect(decode(keyView({ state: 'ok', buttonId: 'brb', buttons: [{ ...brb, starts: 0 }] }).image)).toContain('opacity="0.4"');
   });
 
-  it('shows the label when the icon can’t be drawn here', () => {
-    // Nerd Fonts' glyphs need a font the Stream Deck doesn't have.
-    const v = keyView({ state: 'ok', buttonId: 'brb', buttons: [{ ...brb, icon: 'nf:md-microphone', hideLabel: true }] });
-    expect(v.title).toBe('Be right\nback');
-    expect(decode(v.image)).not.toContain('<path');
+  it('draws a Nerd Fonts icon from its outline, as the app shows it', () => {
+    const glyph = { d: 'M0 0L100 0L100 200Z', bounds: [0, 0, 100, 200] as [number, number, number, number], unitsPerEm: 2048 };
+    const nerd = (name: string) => (name === 'md-microphone' ? glyph : undefined);
+    const v = keyView({ state: 'ok', buttonId: 'brb', buttons: [{ ...brb, icon: 'nf:md-microphone', hideLabel: true }] }, nerd);
+    expect(v.title).toBe('');
+    const img = decode(v.image);
+    expect(img).toContain('d="M0 0L100 0L100 200Z"');
+    expect(img).toContain('fill="#ffffff"');
+    expect(img).toMatch(/scale\([\d.]+ -[\d.]+\)/); // fonts draw y up
+  });
+
+  it('shows the label when the icon can’t be drawn', () => {
+    // Not loaded yet, or a name the outlines don't have.
+    for (const nerd of [undefined, () => undefined]) {
+      const v = keyView({ state: 'ok', buttonId: 'brb', buttons: [{ ...brb, icon: 'nf:md-microphone', hideLabel: true }] }, nerd);
+      expect(v.title).toBe('Be right\nback');
+      expect(decode(v.image)).not.toContain('<path');
+    }
   });
 
   it('never looks working when it isn’t', () => {

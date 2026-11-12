@@ -31,7 +31,7 @@ Brand logos (Twitch, Discord, YouTube and others) are trademarks of their owners
 
 The plugin (`streamdeck/`) bundles:
 - Elgato's Stream Deck SDK, `@elgato/streamdeck` 3.0.4, and its dependencies (`@elgato/utils`, `@elgato/schemas`, `ws`, `zod`), MIT licence, copyright (c) Corsair Memory Inc. and their authors;
-- Tabler Icons 3.50.0 (above), to draw button icons on keys.
+- Tabler Icons 3.50.0, and the Nerd Fonts icons as outlines (both above, with their licences), to draw button icons on keys.
 
 Elgato's CLI (`@elgato/cli`, MIT) packs it and isn't shipped.
 

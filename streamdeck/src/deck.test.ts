@@ -119,6 +119,11 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     await until('the key drawn', () => (last('setTitle')?.payload?.title === 'Be right\nback' ? true : undefined));
     expect(decodeURIComponent(String(last('setImage')?.payload?.image))).toContain('#3e8ed0');
 
+    // A Nerd Fonts icon, shown alone, draws on the key as in the app.
+    cli('buttons', 'set', 'brb', '-icon', 'nf-md-coffee', '-hide-label');
+    await until('the Nerd Fonts icon', () => (last('setTitle')?.payload?.title === '' ? true : undefined));
+    expect(decodeURIComponent(String(last('setImage')?.payload?.image))).toMatch(/<path transform="[^"]*scale\([\d.]+ -[\d.]+\)[^"]*" fill="#ffffff" d="M/);
+
     // Pressing: nothing on starts from it, so the key says so.
     n = got.length;
     send({ event: 'keyDown', action: ACTION, context: 'key1', device: 'dev1', payload: { settings: { buttonId: 'brb' }, coordinates: { column: 0, row: 0 }, isInMultiAction: false, state: 0 } });

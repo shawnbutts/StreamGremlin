@@ -19,6 +19,7 @@ import { homedir, hostname } from 'node:os';
 import { Engine, addressFile, loopback, type DeckButton } from './engine';
 import { keyView, type DeckState } from './keys';
 import { codeProblem, type Status, type ToPlugin } from './messages';
+import { loadNerd, type NerdLookup } from './nerd';
 
 type JsonValue = Parameters<typeof streamDeck.ui.sendToPropertyInspector>[0];
 type Global = { address?: string; token?: string; name?: string };
@@ -39,6 +40,8 @@ let address: string | undefined;
 let state: DeckState = 'unreachable';
 let buttons: DeckButton[] = [];
 let problem = '';
+// Nerd Fonts outlines, loaded when a button first uses one (D-081).
+let nerd: NerdLookup | undefined;
 const keys = new Map<string, { action: Action<KeySettings>; buttonId?: string; drawn?: string }>();
 let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -54,6 +57,7 @@ async function refresh(): Promise<void> {
     if (r.ok) {
       buttons = r.value;
       state = 'ok';
+      if (!nerd && buttons.some((b) => b.icon.startsWith('nf:'))) nerd = await loadNerd('icons/nerd-paths.json.gz');
     } else {
       state = r.why === 'unpaired' ? 'unpaired' : 'unreachable';
     }
@@ -64,7 +68,7 @@ async function refresh(): Promise<void> {
 async function draw(): Promise<void> {
   for (const k of keys.values()) {
     if (!k.action.isKey()) continue;
-    const v = keyView({ state, buttonId: k.buttonId, buttons });
+    const v = keyView({ state, buttonId: k.buttonId, buttons }, nerd);
     const sig = v.title + v.image;
     if (k.drawn === sig) continue; // Elgato asks for few updates
     k.drawn = sig;
