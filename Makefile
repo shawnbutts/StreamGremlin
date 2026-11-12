@@ -130,6 +130,7 @@ ICONS := brand-kit/streamgremlin-icon
 
 release-check:
 	@test -n "$(TWITCH_CLIENT_ID)" || { echo "Set TWITCH_CLIENT_ID: release builds sign in with StreamGremlin's own Twitch app (D-005)."; exit 1; }
+	@test "$(VERSION)" != dev || { echo "Set the version: make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=..."; exit 1; }
 	@$(GO) run ./cmd/release winversion "$(VERSION)" >/dev/null
 	@test "$$(uname -s)" = Darwin || { echo "Release builds need macOS, for the dmg."; exit 1; }
 	@command -v makensis >/dev/null || { echo "Release builds need NSIS: brew install makensis"; exit 1; }
@@ -139,7 +140,7 @@ release: release-check verify release-windows release-macos ## Beta installers f
 	RELEASE_DIR=$(RELEASE) RELEASE_VERSION=$(VERSION) $(GO) test -tags release -count=1 ./tests/release
 	@echo "Installers in $(RELEASE): send testers the .exe or .dmg and docs/BETA.md."
 
-release-windows: windows streamdeck
+release-windows: release-check windows streamdeck
 	rm -rf $(WIN_STAGE) && mkdir -p $(WIN_STAGE)/cli "$(WIN_STAGE)/Stream Deck"
 	cp $(BIN)/windows/app/StreamGremlin.exe $(WIN_STAGE)/
 	cp $(BIN)/windows/streamgremlin.exe $(WIN_STAGE)/cli/
@@ -155,7 +156,7 @@ release-windows: windows streamdeck
 # Contents/Helpers: in Contents/MacOS, streamgremlin and StreamGremlin would
 # be the same file. Signed ad hoc only, which a downloaded app needs to open
 # at all; the beta guide says how to allow it.
-release-macos: desktop-ui streamdeck
+release-macos: release-check desktop-ui streamdeck
 	rm -rf $(MAC_STAGE) $(MAC_TMP)
 	mkdir -p $(MAC_APP)/Contents/MacOS $(MAC_APP)/Contents/Helpers $(MAC_APP)/Contents/Resources $(MAC_TMP)/StreamGremlin.iconset
 	cd $(DESKTOP) && $(MAC_CGO) GOARCH=arm64 CC="clang -arch arm64" $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(MAC_TMP)/app-arm64 .
