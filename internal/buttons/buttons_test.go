@@ -114,6 +114,10 @@ func TestIcons(t *testing.T) {
 	if b, _, _ = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "tabler:brand-twitch", HideLabel: true}); b.Icon != "tabler:brand-twitch" {
 		t.Fatalf("icon changed: %+v", b)
 	}
+	// Nerd Fonts' names have underscores.
+	if b, _, err = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "nf:md-microphone_off", HideLabel: true}); err != nil || b.Icon != "nf:md-microphone_off" {
+		t.Fatalf("nerd fonts: %+v %v", b, err)
+	}
 	if b, _, _ = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "tabler:brand-twitch"}); b.HideLabel {
 		t.Fatalf("label shown again: %+v", b)
 	}
@@ -126,6 +130,9 @@ func TestIcons(t *testing.T) {
 		{ID: "x", Label: "x", Icon: "fa:star"},
 		{ID: "x", Label: "x", Icon: "tabler:Star"},
 		{ID: "x", Label: "x", Icon: "tabler:../star"},
+		{ID: "x", Label: "x", Icon: "tabler:player_pause"},
+		{ID: "x", Label: "x", Icon: "nf:md"},
+		{ID: "x", Label: "x", Icon: "nf:-md-x"},
 		{ID: "x", Label: "x", Icon: "tabler:" + strings.Repeat("a", 80)},
 	} {
 		if _, _, err := r.svc.Save(r.ctx, bad); !errors.Is(err, ErrInvalid) {

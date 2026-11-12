@@ -21,7 +21,8 @@ const buttonsUsage = `usage:
   streamgremlin buttons set ID [flags]   create or change one:
       -label TEXT     what it says (required for a new button)
       -color NAME     red, orange, yellow, green, teal, blue, purple, pink, or none
-      -icon NAME      an icon from tabler.io/icons, like player-pause, or none
+      -icon NAME      an icon: player-pause (tabler.io/icons), nf-md-microphone
+                      (nerdfonts.com/cheat-sheet), or none
       -hide-label     show only the icon (-hide-label=false shows the label again)
   streamgremlin buttons move ID...       put them in this order (name every button)
   streamgremlin buttons delete ID        delete one
@@ -144,12 +145,13 @@ func buttonSet(ctx context.Context, do func(context.Context, string, string, any
 		}
 	}
 	if set["icon"] {
-		b.Icon = strings.TrimPrefix(*icon, "tabler:")
-		switch b.Icon {
-		case "none", "":
+		switch b.Icon = *icon; {
+		case b.Icon == "none" || b.Icon == "":
 			b.Icon, b.HideLabel = "", false
-		default:
-			b.Icon = "tabler:" + b.Icon
+		case strings.HasPrefix(b.Icon, "nf-"):
+			b.Icon = "nf:" + b.Icon[3:] // as Nerd Fonts' cheat sheet writes it
+		case !strings.Contains(b.Icon, ":"):
+			b.Icon = "tabler:" + b.Icon // a bare name is Tabler's
 		}
 	}
 	if set["hide-label"] {

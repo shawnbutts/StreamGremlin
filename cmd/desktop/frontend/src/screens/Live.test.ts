@@ -277,6 +277,45 @@ describe('Live', () => {
     await noViolations('icon buttons');
   });
 
+  it('picks an icon from Nerd Fonts too', async () => {
+    const { calls } = engine();
+    const el = start();
+    await settle();
+    button(el, 'Edit buttons')!.click();
+    flushSync();
+    button(el, 'New button')!.click();
+    await settle(30);
+    const form = el.querySelector<HTMLFormElement>('form[aria-label="A new button"]')!;
+    setValue(form.querySelector<HTMLInputElement>('input')!, 'Mute');
+    setValue(form.querySelector<HTMLSelectElement>('select[aria-label="Icon set"]')!, 'nf');
+    await settle(30);
+    setValue(form.querySelector<HTMLInputElement>('input[type="search"]')!, 'microphone off');
+    await settle(10);
+    form.querySelector<HTMLButtonElement>('.live-icon-grid button[aria-label="md-microphone_off"]')!.click();
+    flushSync();
+    expect(form.querySelector('.live-icon-now')!.textContent).toContain('md-microphone_off');
+    button(form, 'Save')!.click();
+    await settle();
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/v1/buttons/mute')!;
+    expect(put.body).toMatchObject({ icon: 'nf:md-microphone_off' });
+  });
+
+  it('packs icon-only buttons into a grid, keeping their order', async () => {
+    engine({ buttons: [
+      { ...brb, icon: 'tabler:player-pause', hide_label: true },
+      { ...hype, icon: 'nf:md-fire', hide_label: true },
+      { ...brb, id: 'end', label: 'End the stream', position: 2 },
+      { ...hype, id: 'mute', label: 'Mute', icon: 'nf:md-microphone_off', hide_label: true, position: 3 },
+    ] });
+    const el = start();
+    await settle(80);
+    const items = Array.from(el.querySelectorAll<HTMLElement>('.live-grid > li'));
+    expect(items.map((li) => li.classList.contains('live-tile'))).toEqual([true, true, false, true]);
+    expect(items.map((li) => li.querySelector('.visually-hidden, .live-press-label')?.textContent)).toEqual(['Be right back', 'Hype!', 'End the stream', 'Mute']);
+    expect(items[1].querySelector('.nf-glyph')).toBeTruthy();
+    await noViolations('icon grid');
+  });
+
   it('shows the label when an icon isn’t known, even if hidden', async () => {
     engine({ buttons: [{ ...brb, icon: 'tabler:no-such-icon-anywhere', hide_label: true }] });
     const el = start();

@@ -45,7 +45,7 @@
     <dd>
       The screen for while you’re live: your Twitch chat in the middle, with a box to send as you or the bot, and your buttons
       beside it or along the top (Buttons: Right or Top). A button runs the workflows that start from it, with the trigger “You
-      press a button”: a scene, a sound, a message. <strong>Edit buttons</strong> makes, orders and deletes them, and gives each an icon if you like (search by name; “Show only the icon” hides the label), and “Make a
+      press a button”: a scene, a sound, a message. <strong>Edit buttons</strong> makes, orders and deletes them, and gives each an icon if you like, from Tabler Icons or Nerd Fonts (search by name; “Show only the icon” hides the label, and icon-only buttons sit side by side as small squares), and “Make a
       workflow” gives a new one something to do. Badges in chat are one letter (rest the pointer on one for the word): B
       broadcaster, M moderator, L lead moderator, V VIP, S subscriber, F founder, T Twitch staff, ✓ verified, A artist. A button press has no viewer behind it, like a timer. Rest the pointer on a
       chatter’s name, or click it, for their card: what Twitch says about them now (following, subscribed, VIP, moderator,
@@ -142,4 +142,18 @@
     The <code>streamgremlin</code> command does what the app does, from a terminal: try <code>streamgremlin status</code>,
     <code>streamgremlin workflows</code> or <code>streamgremlin help</code>.
   </p>
+</section>
+
+<section class="sg-panel card" aria-labelledby="help-credits">
+  <h2 id="help-credits">Icon credits</h2>
+  <p>Button icons are bundled with the app, so they work offline.</p>
+  <ul>
+    <li><strong>Tabler Icons</strong> (tabler.io/icons), MIT licence.</li>
+    <li>
+      <strong>Nerd Fonts</strong> (nerdfonts.com), MIT licence, with icons from: Material Design (Apache 2.0); Font Awesome
+      (CC BY 4.0, font SIL OFL 1.1) and its Extension (MIT); Devicons (MIT); Codicons by Microsoft (CC BY 4.0); Octicons by
+      GitHub (MIT); Weather Icons (SIL OFL 1.1); Font Logos (Unlicense).
+    </li>
+  </ul>
+  <p class="sg-muted">Brand logos are trademarks of their owners.</p>
 </section>

@@ -52,7 +52,7 @@
     type ChatLine, badgeLetter, confirmWords, type ConfirmWords } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import Icon from '../lib/Icon.svelte';
-  import { iconName, loadIcons, searchIcons, type IconPack } from '../lib/icons';
+  import { SETS, iconDef, iconName, iconSet, loadSet, searchIcons, type IconSet, type SetId } from '../lib/icons';
   import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import { onOffWords } from '../lib/workflows';
@@ -106,13 +106,18 @@
   let pressError = $state('');
   let editing = $state(false);
   let form = $state<{ id?: string; label: string; color: ButtonColor; icon: string; hide_label: boolean } | undefined>();
-  // Button icons: the pack loads when a button has one, or the form opens.
-  let icons = $state<IconPack | undefined>();
+  // Button icons: a set loads when a button uses it, or the form shows it.
+  let sets = $state<Partial<Record<SetId, IconSet>>>({});
+  let pickSet = $state<SetId>('tabler');
   let iconQuery = $state('');
-  const iconChoices = $derived(icons ? searchIcons(icons, iconQuery, 48) : []);
-  const nodesOf = (id: string) => (icons && iconName(id) ? icons[iconName(id)] : undefined);
-  function wantIcons() {
-    if (!icons) loadIcons().then((p) => (icons = p));
+  const iconChoices = $derived(sets[pickSet] ? searchIcons(sets[pickSet]!, iconQuery, 48) : []);
+  const iconOf = (id: string) => iconDef(sets, id);
+  function wantSet(id: SetId) {
+    if (!sets[id]) loadSet(id).then((s) => (sets = { ...sets, [id]: s }));
+  }
+  function pickFrom(id: SetId) {
+    pickSet = id;
+    wantSet(id);
   }
   let formError = $state('');
   let saving = $state(false);
@@ -362,7 +367,7 @@
     try {
       const [b, w] = await Promise.all([getButtons(), getWorkflows()]);
       buttons = b.buttons;
-      if (buttons.some((x) => x.icon)) wantIcons();
+      for (const x of buttons) if (iconSet(x.icon)) wantSet(iconSet(x.icon) as SetId);
       workflows = w.workflows;
       buttonsError = '';
     } catch (e) {
@@ -463,7 +468,7 @@
   function newButton() {
     form = { label: '', color: '', icon: '', hide_label: false };
     iconQuery = '';
-    wantIcons();
+    pickFrom(iconSet(form.icon) || 'tabler');
     formError = '';
     notice = '';
   }
@@ -471,7 +476,7 @@
   function editButton(b: LiveButton) {
     form = { id: b.id, label: b.label, color: b.color, icon: b.icon, hide_label: b.hide_label };
     iconQuery = '';
-    wantIcons();
+    pickFrom(iconSet(form.icon) || 'tabler');
     formError = '';
     notice = '';
   }
@@ -669,7 +674,8 @@
       {#if !editing}
         <ul class="live-grid">
           {#each buttons as b (b.id)}
-            <li>
+            {@const icon = iconOf(b.icon)}
+            <li class:live-tile={b.hide_label && !!icon}>
               <button
                 type="button"
                 class="live-press"
@@ -677,7 +683,7 @@
                 disabled={pressing === b.id}
                 title={b.hide_label && b.icon ? `${b.label}: ${startsWords(b.id, workflows)}` : startsWords(b.id, workflows)}
                 onclick={() => press(b)}
-                >{#if nodesOf(b.icon)}<Icon nodes={nodesOf(b.icon)!} />{/if}{#if b.hide_label && nodesOf(b.icon)}<span class="visually-hidden"
+                >{#if icon}<Icon {icon} />{/if}{#if b.hide_label && icon}<span class="visually-hidden"
                     >{b.label}</span
                   >{:else}<span class="live-press-label">{b.label}</span>{/if}</button
               >
@@ -691,7 +697,7 @@
           {#each buttons as b, i (b.id)}
             <li class="live-edit-item" data-color={b.color || undefined}>
               <div>
-                {#if nodesOf(b.icon)}<Icon nodes={nodesOf(b.icon)!} size={18} />{/if}
+                {#if iconOf(b.icon)}<Icon icon={iconOf(b.icon)!} small />{/if}
                 <strong>{b.label}</strong>{#if b.icon && b.hide_label}<span class="sg-muted"> (icon only)</span>{/if}
                 <span class="sg-muted">{colorName(b.color)}</span>
                 <p class="sg-muted live-starts">{startsWords(b.id, workflows)}</p>
@@ -737,7 +743,7 @@
             <legend>Icon</legend>
             <p class="live-icon-now">
               {#if form.icon}
-                {#if nodesOf(form.icon)}<Icon nodes={nodesOf(form.icon)!} />{/if}
+                {#if iconOf(form.icon)}<Icon icon={iconOf(form.icon)!} />{/if}
                 <span>{iconName(form.icon) || form.icon}</span>
                 <button type="button" class="button" onclick={() => form && ((form.icon = ''), (form.hide_label = false))}>No icon</button>
               {:else}
@@ -745,18 +751,24 @@
               {/if}
             </p>
             <label class="field">
+              <span>Set</span>
+              <select class="sg-input" aria-label="Icon set" value={pickSet} onchange={(e) => pickFrom((e.currentTarget as HTMLSelectElement).value as SetId)}>
+                {#each SETS as s (s.id)}<option value={s.id}>{s.name}</option>{/each}
+              </select>
+            </label>
+            <label class="field">
               <span>Find an icon</span>
               <input class="sg-input" type="search" bind:value={iconQuery} placeholder="pause, music, twitch" autocomplete="off" />
             </label>
-            {#if !icons}
+            {#if !sets[pickSet]}
               <p class="sg-muted">Loading icons…</p>
             {:else if iconChoices.length === 0}
               <p class="sg-muted">No icon has that in its name.</p>
             {:else}
               <div class="live-icon-grid" role="group" aria-label="Icons">
                 {#each iconChoices as n (n)}
-                  <button type="button" aria-label={n} title={n} aria-pressed={form.icon === `tabler:${n}`}
-                    onclick={() => form && (form.icon = `tabler:${n}`)}><Icon nodes={icons[n]} /></button
+                  <button type="button" aria-label={n} title={n} aria-pressed={form.icon === `${pickSet}:${n}`}
+                    onclick={() => form && (form.icon = `${pickSet}:${n}`)}><Icon icon={sets[pickSet]!.def(n)!} /></button
                   >
                 {/each}
               </div>
@@ -765,7 +777,9 @@
               <input type="checkbox" bind:checked={form.hide_label} disabled={!form.icon} />
               Show only the icon (the label stays its name for screen readers and on hover)
             </label>
-            <p class="sg-muted live-credit">Icons: Tabler Icons, MIT licence.</p>
+            <p class="sg-muted live-credit">
+              {pickSet === 'tabler' ? 'Tabler Icons, MIT licence (Help → Icon credits).' : 'Nerd Fonts: Material Design, Font Awesome, Codicons and more; their licences are under Help → Icon credits.'}
+            </p>
           </fieldset>
           {#if formError}<p class="error" role="alert">{formError}</p>{/if}
           <div class="row-actions">
@@ -1130,16 +1144,34 @@
   .live-send-text input {
     width: 100%;
   }
+  /* Buttons flow in order. A labelled button takes a row on the right
+     (at least 7.5rem along the top); an icon-only one is a small square,
+     so several share a row. */
   .live-grid {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: grid;
-    gap: 0.5rem;
-    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
-  .live[data-place='right'] .live-grid {
-    grid-template-columns: 1fr;
+  .live-grid > li {
+    flex: 1 1 7.5rem;
+  }
+  .live[data-place='right'] .live-grid > li {
+    flex-basis: 100%;
+  }
+  .live[data-place] .live-grid > li.live-tile {
+    flex: 0 0 2.5rem;
+  }
+  .live-tile .live-press {
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 0;
+    padding: 0;
+    justify-content: center;
+    border-left-width: 1px;
+    border-bottom: 4px solid var(--live-color, var(--sg-border));
   }
   .live-press {
     width: 100%;
@@ -1236,9 +1268,6 @@
   .live-side :global(.sg-input) {
     padding: 0.2rem 0.4rem;
     font-size: 0.9rem;
-  }
-  .live-side .live-grid {
-    gap: 0.35rem;
   }
   /* Empty notices take no room, but stay in place to be announced. */
   .live-side .saved:empty {

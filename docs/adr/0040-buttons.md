@@ -43,12 +43,15 @@ Migration `0029_button_icons.sql` adds two columns. `icon` is `''` or `tabler:NA
 - **The engine checks only the form of the name** (`^tabler:[a-z0-9]+(-[a-z0-9]+)*$`, up to 72 characters). The pack lives in the app, so the engine doesn't carry a list. A screen that doesn't know an icon shows the label, even when it's hidden, so a button never goes blank.
 - **Offline:** the pack is part of the app's build, loaded the first time a button has an icon or the editor opens. Nothing is fetched from the internet.
 - **The `tabler:` prefix** leaves room for another pack later without changing what's saved.
+- **Nerd Fonts, a second set** (added the same day, D-076): `nf:NAME`, with Nerd Fonts' own names (`md-microphone_off`, `fa-twitch`), so the name pattern also allows `nf:` with underscores. The app bundles Nerd Fonts 3.5.1's Symbols Only font, cut down by `cmd/desktop/frontend/tools/nerd-symbols.py` to Material Design, Font Awesome (and Extension), Devicons, Codicons, Octicons, Weather Icons and Linux logos: 10,709 icons, a 958 KB WOFF2 font and a 279 KB list of names, both loaded only when used. Powerline and other terminal glyphs, and Seti's file-type icons, are left out. Font Awesome's icons and Codicons are CC BY 4.0, so they're credited in Help (Icon credits) and `THIRD-PARTY-NOTICES.md`.
+- **Icon-only buttons are small squares** that share rows, in the buttons' order; a labelled button takes its own row on the right, or at least 7.5rem along the top.
 - **API and CLI:** `PUT /v1/buttons/{id}` takes `icon` and `hide_label`; `buttons set ID -icon NAME|none [-hide-label]`.
 
 ## Alternatives considered
 
 - **An icon font (Font Awesome, Material Symbols) loaded from a CDN:** it needs the internet while live, and a CDN sees every launch. Rejected.
-- **Several packs at once:** Font Awesome Free's brand icons carry a CC BY attribution licence, and Material Symbols adds 3 MB or more. One MIT pack with brand logos covers what a stream button needs; the prefix allows more later.
+- **Font Awesome or Material Symbols on their own:** Nerd Fonts already holds Font Awesome and Material Design, with their names, in one font, so it covers both. Attribution for the CC BY sets is a credit in Help and the notices file.
+- **The whole Nerd Fonts symbols font (2.5 MB TTF):** most of what's left out is for terminals.
 
 - **A button that holds steps:** a second kind of workflow, with its own editor, runs and traces. Rejected: workflows already do this, and a Stream Deck should press the same thing.
 - **Pressing by running a workflow directly:** it would bypass triggers, queues and "who can use it", and couldn't start several workflows at once. An event goes through the same path as everything else, and shows on Events.

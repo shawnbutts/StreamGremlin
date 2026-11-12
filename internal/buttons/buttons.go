@@ -54,7 +54,7 @@ var (
 var (
 	idPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	requestPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-	iconPattern    = regexp.MustCompile(`^tabler:[a-z0-9]+(-[a-z0-9]+)*$`)
+	iconPattern    = regexp.MustCompile(`^(tabler:[a-z0-9]+(-[a-z0-9]+)*|nf:[a-z0-9]+(-[a-z0-9_]+)+)$`)
 )
 
 // MaxIcon is the longest icon name.
@@ -65,8 +65,8 @@ type Button struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Color string `json:"color"`
-	// Icon is an icon from the pack the app bundles (Tabler Icons), as
-	// tabler:NAME, or "" for none. The engine checks only the form of the
+	// Icon is an icon from a set the app bundles: tabler:NAME (Tabler
+	// Icons) or nf:NAME (Nerd Fonts, like nf:md-microphone), or "" for none. The engine checks only the form of the
 	// name; a screen that doesn't know it shows the label.
 	Icon string `json:"icon"`
 	// HideLabel shows only the icon. The label is still the button's name
@@ -103,7 +103,7 @@ func (b *Button) Check() error {
 		return invalid("a button's colour is one of %s, or none", strings.Join(Colors, ", "))
 	}
 	if b.Icon != "" && (len(b.Icon) > MaxIcon || !iconPattern.MatchString(b.Icon)) {
-		return invalid("an icon is tabler:NAME, like tabler:player-pause (see tabler.io/icons)")
+		return invalid("an icon is tabler:NAME (tabler.io/icons) or nf:NAME (nerdfonts.com/cheat-sheet), like tabler:player-pause or nf:md-microphone")
 	}
 	if b.HideLabel && b.Icon == "" {
 		return invalid("only a button with an icon can hide its label")

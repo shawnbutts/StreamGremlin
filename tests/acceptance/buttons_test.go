@@ -37,10 +37,16 @@ func TestButtonsThroughTheCLI(t *testing.T) {
 	if out, _, _ := cli(t, dir, "buttons"); !strings.Contains(out, "tabler:player-pause") || !strings.Contains(out, "icon only") {
 		t.Fatalf("icon listed: %s", out)
 	}
+	if out, errOut, code := cli(t, dir, "buttons", "set", "brb", "-icon", "nf-md-microphone_off"); code != 0 || !strings.Contains(out, "Saved") {
+		t.Fatal(out, errOut)
+	}
+	if out, _, _ := cli(t, dir, "buttons"); !strings.Contains(out, "nf:md-microphone_off, icon only") {
+		t.Fatalf("nerd fonts icon listed: %s", out)
+	}
 	if out, errOut, code := cli(t, dir, "buttons", "set", "brb", "-icon", "none"); code != 0 || !strings.Contains(out, "Saved") {
 		t.Fatal(out, errOut)
 	}
-	if out, _, _ := cli(t, dir, "buttons"); strings.Contains(out, "tabler:") {
+	if out, _, _ := cli(t, dir, "buttons"); strings.Contains(out, "tabler:") || strings.Contains(out, "nf:") {
 		t.Fatalf("icon removed: %s", out)
 	}
 	if _, errOut, code := cli(t, dir, "buttons", "set", "bad", "-color", "plaid", "-label", "x"); code == 0 || !strings.Contains(errOut, "colour") {
