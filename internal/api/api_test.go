@@ -15,6 +15,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
@@ -175,10 +176,11 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	}
 	t.Cleanup(gw.Close)
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
-	return NewServer(Options{Token: testToken}, Routes(Deps{
+	cl := clients.New(db, nil, nil)
+	return NewServer(Options{Token: testToken, Clients: cl}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Moderation: moderation.New(db, tw, nil), OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: moderation.New(db, tw, nil), OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
@@ -343,10 +345,13 @@ func TestSettingsRoundTripAndValidation(t *testing.T) {
 	}
 }
 
-func TestOnlyHealthIsPublic(t *testing.T) {
+// Only the liveness check and finishing a pairing need no token
+// (ADR-0002, ADR-0042).
+func TestOnlyHealthAndPairingArePublic(t *testing.T) {
+	public := map[string]bool{"GET /v1/health": true, "POST /v1/pair": true}
 	for _, rt := range newTestServer(t).Routes() {
-		if rt.Permission == "" && rt.Path != "/v1/health" {
-			t.Errorf("%s %s has no permission", rt.Method, rt.Path)
+		if (rt.Permission == "" || rt.Public) != public[rt.Method+" "+rt.Path] {
+			t.Errorf("%s %s: public %v", rt.Method, rt.Path, rt.Public)
 		}
 	}
 }

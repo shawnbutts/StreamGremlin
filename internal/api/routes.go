@@ -10,6 +10,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
@@ -78,6 +79,8 @@ type Deps struct {
 	Rounds *rounds.Service
 	// Buttons are the streamer's buttons (D-075).
 	Buttons *buttons.Service
+	// Clients are paired programs, like the Stream Deck (ADR-0042).
+	Clients *clients.Service
 	// Moderation sends and records moderating requests (D-079).
 	Moderation *moderation.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
@@ -107,7 +110,7 @@ func Routes(d Deps) []Route {
 	}
 	return append([]Route{
 		{
-			Method: "GET", Path: "/v1/health", Summary: "Liveness check. Public; says only ok.",
+			Method: "GET", Path: "/v1/health", Summary: "Liveness check. Public; says only ok.", Public: true,
 			CLIOnly: "unauthenticated liveness probe for scripts and tests; the app uses /v1/status",
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -172,7 +175,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(chatterRoutes(d), moderationRoutes(d)...)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), clientRoutes(d)...)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

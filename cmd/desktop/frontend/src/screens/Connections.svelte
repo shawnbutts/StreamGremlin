@@ -12,6 +12,7 @@
     type TwitchStatus,
   } from '../lib/api';
   import OBSCard from './OBSCard.svelte';
+  import StreamDeckCard from './StreamDeckCard.svelte';
   import TwitchAccount from './TwitchAccount.svelte';
   import TwitchChat from './TwitchChat.svelte';
 
@@ -184,4 +185,5 @@
   {#if obs}
     <OBSCard status={obs} onchange={refresh} />
   {/if}
+  <StreamDeckCard />
 {/if}

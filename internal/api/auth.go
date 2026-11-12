@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
@@ -10,8 +11,16 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
+
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 )
+
+// ClientTokens checks a paired client's token (internal/clients).
+type ClientTokens interface {
+	Authenticate(ctx context.Context, token string) (clients.Client, bool)
+}
 
 // Permission names one thing a caller may do. Every route declares one.
 type Permission string
@@ -97,16 +106,64 @@ const (
 	// it (bans, timeouts, deleting, warnings, VIPs, moderators, chat modes).
 	PermModerationRead  Permission = "moderation.read"
 	PermModerationWrite Permission = "moderation.write"
+	// Paired clients (ADR-0042): seeing them and the pairing; starting and
+	// cancelling pairing, and forgetting a client.
+	PermClientsRead  Permission = "clients.read"
+	PermClientsWrite Permission = "clients.write"
+	// Self: who the caller is (GET /v1/whoami). Every caller has it.
+	PermSelfRead Permission = "self.read"
 )
+
+// clientPerms is what each kind of paired client may do (ADR-0042). A
+// Stream Deck reads and presses buttons; nothing else.
+var clientPerms = map[string][]Permission{
+	clients.StreamDeck: {PermSelfRead, PermButtonsRead, PermButtonsPress},
+}
 
 // Principal is an authenticated caller.
 type Principal struct {
-	Name  string
-	perms map[Permission]bool // nil means every permission
+	Name string
+	// Kind is "admin", or a paired client's kind (clients.StreamDeck).
+	Kind string
+	// ClientID is a paired client's id.
+	ClientID string
+	perms    map[Permission]bool // nil means every permission
 }
 
 // Admin is the holder of the API token: the streamer, through the app or CLI.
-var Admin = Principal{Name: "admin"}
+var Admin = Principal{Name: "admin", Kind: "admin"}
+
+// clientPrincipal is a paired client, with its kind's permissions.
+func clientPrincipal(c clients.Client) Principal {
+	p := Principal{Name: c.Name, Kind: c.Kind, ClientID: c.ID, perms: map[Permission]bool{}}
+	for _, perm := range clientPerms[c.Kind] {
+		p.perms[perm] = true
+	}
+	return p
+}
+
+// Permissions lists what p may do, sorted; nil for admin (everything).
+func (p Principal) Permissions() []string {
+	if p.perms == nil {
+		return nil
+	}
+	out := []string{}
+	for perm := range p.perms {
+		out = append(out, string(perm))
+	}
+	slices.Sort(out)
+	return out
+}
+
+type principalKey struct{}
+
+// principalOf is the request's caller; Admin when the route is public.
+func principalOf(r *http.Request) Principal {
+	if p, ok := r.Context().Value(principalKey{}).(Principal); ok {
+		return p
+	}
+	return Admin
+}
 
 // Can reports whether p holds perm. Every route's check goes through here.
 func (p Principal) Can(perm Permission) bool {

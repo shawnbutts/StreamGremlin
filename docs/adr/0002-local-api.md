@@ -49,6 +49,7 @@ The desktop app and the CLI must reach the engine through the same authenticated
 ## Consequences
 
 - The CLI and any future client follow exactly the same rules as the app.
+- Paired clients, like the Stream Deck plugin, now have their own limited tokens ([ADR-0042](0042-paired-clients.md)), and `POST /v1/pair` is the second public route.
 - Remote access (for a phone or a moderator) isn't possible until it gets its own design with TLS and roles.
 - A live-update stream, needed later for events, can't go through the asset server. It will use a loopback WebSocket with a single-use ticket fetched through the bridge, designed with the event bus slice.
 

@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 )
 
 // maxBody caps request bodies, unless a route sets its own MaxBody.
@@ -29,9 +31,11 @@ type Route struct {
 	Method  string
 	Path    string
 	Summary string
-	// Permission the caller needs. Empty means the route is public; only
-	// GET /v1/health is.
+	// Permission the caller needs. Empty only with Public.
 	Permission Permission
+	// Public routes need no token: GET /v1/health, and POST /v1/pair,
+	// which swaps a pairing code for a token (ADR-0042).
+	Public bool
 	// CLIOnly, when set, is the reason the desktop app doesn't call this
 	// route. Every other route must be called by the app (AGENTS.md).
 	CLIOnly string
@@ -42,8 +46,10 @@ type Route struct {
 
 // Options configure a Server.
 type Options struct {
-	Token  string
-	Logger *slog.Logger
+	Token string
+	// Clients checks paired clients' tokens (ADR-0042); nil when none.
+	Clients ClientTokens
+	Logger  *slog.Logger
 	// AllowedOrigins may send an Origin header. None are needed yet: the
 	// desktop app's bridge is in-process and sends no Origin.
 	AllowedOrigins []string
@@ -66,8 +72,8 @@ func NewServer(opts Options, routes []Route) *Server {
 	mux := http.NewServeMux()
 	byPath := map[string][]string{}
 	for _, rt := range routes {
-		if rt.Permission == "" && rt.Path != "/v1/health" {
-			panic("api: route " + rt.Method + " " + rt.Path + " has no permission")
+		if rt.Permission == "" && !rt.Public || rt.Permission != "" && rt.Public {
+			panic("api: route " + rt.Method + " " + rt.Path + " needs a permission, or to be public")
 		}
 		rt := rt
 		mux.HandleFunc(rt.Method+" "+rt.Path, func(w http.ResponseWriter, r *http.Request) {
@@ -146,17 +152,25 @@ func (s *Server) originAllowed(o string) bool {
 }
 
 func (s *Server) serveRoute(rt Route, w http.ResponseWriter, r *http.Request) {
-	if rt.Permission != "" {
+	if !rt.Public {
 		tok := bearer(r)
-		if tok == "" || !tokenMatches(tok, s.opts.Token) {
+		p, ok := Admin, tok != "" && tokenMatches(tok, s.opts.Token)
+		if !ok && tok != "" && s.opts.Clients != nil {
+			var c clients.Client
+			if c, ok = s.opts.Clients.Authenticate(r.Context(), tok); ok {
+				p = clientPrincipal(c)
+			}
+		}
+		if !ok {
 			w.Header().Set("WWW-Authenticate", "Bearer")
 			writeError(w, http.StatusUnauthorized, CodeUnauthorized, "missing or wrong API token")
 			return
 		}
-		if !Admin.Can(rt.Permission) {
+		if !p.Can(rt.Permission) {
 			writeError(w, http.StatusForbidden, CodeForbidden, "missing permission "+string(rt.Permission))
 			return
 		}
+		r = r.WithContext(context.WithValue(r.Context(), principalKey{}, p))
 	}
 	limit := int64(maxBody)
 	if rt.MaxBody > 0 {

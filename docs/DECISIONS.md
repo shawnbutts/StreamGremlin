@@ -1388,3 +1388,13 @@ Decided 2026-11-11. The user asked whether external sites like CommanderRoot cou
 - **Anything that can't be taken back asks first** (changed 2026-11-12). The user: "let's make sure "delete", ban, and other difficult/impossible to revert action have a confirmation. we want to protect against mis-clicks". Asking first: deleting a message (can't be put back), a timeout (the viewer and chat see it at once), a ban, a warning and a shoutout (neither can be withdrawn), and making a moderator (they can moderate before it's undone). Not asking: unban, VIP on and off, removing a moderator, Monitor, Restrict, Treat as usual, and chat modes, which are one click to undo. Buttons that ask end in "…". The command line is unchanged: typing a command is deliberate, and ban still needs `-yes`.
 - **Badges on a chat line are one letter** (changed 2026-11-12). The user: "the "moderator" label is a little big. what are the other possible labels there? could we reduce them to a single letter?" B broadcaster, M moderator, L lead moderator, V VIP, S subscriber, F founder, T Twitch staff, ✓ verified (V is VIP), A artist. The word stays on hover and for screen readers, and Help lists the letters. Test, Shared chat, Suspicious and Deleted stay words: they're about the message, not the chatter, and are rare.
 
+## D-080. Pairing the Stream Deck, and paired clients' own tokens (M7 slice 4)
+
+Decided 2026-11-12, building M7 slice 4 after the user's "proceed". It's a security design, so it's [ADR-0042](adr/0042-paired-clients.md). In short:
+
+- **The Stream Deck plugin gets its own token, not the admin one.** It can only see and press buttons (`buttons.read`, `buttons.press`, and `self.read` to check itself). It can't change anything, read other records or the engine's status, moderate or send chat. A press with its token is always recorded as from the Stream Deck.
+- **Pairing is a code shown in the app and typed into the plugin.** **Connections → Stream Deck → Pair a Stream Deck** shows a code like `K7QX-M3PA`. It works once, for 5 minutes; five wrong codes stop it. No program can start a pairing by itself.
+- **Tokens are stored only as hashes.** Paired decks are listed with when they were last used. **Forget…** (asks first) refuses the token at once.
+- **Why not the keyring in the plugin:** Elgato's current SDK keeps a user's token in the plugin's global settings, which it says users can read, and has no secrets API. Keeping the token narrow and easy to forget limits what a copied one could do.
+- **CLI:** `streamgremlin streamdeck`, `streamdeck pair`, `streamdeck forget ID`.
+

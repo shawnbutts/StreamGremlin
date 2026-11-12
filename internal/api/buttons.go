@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -165,8 +166,11 @@ func buttonRoutes(d Deps) []Route {
 				if r.ContentLength != 0 && !decodeJSON(w, r, &in) {
 					return
 				}
-				// Only a Stream Deck's own token says it's the Stream Deck.
-				if in.From != buttons.FromLive && in.From != buttons.FromCLI {
+				// Only a Stream Deck's own token says it's the Stream Deck,
+				// and it always does (ADR-0042).
+				if principalOf(r).Kind == clients.StreamDeck {
+					in.From = buttons.FromStreamDeck
+				} else if in.From != buttons.FromLive && in.From != buttons.FromCLI {
 					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli")
 					return
 				}

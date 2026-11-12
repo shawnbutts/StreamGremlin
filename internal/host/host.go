@@ -23,6 +23,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
+	"code.streamgremlin.com/streamgremlin/internal/clients"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
@@ -249,7 +250,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := mods.Recover(ctx); err != nil {
 		return nil, err
 	}
-	h.api = api.NewServer(api.Options{Token: h.token, Logger: log}, api.Routes(api.Deps{
+	paired := clients.New(h.db, nil, log)
+	h.api = api.NewServer(api.Options{Token: h.token, Clients: paired, Logger: log}, api.Routes(api.Deps{
 		DataDir:    opts.DataDir,
 		StartedAt:  startedAt,
 		DB:         h.db,
@@ -280,6 +282,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Plugins:    h.plugins,
 		Rounds:     h.rounds,
 		Buttons:    buttons.New(h.db, inbox, nil),
+		Clients:    paired,
 		Moderation: mods,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote

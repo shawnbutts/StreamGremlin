@@ -1776,3 +1776,31 @@ export const orderButtons = (order: string[]) => api<{ buttons: LiveButton[] }>(
 /** Press a button. The same requestId again is the same press. */
 export const pressButton = (id: string, requestId: string) =>
   api<PressResult>('POST', `/v1/buttons/${encodeURIComponent(id)}/press`, { request_id: requestId });
+
+// Paired clients (M7 slice 4, ADR-0042): the Stream Deck plugin pairs with
+// a code shown here, and gets its own token, which can only see and press
+// buttons.
+export interface PairedClient {
+  id: string;
+  kind: 'stream_deck';
+  name: string;
+  created_at: string;
+  last_used_at?: string;
+}
+
+export interface PairingState {
+  state: 'none' | 'waiting' | 'paired' | 'expired' | 'locked';
+  kind?: 'stream_deck';
+  /** Shown only while waiting. */
+  code?: string;
+  expires_at?: string;
+  client?: PairedClient;
+  /** Where the engine listens, for the plugin. */
+  address?: string;
+}
+
+export const getClients = () => api<{ clients: PairedClient[] }>('GET', '/v1/clients');
+export const forgetClient = (id: string) => api<void>('DELETE', `/v1/clients/${encodeURIComponent(id)}`);
+export const getPairing = () => api<PairingState>('GET', '/v1/clients/pairing');
+export const startPairing = () => api<{ code: string; expires_at: string }>('POST', '/v1/clients/pairing', { kind: 'stream_deck' });
+export const stopPairing = () => api<void>('DELETE', '/v1/clients/pairing');
