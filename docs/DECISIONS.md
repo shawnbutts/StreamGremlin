@@ -1425,3 +1425,14 @@ Decided 2026-11-12. The user passed on a streamer's request: "can we support dyn
   - **Switching screens:** each screen opens at its top.
 - **Live check passed** (2026-11-12), after the fix: "live check looks good."
 
+## D-083. The full licence list, and zod 4 in the Stream Deck plugin
+
+Decided 2026-11-12. The user: "update the license list. can we manually upgrade to a later version of zod?"
+
+- **Who it's for:** every streamer who installs StreamGremlin, and anyone redistributing it. MIT and BSD licences ask that their notice and text travel with the program.
+- **The licence list:**
+  - `THIRD-PARTY-NOTICES.md` now names every Go module built into the app or the command line on macOS, Windows or Linux: its licence, copyright, what it's used for, and which program has it. There are 28; all are MIT, BSD, ISC or Apache 2.0, plus SQLite's public domain.
+  - `THIRD-PARTY-LICENSES.txt` holds each one's licence files in full, and Go's own. It's written by `make notices` (`cmd/notices`) from what `go list` says each program is built from, and is to ship beside the app and command line in every release.
+  - `make verify` fails when the file is out of date, or when the notices miss a module. A new dependency therefore can't slip in uncredited.
+- **zod 4 in the plugin:** zod 3 had a memory-use advisory (GHSA-mrhx-c7xc-m3w5), accepted in ADR-0042 because Elgato's SDK asks for zod 3. Elgato's code turns out to use only zod 4's API (`zod/v4-mini`), which zod 4 still provides. The plugin now forces zod 4.6.7 with an npm override, and `npm audit` is clean. ADR-0042 records why that's safe and when to drop the override.
+

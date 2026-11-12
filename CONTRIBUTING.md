@@ -14,7 +14,7 @@ You need:
 
 ```sh
 make bootstrap     # pinned tools into ./bin/tools
-make verify        # lint, unit tests, acceptance tests, desktop UI checks, desktop build
+make verify        # licences, lint, unit tests, acceptance tests, desktop UI checks, desktop build
 ```
 
 ## Run it
@@ -67,4 +67,5 @@ Read [AGENTS.md](AGENTS.md). In short:
 
 - Work in thin slices. Each slice comes with its tests, its screen and its docs.
 - `make verify` must pass before every push.
+- Adding or updating a Go module: run `make notices`, and add any new module to `THIRD-PARTY-NOTICES.md`. `make verify` fails until both are done.
 - Every decision goes in [docs/DECISIONS.md](docs/DECISIONS.md).

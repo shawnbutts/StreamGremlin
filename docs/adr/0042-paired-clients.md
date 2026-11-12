@@ -97,7 +97,12 @@ It also gives the address the engine listens on, which the app shows next to the
 - **Reading:** the plugin reads the buttons every 3 seconds while any of its keys is showing, and redraws a key only when it changes (Elgato asks for few updates).
 - **Pairing from the key's settings:** type the code, optionally the address, and **Pair**. The settings page sends the code to the plugin, which calls `POST /v1/pair` with the name "Stream Deck on" and the computer's name. **Unpair this Stream Deck** drops the token here; Forget on Connections is what stops StreamGremlin knowing it.
 
-**The SDK's own dependencies.** `npm audit` flags zod 3 (GHSA-mrhx-c7xc-m3w5, memory use on oversized input), which Elgato's utilities use to check messages from the Stream Deck app itself. Nothing from viewers or the network reaches it, and forcing zod 4 under Elgato's code could break it, so it's accepted until Elgato updates.
+**The SDK's own dependencies.** `npm audit` flagged zod 3 (GHSA-mrhx-c7xc-m3w5, memory use on oversized input, fixed in zod 4.6.6), which Elgato's utilities (`@elgato/utils` 0.6.2, the newest) ask for as `^3.25.24`. Only the Stream Deck app's own messages reach it, never viewers or the network. Still, the plugin now uses **zod 4.6.7** through an npm `overrides` entry (D-083, 2026-11-12), and `npm audit` finds nothing. It's safe because:
+- Elgato's code imports only `zod/v4-mini`, a path zod 3.25 provided as a preview of zod 4, and zod 4 still provides it;
+- its message schemas, checked directly, accept and refuse the same messages under zod 4;
+- the plugin's own tests, which run Elgato's SDK against a stand-in Stream Deck and the real engine, pass.
+
+Drop the override once Elgato's SDK asks for zod 4 itself.
 
 ### Notes on the plugin's design
 

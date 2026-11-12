@@ -36,7 +36,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: windows streamdeck mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: notices notices-check windows streamdeck mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -112,7 +112,15 @@ streamdeck: node-check build ## Check, test and pack the Stream Deck plugin into
 	$(NPM_DECK) run validate
 	$(NPM_DECK) run pack
 
-verify: lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
+# THIRD-PARTY-LICENSES.txt holds the licence of every Go module built into
+# the app and CLI, on every platform; THIRD-PARTY-NOTICES.md must name each.
+notices: ## Rewrite THIRD-PARTY-LICENSES.txt after Go modules change
+	$(GO) run ./cmd/notices
+
+notices-check:
+	$(GO) run ./cmd/notices -check
+
+verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
 	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
