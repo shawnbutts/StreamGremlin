@@ -54,13 +54,24 @@ var (
 var (
 	idPattern      = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 	requestPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+	iconPattern    = regexp.MustCompile(`^tabler:[a-z0-9]+(-[a-z0-9]+)*$`)
 )
+
+// MaxIcon is the longest icon name.
+const MaxIcon = 72
 
 // Button is one button, as saved.
 type Button struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 	Color string `json:"color"`
+	// Icon is an icon from the pack the app bundles (Tabler Icons), as
+	// tabler:NAME, or "" for none. The engine checks only the form of the
+	// name; a screen that doesn't know it shows the label.
+	Icon string `json:"icon"`
+	// HideLabel shows only the icon. The label is still the button's name
+	// for screen readers and its tooltip.
+	HideLabel bool `json:"hide_label"`
 	// Position is its place on the Live screen, from 0.
 	Position  int       `json:"position"`
 	CreatedAt time.Time `json:"created_at"`
@@ -91,6 +102,12 @@ func (b *Button) Check() error {
 	if b.Color != "" && !slices.Contains(Colors, b.Color) {
 		return invalid("a button's colour is one of %s, or none", strings.Join(Colors, ", "))
 	}
+	if b.Icon != "" && (len(b.Icon) > MaxIcon || !iconPattern.MatchString(b.Icon)) {
+		return invalid("an icon is tabler:NAME, like tabler:player-pause (see tabler.io/icons)")
+	}
+	if b.HideLabel && b.Icon == "" {
+		return invalid("only a button with an icon can hide its label")
+	}
 	return nil
 }
 
@@ -109,14 +126,14 @@ func New(db *storage.DB, inbox *events.Inbox, now func() time.Time) *Service {
 	return &Service{db: db, inbox: inbox, now: now}
 }
 
-const columns = `id, label, color, position, created_at, updated_at`
+const columns = `id, label, color, icon, hide_label, position, created_at, updated_at`
 
 type scanner interface{ Scan(...any) error }
 
 func scan(s scanner) (Button, error) {
 	var b Button
 	var created, updated string
-	if err := s.Scan(&b.ID, &b.Label, &b.Color, &b.Position, &created, &updated); err != nil {
+	if err := s.Scan(&b.ID, &b.Label, &b.Color, &b.Icon, &b.HideLabel, &b.Position, &created, &updated); err != nil {
 		return Button{}, err
 	}
 	b.CreatedAt, _ = storage.ParseTimestamp(created)
@@ -154,8 +171,8 @@ func (s *Service) Get(ctx context.Context, id string) (Button, error) {
 	return b, nil
 }
 
-// Save creates a button, last in the order, or changes one's label and
-// colour, keeping its place. It answers whether it was new.
+// Save creates a button, last in the order, or changes one's label,
+// colour and icon, keeping its place. It answers whether it was new.
 func (s *Service) Save(ctx context.Context, b Button) (Button, bool, error) {
 	if err := b.Check(); err != nil {
 		return Button{}, false, err
@@ -180,11 +197,12 @@ func (s *Service) Save(ctx context.Context, b Button) (Button, bool, error) {
 		if n >= MaxButtons {
 			return Button{}, false, fmt.Errorf("%w: up to %d buttons; delete one first", ErrFull, MaxButtons)
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO buttons ("+columns+") VALUES (?, ?, ?, ?, ?, ?)", b.ID, b.Label, b.Color, next, ts, ts)
-	case old.Label == b.Label && old.Color == b.Color:
+		_, err = tx.ExecContext(ctx, "INSERT INTO buttons ("+columns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?)", b.ID, b.Label, b.Color, b.Icon, b.HideLabel, next, ts, ts)
+	case old.Label == b.Label && old.Color == b.Color && old.Icon == b.Icon && old.HideLabel == b.HideLabel:
 		return old, false, nil
 	default:
-		_, err = tx.ExecContext(ctx, "UPDATE buttons SET label = ?, color = ?, updated_at = ? WHERE id = ?", b.Label, b.Color, ts, b.ID)
+		_, err = tx.ExecContext(ctx, "UPDATE buttons SET label = ?, color = ?, icon = ?, hide_label = ?, updated_at = ? WHERE id = ?",
+			b.Label, b.Color, b.Icon, b.HideLabel, ts, b.ID)
 	}
 	if err != nil {
 		return Button{}, false, fmt.Errorf("buttons: save: %w", err)

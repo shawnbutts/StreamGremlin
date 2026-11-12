@@ -21,6 +21,8 @@ const buttonsUsage = `usage:
   streamgremlin buttons set ID [flags]   create or change one:
       -label TEXT     what it says (required for a new button)
       -color NAME     red, orange, yellow, green, teal, blue, purple, pink, or none
+      -icon NAME      an icon from tabler.io/icons, like player-pause, or none
+      -hide-label     show only the icon (-hide-label=false shows the label again)
   streamgremlin buttons move ID...       put them in this order (name every button)
   streamgremlin buttons delete ID        delete one
 
@@ -96,7 +98,15 @@ func buttonsCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		if len(b.Starts) > 0 {
 			starts = "starts " + workflowNames(b.Starts)
 		}
-		fmt.Fprintf(stdout, "%-20s %-24s %s\n", b.ID, b.Label, starts)
+		label := b.Label
+		if b.Icon != "" {
+			label += " [" + b.Icon
+			if b.HideLabel {
+				label += ", icon only"
+			}
+			label += "]"
+		}
+		fmt.Fprintf(stdout, "%-20s %-24s %s\n", b.ID, label, starts)
 	}
 	return 0
 }
@@ -106,6 +116,8 @@ func buttonSet(ctx context.Context, do func(context.Context, string, string, any
 	fs.SetOutput(stderr)
 	label := fs.String("label", "", "")
 	color := fs.String("color", "", "")
+	icon := fs.String("icon", "", "")
+	hide := fs.Bool("hide-label", false, "")
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
 		fmt.Fprintln(stderr, buttonsUsage)
 		return 2
@@ -130,6 +142,18 @@ func buttonSet(ctx context.Context, do func(context.Context, string, string, any
 		if b.Color == "none" {
 			b.Color = ""
 		}
+	}
+	if set["icon"] {
+		b.Icon = strings.TrimPrefix(*icon, "tabler:")
+		switch b.Icon {
+		case "none", "":
+			b.Icon, b.HideLabel = "", false
+		default:
+			b.Icon = "tabler:" + b.Icon
+		}
+	}
+	if set["hide-label"] {
+		b.HideLabel = *hide
 	}
 	var saved buttons.Button
 	if code := apiExit(do(ctx, "PUT", "/v1/buttons/"+url.PathEscape(id), b, &saved), stderr); code != 0 {

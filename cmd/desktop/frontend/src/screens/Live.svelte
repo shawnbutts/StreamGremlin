@@ -51,6 +51,8 @@
     suspiciousLine,
     type ChatLine, badgeLetter, confirmWords, type ConfirmWords } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
+  import Icon from '../lib/Icon.svelte';
+  import { iconName, loadIcons, searchIcons, type IconPack } from '../lib/icons';
   import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import { onOffWords } from '../lib/workflows';
@@ -103,7 +105,15 @@
   let pressed = $state('');
   let pressError = $state('');
   let editing = $state(false);
-  let form = $state<{ id?: string; label: string; color: ButtonColor } | undefined>();
+  let form = $state<{ id?: string; label: string; color: ButtonColor; icon: string; hide_label: boolean } | undefined>();
+  // Button icons: the pack loads when a button has one, or the form opens.
+  let icons = $state<IconPack | undefined>();
+  let iconQuery = $state('');
+  const iconChoices = $derived(icons ? searchIcons(icons, iconQuery, 48) : []);
+  const nodesOf = (id: string) => (icons && iconName(id) ? icons[iconName(id)] : undefined);
+  function wantIcons() {
+    if (!icons) loadIcons().then((p) => (icons = p));
+  }
   let formError = $state('');
   let saving = $state(false);
   let notice = $state('');
@@ -352,6 +362,7 @@
     try {
       const [b, w] = await Promise.all([getButtons(), getWorkflows()]);
       buttons = b.buttons;
+      if (buttons.some((x) => x.icon)) wantIcons();
       workflows = w.workflows;
       buttonsError = '';
     } catch (e) {
@@ -450,13 +461,17 @@
   }
 
   function newButton() {
-    form = { label: '', color: '' };
+    form = { label: '', color: '', icon: '', hide_label: false };
+    iconQuery = '';
+    wantIcons();
     formError = '';
     notice = '';
   }
 
   function editButton(b: LiveButton) {
-    form = { id: b.id, label: b.label, color: b.color };
+    form = { id: b.id, label: b.label, color: b.color, icon: b.icon, hide_label: b.hide_label };
+    iconQuery = '';
+    wantIcons();
     formError = '';
     notice = '';
   }
@@ -477,7 +492,7 @@
     formError = '';
     const id = form.id ?? buttonId(label, buttons.map((b) => b.id));
     try {
-      const saved = await saveButton(id, label, form.color);
+      const saved = await saveButton(id, { label, color: form.color, icon: form.icon, hide_label: !!form.icon && form.hide_label });
       const fresh = !form.id;
       form = undefined;
       await loadButtons();
@@ -660,8 +675,11 @@
                 class="live-press"
                 data-color={b.color || undefined}
                 disabled={pressing === b.id}
-                title={startsWords(b.id, workflows)}
-                onclick={() => press(b)}>{b.label}</button
+                title={b.hide_label && b.icon ? `${b.label}: ${startsWords(b.id, workflows)}` : startsWords(b.id, workflows)}
+                onclick={() => press(b)}
+                >{#if nodesOf(b.icon)}<Icon nodes={nodesOf(b.icon)!} />{/if}{#if b.hide_label && nodesOf(b.icon)}<span class="visually-hidden"
+                    >{b.label}</span
+                  >{:else}<span class="live-press-label">{b.label}</span>{/if}</button
               >
             </li>
           {/each}
@@ -673,7 +691,8 @@
           {#each buttons as b, i (b.id)}
             <li class="live-edit-item" data-color={b.color || undefined}>
               <div>
-                <strong>{b.label}</strong>
+                {#if nodesOf(b.icon)}<Icon nodes={nodesOf(b.icon)!} size={18} />{/if}
+                <strong>{b.label}</strong>{#if b.icon && b.hide_label}<span class="sg-muted"> (icon only)</span>{/if}
                 <span class="sg-muted">{colorName(b.color)}</span>
                 <p class="sg-muted live-starts">{startsWords(b.id, workflows)}</p>
               </div>
@@ -714,6 +733,40 @@
               {#each BUTTON_COLORS as c (c)}<option value={c}>{colorName(c)}</option>{/each}
             </select>
           </label>
+          <fieldset class="live-icon-field">
+            <legend>Icon</legend>
+            <p class="live-icon-now">
+              {#if form.icon}
+                {#if nodesOf(form.icon)}<Icon nodes={nodesOf(form.icon)!} />{/if}
+                <span>{iconName(form.icon) || form.icon}</span>
+                <button type="button" class="button" onclick={() => form && ((form.icon = ''), (form.hide_label = false))}>No icon</button>
+              {:else}
+                <span class="sg-muted">None</span>
+              {/if}
+            </p>
+            <label class="field">
+              <span>Find an icon</span>
+              <input class="sg-input" type="search" bind:value={iconQuery} placeholder="pause, music, twitch" autocomplete="off" />
+            </label>
+            {#if !icons}
+              <p class="sg-muted">Loading icons…</p>
+            {:else if iconChoices.length === 0}
+              <p class="sg-muted">No icon has that in its name.</p>
+            {:else}
+              <div class="live-icon-grid" role="group" aria-label="Icons">
+                {#each iconChoices as n (n)}
+                  <button type="button" aria-label={n} title={n} aria-pressed={form.icon === `tabler:${n}`}
+                    onclick={() => form && (form.icon = `tabler:${n}`)}><Icon nodes={icons[n]} /></button
+                  >
+                {/each}
+              </div>
+            {/if}
+            <label class="live-check">
+              <input type="checkbox" bind:checked={form.hide_label} disabled={!form.icon} />
+              Show only the icon (the label stays its name for screen readers and on hover)
+            </label>
+            <p class="sg-muted live-credit">Icons: Tabler Icons, MIT licence.</p>
+          </fieldset>
           {#if formError}<p class="error" role="alert">{formError}</p>{/if}
           <div class="row-actions">
             <button type="submit" class="sg-button" disabled={saving}>Save</button>
@@ -904,13 +957,10 @@
     gap: 1rem;
     align-content: start;
   }
-  .live-modes h2 {
-    margin-bottom: 0.5rem;
-  }
   .live-mode-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: 0.3rem;
   }
   .live-mode-with {
     display: flex;
@@ -998,8 +1048,12 @@
   .live-buttons-head {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .live-buttons-head h2 {
+    margin: 0;
   }
   .live-log {
     flex: 1;
@@ -1089,17 +1143,107 @@
   }
   .live-press {
     width: 100%;
-    min-height: 3rem;
+    min-height: 2.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     font: inherit;
     font-weight: 650;
     color: var(--sg-foreground);
     background: var(--sg-surface-raised);
     border: 1px solid var(--sg-border);
-    border-left: 6px solid var(--live-color, var(--sg-border));
-    border-radius: 8px;
-    padding: 0.5rem 0.75rem;
+    border-left: 5px solid var(--live-color, var(--sg-border));
+    border-radius: 6px;
+    padding: 0.3rem 0.55rem;
     cursor: pointer;
     text-align: left;
+  }
+  .live-press :global(svg) {
+    flex: none;
+  }
+  .live-press-label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .live-icon-field {
+    border: 1px solid var(--sg-border);
+    border-radius: 6px;
+    padding: 0.5rem 0.65rem;
+    margin: 0;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .live-icon-field legend {
+    padding: 0 0.25rem;
+    font-weight: 650;
+  }
+  .live-icon-now {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+  }
+  .live-icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2.1rem, 1fr));
+    gap: 0.25rem;
+    max-height: 9.5rem;
+    overflow-y: auto;
+    padding: 2px;
+  }
+  .live-icon-grid button {
+    display: grid;
+    place-items: center;
+    height: 2.1rem;
+    color: var(--sg-foreground);
+    background: var(--sg-surface-raised);
+    border: 1px solid var(--sg-border);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .live-icon-grid button:hover {
+    background: var(--sg-surface-hover);
+  }
+  .live-icon-grid button[aria-pressed='true'] {
+    border-color: var(--sg-primary);
+    box-shadow: inset 0 0 0 1px var(--sg-primary);
+  }
+  .live-check {
+    display: flex;
+    gap: 0.4rem;
+    align-items: baseline;
+  }
+  .live-credit {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  /* Compact: the panels on Live have tight padding, and the side holds
+     small controls so the buttons and chat modes fit beside chat. */
+  .live > .sg-panel,
+  .live-side > .sg-panel {
+    padding: 0.75rem 0.85rem;
+  }
+  .live-side h2 {
+    font-size: 1.05rem;
+    margin: 0 0 0.5rem;
+  }
+  .live-side :global(.button),
+  .live-side :global(.sg-button) {
+    padding: 0.25rem 0.55rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+  }
+  .live-side :global(.sg-input) {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.9rem;
+  }
+  .live-side .live-grid {
+    gap: 0.35rem;
+  }
+  /* Empty notices take no room, but stay in place to be announced. */
+  .live-side .saved:empty {
+    margin: 0;
+    min-height: 0;
   }
   .live-press:hover {
     background: var(--sg-surface-hover);

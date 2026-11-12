@@ -36,7 +36,19 @@ Deleting a button keeps the workflows that start from it; they never start from 
   - **Buttons:** right or top, saved in the appearance settings as `live_buttons`. A press says what it started. **Edit buttons** makes, changes, orders and deletes buttons, the last after asking and naming the workflows that stay. **Make a workflow** opens the editor on a starter workflow for the button.
   - **Unknown stays unknown:** when the engine stops answering, or chat's state can't be read, the screen says so instead of looking live.
 
+### Icons (added 2026-11-12, D-076)
+
+Migration `0029_button_icons.sql` adds two columns. `icon` is `''` or `tabler:NAME`, an icon from [Tabler Icons](https://tabler.io/icons) (MIT), which the app bundles: the outline pack, about 5,200 icons, including Twitch, Discord and YouTube logos. `hide_label` (0 or 1) shows only the icon, and needs one. The label stays required: it's the button's name for screen readers, its tooltip, and what a press records.
+
+- **The engine checks only the form of the name** (`^tabler:[a-z0-9]+(-[a-z0-9]+)*$`, up to 72 characters). The pack lives in the app, so the engine doesn't carry a list. A screen that doesn't know an icon shows the label, even when it's hidden, so a button never goes blank.
+- **Offline:** the pack is part of the app's build, loaded the first time a button has an icon or the editor opens. Nothing is fetched from the internet.
+- **The `tabler:` prefix** leaves room for another pack later without changing what's saved.
+- **API and CLI:** `PUT /v1/buttons/{id}` takes `icon` and `hide_label`; `buttons set ID -icon NAME|none [-hide-label]`.
+
 ## Alternatives considered
+
+- **An icon font (Font Awesome, Material Symbols) loaded from a CDN:** it needs the internet while live, and a CDN sees every launch. Rejected.
+- **Several packs at once:** Font Awesome Free's brand icons carry a CC BY attribution licence, and Material Symbols adds 3 MB or more. One MIT pack with brand logos covers what a stream button needs; the prefix allows more later.
 
 - **A button that holds steps:** a second kind of workflow, with its own editor, runs and traces. Rejected: workflows already do this, and a Stream Deck should press the same thing.
 - **Pressing by running a workflow directly:** it would bypass triggers, queues and "who can use it", and couldn't start several workflows at once. An event goes through the same path as everything else, and shows on Events.

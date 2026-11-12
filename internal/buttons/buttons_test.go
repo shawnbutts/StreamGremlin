@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +96,41 @@ func TestSaveListOrder(t *testing.T) {
 	list, _ = r.svc.List(r.ctx)
 	if got := ids(list); len(got) != 3 || got[2] != "raid" {
 		t.Fatalf("after delete, a new one still goes last: %v", got)
+	}
+}
+
+// An icon from the bundled pack, and the label hidden beside it: saved,
+// changed, cleared; a hidden label needs an icon; a bad name is refused.
+func TestIcons(t *testing.T) {
+	r := newRig(t)
+	b, _, err := r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "tabler:player-pause", HideLabel: true})
+	if err != nil || b.Icon != "tabler:player-pause" || !b.HideLabel {
+		t.Fatalf("%+v %v", b, err)
+	}
+	if got, _ := r.svc.Get(r.ctx, "brb"); got.Icon != "tabler:player-pause" || !got.HideLabel {
+		t.Fatalf("read back: %+v", got)
+	}
+	// Changing only the icon is a change.
+	if b, _, _ = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "tabler:brand-twitch", HideLabel: true}); b.Icon != "tabler:brand-twitch" {
+		t.Fatalf("icon changed: %+v", b)
+	}
+	if b, _, _ = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back", Icon: "tabler:brand-twitch"}); b.HideLabel {
+		t.Fatalf("label shown again: %+v", b)
+	}
+	if b, _, _ = r.svc.Save(r.ctx, Button{ID: "brb", Label: "Be right back"}); b.Icon != "" {
+		t.Fatalf("icon cleared: %+v", b)
+	}
+	for _, bad := range []Button{
+		{ID: "x", Label: "x", HideLabel: true},
+		{ID: "x", Label: "x", Icon: "player-pause"},
+		{ID: "x", Label: "x", Icon: "fa:star"},
+		{ID: "x", Label: "x", Icon: "tabler:Star"},
+		{ID: "x", Label: "x", Icon: "tabler:../star"},
+		{ID: "x", Label: "x", Icon: "tabler:" + strings.Repeat("a", 80)},
+	} {
+		if _, _, err := r.svc.Save(r.ctx, bad); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%+v: %v", bad, err)
+		}
 	}
 }
 

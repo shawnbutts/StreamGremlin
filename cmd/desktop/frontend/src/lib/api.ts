@@ -1749,6 +1749,10 @@ export interface LiveButton {
   id: string;
   label: string;
   color: ButtonColor;
+  /** An icon from the bundled pack, as tabler:NAME, or '' for none. */
+  icon: string;
+  /** Only the icon shows; the label is still its name. */
+  hide_label: boolean;
   position: number;
   created_at: string;
   updated_at: string;
@@ -1765,8 +1769,8 @@ export interface PressResult {
 }
 
 export const getButtons = () => api<{ buttons: LiveButton[] }>('GET', '/v1/buttons');
-export const saveButton = (id: string, label: string, color: ButtonColor) =>
-  api<Omit<LiveButton, 'starts'>>('PUT', `/v1/buttons/${encodeURIComponent(id)}`, { label, color });
+export const saveButton = (id: string, b: { label: string; color: ButtonColor; icon: string; hide_label: boolean }) =>
+  api<Omit<LiveButton, 'starts'>>('PUT', `/v1/buttons/${encodeURIComponent(id)}`, b);
 export const deleteButton = (id: string) => api<void>('DELETE', `/v1/buttons/${encodeURIComponent(id)}`);
 export const orderButtons = (order: string[]) => api<{ buttons: LiveButton[] }>('PUT', '/v1/button-order', { order });
 /** Press a button. The same requestId again is the same press. */

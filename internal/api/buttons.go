@@ -84,8 +84,8 @@ func buttonRoutes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/buttons/{id}",
-			Summary: "Create a button, last in the order, or change one: {label, color}. Colors: red, orange, yellow, green, teal, " +
-				"blue, purple, pink, or \"\". Repeating a request is harmless.",
+			Summary: "Create a button, last in the order, or change one: {label, color, icon?, hide_label?}. Colors: red, orange, yellow, green, teal, " +
+				"blue, purple, pink, or \"\". icon is tabler:NAME or \"\"; hide_label shows only the icon. Repeating a request is harmless.",
 			Permission: PermButtonsWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				var in buttons.Button

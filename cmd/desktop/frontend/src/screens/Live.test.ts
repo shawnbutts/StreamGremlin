@@ -49,8 +49,8 @@ const chat = (seq: number, name: string, text: string, extra: Record<string, unk
 const modesOff = { emote_mode: false, follower_mode: false, follower_mode_duration: null, slow_mode: false, slow_mode_wait_time: null,
   subscriber_mode: false, unique_chat_mode: false };
 
-const brb: LiveButton = { id: 'brb', label: 'Be right back', color: 'blue', position: 0, created_at: now, updated_at: now, starts: [] };
-const hype: LiveButton = { id: 'hype', label: 'Hype!', color: '', position: 1, created_at: now, updated_at: now, starts: [] };
+const brb: LiveButton = { id: 'brb', label: 'Be right back', color: 'blue', icon: '', hide_label: false, position: 0, created_at: now, updated_at: now, starts: [] };
+const hype: LiveButton = { id: 'hype', label: 'Hype!', color: '', icon: '', hide_label: false, position: 1, created_at: now, updated_at: now, starts: [] };
 const brbFlow: WorkflowSummary = {
   id: 'live.brb', name: 'Be right back scene', enabled: true, running: true, version: 1, updated_at: now,
   triggers: [{ type: 'buttons.button.pressed', where: { button_id: 'brb' } }],
@@ -217,7 +217,7 @@ describe('Live', () => {
     button(form, 'Save')!.click();
     await settle();
     const put = calls.find((c) => c.method === 'PUT' && c.path === '/v1/buttons/raid-out')!;
-    expect(put.body).toEqual({ label: 'Raid out!', color: 'purple' });
+    expect(put.body).toEqual({ label: 'Raid out!', color: 'purple', icon: '', hide_label: false });
     expect(el.textContent).toContain('Saved “Raid out!”. No workflow starts from it yet');
 
     el.querySelector<HTMLButtonElement>('button[aria-label="Move “Raid out!” earlier"]')!.click();
@@ -235,6 +235,56 @@ describe('Live', () => {
     await settle();
     expect(calls.some((c) => c.method === 'DELETE' && c.path === '/v1/buttons/brb')).toBe(true);
     expect(el.textContent).toContain('Deleted “Be right back”.');
+  });
+
+  it('gives a button an icon, and can hide its label', async () => {
+    const { calls } = engine();
+    const el = start();
+    await settle();
+    button(el, 'Edit buttons')!.click();
+    flushSync();
+    const item = Array.from(el.querySelectorAll<HTMLElement>('.live-edit-item')).find((li) => li.textContent?.includes('Be right back'))!;
+    button(item, 'Edit')!.click();
+    await settle(30);
+    const form = el.querySelector<HTMLFormElement>('form[aria-label="Change a button"]')!;
+    const only = form.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    expect(only.disabled).toBe(true); // no icon yet
+    // Suggestions before any search; a search narrows them.
+    const choices = () => Array.from(form.querySelectorAll<HTMLButtonElement>('.live-icon-grid button'));
+    expect(choices().length).toBeGreaterThan(5);
+    setValue(form.querySelector<HTMLInputElement>('input[type="search"]')!, 'player pause');
+    await settle(10);
+    const pause = choices().find((b) => b.getAttribute('aria-label') === 'player-pause')!;
+    expect(pause).toBeTruthy();
+    expect(choices().every((b) => b.getAttribute('aria-label')!.includes('pause'))).toBe(true);
+    pause.click();
+    flushSync();
+    expect(pause.getAttribute('aria-pressed')).toBe('true');
+    expect(only.disabled).toBe(false);
+    only.click();
+    flushSync();
+    button(form, 'Save')!.click();
+    await settle();
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/v1/buttons/brb')!;
+    expect(put.body).toEqual({ label: 'Be right back', color: 'blue', icon: 'tabler:player-pause', hide_label: true });
+    // On the screen: the icon only, with the label still its name.
+    button(el, 'Done')!.click();
+    await settle(30);
+    const press = el.querySelector<HTMLButtonElement>('.live-press')!;
+    expect(press.querySelector('svg')).toBeTruthy();
+    expect(press.querySelector('.visually-hidden')!.textContent).toBe('Be right back');
+    expect(press.title).toContain('Be right back');
+    await noViolations('icon buttons');
+  });
+
+  it('shows the label when an icon isn’t known, even if hidden', async () => {
+    engine({ buttons: [{ ...brb, icon: 'tabler:no-such-icon-anywhere', hide_label: true }] });
+    const el = start();
+    await settle(60);
+    const press = el.querySelector<HTMLButtonElement>('.live-press')!;
+    expect(press.querySelector('svg')).toBeNull();
+    expect(press.querySelector('.visually-hidden')).toBeNull();
+    expect(press.textContent).toContain('Be right back');
   });
 
   it('opens the editor on a workflow for a button, with the button picked', async () => {
