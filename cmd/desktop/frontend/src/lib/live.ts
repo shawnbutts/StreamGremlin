@@ -1,7 +1,7 @@
 // The Live screen's parts in words (D-075): chat lines from chat events,
 // buttons' ids, and which workflows start from a button.
 import { SCHEMA, type Def } from './editor';
-import type { ChatModes, ChatterCard, EventRecord, ModRecord, Suspicion, TwitchCard, WorkflowSummary } from './api';
+import type { ChatModes, ChatterCard, EventRecord, ModAction, ModRecord, Suspicion, TwitchCard, WorkflowSummary } from './api';
 
 export const BUTTON_PRESSED = 'buttons.button.pressed';
 export const CHAT_MESSAGE = 'chat.message.received';
@@ -248,6 +248,47 @@ export function lengthWords(seconds: number): string {
 
 /** The timeouts offered, shortest first. */
 export const TIMEOUTS = [60, 600, 3600, 86400, 604800];
+
+/** The question asked before an action. */
+export type ConfirmWords = { title: string; message: string; confirmLabel: string };
+
+const quote = (t: string) => `“${t.length > 80 ? `${t.slice(0, 79)}…` : t}”`;
+
+/**
+ * The question to ask before a moderating action that can't be taken back,
+ * or would do harm before it could be: deleting, timing out, banning,
+ * warning, a shoutout, and making a moderator. Undefined for the rest,
+ * which are easy to undo, so a mis-click costs nothing.
+ */
+export function confirmWords(
+  action: ModAction,
+  name: string,
+  o: { seconds?: number; reason?: string; text?: string } = {},
+): ConfirmWords | undefined {
+  const why = o.reason?.trim() ? ` Reason: ${quote(o.reason.trim())}.` : '';
+  switch (action) {
+    case 'delete':
+      return { title: `Delete ${name}’s message?`, confirmLabel: 'Delete',
+        message: `${o.text ? `${quote(o.text)} is` : 'It’s'} removed from Twitch chat for everyone. It can’t be put back.` };
+    case 'timeout': {
+      const len = lengthWords(o.seconds ?? 0);
+      return { title: `Time out ${name} for ${len}?`, confirmLabel: 'Time out',
+        message: `${name} can’t chat for ${len}, and Twitch chat shows it. Unban on their card lifts it early.${why}` };
+    }
+    case 'ban':
+      return { title: `Ban ${name}?`, confirmLabel: 'Ban', message: `${name} can’t chat until you unban them.${why}` };
+    case 'warn':
+      return { title: `Warn ${name}?`, confirmLabel: 'Warn',
+        message: `Twitch shows ${name} the warning, and they can’t chat until they acknowledge it. It can’t be taken back.${why}` };
+    case 'shoutout':
+      return { title: `Shout out ${name}?`, confirmLabel: 'Shout out',
+        message: `Twitch posts a shoutout to ${name} in your chat. It can’t be taken back, and Twitch allows only one every 2 minutes.` };
+    case 'mod':
+      return { title: `Make ${name} a moderator?`, confirmLabel: 'Make moderator',
+        message: `${name} can then delete messages, time out and ban in your chat. Remove moderator takes it away again.` };
+  }
+  return undefined;
+}
 
 const doneWords: Record<string, (name: string, r: ModRecord) => string> = {
   delete: () => 'Deleted the message.',

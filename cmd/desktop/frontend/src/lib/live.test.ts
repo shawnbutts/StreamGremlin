@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buttonId, chatLine, historyWords, lengthWords, modWords, modesWords, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, suspicionRow, suspicionWords, suspiciousLine, twitchRows, badgeLetter } from './live';
+import { buttonId, chatLine, historyWords, lengthWords, modWords, modesWords, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, suspicionRow, suspicionWords, suspiciousLine, twitchRows, badgeLetter, confirmWords } from './live';
 import type { ChatterCard, EventRecord, ModRecord, TwitchCard, WorkflowSummary } from './api';
 
 const ev = (payload: Record<string, unknown>, extra: Partial<EventRecord> = {}): EventRecord => ({
@@ -18,6 +18,29 @@ const ev = (payload: Record<string, unknown>, extra: Partial<EventRecord> = {}):
 
 const wf = (id: string, name: string, where: Record<string, unknown> | undefined, running = true): WorkflowSummary => ({
   id, name, enabled: running, running, version: 1, updated_at: '', triggers: [{ type: 'buttons.button.pressed', where }],
+});
+
+describe('confirmWords', () => {
+  it('asks first for what can’t be taken back, and not for what can', () => {
+    const asks = (['delete', 'timeout', 'ban', 'warn', 'shoutout', 'mod'] as const).map((a) => confirmWords(a, 'Fan', { seconds: 600, reason: 'spam', text: 'buy followers' }));
+    for (const w of asks) {
+      expect(w).toBeDefined();
+      expect(w!.title).toMatch(/\?$/);
+    }
+    expect(asks[0]).toMatchObject({ title: 'Delete Fan’s message?', confirmLabel: 'Delete' });
+    expect(asks[0]!.message).toContain('“buy followers”');
+    expect(asks[0]!.message).toContain('can’t be put back');
+    expect(asks[1]).toMatchObject({ title: 'Time out Fan for 10 minutes?', confirmLabel: 'Time out' });
+    expect(asks[1]!.message).toContain('Reason: “spam”');
+    expect(asks[2]).toMatchObject({ title: 'Ban Fan?', confirmLabel: 'Ban' });
+    expect(asks[3]).toMatchObject({ title: 'Warn Fan?', confirmLabel: 'Warn' });
+    expect(asks[3]!.message).toContain('can’t be taken back');
+    expect(asks[4]).toMatchObject({ title: 'Shout out Fan?', confirmLabel: 'Shout out' });
+    expect(asks[5]).toMatchObject({ title: 'Make Fan a moderator?', confirmLabel: 'Make moderator' });
+    for (const a of ['unban', 'vip', 'unvip', 'unmod', 'monitor', 'restrict', 'unsuspect'] as const) expect(confirmWords(a, 'Fan')).toBeUndefined();
+    // A long message is shortened in the question.
+    expect(confirmWords('delete', 'Fan', { text: 'x'.repeat(300) })!.message.length).toBeLessThan(200);
+  });
 });
 
 describe('badgeLetter', () => {

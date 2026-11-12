@@ -408,27 +408,45 @@ describe('Live moderating', () => {
     flushSync();
     expect(gear.getAttribute('aria-expanded')).toBe('true');
     expect(Array.from(menu()!.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim())).toEqual([
-      'Delete message',
-      'Time out 10 minutes',
+      'Delete message…',
+      'Time out 10 minutes…',
       'Ban…',
       'More in their card…',
     ]);
     await noViolations('gear menu');
-    item('Time out 10 minutes').click();
-    await settle(20);
+    item('Time out 10 minutes…').click();
+    flushSync();
     expect(menu()).toBeNull(); // choosing closes it
+    // It asks first; Cancel sends nothing.
+    const ask = () => document.querySelector<HTMLElement>('[role="alertdialog"]');
+    expect(ask()!.textContent).toContain('Time out Fan for 10 minutes?');
+    button(ask()!, 'Cancel')!.click();
+    flushSync();
+    expect(ask()).toBeNull();
+    expect(posts(calls)).toHaveLength(0);
+    gear.click();
+    flushSync();
+    item('Time out 10 minutes…').click();
+    flushSync();
+    button(ask()!, 'Time out')!.click();
+    await settle(20);
     expect(posts(calls)[0]).toMatchObject({ action: 'timeout', seconds: 600, user_id: 'u3', login: 'fan', platform: 'twitch', from: 'live' });
     expect(el.textContent).toContain('Timed out Fan for 10 minutes.');
     gear.click();
     flushSync();
-    item('Delete message').click();
+    item('Delete message…').click();
+    flushSync();
+    expect(posts(calls)).toHaveLength(1);
+    expect(ask()!.textContent).toContain('Delete Fan’s message?');
+    expect(ask()!.textContent).toContain('“buy followers”');
+    button(ask()!, 'Delete')!.click();
     await settle(20);
     expect(posts(calls)[1]).toMatchObject({ action: 'delete', message_id: 'm3' });
     expect(lineOf('Fan').textContent).toContain('Deleted');
     // A deleted line keeps its gear, without Delete.
     lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click();
     flushSync();
-    expect(Array.from(menu()!.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim())).not.toContain('Delete message');
+    expect(Array.from(menu()!.querySelectorAll('[role="menuitem"]')).map((b) => b.textContent?.trim())).not.toContain('Delete message…');
     lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click(); // the gear again closes it
     flushSync();
     expect(menu()).toBeNull();
@@ -567,14 +585,21 @@ describe('Live moderating', () => {
     expect(dlg.textContent).toContain('Possible ban evader, monitored');
     expect(dlg.textContent).toContain('Warn (“be nice”)');
     await noViolations('card with moderating');
-    button(dlg, 'Warn')!.click();
+    button(dlg, 'Warn…')!.click();
     await settle(10);
     expect(dlg.textContent).toContain('A warning needs a reason');
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull(); // nothing to ask about yet
     expect(posts(calls)).toHaveLength(0);
     const reason = dlg.querySelector<HTMLInputElement>('input')!;
     setValue(reason, 'calm down');
     setValue(dlg.querySelector<HTMLSelectElement>('select')!, '3600');
-    button(dlg, 'Time out')!.click();
+    button(dlg, 'Time out…')!.click();
+    flushSync();
+    expect(posts(calls)).toHaveLength(0);
+    const ask = () => document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    expect(ask().textContent).toContain('Time out Fan for 1 hour?');
+    expect(ask().textContent).toContain('Reason: “calm down”');
+    button(ask(), 'Time out')!.click();
     await settle(30);
     expect(posts(calls)[0]).toMatchObject({ action: 'timeout', seconds: 3600, reason: 'calm down', user_id: 'u3' });
     expect(dlg.textContent).toContain('Timed out Fan for 1 hour.');
@@ -586,8 +611,32 @@ describe('Live moderating', () => {
     button(confirm, 'Ban')!.click();
     await settle(30);
     expect(posts(calls)[1]).toMatchObject({ action: 'ban' });
+    // Easy to undo: no question.
     button(document.querySelector('.viewer-card')!, 'Restrict')!.click();
     await settle(30);
     expect(posts(calls)[2]).toMatchObject({ action: 'restrict' });
+    button(document.querySelector('.viewer-card')!, 'Make VIP')!.click();
+    await settle(30);
+    expect(posts(calls)[3]).toMatchObject({ action: 'vip' });
+    // Hard to undo: each asks, and Cancel sends nothing.
+    for (const [label, title, confirm, action] of [
+      ['Warn…', 'Warn Fan?', 'Warn', 'warn'],
+      ['Shoutout…', 'Shout out Fan?', 'Shout out', 'shoutout'],
+      ['Make moderator…', 'Make Fan a moderator?', 'Make moderator', 'mod'],
+    ]) {
+      const before = posts(calls).length;
+      setValue(document.querySelector<HTMLInputElement>('.viewer-card input')!, 'be kind');
+      button(document.querySelector('.viewer-card')!, label)!.click();
+      flushSync();
+      expect(ask().textContent).toContain(title);
+      button(ask(), 'Cancel')!.click();
+      flushSync();
+      expect(posts(calls)).toHaveLength(before);
+      button(document.querySelector('.viewer-card')!, label)!.click();
+      flushSync();
+      button(ask(), confirm)!.click();
+      await settle(30);
+      expect(posts(calls)[before]).toMatchObject({ action });
+    }
   });
 });

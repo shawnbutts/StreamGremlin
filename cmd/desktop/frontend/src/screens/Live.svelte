@@ -49,7 +49,7 @@
     startsWords,
     starterWorkflow,
     suspiciousLine,
-    type ChatLine, badgeLetter } from '../lib/live';
+    type ChatLine, badgeLetter, confirmWords, type ConfirmWords } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
@@ -178,7 +178,14 @@
   // ban (asked first). The card has the rest.
   let modNotice = $state('');
   let modProblem = $state('');
-  let confirmBan = $state<ChatLine | undefined>();
+  // Actions that can't be taken back ask first (confirmWords).
+  let asking = $state<{ line: ChatLine; action: ModAction; extra: { seconds?: number; message_id?: string }; words: ConfirmWords } | undefined>();
+
+  function askThen(l: ChatLine, action: ModAction, extra: { seconds?: number; message_id?: string } = {}) {
+    const words = confirmWords(action, l.name, { seconds: extra.seconds, text: action === 'delete' ? l.text : undefined });
+    if (words) asking = { line: l, action, extra, words };
+    else moderateLine(l, action, extra);
+  }
   const canModerate = (l: ChatLine) => youIn && !l.test && !!l.userId && l.userId !== twitch?.streamer.user_id;
 
   // The gear beside a name opens a small menu of quick actions, so they
@@ -790,32 +797,32 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="live-gear-menu" role="menu" aria-label={`Moderate ${l.name}`} style={gearStyle(gearMenu.anchor)} bind:this={menuEl} onkeydown={gearKey} tabindex="-1">
     {#if l.messageId && !l.deleted}
-      <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => moderateLine(l, 'delete', { message_id: l.messageId }))}
-        >Delete message</button
+      <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => askThen(l, 'delete', { message_id: l.messageId }))}
+        >Delete message…</button
       >
     {/if}
-    <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => moderateLine(l, 'timeout', { seconds: 600 }))}
-      >Time out 10 minutes</button
+    <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick((l) => askThen(l, 'timeout', { seconds: 600 }))}
+      >Time out 10 minutes…</button
     >
-    <button type="button" role="menuitem" tabindex="-1" class="live-gear-danger" onclick={() => gearPick((l) => (confirmBan = l))}>Ban…</button>
+    <button type="button" role="menuitem" tabindex="-1" class="live-gear-danger" onclick={() => gearPick((l) => askThen(l, 'ban'))}>Ban…</button>
     <button type="button" role="menuitem" tabindex="-1" onclick={() => gearPick(openCard)}
       >More in their card…</button
     >
   </div>
 {/if}
 
-{#if confirmBan}
-  {@const who = confirmBan}
+{#if asking}
+  {@const q = asking}
   <ConfirmDialog
-    title={`Ban ${who.name}?`}
-    message={`${who.name} can’t chat until you unban them. To give a reason, use their card (click their name).`}
-    confirmLabel="Ban"
+    title={q.words.title}
+    message={q.action === 'ban' ? `${q.words.message} To give a reason, use their card (click their name).` : q.words.message}
+    confirmLabel={q.words.confirmLabel}
     onconfirm={() => {
-      const l = who;
-      confirmBan = undefined;
-      moderateLine(l, 'ban');
+      const { line, action, extra } = q; // read before closing clears it
+      asking = undefined;
+      moderateLine(line, action, extra);
     }}
-    oncancel={() => (confirmBan = undefined)}
+    oncancel={() => (asking = undefined)}
   />
 {/if}
 

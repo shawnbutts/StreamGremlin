@@ -20,6 +20,7 @@
   import {
     TIMEOUTS,
     chatLine,
+    confirmWords,
     historyWords,
     lengthWords,
     modWords,
@@ -28,6 +29,7 @@
     suspicionRow,
     twitchRows,
     type ChatLine,
+    type ConfirmWords,
   } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
 
@@ -62,7 +64,14 @@
   let modProblem = $state('');
   let seconds = $state(600);
   let reason = $state('');
-  let confirmBan = $state(false);
+  // Actions that can't be taken back ask first (confirmWords).
+  let asking = $state<{ action: ModAction; extra: { seconds?: number; reason?: string }; words: ConfirmWords } | undefined>();
+
+  function askThen(action: ModAction, extra: { seconds?: number; reason?: string } = {}) {
+    const words = confirmWords(action, line.name, extra);
+    if (words) asking = { action, extra, words };
+    else act(action, extra);
+  }
 
   async function act(action: ModAction, extra: { seconds?: number; reason?: string } = {}) {
     busy = true;
@@ -89,7 +98,7 @@
       modProblem = 'A warning needs a reason: type it in Reason.';
       return;
     }
-    act('warn', { reason: reason.trim() });
+    askThen('warn', { reason: reason.trim() });
   }
 
   let card = $state<ChatterCard | undefined>();
@@ -209,13 +218,13 @@
               {#each TIMEOUTS as t (t)}<option value={t}>{lengthWords(t)}</option>{/each}
             </select>
           </label>
-          <button type="button" class="button" disabled={busy} onclick={() => act('timeout', { seconds, reason: reason.trim() || undefined })}>Time out</button>
+          <button type="button" class="button" disabled={busy} onclick={() => askThen('timeout', { seconds, reason: reason.trim() || undefined })}>Time out…</button>
           {#if tw.ban?.banned}
             <button type="button" class="button" disabled={busy} onclick={() => act('unban')}>Unban</button>
           {:else}
-            <button type="button" class="button button-danger" disabled={busy} onclick={() => (confirmBan = true)}>Ban…</button>
+            <button type="button" class="button button-danger" disabled={busy} onclick={() => askThen('ban', { reason: reason.trim() || undefined })}>Ban…</button>
           {/if}
-          <button type="button" class="button" disabled={busy} onclick={warn}>Warn</button>
+          <button type="button" class="button" disabled={busy} onclick={warn}>Warn…</button>
         </div>
         <div class="row-actions">
           {#if tw.vip}
@@ -226,9 +235,9 @@
           {#if tw.moderator}
             <button type="button" class="button" disabled={busy} onclick={() => act('unmod')}>Remove moderator</button>
           {:else}
-            <button type="button" class="button" disabled={busy} onclick={() => act('mod')}>Make moderator</button>
+            <button type="button" class="button" disabled={busy} onclick={() => askThen('mod')}>Make moderator…</button>
           {/if}
-          <button type="button" class="button" disabled={busy} onclick={() => act('shoutout')}>Shoutout</button>
+          <button type="button" class="button" disabled={busy} onclick={() => askThen('shoutout')}>Shoutout…</button>
         </div>
         <div class="row-actions" role="group" aria-label="How Twitch treats them as a suspicious user">
           <button type="button" class="button" disabled={busy} onclick={() => act('monitor')}>Monitor</button>
@@ -262,16 +271,18 @@
   {/if}
 </div>
 
-{#if confirmBan}
+{#if asking}
+  {@const q = asking}
   <ConfirmDialog
-    title={`Ban ${line.name}?`}
-    message={`${line.name} can’t chat until you unban them.${reason.trim() ? ` Reason: “${reason.trim()}”.` : ''}`}
-    confirmLabel="Ban"
+    title={q.words.title}
+    message={q.words.message}
+    confirmLabel={q.words.confirmLabel}
     onconfirm={() => {
-      confirmBan = false;
-      act('ban', { reason: reason.trim() || undefined });
+      const { action, extra } = q; // read before closing clears it
+      asking = undefined;
+      act(action, extra);
     }}
-    oncancel={() => (confirmBan = false)}
+    oncancel={() => (asking = undefined)}
   />
 {/if}
 
