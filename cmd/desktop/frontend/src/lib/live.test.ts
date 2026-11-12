@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buttonId, chatLine, historyWords, lengthWords, modWords, modesWords, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, suspicionRow, suspicionWords, suspiciousLine, twitchRows } from './live';
+import { buttonId, chatLine, historyWords, lengthWords, modWords, modesWords, pressWords, recordWords, since, startsFrom, startsWords, starterWorkflow, suspicionRow, suspicionWords, suspiciousLine, twitchRows, badgeLetter } from './live';
 import type { ChatterCard, EventRecord, ModRecord, TwitchCard, WorkflowSummary } from './api';
 
 const ev = (payload: Record<string, unknown>, extra: Partial<EventRecord> = {}): EventRecord => ({
@@ -18,6 +18,16 @@ const ev = (payload: Record<string, unknown>, extra: Partial<EventRecord> = {}):
 
 const wf = (id: string, name: string, where: Record<string, unknown> | undefined, running = true): WorkflowSummary => ({
   id, name, enabled: running, running, version: 1, updated_at: '', triggers: [{ type: 'buttons.button.pressed', where }],
+});
+
+describe('badgeLetter', () => {
+  it('gives each badge its own letter', () => {
+    const words = ['Broadcaster', 'Moderator', 'Lead moderator', 'VIP', 'Subscriber', 'Founder', 'Twitch staff', 'Verified', 'Artist'];
+    const letters = words.map(badgeLetter);
+    expect(letters).toEqual(['B', 'M', 'L', 'V', 'S', 'F', 'T', '✓', 'A']);
+    expect(new Set(letters).size).toBe(words.length); // never two alike
+    expect(badgeLetter('Something new')).toBe('Something new'); // unknown stays a word
+  });
 });
 
 describe('chatLine', () => {

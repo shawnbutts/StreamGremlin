@@ -46,7 +46,8 @@
       The screen for while you’re live: your Twitch chat in the middle, with a box to send as you or the bot, and your buttons
       beside it or along the top (Buttons: Right or Top). A button runs the workflows that start from it, with the trigger “You
       press a button”: a scene, a sound, a message. <strong>Edit buttons</strong> makes, orders and deletes them, and “Make a
-      workflow” gives a new one something to do. A button press has no viewer behind it, like a timer. Rest the pointer on a
+      workflow” gives a new one something to do. Badges in chat are one letter (rest the pointer on one for the word): B
+      broadcaster, M moderator, L lead moderator, V VIP, S subscriber, F founder, T Twitch staff, ✓ verified, A artist. A button press has no viewer behind it, like a timer. Rest the pointer on a
       chatter’s name, or click it, for their card: what Twitch says about them now (following, subscribed, VIP, moderator,
       banned) and what StreamGremlin knows (points, recent messages). Anything Twitch didn’t give says unknown, never no.
       The card also moderates: time out (with a reason if you like), ban (it asks first), unban, warn, shoutout, VIP and

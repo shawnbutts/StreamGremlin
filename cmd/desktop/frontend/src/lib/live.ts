@@ -41,6 +41,25 @@ const badgeWords: Record<string, string> = {
   artist: 'Artist',
 };
 
+// One letter per badge on a chat line, to keep lines short; the word
+// stays for screen readers and on hover. Verified is a tick, since V is VIP.
+const badgeLetters: Record<string, string> = {
+  Broadcaster: 'B',
+  Moderator: 'M',
+  'Lead moderator': 'L',
+  VIP: 'V',
+  Subscriber: 'S',
+  Founder: 'F',
+  'Twitch staff': 'T',
+  Verified: '✓',
+  Artist: 'A',
+};
+
+/** A badge's letter on a chat line; a badge without one stays a word. */
+export function badgeLetter(word: string): string {
+  return badgeLetters[word] ?? word;
+}
+
 /** A chat event as a line on the Live screen. */
 export function chatLine(ev: EventRecord): ChatLine {
   const p = ev.payload ?? {};

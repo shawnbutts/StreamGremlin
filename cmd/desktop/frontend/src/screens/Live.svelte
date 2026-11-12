@@ -49,8 +49,7 @@
     startsWords,
     starterWorkflow,
     suspiciousLine,
-    type ChatLine,
-  } from '../lib/live';
+    type ChatLine, badgeLetter } from '../lib/live';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
   import ViewerCard from './ViewerCard.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
@@ -593,7 +592,7 @@
                 aria-haspopup="menu"
                 aria-expanded={gearMenu?.line.seq === l.seq}
                 onclick={(e) => toggleGear(l, e.currentTarget)}><span aria-hidden="true">⚙&#xFE0E;</span></button
-              >{/if}{#each l.badges as b (b)}<span class="live-badge">{b}</span>{/each}{#if l.test}<span
+              >{/if}{#each l.badges as b (b)}<span class="live-badge live-role" title={b}><span aria-hidden="true">{badgeLetter(b)}</span><span class="visually-hidden">{b}</span></span>{/each}{#if l.test}<span
                 class="live-badge">Test</span
               >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}{#if l.suspicious}<span
                 class="live-badge live-suspicious">Suspicious: {l.suspicious}</span
@@ -1044,6 +1043,14 @@
     padding: 0 0.3rem;
     margin-left: 0.3rem;
     color: var(--sg-muted);
+  }
+  .live-role {
+    display: inline-block;
+    min-width: 1.1rem;
+    text-align: center;
+    font-weight: 650;
+    padding: 0 0.15rem;
+    cursor: default;
   }
   .live-more {
     align-self: center;

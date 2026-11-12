@@ -132,7 +132,10 @@ describe('Live', () => {
     await settle(120);
     const log = el.querySelector('[role="log"]')!;
     expect(log.textContent).toContain('Fan');
-    expect(log.textContent).toContain('Moderator');
+    // A badge is one letter, with the word for screen readers and on hover.
+    const badge = log.querySelector<HTMLElement>('.live-badge[title="Moderator"]')!;
+    expect(badge.querySelector('[aria-hidden="true"]')!.textContent).toBe('M');
+    expect(badge.querySelector('.visually-hidden')!.textContent).toBe('Moderator');
     expect(log.textContent).toContain(': hello there');
     expect(log.textContent).toContain('second!');
     expect(log.textContent).toContain('Test'); // a test event is marked
