@@ -82,7 +82,23 @@ It also gives the address the engine listens on, which the app shows next to the
 - **Logged:** pairing started; a client paired (id, kind, name); a wrong code (count only); a client forgotten.
 - **Never logged:** the code or a token. An acceptance test checks both against the engine's log and stderr.
 
-### For the plugin (slice 5)
+### The plugin (slice 5, as built)
+
+`streamdeck/` holds the plugin: TypeScript on Elgato's SDK 3.0.4, bundled by esbuild into `com.streamgremlin.streamdeck.sdPlugin`, and packed by Elgato's CLI into `bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin`. The same file installs on macOS and Windows with a double-click. It needs Stream Deck 7.1 and runs on Stream Deck's Node 24.
+
+- **One action, Press a button:** a key presses one StreamGremlin button, picked from a list in its settings. There is no separate "run a workflow" action: a deck token can't reach workflows (above), and a button already runs the workflows that start from it (ADR-0040).
+- **What a key shows:** the button's colour as a strip, its Tabler icon in white, and its label as the title, unless the label is hidden. Nerd Fonts icons need a font Stream Deck doesn't have, so those keys show the label. A key is dimmed when its button starts nothing that's on.
+- **Never looking live when it isn't:** a key says **Not running** when StreamGremlin doesn't answer, **Pair first** when there's no token or StreamGremlin refuses it, **Pick a button** when none is picked, and **Button gone** when it was deleted.
+- **Pressing:**
+  - a press shows Elgato's check mark when it started workflows, and the warning triangle otherwise (nothing on, refused, or unknown);
+  - each press carries a request id; when the answer is lost mid-request, it's asked again with the same id, up to twice, so StreamGremlin runs it once (ADR-0040);
+  - a refused connection (StreamGremlin not running) is certainly not pressed, and isn't retried.
+- **Reading:** the plugin reads the buttons every 3 seconds while any of its keys is showing, and redraws a key only when it changes (Elgato asks for few updates).
+- **Pairing from the key's settings:** type the code, optionally the address, and **Pair**. The settings page sends the code to the plugin, which calls `POST /v1/pair` with the name "Stream Deck on" and the computer's name. **Unpair this Stream Deck** drops the token here; Forget on Connections is what stops StreamGremlin knowing it.
+
+**The SDK's own dependencies.** `npm audit` flags zod 3 (GHSA-mrhx-c7xc-m3w5, memory use on oversized input), which Elgato's utilities use to check messages from the Stream Deck app itself. Nothing from viewers or the network reaches it, and forcing zod 4 under Elgato's code could break it, so it's accepted until Elgato updates.
+
+### Notes on the plugin's design
 
 - **Who calls the API:** the plugin's Node process does, never its settings page. The page sends the typed code to the plugin with `sendToPlugin`.
 - **Where to keep the token:** in the plugin's global settings, never action settings. Elgato documents action settings as plain text and included in profile exports.

@@ -1,0 +1,30 @@
+{
+  "name": "streamgremlin-streamdeck",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "StreamGremlin's Stream Deck plugin (M7 slice 5, ADR-0042): keys that press your StreamGremlin buttons.",
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "validate": "streamdeck validate com.streamgremlin.streamdeck.sdPlugin",
+    "pack": "node build.mjs && streamdeck pack com.streamgremlin.streamdeck.sdPlugin -o ../bin/streamdeck -f --no-update-check"
+  },
+  "engines": {
+    "node": ">=22.12 <26"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "3.0.4",
+    "@tabler/icons": "3.50.0"
+  },
+  "devDependencies": {
+    "@elgato/cli": "1.10.4",
+    "@types/node": "24.19.2",
+    "@types/ws": "8.18.2",
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3",
+    "ws": "8.22.2"
+  }
+}

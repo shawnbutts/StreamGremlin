@@ -1,0 +1,5 @@
+# Build output: `npm run build` makes these.
+/com.streamgremlin.streamdeck.sdPlugin/bin/
+/com.streamgremlin.streamdeck.sdPlugin/ui/press.js
+/com.streamgremlin.streamdeck.sdPlugin/logs/
+/logs/

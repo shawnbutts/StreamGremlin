@@ -1,0 +1,64 @@
+/* Stream Deck's settings panel is dark; this matches it plainly. */
+body {
+  margin: 0;
+  padding: 8px 12px;
+  background: #2d2d2d;
+  color: #d8d8d8;
+  font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+h2 {
+  font-size: 13px;
+  margin: 12px 0 6px;
+  color: #ffffff;
+}
+label {
+  display: block;
+  margin: 8px 0 3px;
+  color: #a8a8a8;
+}
+input,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 5px 6px;
+  background: #3d3d3d;
+  color: #ffffff;
+  border: 1px solid #555555;
+  border-radius: 3px;
+  font: inherit;
+}
+#code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+button {
+  margin-top: 8px;
+  padding: 5px 12px;
+  background: #3d3d3d;
+  color: #ffffff;
+  border: 1px solid #6a6a6a;
+  border-radius: 3px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover {
+  background: #4a4a4a;
+}
+:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 1px;
+}
+#status[data-state='ok'] {
+  color: #8fd18f;
+}
+#status[data-state='unreachable'] {
+  color: #f0c060;
+}
+#problem {
+  color: #ff8a80;
+}
+.hint,
+#notice {
+  color: #a8a8a8;
+}

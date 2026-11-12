@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>StreamGremlin</title>
+    <link rel="stylesheet" href="press.css" />
+  </head>
+  <body>
+    <section aria-labelledby="conn">
+      <h2 id="conn">StreamGremlin</h2>
+      <p id="status" role="status">Asking StreamGremlin…</p>
+      <div id="pairing" hidden>
+        <label for="code">Code</label>
+        <input id="code" autocomplete="off" spellcheck="false" placeholder="K7QX-M3PA" maxlength="12" />
+        <label for="address">Address (only if the code doesn’t work)</label>
+        <input id="address" autocomplete="off" spellcheck="false" placeholder="http://127.0.0.1:7430" />
+        <button id="pair" type="button">Pair</button>
+      </div>
+      <div id="paired" hidden>
+        <button id="unpair" type="button">Unpair this Stream Deck</button>
+      </div>
+      <p id="notice"></p>
+      <p id="problem" role="alert"></p>
+    </section>
+    <section aria-labelledby="which">
+      <h2 id="which">Key</h2>
+      <label for="button">Presses</label>
+      <select id="button" disabled>
+        <option value="">Pick a button</option>
+      </select>
+      <p class="hint">The key shows the button’s colour and icon. A dim key’s button starts nothing that’s on.</p>
+    </section>
+    <script src="press.js"></script>
+  </body>
+</html>

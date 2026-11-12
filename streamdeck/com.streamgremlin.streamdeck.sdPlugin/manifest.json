@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "StreamGremlin",
+  "Version": "0.1.0.0",
+  "Author": "StreamGremlin",
+  "Description": "Press your StreamGremlin buttons from your Stream Deck. Pair once with the code StreamGremlin shows; each key presses one button, with its colour and icon.",
+  "UUID": "com.streamgremlin.streamdeck",
+  "Icon": "imgs/plugin",
+  "Category": "StreamGremlin",
+  "CategoryIcon": "imgs/category",
+  "CodePath": "bin/plugin.js",
+  "SDKVersion": 3,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "mac",
+      "MinimumVersion": "13"
+    },
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "24"
+  },
+  "Actions": [
+    {
+      "Name": "Press a button",
+      "UUID": "com.streamgremlin.streamdeck.press",
+      "Icon": "imgs/action",
+      "Tooltip": "Presses one of your StreamGremlin buttons: the workflows that start from it run.",
+      "PropertyInspectorPath": "ui/press.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "SupportedInMultiActions": true,
+      "States": [
+        {
+          "Image": "imgs/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    }
+  ]
+}

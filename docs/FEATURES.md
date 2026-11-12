@@ -184,7 +184,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Sounds | 0042, D-057, D-066 | F2 (see Engagement) |
 | Text to speech | 0042, D-057, D-066 | Later |
 | Global hotkeys | 0042, D-057, D-066 | Later |
-| Our own Stream Deck plugin: paired once, buttons run StreamGremlin buttons or workflows and show state | new (D-075); pairing built in M7 (ADR-0042, D-080); the Streamer.bot gateway stays Leave | Live |
+| Our own Stream Deck plugin: paired once, buttons run StreamGremlin buttons or workflows and show state | new (D-075); pairing and the plugin built in M7 (ADR-0042, D-080, D-081); keys press buttons (a button runs its workflows); the Streamer.bot gateway stays Leave | Live |
 | MIDI, window events, clipboard | not built | Later |
 
 ## AI

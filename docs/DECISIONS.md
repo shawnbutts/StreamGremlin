@@ -1398,3 +1398,14 @@ Decided 2026-11-12, building M7 slice 4 after the user's "proceed". It's a secur
 - **Why not the keyring in the plugin:** Elgato's current SDK keeps a user's token in the plugin's global settings, which it says users can read, and has no secrets API. Keeping the token narrow and easy to forget limits what a copied one could do.
 - **CLI:** `streamgremlin streamdeck`, `streamdeck pair`, `streamdeck forget ID`.
 
+## D-081. The Stream Deck plugin (M7 slice 5)
+
+Decided 2026-11-12, building M7 slice 5 after the user's "proceed". The design is in [ADR-0042](adr/0042-paired-clients.md) ("The plugin"). In short:
+
+- **One action, Press a button.** Each key presses one StreamGremlin button, with the button's colour, icon and label. D-075 also named "run a workflow"; that's left out, because a button already runs the workflows that start from it, and the Stream Deck's token can't reach workflows (D-080).
+- **Keys never look working when they aren't:** Not running, Pair first, Pick a button, Button gone; dimmed when the button starts nothing that's on. A press shows a check mark when it started something, and a warning otherwise.
+- **A press runs once,** even when an answer is lost and it's asked again.
+- **Pairing is in the key's settings:** type the code from Connections.
+- **Icons:** Tabler icons draw on keys; Nerd Fonts icons show the label instead, as Stream Deck lacks the font.
+- **One installer for macOS and Windows,** `bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin`, built by `make streamdeck` (part of `make verify`). It installs with a double-click, outside Elgato's Marketplace. Stream Deck 7.1 or later.
+

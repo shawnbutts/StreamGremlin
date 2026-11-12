@@ -27,6 +27,14 @@ Two icon sets are bundled for the Live screen's buttons (D-076, [ADR-0040](docs/
 
 Brand logos (Twitch, Discord, YouTube and others) are trademarks of their owners. They're offered for pointing at those services, as the icon sets intend.
 
+## The Stream Deck plugin
+
+The plugin (`streamdeck/`) bundles:
+- Elgato's Stream Deck SDK, `@elgato/streamdeck` 3.0.4, and its dependencies (`@elgato/utils`, `@elgato/schemas`, `ws`, `zod`), MIT licence, copyright (c) Corsair Memory Inc. and their authors;
+- Tabler Icons 3.50.0 (above), to draw button icons on keys.
+
+Elgato's CLI (`@elgato/cli`, MIT) packs it and isn't shipped.
+
 ## The app
 
 The desktop app is built with Svelte (<https://svelte.dev>, MIT licence, copyright (c) 2016-2026 Svelte contributors).

@@ -28,13 +28,15 @@ ifneq ($(NODE_BIN),)
 NPM_ENV := PATH="$(NODE_BIN):$$PATH"
 endif
 NPM := $(NPM_ENV) npm --prefix $(FRONTEND)
+STREAMDECK := streamdeck
+NPM_DECK := $(NPM_ENV) npm --prefix $(STREAMDECK)
 
 # The desktop app needs cgo on macOS; macOS 13 is the minimum (D-008).
 ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: windows mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: windows streamdeck mockobs mocktwitch help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -98,7 +100,19 @@ windows: desktop-ui ## Build the Windows app and CLI into ./bin/windows (WINDOWS
 	GOOS=windows GOARCH=$(WINDOWS_ARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/windows/streamgremlin.exe ./cmd/streamgremlin
 	@echo "Copy the bin/windows folder to the Windows computer: app\StreamGremlin.exe is the app, streamgremlin.exe the command line."
 
-verify: lint vet test test-acceptance desktop-ui desktop-test desktop build ## Everything, and builds the app and the CLI; run before every push
+# The Stream Deck plugin (M7 slice 5, ADR-0042). Its tests run the plugin
+# against the CLI just built and a stand-in Stream Deck; the installer is
+# bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin, for macOS
+# and Windows alike.
+streamdeck: node-check build ## Check, test and pack the Stream Deck plugin into ./bin/streamdeck
+	$(NPM_DECK) ci --no-audit --no-fund
+	$(NPM_DECK) run check
+	$(NPM_DECK) run build
+	cd $(STREAMDECK) && STREAMGREMLIN_BIN=$(BIN)/streamgremlin $(NPM_ENV) npm test
+	$(NPM_DECK) run validate
+	$(NPM_DECK) run pack
+
+verify: lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/mocktwitch $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

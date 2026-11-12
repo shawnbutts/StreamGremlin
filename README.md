@@ -25,6 +25,7 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 | [docs/milestones/](docs/milestones/M1.md) | Milestone progress and live-check results |
 | [docs/adr/](docs/adr/) | Architecture decisions for storage, protocols, file formats and security |
 | [brand-kit/](brand-kit/README.md) | Mascot, icons, banner and UI theme |
+| [streamdeck/](streamdeck/) | The Stream Deck plugin: `make streamdeck` builds its installer |
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | What the app bundles from others, and their licences |
 
 ## Where the code lives
