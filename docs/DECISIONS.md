@@ -1410,3 +1410,12 @@ Decided 2026-11-12, building M7 slice 5 after the user's "proceed". The design i
 - **Icons on keys are the app's icons,** Tabler and Nerd Fonts alike. First built with Nerd Fonts icons showing the label, as Stream Deck lacks the font. After the live check the user asked: "is it possible for the button on the streamdeck to show the same icon as in the app by default?" Now the plugin ships each Nerd Fonts icon's outline, made from the same font, and draws it.
 - **One installer for macOS and Windows,** `bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin`, built by `make streamdeck` (part of `make verify`). It installs with a double-click, outside Elgato's Marketplace. Stream Deck 7.1 or later.
 
+## D-082. The window remembers its size and place, and Live stretches with it
+
+Decided 2026-11-12. The user passed on a streamer's request: "can we support dynamtic resizing of the window? the chat screen made it clear that being able to resize and remembering the size & location of the window would be very useful. in the case of the chat, the left and right "menu bars" should be pinned to those side and the chat section should resize sideways".
+
+- **Who it's for:** every streamer who keeps StreamGremlin open beside OBS while live, often on a second screen.
+- **The window opens where it was,** at the size it was, and maximised if it was. Its place is saved half a second after moving or resizing stops, and when it closes. It's saved to `window.json` in the data folder, as the desktop shell's own state: the engine never reads it.
+- **Never off-screen:** at start the window goes back on the screen it most overlaps. It's kept whole and at least its minimum size. When too little of it would show on any screen (a monitor that's been unplugged), it opens centred instead. A minimised window isn't saved; a maximised one keeps the size to come back to.
+- **Live uses the whole width.** The sidebar stays 220 px on the left and the buttons and chat modes 16rem on the right; chat takes everything between and resizes sideways with the window. Other screens keep their readable width. Only a window narrower than about 760 px stacks the buttons above chat.
+

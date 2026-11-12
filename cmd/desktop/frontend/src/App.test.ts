@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import axe from 'axe-core';
 import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -104,6 +106,9 @@ describe('App', () => {
     flushSync();
     await settle();
     expect(el.querySelector('h1')?.textContent).toBe('Live');
+    // Live uses the window's whole width (D-082); other screens keep a
+    // readable width.
+    expect(el.querySelector('main')!.classList.contains('main-full')).toBe(true);
     await noViolations('live');
     // Timers, Quotes and Rewards start under More…, so the numbers go on.
     const keyTo = async (key: string, title: string) => {
@@ -113,6 +118,7 @@ describe('App', () => {
       expect(el.querySelector('h1')?.textContent).toBe(title);
     };
     await keyTo('3', 'Connections');
+    expect(el.querySelector('main')!.classList.contains('main-full')).toBe(false);
     await noViolations('connections');
     await keyTo('4', 'Events');
     await noViolations('events');
@@ -232,3 +238,20 @@ describe('App appearance', () => {
     expect(root.dataset.textSize).toBe('standard');
   });
 });
+
+// The layout as the window resizes (D-082): the sidebar a fixed width on
+// the left; on Live, the buttons a fixed width on the right, and chat
+// taking the rest, shrinking to fit.
+describe('resizing', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/app.css'), 'utf8');
+  const live = readFileSync(resolve(process.cwd(), 'src/screens/Live.svelte'), 'utf8');
+  it('lets the main area fill and shrink beside the sidebar', () => {
+    expect(css).toMatch(/\.shell\s*\{[^}]*grid-template-columns:\s*220px minmax\(0, 1fr\)/);
+    expect(css).toMatch(/main\.main-full\s*\{[^}]*max-width:\s*none/);
+  });
+  it('pins Live’s buttons to the right at a fixed width, chat taking the rest', () => {
+    expect(live).toMatch(/\.live\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) var\(--live-side\)/);
+    expect(live).toMatch(/--live-side:\s*16rem/);
+  });
+});
+

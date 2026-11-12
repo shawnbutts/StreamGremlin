@@ -69,7 +69,10 @@ code {
 
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* The sidebar stays 220px on the left; the main area takes the rest of
+     the window and may shrink (minmax 0), so wide content never pushes
+     the window wider (D-082). */
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 20px;
   min-height: 100vh;
   padding: 20px;
@@ -122,6 +125,12 @@ code {
 
 main {
   max-width: 900px;
+  min-width: 0;
+}
+
+/* Live uses the whole width, so chat grows and shrinks with the window. */
+main.main-full {
+  max-width: none;
 }
 
 main:focus {

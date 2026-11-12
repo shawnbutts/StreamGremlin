@@ -943,10 +943,13 @@
     border-color: var(--sg-primary);
     box-shadow: inset 0 0 0 1px var(--sg-primary);
   }
+  /* The buttons and chat modes stay a fixed width against the right edge;
+     chat takes the rest of the window's width, and resizes with it (D-082). */
   .live {
+    --live-side: 16rem;
     display: grid;
     gap: 1rem;
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+    grid-template-columns: minmax(0, 1fr) var(--live-side);
     grid-template-areas: 'chat buttons';
     align-items: start;
   }
@@ -1330,7 +1333,8 @@
   [data-color='pink'] {
     --live-color: #e06ba8;
   }
-  @media (max-width: 52rem) {
+  /* Only a very narrow window stacks the buttons above chat. */
+  @media (max-width: 47.5rem) {
     .live {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas: 'buttons' 'chat';

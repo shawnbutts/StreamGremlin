@@ -11,10 +11,12 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
@@ -111,18 +113,39 @@ func run() error {
 		},
 		OnShutdown: eng.stop,
 	})
+	// The window opens where it was last time (D-082): hidden until it's
+	// placed, when there's a saved place, so it doesn't jump.
+	windowFile := filepath.Join(dir, "window.json")
+	saved, haveSaved := desktop.LoadWindow(windowFile)
+	saver := desktop.NewWindowSaver(windowFile, 500*time.Millisecond, func(err error) { log.Warn("couldn't save the window's place", "err", err) })
+	if haveSaved {
+		saver.Start(saved)
+	}
 	win = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            brand.Name,
 		Width:            1100,
 		Height:           760,
-		MinWidth:         720,
-		MinHeight:        520,
+		MinWidth:         minWindow.Width,
+		MinHeight:        minWindow.Height,
+		Hidden:           haveSaved,
 		URL:              "/",
 		BackgroundColour: application.NewRGB(0x08, 0x19, 0x23),
 		Mac: application.MacWindow{
 			WebviewPreferences: application.MacWebviewPreferences{EnableAutoplayWithoutUserAction: application.Enabled},
 		},
 	})
+
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		// Off the main thread: changing the window waits for it.
+		go placeWindow(app, win, saved, haveSaved)
+	})
+	note := func(*application.WindowEvent) {
+		go saver.Note(desktop.Bounds(win.Bounds()), win.IsMaximised(), win.IsMinimised() || win.IsFullscreen())
+	}
+	for _, ev := range []events.WindowEventType{events.Common.WindowDidMove, events.Common.WindowDidResize, events.Common.WindowMaximise, events.Common.WindowRestore} {
+		win.OnWindowEvent(ev, note)
+	}
+	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) { saver.Flush() })
 
 	go eng.start(dir, state)
 	return app.Run()
@@ -210,4 +233,28 @@ func explain(err error, dir string) string {
 		return "Something went wrong while starting: " + err.Error() +
 			". The log is in " + datadir.LogDir(dir) + "."
 	}
+}
+
+// minWindow is the smallest the window goes.
+var minWindow = desktop.Size{Width: 720, Height: 520}
+
+// placeWindow puts the window back where it was, when that's still on a
+// screen; otherwise it stays where the system put it. Then it shows.
+func placeWindow(app *application.App, win *application.WebviewWindow, saved desktop.WindowState, haveSaved bool) {
+	if !haveSaved {
+		return
+	}
+	var screens []desktop.Bounds
+	for _, s := range app.Screen.GetAll() {
+		screens = append(screens, desktop.Bounds(s.WorkArea))
+	}
+	if b, ok := desktop.Place(saved.Bounds, screens, minWindow); ok {
+		win.SetBounds(application.Rect(b))
+	} else {
+		win.Center()
+	}
+	if saved.Maximised {
+		win.Maximise()
+	}
+	win.Show()
 }

@@ -204,7 +204,7 @@
     </ul>
   </nav>
 
-  <main id="main" tabindex="-1">
+  <main id="main" tabindex="-1" class:main-full={screen === 'live'}>
     {#if info.state === 'starting'}
       <section class="sg-panel card" aria-live="polite">
         <h1>Starting StreamGremlin…</h1>
