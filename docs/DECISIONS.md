@@ -1423,4 +1423,5 @@ Decided 2026-11-12. The user passed on a streamer's request: "can we support dyn
   - **Every screen uses the whole width,** not just Live (they had been capped at 900 px).
   - **On Live:** chat fills the height that's left, and the buttons column scrolls by itself when it has more than fits.
   - **Switching screens:** each screen opens at its top.
+- **Live check passed** (2026-11-12), after the fix: "live check looks good."
 
