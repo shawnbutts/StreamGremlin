@@ -261,6 +261,12 @@ func (s *Service) run() {
 	defer s.wg.Done()
 	backoff := s.backoffMin
 	for s.ctx.Err() == nil {
+		// A settings change from before this read is in what's read: its
+		// signal mustn't end the session that follows for nothing.
+		select {
+		case <-s.kick:
+		default:
+		}
 		cfg := s.config(s.ctx)
 		if !cfg.Enabled {
 			s.setState(StateOff, "")
@@ -363,10 +369,20 @@ func (s *Service) session(url, password string) error {
 	s.ctl.lastSeen = cur.SceneName
 	s.mu.Unlock()
 	defer func() {
+		// The session and "connected" end together: there's never a
+		// moment when the status says connected with no session to use.
 		s.mu.Lock()
 		s.cli = nil
 		s.ctl.known = false
+		ended := s.status.State == StateConnected
+		if ended {
+			s.status.State, s.status.Detail, s.status.Since = StateDisconnected, "The connection to OBS ended", s.now()
+			s.status.OBSVersion, s.status.WebSocketVersion = "", ""
+		}
 		s.mu.Unlock()
+		if ended {
+			s.notify.Notify()
+		}
 	}()
 	if changedMeanwhile {
 		s.emit(s.ctx, "broadcast.scene.changed", map[string]any{

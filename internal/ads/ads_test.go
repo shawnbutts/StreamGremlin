@@ -324,3 +324,28 @@ func TestSnooze(t *testing.T) {
 		t.Fatal("snooze events")
 	}
 }
+
+// Twitch's event can say a break began before Twitch answers the request
+// (D-094): the break is still linked to it, and the answer keeps that;
+// no answer at all is still a break that began, not an unknown.
+func TestTheBreakCanArriveBeforeTheAnswer(t *testing.T) {
+	for _, answer := range []error{nil, twitch.ErrAdOutcomeUnknown} {
+		r := newRig(t)
+		ctx := context.Background()
+		gate := make(chan struct{})
+		r.tw.mu.Lock()
+		r.tw.gate, r.tw.commErr = gate, answer
+		r.tw.mu.Unlock()
+		done := make(chan Request)
+		go func() { q, _ := r.svc.StartCommercial(ctx, 60, "op", "app"); done <- q }()
+		r.eventually("the request sent", func() bool { r.tw.mu.Lock(); defer r.tw.mu.Unlock(); return r.tw.commercials == 1 })
+		r.breakBegins(r.clock().Add(time.Second), 60, false, events.Confirmed)
+		r.eventually("the break", func() bool { _, breaks, _ := r.svc.Recent(ctx, 10); return len(breaks) == 1 })
+		close(gate)
+		q := <-done
+		reqs, breaks, _ := r.svc.Recent(ctx, 10)
+		if breaks[0].RequestID != q.ID || reqs[0].Status != Accepted || reqs[0].ConfirmedBy != "event" {
+			t.Fatalf("answer %v: %+v %+v", answer, reqs[0], breaks[0])
+		}
+	}
+}

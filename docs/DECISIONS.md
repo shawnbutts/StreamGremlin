@@ -1625,6 +1625,8 @@ Decided 2026-11-13. The user asked: "can we add some example plugins for time. a
 
 **Added the same day: built-in timer looks.** The user: "can you add styles for them that match the look of the ones for the wheel?" Workshop, Neon arcade and Selector board now come in a version for clocks and timers (`builtin:workshop-timer`, `builtin:neon-arcade-timer`, `builtin:selector-board-timer`), made of their wheel's materials: the label in the look's title plate, and the time on a parchment plate in brass and wood, in neon tubes on the arcade cabinet, or on the board's lit gold row between its marker lines. They run in the same sandbox as the wheel looks, with one shared script (`themes/shared/timertheme.js`). Settings: show the label, and the accent colour. They have no sounds. On the command line, `-look workshop` on a timer picks the timer version.
 
+**Live-checked** 2026-11-13, with D-093's fixes, in the app and OBS. The user: "looks good".
+
 ## D-093. Overlays' animations: a static choice, and looks that come in properly
 
 Decided 2026-11-13. The user: "when doing the slide-in, pop-in, etc, the Look isn't correct. It seems to be the default. also, I think we need a "static" option so there is no motion when it starts. you may need to review the other customized things other than clocks/timers as well".
@@ -1642,3 +1644,13 @@ Decided 2026-11-13. The user: "when doing the slide-in, pop-in, etc, the Look is
 
 **Checked:** each kind's animations in a real browser, with the page served by the engine. Alerts, Now playing, and wheels' spins were already right. Wheel looks still sit in the middle: a wheel fills its overlay.
 
+**Live-checked** 2026-11-13. The user: "looks good".
+
+**Not yet live-checked: D-091's files.** Now playing from Pretzel's real Write to File files hasn't been tried since the API version was removed; it's on M7's real-stream checklist.
+
+## D-094. Two races the tests caught: OBS's status and ads' breaks
+
+Decided 2026-11-13. The user asked to fix a test that failed once under `make verify` and passed alone. A second did the same while fixing it. Each was a real, rare bug, not only a test's:
+
+- **OBS: "connected" with no connection.** Turning OBS on just before StreamGremlin first read its settings left the change's signal waiting. The session that followed ended at once and reconnected, and in between the status said connected while a scene switch failed with "not connected". Now a signal from before the settings are read is dropped. A session's end, dropping the connection and leaving "connected", is one step. A test forces the case: one save, one session.
+- **Ads: a break not linked to its request.** Twitch's "ad break began" can arrive before Twitch answers the request: EventSub and the API are separate. The request was still pending, so the break was recorded without it, for good. Now a break links to a pending request too. Twitch's answer keeps the link, and no answer, with the break begun, is accepted rather than unknown. A test holds the answer back until the event is in.

@@ -361,3 +361,34 @@ func TestRequestFailuresAreReported(t *testing.T) {
 		t.Fatal("switched anyway")
 	}
 }
+
+// Turning OBS on connects once: a settings change saved before the
+// service first reads its settings (here, before it starts, for sure)
+// never ends the session that follows for nothing; and while the status
+// says connected, there's a session to use.
+func TestTurningOnConnectsOnce(t *testing.T) {
+	r := newRig(t)
+	s := New(Options{DB: r.db, Settings: r.set, Secrets: r.sec, Inbox: r.inbox})
+	s.backoffMin = 20 * time.Millisecond
+	if err := s.Configure(context.Background(), Config{URL: r.url, Enabled: true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	waitState(t, s, StateConnected)
+	time.Sleep(200 * time.Millisecond)
+	n := 0
+	for _, req := range r.mock.Requests() {
+		if req == "GetCurrentProgramScene" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("%d sessions for one change", n)
+	}
+	if _, err := s.SwitchScene(context.Background(), "Gaming", "app"); err != nil {
+		t.Fatal("connected, but:", err)
+	}
+}

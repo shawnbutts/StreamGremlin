@@ -265,6 +265,13 @@ func (s *Service) settle(ctx context.Context, q *Request, err error) {
 		// It never left StreamGremlin (signed out, a permission missing).
 		q.Status, q.Reason, q.Message = Refused, "not_sent", err.Error()
 	}
+	// Twitch's event may have said the break began before its answer came
+	// (D-094): then no answer is still a break that began.
+	var confirmed string
+	_ = s.db.QueryRowContext(ctx, "SELECT confirmed_by FROM ad_requests WHERE id = ?", q.ID).Scan(&confirmed)
+	if confirmed != "" && q.Status == Unknown {
+		q.Status, q.Reason, q.Message = Accepted, "", ""
+	}
 	if _, xerr := s.db.ExecContext(ctx, `UPDATE ad_requests SET status = ?, reason = ?, message = ?, accepted_length = ?, retry_until = ?,
 		next_ad_at = ?, snooze_count = ?, settled_at = ? WHERE id = ?`, q.Status, q.Reason, q.Message, q.AcceptedLength, tsPtr(q.RetryUntil),
 		tsPtr(q.NextAdAt), q.SnoozeCount, ts(now), q.ID); xerr != nil {

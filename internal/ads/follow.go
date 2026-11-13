@@ -86,7 +86,9 @@ func (s *Service) recordBreak(ctx context.Context, r events.Record) error {
 	}
 	if !p.Automatic {
 		var id, status string
-		err := tx.QueryRowContext(ctx, `SELECT id, status FROM ad_requests WHERE action = 'commercial' AND status IN ('accepted', 'unknown')
+		// Pending too: Twitch's event can arrive before its answer to the
+		// request does (D-094).
+		err := tx.QueryRowContext(ctx, `SELECT id, status FROM ad_requests WHERE action = 'commercial' AND status IN ('pending', 'accepted', 'unknown')
 			AND confirmed_by = '' AND created_at BETWEEN ? AND ? ORDER BY created_at DESC LIMIT 1`,
 			ts(r.OccurredAt.Add(-matchBefore)), ts(r.OccurredAt.Add(matchAfter))).Scan(&id, &status)
 		switch {
@@ -107,7 +109,8 @@ func (s *Service) recordBreak(ctx context.Context, r events.Record) error {
 }
 
 // confirm marks a request as seen happening. An unknown one becomes
-// accepted; an accepted one only gains how it was confirmed.
+// accepted; an accepted (or pending) one only gains how it was confirmed.
+// A pending one's answer, when it comes, keeps it.
 func confirm(ctx context.Context, tx *sql.Tx, id, status, by string, now time.Time) error {
 	if status == Unknown {
 		_, err := tx.ExecContext(ctx, `UPDATE ad_requests SET status = 'accepted', confirmed_by = ?, settled_at = ? WHERE id = ?`, by, ts(now), id)
