@@ -1550,3 +1550,28 @@ Decided 2026-11-13. The user asked what Discord features would match other bots,
 **Live-checked** 2026-11-13 with real Discord and Twitch. The user: "live checks look good".
 
 **Not built (Tier 2 and 3, waiting for a request):** a bot account, editing the announcement when the stream ends, slash commands and other Discord triggers, roles, relaying chat, linking accounts. Twitch's own Discord integration already syncs sub roles; Help should point to it if asked. Levels, Discord moderation, music, tickets and welcome messages are left to hosted bots: they need to be online all the time, and StreamGremlin runs only while your computer is on.
+
+## D-090. Pretzel: a Now playing overlay and !song
+
+Decided 2026-11-13. The user brought a Pretzel integration spec (tmp/prezel-rock-AGENTS.md), then: "I use pretzel. i'm mostly interested in a nice overlay of the current song. the !song would be a bonus. song change trigger isn't needed right now."
+
+**Who it's for:** the user, and streamers who play Pretzel's stream-safe music. Pretzel's help shows !song commands for Nightbot, Streamlabs and Mix It Up, so streamers coming from those bots expect one.
+
+**What Pretzel offers (checked 2026-11-13; its help pages were updated 2026-05-27):** one documented, read-only address for bots: `https://api.pretzel.rocks/playing/twitch/{numeric Twitch user id}`. Its format isn't documented. Seen on the user's stream it answers `Now Playing: Title by Artist -> https://prtzl.io/…` as plain text, and `400 ID not found` for an account Pretzel doesn't know. Sampled every 30 seconds for 20 minutes, five songs came through in that form, all with an empty artist, so on the user's stream the overlay shows titles only. What it says while paused wasn't seen. No rate limit is published. There's no picture, no paused or stopped state, no event when the song changes, and no way for other apps to control playback. Pretzel requires its own chat attribution unless the streamer has Premium or Pro, and says a !song command doesn't replace it.
+
+**Built:**
+- **A fourth kind of overlay, Now playing:** the title and artist (a missing artist leaves no gap) beside three bouncing bars, in the same looks as alerts (box, font, colours, position, animation). New overlays start bottom-left with "Picture, then words". It stays up while a song plays, or shows each song for 2–60 seconds as it starts (`song_hides`). A change slides the old song out, then the new one in. Song names are set only as text.
+- **When Pretzel is asked:** every 15 seconds while a Now playing overlay is open, in OBS or the app's preview, and right away when one opens; by the step; and by Check. Nothing is asked otherwise, so there's no switch to turn it on. A check moments after another, for the same account, reuses it, so a busy !song doesn't hammer Pretzel. A 429 or 503 is left alone for its Retry-After, up to 5 minutes.
+- **Unknown is shown as unknown:** a song stays up through one failed check, so a moment's trouble doesn't blink it away. After two failed checks in a row it goes. The overlay shows only a song Pretzel said is playing, never Pretzel's other answers.
+- **Reading the line:** split at the last " by ", so "Stand by Me by Ben" works. An artist with " by " in its name can't be told apart. Only a `https://prtzl.io/…` link at the end counts as Pretzel's link. Control and direction-changing characters are dropped, and each part is capped at 200 characters.
+- **Connections → Pretzel:** Check what's playing, the latest result, and Pretzel's attribution rule.
+- **The step "Get the current song (Pretzel)"** (group Music): state, title, artist, text, link, and `chat`, ready for chat. **The Song template** answers `!song` with it.
+- **Command line:** `streamgremlin pretzel`, `overlays add -song NAME`. **mockpretzel** stands in for Pretzel, and the engine's `-pretzel-api-url` takes a loopback address only. Acceptance tests point Pretzel at a closed port.
+- **Storage:** migration 0031 rebuilds the overlays table to allow the new kind, as 0018 and 0019 did. Saved looks are unchanged; `song_hides` defaults to off.
+
+**Not built:**
+- **Album art:** the API has none. Pretzel's desktop app writes the cover to a JPG (Write to File), and OBS can show that file with an Image source. Reading local files to put them on the overlay waits for a request.
+- **A song-changed trigger:** the user doesn't need it now. The checks already notice changes, so it's cheap to add later.
+- **Playback control and choosing stations:** Pretzel offers no way to do it. The spec's pressing of Pretzel's hotkeys was refused: it's fragile, needs OS accessibility permissions, and could send keys to the wrong window.
+- **A general music-provider layer:** the spec's provider interface for Spotify and others isn't built. There's one provider, and the rule is no abstractions for an undecided future.
+

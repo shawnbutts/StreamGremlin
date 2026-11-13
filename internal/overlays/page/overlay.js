@@ -1,5 +1,6 @@
 // StreamGremlin overlay page (docs/adr/0017-alert-overlays.md).
 import { giveawayView } from './giveaway.js';
+import { songView } from './song.js';
 import { OBS_LEVELS, themedWheelView } from './themehost.js';
 import { wheelView } from './wheel.js';
 
@@ -123,6 +124,8 @@ export function start(win, opts = {}) {
   let themed = null; // the look's view, when it isn't Classic
   let classic = null;
   let classicStill = null; // Classic, stopped at once: for a look that fails mid-spin
+  // A Now playing overlay (D-090) shows the song the engine sends.
+  let sv = null;
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
@@ -412,6 +415,12 @@ export function start(win, opts = {}) {
         gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion, cue });
       }
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel') setWheel(msg.body.theme);
+      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'song') {
+        if (sv) sv.relook();
+        else sv = songView(doc, stage, { setTimeout: later, look: () => look, animation: () => animation, pace: () => pace });
+      }
+    } else if (sv && msg.type === 'song') {
+      sv.song(msg.body);
     } else if (wheel && msg.type === 'spin') {
       wheel.spin(msg.body);
     } else if (gw && msg.type === 'giveaway') {

@@ -50,11 +50,13 @@
   let error = $state('');
   let busy = $state(false);
   let newName = $state('alerts');
-  let newKind = $state<'alert' | 'giveaway' | 'wheel'>('alert');
+  let newKind = $state<'alert' | 'giveaway' | 'wheel' | 'song'>('alert');
   const isGiveaway = (o?: Overlay) => o?.kind === 'giveaway';
   const isWheel = (o?: Overlay) => o?.kind === 'wheel';
+  const isSong = (o?: Overlay) => o?.kind === 'song';
   // What a sample shows on each kind.
-  const sampleOf = (o?: Overlay) => (isGiveaway(o) ? 'giveaway and draw are' : isWheel(o) ? 'spin is' : 'alert is');
+  const sampleOf = (o?: Overlay) => (isGiveaway(o) ? 'giveaway and draw are' : isWheel(o) ? 'spin is' : isSong(o) ? 'song is' : 'alert is');
+  const sampleWord = (o?: Overlay) => (isGiveaway(o) ? 'giveaway' : isWheel(o) ? 'spin' : isSong(o) ? 'song' : 'alert');
   let formError = $state('');
   let lookError = $state('');
   let selected = $state('');
@@ -147,7 +149,9 @@
       formError = 'A name is lowercase letters, digits, - and _, like alerts.';
       return;
     }
-    if (await act(() => addOverlay(n, undefined, newKind), `Added ${n}. Copy its link into OBS as a browser source.`)) {
+    // A Now playing overlay starts in a corner, its bars beside the song.
+    const start = newKind === 'song' && data ? { ...data.default_look, position: 'bottom-left' as const, animation: 'unfold' as const } : undefined;
+    if (await act(() => addOverlay(n, start, newKind), `Added ${n}. Copy its link into OBS as a browser source.`)) {
       selected = n;
       newName = '';
     }
@@ -236,7 +240,7 @@
       act(() => testOverlay(name, true), `A sample ${sampleOf(current)} showing in the preview, in the saved look.`);
       return;
     }
-    act(() => testOverlay(name, true, l), changed ? 'A sample is showing in the preview, with your unsaved changes.' : 'A sample alert is showing in the preview.');
+    act(() => testOverlay(name, true, l), changed ? 'A sample is showing in the preview, with your unsaved changes.' : `A sample ${sampleOf(current)} showing in the preview.`);
   }
 
   function openState(o: Overlay) {
@@ -247,7 +251,8 @@
 <h1>Overlays</h1>
 <p class="sg-muted screen-intro">
   Each overlay is one browser source in OBS. Alert overlays show what workflows send with “Show an alert”, one at a time. A
-  giveaway overlay shows the running giveaway and rolls to each winner by itself; chat still tells viewers everything. An alert’s
+  giveaway overlay shows the running giveaway and rolls to each winner by itself; chat still tells viewers everything. A Now playing
+  overlay shows the song Pretzel is playing. An alert’s
   sound plays in the overlay, so OBS hears it through the browser source (tick “Control audio via OBS” on it). Keep links
   private: anyone with one can see that overlay.
 </p>
@@ -271,6 +276,7 @@
           <strong>{o.name}</strong>
           {#if isGiveaway(o)}<span class="tag">Giveaway</span>{/if}
           {#if isWheel(o)}<span class="tag">Wheel</span>{/if}
+          {#if isSong(o)}<span class="tag">Now playing</span>{/if}
           <span class="secret-saved">
             {#if o.pages > 0}
               <span class="state-ok"><span aria-hidden="true">●</span></span>
@@ -289,7 +295,7 @@
         <button type="button" class="button" aria-label={`Copy ${o.name}'s link`} disabled={busy} onclick={() => copyLink(o)}
           >Copy link</button
         >
-        <button type="button" class="button" aria-label={`Show a sample ${isGiveaway(o) ? 'giveaway' : isWheel(o) ? 'spin' : 'alert'} on ${o.name} in OBS`}
+        <button type="button" class="button" aria-label={`Show a sample ${sampleWord(o)} on ${o.name} in OBS`}
           disabled={busy}
           onclick={() =>
             act(() => testOverlay(o.name), `A sample ${sampleOf(o)} showing on ${o.name} in OBS.`)}
@@ -446,7 +452,19 @@
             <input type="range" min="50" max="300" step="10" bind:value={look.pace} aria-valuetext={paceWords(look.pace)} />
             <span class="sg-muted field-hint">How long coming in and leaving take. Right is slower.</span>
           </label>
-          {#if !isGiveaway(current) && !isWheel(current)}
+          {#if isSong(current)}
+            <label class="choice-inline">
+              <input type="checkbox" bind:checked={look.song_hides} /> Show each song for a while as it starts, then hide
+            </label>
+            {#if look.song_hides}
+              <label class="field">
+                <span>Seconds on screen</span>
+                <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
+              </label>
+            {:else}
+              <p class="sg-muted field-hint">It stays up while a song plays, and goes when nothing does or Pretzel can't say.</p>
+            {/if}
+          {:else if !isGiveaway(current) && !isWheel(current)}
             <label class="field">
               <span>Seconds on screen</span>
               <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
@@ -561,13 +579,13 @@
         <div class="row-actions">
           <button type="submit" class="sg-button" disabled={busy || !changed}>Save look</button>
           <button type="button" class="button" disabled={busy || !previewLoaded} onclick={previewLook}
-            >{isGiveaway(current) ? 'Preview a draw' : isWheel(current) ? 'Preview a spin' : 'Preview an alert'}</button
+            >{isGiveaway(current) ? 'Preview a draw' : isWheel(current) ? 'Preview a spin' : isSong(current) ? 'Preview a song' : 'Preview an alert'}</button
           >
         </div>
         {#if changed && (isGiveaway(current) || isWheel(current))}
           <p class="sg-muted">Save to see your changes in the preview and in OBS.</p>
         {:else if changed}
-          <p class="sg-muted">Preview an alert shows your changes here. Save to use them in OBS.</p>
+          <p class="sg-muted">{isSong(current) ? 'Preview a song' : 'Preview an alert'} shows your changes here. Save to use them in OBS.</p>
         {/if}
       </form>
       <div class="overlay-preview-wrap">
@@ -589,6 +607,15 @@
       <label class="choice-inline">
         <input type="radio" name="overlay-kind" value="wheel" bind:group={newKind} /> Wheels: every spin, as it's drawn
       </label>
+      <label class="choice-inline">
+        <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song Pretzel is playing
+      </label>
+      {#if newKind === 'song'}
+        <p class="sg-muted field-hint">
+          It shows the song while Pretzel plays one, found by your Twitch account. Pretzel is asked every 15 seconds, only while the overlay is
+          open. Pretzel's own chat messages naming each song still post, as Pretzel requires.
+        </p>
+      {/if}
       {#if newKind === 'wheel'}
         <p class="sg-muted field-hint">
           While it's open in OBS, a spin stops when the wheel does, so chat and workflows hear the result as viewers see it.
@@ -606,7 +633,7 @@
       <input class="sg-input" bind:value={newName} maxlength="64" spellcheck="false" placeholder="alerts" />
       <span class="sg-muted field-hint">
         {newKind !== 'alert'
-          ? `Any name, like ${newKind}. One is usually enough.`
+          ? `Any name, like ${newKind === 'song' ? 'now-playing' : newKind}. One is usually enough.`
           : 'Workflows show alerts on it by this name. One overlay usually does; add more for different places on screen.'}
       </span>
     </label>

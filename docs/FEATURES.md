@@ -157,6 +157,8 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Kick | 0043, D-054, D-055, D-067 | Leave |
 | Discord Tier 1: webhooks; post from workflows; go-live, clip and stream-summary templates | new (D-089, ADR-0044) | Built after M7 |
 | Discord Tier 2: a bot account, editing the announcement, slash commands, roles | new (D-089) | Waiting for a request |
+| Pretzel: a Now playing overlay and !song, read from Pretzel's documented now-playing address | new (D-090) | Built after M7 |
+| Pretzel: album art, playback control, a song-changed trigger | new (D-090) | Waiting for a request; control isn't offered by Pretzel |
 
 ## Extending it
 

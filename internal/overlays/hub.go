@@ -131,6 +131,10 @@ type Hub struct {
 	shown    map[string]time.Time
 	// giveaway is the running giveaway as giveaway overlays show it.
 	giveaway *GiveawayView
+	// song is what Now playing overlays show; songOpened is called when
+	// one opens.
+	song       SongView
+	songOpened func()
 	// themeOrigin is the theme server's, for wheel looks ("" when off).
 	themeOrigin string
 	themes      *Catalogue
@@ -223,6 +227,12 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 	h.sendLocked(c, h.hello(o, preview))
 	if v := h.giveaway; v != nil && giveawayFor(c, v.Practice) {
 		h.sendLocked(c, message("giveaway", v))
+	}
+	if o.Kind == KindSong {
+		h.sendLocked(c, message("song", h.song))
+		if f := h.songOpened; f != nil {
+			go f()
+		}
 	}
 	// An alert still on screen is sent with the time it has left. Pages
 	// skip alerts they've already played.

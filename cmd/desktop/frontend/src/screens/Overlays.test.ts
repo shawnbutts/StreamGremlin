@@ -64,8 +64,8 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
   const routes: Parameters<typeof mockFetch>[0] = {
     '/v1/overlays': (method, body) => {
       if (method === 'POST') {
-        const b = body as { name: string; kind: Overlay['kind'] };
-        const o: Overlay = { name: b.name, kind: b.kind, look: { ...look }, created_at: now, updated_at: now, pages: 0, previews: 0 };
+        const b = body as { name: string; kind: Overlay['kind']; look?: OverlayLook };
+        const o: Overlay = { name: b.name, kind: b.kind, look: { ...look, ...b.look }, created_at: now, updated_at: now, pages: 0, previews: 0 };
         list.push(o);
         return { status: 201, body: { overlay: o, url: `http://127.0.0.1:7431/o/${token}/` } };
       }
@@ -75,7 +75,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
       };
     },
   };
-  for (const n of ['alerts', 'corner', 'giveaway', 'wheel']) {
+  for (const n of ['alerts', 'corner', 'giveaway', 'wheel', 'now-playing']) {
     routes[`/v1/overlays/${n}`] = (method, body) => {
       const i = list.findIndex((o) => o.name === n);
       if (method === 'DELETE') {
@@ -187,6 +187,39 @@ describe('Overlays', () => {
     expect(calls.some((c) => c.path === '/v1/overlays/giveaway/test?preview=1')).toBe(true);
     expect(el.textContent).toContain('A sample giveaway and draw are showing in the preview');
     await noViolations('a giveaway overlay');
+  });
+
+  it('adds a Now playing overlay in a corner, and chooses whether it stays up', async () => {
+    const { calls, list } = engine([]);
+    const el = start();
+    await settle();
+    (el.querySelector('input[value=song]') as HTMLInputElement).click();
+    flushSync();
+    expect(el.textContent).toContain("Pretzel's own chat messages naming each song still post");
+    expect(el.textContent).toContain('like now-playing');
+    const name = el.querySelector<HTMLInputElement>('input[placeholder="alerts"]')!;
+    name.value = 'now-playing';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Add')!.click();
+    await settle(80);
+    expect(calls.find((c) => c.method === 'POST')).toMatchObject({
+      body: { name: 'now-playing', kind: 'song', look: { position: 'bottom-left', animation: 'unfold' } },
+    });
+    expect(el.textContent).toContain('Now playing');
+    expect(el.textContent).toContain('It stays up while a song plays');
+    expect(el.textContent).not.toContain('Seconds on screen');
+    const hides = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('Show each song for a while'))!.querySelector('input')!;
+    hides.click();
+    flushSync();
+    expect(el.textContent).toContain('Seconds on screen');
+    button(el, 'Preview a song')!.click();
+    await settle();
+    expect(calls.find((c) => c.path === '/v1/overlays/now-playing/test?preview=1')).toMatchObject({ body: { look: { song_hides: true } } });
+    button(el, 'Save look')!.click();
+    await settle(80);
+    expect(list[0].look.song_hides).toBe(true);
+    await noViolations('a Now playing overlay');
   });
 
   it('picks sounds for a giveaway overlay, and saves them with its look', async () => {

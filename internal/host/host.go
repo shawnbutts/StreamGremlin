@@ -40,6 +40,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
+	"code.streamgremlin.com/streamgremlin/internal/pretzel"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
@@ -69,6 +70,9 @@ type Options struct {
 	// DiscordAPIURL replaces discord.com, for mockdiscord. It must be a
 	// loopback http URL.
 	DiscordAPIURL string
+	// PretzelAPIURL replaces api.pretzel.rocks, for mockpretzel. It must
+	// be a loopback http address.
+	PretzelAPIURL string
 	// OverlayAddr is where overlay pages are served for OBS. Empty means
 	// brand.DefaultOverlayAddr, falling back to a free port if that is
 	// taken; "off" serves none.
@@ -91,6 +95,7 @@ type Host struct {
 	twitch    *twitch.Service
 	obs       *obs.Service
 	discord   *discord.Service
+	pretzel   *pretzel.Service
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
@@ -217,9 +222,21 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	h.discord = discord.New(discord.Options{Settings: set, Secrets: sec, Logger: log.With("component", "discord"), Base: discordBase})
+	pretzelBase, err := testServerURL(opts.PretzelAPIURL, pretzel.DefaultBase, "Pretzel")
+	if err != nil {
+		return nil, err
+	}
+	// Pretzel is asked only while a Now playing overlay is open (D-090).
+	h.pretzel = pretzel.New(pretzel.Options{Base: pretzelBase, Logger: log.With("component", "pretzel"), Watching: h.hub.SongPages,
+		UserID: func() string { a, _ := h.twitch.Account(twitch.RoleStreamer); return a.Status().UserID },
+		Show: func(s pretzel.Song) {
+			h.hub.SetSong(overlays.SongView{Playing: s.State == pretzel.Playing, Title: s.Title, Artist: s.Artist})
+		}})
+	h.hub.OnSongPage(h.pretzel.Wake)
+	h.pretzel.Start()
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Filters: h.filters, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox})
+		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox, Pretzel: h.pretzel})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
 	h.rounds = rounds.New(rounds.Options{DB: h.db, Ledger: ledger, Viewers: h.viewers, Logger: log})
@@ -304,6 +321,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Moderation: mods,
 		Filters:    h.filters,
 		Discord:    h.discord,
+		Pretzel:    h.pretzel,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -443,6 +461,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.pretzel != nil {
+		h.pretzel.Close()
+	}
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first
 	}

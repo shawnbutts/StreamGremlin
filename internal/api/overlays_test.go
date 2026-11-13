@@ -124,6 +124,26 @@ func TestOverlaysThroughTheAPI(t *testing.T) {
 	if code, _ = call("GET", "/v1/overlays/alerts/link", ""); code != 404 {
 		t.Fatal(code)
 	}
+
+	// A Now playing overlay (D-090): a sample song in an unsaved look, in
+	// the previews only; a bad look is refused; no sounds of its own.
+	if code, out = call("POST", "/v1/overlays", `{"name":"now-playing","kind":"song","look":{"song_hides":true,"seconds":8}}`); code != 201 ||
+		!strings.Contains(out, `"kind":"song"`) || !strings.Contains(out, `"song_hides":true`) {
+		t.Fatalf("add a song overlay: %d %s", code, out)
+	}
+	if code, out = call("POST", "/v1/overlays/now-playing/test?preview=1", `{"look":{"position":"bottom-left","animation":"unfold"}}`); code != 200 ||
+		!strings.Contains(out, `"test":true`) {
+		t.Fatalf("song preview: %d %s", code, out)
+	}
+	if code, _ = call("POST", "/v1/overlays/now-playing/test?preview=1", `{"look":{"position":"left"}}`); code != 400 {
+		t.Fatal("a bad look in a song preview:", code)
+	}
+	if code, _ = call("POST", "/v1/overlays/now-playing/test", ""); code != 503 {
+		t.Fatal("a sample song with OBS closed:", code)
+	}
+	if code, _ = call("PUT", "/v1/overlays/now-playing", `{"look":{"start_sound":"drumroll"}}`); code != 400 {
+		t.Fatal("a song overlay took a sound:", code)
+	}
 }
 
 func waitFor(t *testing.T, ok func() bool) {

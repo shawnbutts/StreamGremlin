@@ -66,6 +66,9 @@ type Look struct {
 	Position  string `json:"position"`  // one of Positions
 	Animation string `json:"animation"` // slide, pop or unfold
 	Seconds   int    `json:"seconds"`   // on screen, 2 to 60, unless a step says
+	// SongHides: a Now playing overlay shows each song for Seconds as it
+	// starts, then hides. Off, it stays up while a song plays.
+	SongHides bool `json:"song_hides"`
 	// Pace is how long the animation takes, in percent of the usual:
 	// 50 is twice as fast, 300 three times as slow.
 	Pace int `json:"pace"`
@@ -280,8 +283,8 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 	if err := CheckName(name); err != nil {
 		return Overlay{}, "", err
 	}
-	if kind != KindAlert && kind != KindGiveaway && kind != KindWheel {
-		return Overlay{}, "", invalid("the kind of overlay is alert, giveaway or wheel")
+	if kind != KindAlert && kind != KindGiveaway && kind != KindWheel && kind != KindSong {
+		return Overlay{}, "", invalid("the kind of overlay is alert, giveaway, wheel or song")
 	}
 	if err := look.Check(); err != nil {
 		return Overlay{}, "", err

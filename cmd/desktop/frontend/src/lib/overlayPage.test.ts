@@ -469,3 +469,73 @@ describe('giveaway and wheel overlay sounds', () => {
     expect(FakeAudio.all).toEqual([]);
   });
 });
+
+describe('the Now playing overlay', () => {
+  const hello = (look: Record<string, unknown> = {}) => ({
+    type: 'hello',
+    body: { overlay: { name: 'song', kind: 'song', look: { animation: 'slide', pace: 100, ...look } }, page_version: 'v1' },
+  });
+  const song = (title: string, artist = '', playing = true) => ({ type: 'song', body: { playing, title, artist } });
+  const shown = (stage: HTMLElement) => [...stage.querySelectorAll('.sg-song:not(.out)')];
+
+  it('shows the song while it plays, swaps on a change, and goes when nothing plays', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello());
+    ws.fire('message', song('Neon Rain', 'Kyle'));
+    expect(shown(stage)).toHaveLength(1);
+    expect(stage.querySelector('.sg-song-title')?.textContent).toBe('Neon Rain');
+    expect(stage.querySelector('.sg-song-artist')?.textContent).toBe('Kyle');
+    expect(stage.querySelectorAll('.sg-eq')).toHaveLength(3);
+    // The same song again changes nothing.
+    ws.fire('message', song('Neon Rain', 'Kyle'));
+    expect(stage.querySelectorAll('.sg-song')).toHaveLength(1);
+    // A new song: the old one leaves, then the new one comes in. No artist: no line for one.
+    ws.fire('message', song('Caffeine Part 2'));
+    expect(shown(stage)).toHaveLength(0);
+    c.advance(450);
+    expect(shown(stage).map((e) => e.querySelector('.sg-song-title')?.textContent)).toEqual(['Caffeine Part 2']);
+    expect(stage.querySelector('.sg-song:not(.out) .sg-song-artist')).toBeNull();
+    c.advance(1000);
+    expect(stage.querySelectorAll('.sg-song')).toHaveLength(1);
+    // Nothing playing, or unknown: nothing shown.
+    ws.fire('message', { type: 'song', body: { playing: false } });
+    c.advance(1000);
+    expect(stage.querySelectorAll('.sg-song')).toHaveLength(0);
+  });
+
+  it('shows each song for a while when set to, and never runs markup', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello({ song_hides: true, seconds: 5 }));
+    ws.fire('message', song('<img src=x onerror=alert(1)>', '<b>Bold</b>'));
+    expect(stage.querySelector('img')).toBeNull();
+    expect(stage.querySelector('b')).toBeNull();
+    expect(stage.querySelector('.sg-song-title')?.textContent).toBe('<img src=x onerror=alert(1)>');
+    c.advance(4900);
+    expect(shown(stage)).toHaveLength(1);
+    c.advance(1000);
+    expect(stage.querySelectorAll('.sg-song')).toHaveLength(0);
+  });
+
+  it('shows a sample for a moment, then the real song again', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello());
+    ws.fire('message', song('Neon Rain', 'Kyle'));
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'A sample song', artist: 'A sample artist', sample: true } });
+    c.advance(1000);
+    expect(shown(stage).map((e) => e.querySelector('.sg-song-title')?.textContent)).toEqual(['A sample song']);
+    c.advance(6000);
+    expect(shown(stage).map((e) => e.querySelector('.sg-song-title')?.textContent)).toEqual(['Neon Rain']);
+    // With nothing playing, a sample goes away again.
+    ws.fire('message', { type: 'song', body: { playing: false } });
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'A sample song', sample: true } });
+    c.advance(7000);
+    expect(shown(stage)).toHaveLength(0);
+  });
+
+  it('other overlays ignore songs', () => {
+    const { ws, stage } = page();
+    ws.fire('message', { type: 'hello', body: { overlay: { name: 'alerts', kind: 'alert', look: {} }, page_version: 'v1' } });
+    ws.fire('message', song('Neon Rain', 'Kyle'));
+    expect(stage.textContent).toBe('');
+  });
+});
