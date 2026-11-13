@@ -6,6 +6,7 @@
   import {
     ApiError,
     addOverlay,
+    chooseFile,
     deleteOverlay,
     getOverlayLink,
     getOverlays,
@@ -237,6 +238,20 @@
   }
 
   /** A sample in the preview, in the form's look, saved or not. */
+  /** A Now playing overlay's file, chosen with the system's own dialog. */
+  async function browse(kind: 'song_text' | 'song_art') {
+    if (!look) return;
+    lookError = '';
+    try {
+      const p = await chooseFile(kind);
+      if (!p) return; // cancelled
+      if (kind === 'song_text') look.song_file = p;
+      else look.art_file = p;
+    } catch (e) {
+      lookError = message(e);
+    }
+  }
+
   function previewLook() {
     if (!current) return;
     const name = current.name;
@@ -440,18 +455,25 @@
             <legend>Pretzel's files</legend>
             <p class="sg-muted field-hint">
               In the Pretzel app, open Settings → Advanced → Write to File, and turn on the song's text file and its album art. Put the
-              title on the first line and the artist on the second, if you like. Then paste each file's full path here: in Finder, select
-              the file and press ⌥⌘C to copy its path.
+              title on the first line and the artist on the second, if you like. Then choose each file with Browse, or paste its full path.
+              In OBS, make the browser source 1920 × 1080 and place the song with “Where alerts appear” below, or make it about 1100 × 200
+              and drag it where you like.
             </p>
-            <label class="field">
-              <span>Song's text file</span>
-              <input class="sg-input" bind:value={look.song_file} placeholder="/Users/you/Pretzel/song.txt" spellcheck="false" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>Album art file</span>
-              <input class="sg-input" bind:value={look.art_file} placeholder="/Users/you/Pretzel/album.jpg" spellcheck="false" autocomplete="off" />
+            <div class="field">
+              <label for="song-file">Song's text file</label>
+              <div class="path-row">
+                <input id="song-file" class="sg-input" bind:value={look.song_file} placeholder="/Users/you/Pretzel/song.txt" spellcheck="false" autocomplete="off" />
+                <button type="button" class="button" disabled={busy} onclick={() => browse('song_text')}>Browse…</button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="art-file">Album art file</label>
+              <div class="path-row">
+                <input id="art-file" class="sg-input" bind:value={look.art_file} placeholder="/Users/you/Pretzel/album.jpg" spellcheck="false" autocomplete="off" />
+                <button type="button" class="button" disabled={busy} onclick={() => browse('song_art')}>Browse…</button>
+              </div>
               <span class="sg-muted field-hint">Optional. Without it, bars bounce beside the song.</span>
-            </label>
+            </div>
             <label class="field">
               <span>Paused text</span>
               <input class="sg-input" bind:value={look.paused_text} maxlength="100" placeholder="Paused" spellcheck="false" autocomplete="off" />

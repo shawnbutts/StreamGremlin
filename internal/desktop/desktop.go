@@ -95,10 +95,22 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 's
 // the streamer cancelled.
 type SaveFunc func(name string, data []byte) (string, error)
 
-func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error, save ...SaveFunc) http.Handler {
-	var saver SaveFunc
-	if len(save) > 0 {
-		saver = save[0]
+// ChooseFunc asks for a file with the system's own open dialog, titled
+// title, offering files matching pattern ("*.jpg;*.png") under filter's
+// name. It returns the path, or "" when the streamer cancelled.
+type ChooseFunc func(title, filter, pattern string) (string, error)
+
+// Dialogs are the system's own dialogs, for POST /desktop/save-file and
+// POST /desktop/choose-file.
+type Dialogs struct {
+	Save   SaveFunc
+	Choose ChooseFunc
+}
+
+func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error, dialogs ...Dialogs) http.Handler {
+	var dl Dialogs
+	if len(dialogs) > 0 {
+		dl = dialogs[0]
 	}
 	files := http.FileServerFS(assets)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -115,7 +127,9 @@ func Handler(assets fs.FS, state *State, open func(url string) error, restart fu
 		case r.URL.Path == "/desktop/restart-engine":
 			restartEngine(w, r, restart)
 		case r.URL.Path == "/desktop/save-file":
-			saveFile(w, r, saver)
+			saveFile(w, r, dl.Save)
+		case r.URL.Path == "/desktop/choose-file":
+			chooseFile(w, r, dl.Choose)
 		case strings.HasPrefix(r.URL.Path, "/v1/"):
 			bridge(w, r, state)
 		default:
@@ -271,4 +285,53 @@ func saveFile(w http.ResponseWriter, r *http.Request, save SaveFunc) {
 		return
 	}
 	reply(http.StatusOK, map[string]any{"saved": path})
+}
+
+// Choosable are the kinds of file the app may ask for, each with its
+// dialog's title and filter: a page can name a kind, never a pattern or
+// a folder. Only the path comes back; nothing is read.
+var Choosable = map[string]struct{ Title, Filter, Pattern string }{
+	// A Now playing overlay's files, as Pretzel writes them (D-091).
+	"song_text": {"Choose the song's text file", "Text files", "*.txt"},
+	"song_art":  {"Choose the album art", "Pictures", "*.jpg;*.jpeg;*.png"},
+}
+
+func chooseFile(w http.ResponseWriter, r *http.Request, choose ChooseFunc) {
+	reply := func(status int, body any) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(body)
+	}
+	fail := func(status int, code, msg string) {
+		reply(status, map[string]any{"error": map[string]string{"code": code, "message": msg}})
+	}
+	if r.Method != http.MethodPost {
+		fail(http.StatusMethodNotAllowed, "method_not_allowed", "use POST")
+		return
+	}
+	var in struct {
+		Kind string `json:"kind"`
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil || dec.More() {
+		fail(http.StatusBadRequest, "invalid_request", "say which kind of file to choose")
+		return
+	}
+	k, ok := Choosable[in.Kind]
+	if !ok {
+		fail(http.StatusBadRequest, "invalid_request", "that kind of file can't be chosen")
+		return
+	}
+	if choose == nil {
+		fail(http.StatusServiceUnavailable, "unavailable", "choosing a file only works in the desktop app")
+		return
+	}
+	p, err := choose(k.Title, k.Filter, k.Pattern)
+	if err != nil {
+		fail(http.StatusInternalServerError, "internal", "the file dialog failed")
+		return
+	}
+	reply(http.StatusOK, map[string]string{"path": p})
 }

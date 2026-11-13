@@ -1213,3 +1213,14 @@ html[data-density='compact'] .row-actions {
 .inline-field {
   display: inline-grid;
 }
+
+/* A file's path with a Browse button beside it (a Now playing overlay's files, D-091). */
+.path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.path-row .sg-input {
+  flex: 1;
+  min-width: 0;
+}

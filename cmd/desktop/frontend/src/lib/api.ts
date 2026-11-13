@@ -276,6 +276,22 @@ export async function saveFile(name: string, text: string): Promise<string> {
   return typeof data?.saved === 'string' ? data.saved : '';
 }
 
+/**
+ * Ask for a file's path with the system's own open dialog. The app names
+ * the kind only; the dialog's title and filter come from it. Resolves to
+ * the path, or '' when cancelled. Nothing is read.
+ */
+export async function chooseFile(kind: 'song_text' | 'song_art'): Promise<string> {
+  const resp = await fetch('/desktop/choose-file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind }),
+  });
+  const data = await resp.json().catch(() => undefined);
+  if (!resp.ok) throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  return typeof data?.path === 'string' ? data.path : '';
+}
+
 export type OBSState = 'off' | 'connecting' | 'connected' | 'disconnected' | 'needs_action';
 
 export interface OBSStatus {

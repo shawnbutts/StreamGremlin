@@ -87,13 +87,23 @@ func run() error {
 		}
 		return path, os.WriteFile(path, data, 0o600)
 	}
+	// A file's path, chosen with the system's own open dialog: only the
+	// path goes back to the app; the engine checks it when it's saved.
+	chooseFile := func(title, filter, pattern string) (string, error) {
+		d := app.Dialog.OpenFile().SetTitle(title).CanChooseFiles(true).CanChooseDirectories(false).AddFilter(filter, pattern)
+		if win != nil {
+			d = d.AttachToWindow(win)
+		}
+		return d.PromptForSingleSelection()
+	}
 	app = application.New(application.Options{
 		Name:        brand.Name,
 		Description: "Local-first stream automation",
 		Icon:        icon,
 		Logger:      log,
 		Assets: application.AssetOptions{
-			Handler:        desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) }, saveFile),
+			Handler: desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) },
+				desktop.Dialogs{Save: saveFile, Choose: chooseFile}),
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},

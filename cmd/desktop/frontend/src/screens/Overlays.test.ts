@@ -58,6 +58,9 @@ const themes = [
     ] },
 ];
 
+// What the system's file dialog answers ('' for cancelled).
+let chosen = '/Users/me/Pretzel/album.jpg';
+
 function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; noLink?: boolean } = {}) {
   const list = initial.map((o) => ({ ...o, look: { ...o.look } }));
   let token = 'tok1';
@@ -97,6 +100,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
         ? { status: 503, body: { error: { code: 'unavailable', message: "the overlay isn't open in OBS: add its link as a browser source in a scene" } } }
         : { status: 200, body: query === 'preview=1' ? { test: true, previews: 1 } : { shown: true } };
   }
+  routes['/desktop/choose-file'] = () => ({ status: 200, body: { path: chosen } });
   routes['/v1/sounds'] = () => ({ status: 200, body: { sounds: [{ name: 'chime' }, { name: 'tada' }], player: true } });
   return { calls: mockFetch(routes), list };
 }
@@ -218,13 +222,25 @@ describe('Overlays', () => {
     expect(calls.find((c) => c.path === '/v1/overlays/now-playing/test?preview=1')).toMatchObject({ body: { look: { song_hides: true } } });
     expect(el.textContent).toContain('read only while this overlay is open');
     const typeIn = (label: string, v: string) => {
-      const i = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim().startsWith(label))!.querySelector('input')!;
+      const l = Array.from(el.querySelectorAll('label')).find((x) => x.textContent?.trim().startsWith(label))!;
+      const i = (l.htmlFor ? document.getElementById(l.htmlFor) : l.querySelector('input')) as HTMLInputElement;
       i.value = v;
       i.dispatchEvent(new Event('input', { bubbles: true }));
       flushSync();
     };
     typeIn("Song's text file", "  '/Users/me/Pretzel/song.txt' ");
-    typeIn('Album art file', '/Users/me/Pretzel/album.jpg');
+    // Browse asks the desktop app for a picture, by kind; cancelling changes nothing.
+    const browse = Array.from(el.querySelectorAll<HTMLButtonElement>('button')).filter((b) => b.textContent === 'Browse…');
+    expect(browse).toHaveLength(2);
+    browse[1].click();
+    await settle();
+    expect(calls.find((c) => c.path === '/desktop/choose-file')).toMatchObject({ method: 'POST', body: { kind: 'song_art' } });
+    expect((el.querySelector('#art-file') as HTMLInputElement).value).toBe('/Users/me/Pretzel/album.jpg');
+    chosen = '';
+    browse[0].click();
+    await settle();
+    expect((el.querySelector('#song-file') as HTMLInputElement).value).toBe("  '/Users/me/Pretzel/song.txt' ");
+    chosen = '/Users/me/Pretzel/album.jpg';
     typeIn('Paused text', 'Paused');
     button(el, 'Save look')!.click();
     await settle(80);

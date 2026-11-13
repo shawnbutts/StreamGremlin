@@ -183,10 +183,10 @@ func TestSaveFile(t *testing.T) {
 		data []byte
 	}
 	answer := "/home/me/ann.json"
-	h := Handler(fstest.MapFS{}, NewState(), nil, nil, func(name string, data []byte) (string, error) {
+	h := Handler(fstest.MapFS{}, NewState(), nil, nil, Dialogs{Save: func(name string, data []byte) (string, error) {
 		got.name, got.data = name, data
 		return answer, nil
-	})
+	}})
 	post := func(body string) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest("POST", "/desktop/save-file", strings.NewReader(body)))
@@ -215,5 +215,48 @@ func TestSaveFile(t *testing.T) {
 		strings.NewReader(`{"name":"a.json","text":"x"}`)))
 	if w.Code != 503 {
 		t.Fatal(w.Code)
+	}
+}
+
+// The app can ask for a Now playing overlay's files by kind only; the
+// dialog's title and filter come from the kind, and only the path comes
+// back.
+func TestChooseFile(t *testing.T) {
+	var asked []string
+	answer := "/Users/me/Pretzel/album.jpg"
+	h := Handler(fstest.MapFS{}, NewState(), nil, nil, Dialogs{Choose: func(title, filter, pattern string) (string, error) {
+		asked = append(asked, title+"|"+filter+"|"+pattern)
+		return answer, nil
+	}})
+	post := func(body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/desktop/choose-file", strings.NewReader(body)))
+		return w
+	}
+	if w := post(`{"kind":"song_art"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"path":"/Users/me/Pretzel/album.jpg"`) ||
+		len(asked) != 1 || asked[0] != "Choose the album art|Pictures|*.jpg;*.jpeg;*.png" {
+		t.Fatal(w.Code, w.Body.String(), asked)
+	}
+	answer = ""
+	if w := post(`{"kind":"song_text"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"path":""`) || !strings.HasSuffix(asked[1], "*.txt") {
+		t.Fatal("cancelled:", w.Body.String(), asked)
+	}
+	for _, bad := range []string{`{"kind":"anything"}`, `{"kind":"song_art","pattern":"*"}x`, `not json`} {
+		if w := post(bad); w.Code != 400 {
+			t.Error(bad, w.Code)
+		}
+	}
+	if len(asked) != 2 {
+		t.Fatal("a dialog opened for a bad request:", asked)
+	}
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/desktop/choose-file", nil))
+	if w.Code != 405 {
+		t.Fatal(w.Code)
+	}
+	w = httptest.NewRecorder()
+	Handler(fstest.MapFS{}, NewState(), nil, nil).ServeHTTP(w, httptest.NewRequest("POST", "/desktop/choose-file", strings.NewReader(`{"kind":"song_art"}`)))
+	if w.Code != 503 {
+		t.Fatal("no dialog:", w.Code)
 	}
 }
