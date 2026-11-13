@@ -981,8 +981,6 @@
     align-self: start;
     max-height: 100%;
     overflow-y: auto;
-    /* Room for the scroll bar is kept, so it never takes the content's width. */
-    scrollbar-gutter: stable;
   }
   .live-mode-list {
     display: flex;

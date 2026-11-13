@@ -271,7 +271,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ### Fixed
 
-- **Live fits the window again** (D-087): a long chat no longer grows the screen and puts a scroll bar over the buttons and chat modes. Chat keeps its own scroll bar. The buttons and chat modes no longer scroll sideways: the Followers-only and Slow choices shrink, and wrap under their buttons when the side is narrow.
+- **Live fits the window again** (D-087): a long chat no longer grows the screen and puts a scroll bar over the buttons and chat modes. Chat keeps its own scroll bar. The buttons and chat modes no longer scroll sideways: the Followers-only and Slow choices shrink, and wrap under their buttons when the side is narrow. The side lines up with the Right and Top buttons above it.
 - The Stream Deck plugin uses zod 4.6.7 in place of zod 3, which had a memory-use security advisory (D-083).
 - A `!join` typed in the same millisecond as a giveaway opened could be missed.
 - With no bot signed in, a workflow that answers chat could answer its own messages, over and over. Its own messages are no longer treated as your chat (D-023).
