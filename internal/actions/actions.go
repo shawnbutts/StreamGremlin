@@ -47,6 +47,9 @@ type Services struct {
 	// Overlays and the hub that shows alerts on them.
 	Overlays *overlays.Store
 	Hub      *overlays.Hub
+	// OverlayTimers are clock and timer overlays' countdowns and
+	// stopwatches (D-092).
+	OverlayTimers *overlays.Timers
 	// FirstWords finds each viewer's first message of a stream.
 	FirstWords *firstwords.Service
 	// Ads asks Twitch for ad breaks and records them.
@@ -239,6 +242,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerQuotes(reg, sv.Quotes, sv.Twitch)
 	registerSounds(reg, sv.Sounds, sv.Player)
 	registerOverlays(reg, sv.Overlays, sv.Hub, sv.Twitch, sv.Sounds)
+	registerOverlayTimers(reg, sv.OverlayTimers)
 	registerRewards(reg, sv.Twitch)
 	registerPolls(reg, sv.Twitch)
 	registerAds(reg, sv.Ads)

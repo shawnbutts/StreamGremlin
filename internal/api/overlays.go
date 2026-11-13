@@ -36,6 +36,9 @@ type OverlayView struct {
 	Previews int `json:"previews"` // open in the app's previews
 	// Song is how reading a Now playing overlay's files is going (D-091).
 	Song *overlays.SongStatus `json:"song,omitempty"`
+	// Timer is a countdown's or stopwatch's state (D-092); absent at its
+	// start.
+	Timer *overlays.TimerState `json:"timer,omitempty"`
 }
 
 // OverlayList is the body of GET /v1/overlays.
@@ -74,6 +77,9 @@ func overlayRoutes(d Deps) []Route {
 		if o.Kind == overlays.KindSong && d.Songs != nil {
 			st := d.Songs.Status(o.Name)
 			v.Song = &st
+		}
+		if o.Kind == overlays.KindTimer && d.OverlayTimers != nil {
+			v.Timer, _ = d.OverlayTimers.State(context.Background(), o.Name)
 		}
 		return v
 	}
@@ -189,6 +195,9 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
+				if d.OverlayTimers != nil {
+					d.OverlayTimers.Changed(r.Context(), cur, o) // a new mode starts afresh
+				}
 				d.Hub.Changed(o)
 				writeJSON(w, http.StatusOK, view(o))
 			},
@@ -205,10 +214,38 @@ func overlayRoutes(d Deps) []Route {
 					overlayError(w, r, d, err)
 					return
 				}
+				if ok && d.OverlayTimers != nil {
+					d.OverlayTimers.Forget(r.Context(), name)
+				}
 				if ok {
 					d.Logger.Info("overlay deleted", "overlay", name)
 				}
 				writeJSON(w, http.StatusOK, map[string]any{"deleted": ok})
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/overlays/{name}/timer",
+			Summary: "Start, pause, reset or add time to a countdown or stopwatch overlay: {action: start|pause|reset|add, seconds?, " +
+				"until?}. start takes a countdown's new length in seconds, or until, a time today like 19:00 (tomorrow if it's " +
+				"passed); with neither it goes on from where it is (a countdown at zero starts again from its length). add " +
+				"makes a countdown longer by seconds. Answers with the state. A clock has nothing to start (409).",
+			Permission: PermOverlaysWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var op overlays.TimerOp
+				if !decodeJSON(w, r, &op) {
+					return
+				}
+				st, err := d.OverlayTimers.Do(r.Context(), r.PathValue("name"), op)
+				if errors.Is(err, overlays.ErrNotTimer) {
+					writeError(w, http.StatusConflict, CodeConflict, "that overlay isn't a countdown or a stopwatch")
+					return
+				}
+				if err != nil {
+					overlayError(w, r, d, err)
+					return
+				}
+				d.Logger.Info("overlay timer", "overlay", r.PathValue("name"), "action", op.Action)
+				writeJSON(w, http.StatusOK, st)
 			},
 		},
 		{
@@ -250,6 +287,35 @@ func overlayRoutes(d Deps) []Route {
 				o, err := d.Overlays.Get(r.Context(), r.PathValue("name"))
 				if err != nil {
 					overlayError(w, r, d, err)
+					return
+				}
+				if o.Kind == overlays.KindTimer {
+					// A clock or timer is always on screen: nothing to sample.
+					// A look in the body is tried in the previews only.
+					previewsOnly := r.URL.Query().Get("preview") == "1"
+					if previewsOnly && r.ContentLength != 0 {
+						look := o.Look
+						in := struct {
+							Look *overlays.Look `json:"look"`
+						}{Look: &look}
+						if !decodeJSON(w, r, &in) {
+							return
+						}
+						if in.Look != nil {
+							if err := in.Look.Check(); err != nil {
+								overlayError(w, r, d, err)
+								return
+							}
+							o.Look = *in.Look
+							d.Hub.PreviewLook(o)
+						}
+					}
+					pages, previews := d.Hub.Open(o.Name)
+					if !previewsOnly && pages == 0 {
+						overlayError(w, r, d, overlays.ErrNotOpen)
+						return
+					}
+					writeJSON(w, http.StatusOK, overlays.Result{Overlay: o.Name, Shown: pages > 0, Pages: pages, Previews: previews, Test: previewsOnly})
 					return
 				}
 				if o.Kind == overlays.KindGiveaway || o.Kind == overlays.KindWheel || o.Kind == overlays.KindSong {

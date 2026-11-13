@@ -7,6 +7,7 @@
     ApiError,
     addOverlay,
     chooseFile,
+    controlTimer,
     deleteOverlay,
     getOverlayLink,
     getOverlays,
@@ -51,13 +52,39 @@
   let error = $state('');
   let busy = $state(false);
   let newName = $state('alerts');
-  let newKind = $state<'alert' | 'giveaway' | 'wheel' | 'song'>('alert');
+  let newKind = $state<'alert' | 'giveaway' | 'wheel' | 'song' | 'timer'>('alert');
   const isGiveaway = (o?: Overlay) => o?.kind === 'giveaway';
   const isWheel = (o?: Overlay) => o?.kind === 'wheel';
   const isSong = (o?: Overlay) => o?.kind === 'song';
+  const isTimer = (o?: Overlay) => o?.kind === 'timer';
+  // What a clock and timer overlay shows (D-092).
+  const TIMER_WORDS: Record<string, string> = { clock: 'Clock', countdown: 'Countdown', stopwatch: 'Stopwatch' };
+  const timerWord = (o?: Overlay) => TIMER_WORDS[o?.look.timer_mode ?? 'clock'] ?? 'Clock';
+  // Looks for this overlay's kind: wheels' and timers' are separate.
+  const kindThemes = $derived((data?.themes ?? []).filter((t) => (t.for ?? 'wheel') === current?.kind));
+  // A countdown's or stopwatch's state, in words.
+  function timerState(o: Overlay): string {
+    const mode = o.look.timer_mode ?? 'clock';
+    if (mode === 'clock') return '';
+    const t = o.timer;
+    if (!t) return mode === 'countdown' ? `At its start, ${clockOf((o.look.timer_length || 300) * 1000)}.` : 'At zero.';
+    if (t.ended) return 'Ended.';
+    if (!t.running) return `Paused at ${clockOf(t.base_ms)}.`;
+    return mode === 'countdown' ? `Running: ${clockOf(t.base_ms - (Date.now() - Date.parse(t.since)))} left.` : 'Running.';
+  }
+  function clockOf(ms: number) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = String(s % 60).padStart(2, '0');
+    return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  }
+  // A countdown's length in the form, in minutes.
+  let lengthMinutes = $state(5);
+  let untilTime = $state('');
   // What a sample shows on each kind.
   const sampleOf = (o?: Overlay) => (isGiveaway(o) ? 'giveaway and draw are' : isWheel(o) ? 'spin is' : isSong(o) ? 'song is' : 'alert is');
-  const sampleWord = (o?: Overlay) => (isGiveaway(o) ? 'giveaway' : isWheel(o) ? 'spin' : isSong(o) ? 'song' : 'alert');
+  const sampleWord = (o?: Overlay) => (isGiveaway(o) ? 'giveaway' : isWheel(o) ? 'spin' : isSong(o) ? 'song' : isTimer(o) ? 'timer' : 'alert');
   let formError = $state('');
   let lookError = $state('');
   let selected = $state('');
@@ -122,6 +149,7 @@
     if (o && lookFor !== o.name) {
       look = { ...o.look };
       lookFor = o.name;
+      lengthMinutes = (o.look.timer_length || 300) / 60;
     }
   });
 
@@ -151,7 +179,12 @@
       return;
     }
     // A Now playing overlay starts in a corner, its bars beside the song.
-    const start = newKind === 'song' && data ? { ...data.default_look, position: 'bottom-left' as const, animation: 'unfold' as const } : undefined;
+    const start =
+      newKind === 'song' && data
+        ? { ...data.default_look, position: 'bottom-left' as const, animation: 'unfold' as const }
+        : newKind === 'timer' && data
+          ? { ...data.default_look, position: 'top-right' as const, timer_mode: 'clock' as const }
+          : undefined;
     if (await act(() => addOverlay(n, start, newKind), `Added ${n}. Copy its link into OBS as a browser source.`)) {
       selected = n;
       newName = '';
@@ -211,7 +244,17 @@
     const path = (v?: string) => (v ?? '').trim().replace(/^(['"])(.*)\1$/, '$2');
     const files = isSong(current)
       ? { song_file: path(look.song_file), art_file: path(look.art_file), paused_text: (look.paused_text ?? '').trim() }
-      : {};
+      : isTimer(current)
+        ? {
+            timer_label: (look.timer_label ?? '').trim(),
+            timer_end_text: (look.timer_end_text ?? '').trim(),
+            timer_length: Math.max(1, Math.round(Number(lengthMinutes) * 60)),
+          }
+        : {};
+    if (isTimer(current) && !(Number(lengthMinutes) > 0 && Number(lengthMinutes) <= 1440)) {
+      lookError = 'A countdown is from a second to 24 hours (1440 minutes).';
+      return undefined;
+    }
     return {
       ...look,
       ...files,
@@ -238,6 +281,13 @@
   }
 
   /** A sample in the preview, in the form's look, saved or not. */
+  /** Start, pause, reset or add time to the chosen countdown or stopwatch. */
+  function timer(action: 'start' | 'pause' | 'reset' | 'add', extra: { seconds?: number; until?: string } = {}, done = '') {
+    if (!current) return;
+    const name = current.name;
+    act(() => controlTimer(name, { action, ...extra }), done);
+  }
+
   /** A Now playing overlay's file, chosen with the system's own dialog. */
   async function browse(kind: 'song_text' | 'song_art') {
     if (!look) return;
@@ -273,7 +323,8 @@
 <p class="sg-muted screen-intro">
   Each overlay is one browser source in OBS. Alert overlays show what workflows send with “Show an alert”, one at a time. A
   giveaway overlay shows the running giveaway and rolls to each winner by itself; chat still tells viewers everything. A Now playing
-  overlay shows the song your music player is playing, from the files it writes. An alert’s
+  overlay shows the song your music player is playing, from the files it writes. A clock and timer overlay shows the time, a
+  countdown or a stopwatch. An alert’s
   sound plays in the overlay, so OBS hears it through the browser source (tick “Control audio via OBS” on it). Keep links
   private: anyone with one can see that overlay.
 </p>
@@ -298,6 +349,7 @@
           {#if isGiveaway(o)}<span class="tag">Giveaway</span>{/if}
           {#if isWheel(o)}<span class="tag">Wheel</span>{/if}
           {#if isSong(o)}<span class="tag">Now playing</span>{/if}
+          {#if isTimer(o)}<span class="tag">{timerWord(o)}</span>{/if}
           <span class="secret-saved">
             {#if o.pages > 0}
               <span class="state-ok"><span aria-hidden="true">●</span></span>
@@ -319,7 +371,7 @@
         <button type="button" class="button" aria-label={`Show a sample ${sampleWord(o)} on ${o.name} in OBS`}
           disabled={busy}
           onclick={() =>
-            act(() => testOverlay(o.name), `A sample ${sampleOf(o)} showing on ${o.name} in OBS.`)}
+            act(() => testOverlay(o.name), isTimer(o) ? `${o.name} is open in OBS, showing.` : `A sample ${sampleOf(o)} showing on ${o.name} in OBS.`)}
           >Sample in OBS</button
         >
         <button type="button" class="button" aria-label={`New link for ${o.name}`} disabled={busy} onclick={() => (replacing = o)}
@@ -346,26 +398,31 @@
     <h2 id="overlay-look-heading">{current.name}: look and preview</h2>
     <div class="overlay-edit">
       <form class="test-form overlay-look" onsubmit={saveLook}>
-        {#if isWheel(current)}
+        {#if isWheel(current) || isTimer(current)}
           <fieldset class="look-group">
             <legend>Look</legend>
             <label class="field">
               <span>Look</span>
               <select class="sg-input" value={look.theme ?? ''} onchange={(e) => setTheme(e.currentTarget.value)}>
                 <option value="">Classic</option>
-                {#each data?.themes ?? [] as t (t.id)}<option value={t.id}>{t.name}{t.publisher ? ` (add-on)` : ""}</option>{/each}
+                {#each kindThemes as t (t.id)}<option value={t.id}>{t.name}{t.publisher ? ` (add-on)` : ""}</option>{/each}
               </select>
             </label>
             {#if chosenTheme}
               {#if chosenTheme.publisher}
                 <p class="sg-muted field-hint">
-                  An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified). It’s told the result
-                  StreamGremlin drew, but what it draws is up to whoever made it: the real result is always in chat.
+                  {#if isTimer(current)}
+                    An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified). It’s told the time and
+                    where the countdown or stopwatch is; what it draws is up to whoever made it. If it fails, Classic shows instead.
+                  {:else}
+                    An add-on: version {chosenTheme.version}, published by {chosenTheme.publisher} (not verified). It’s told the result
+                    StreamGremlin drew, but what it draws is up to whoever made it: the real result is always in chat.
+                  {/if}
                 </p>
               {/if}
               <p class="sg-muted field-hint">
                 {chosenTheme.description}
-                {chosenTheme.odds_checked
+                {isTimer(current) ? '' : chosenTheme.odds_checked
                   ? 'It shows the real odds: StreamGremlin’s tests check it.'
                   : 'StreamGremlin can’t check how this look draws the odds: the real odds are on the Wheels screen and in “Say a wheel’s odds”.'}
               </p>
@@ -450,6 +507,77 @@
             {/each}
           </fieldset>
         {/if}
+        {#if isTimer(current)}
+          {@const savedMode = current.look.timer_mode ?? 'clock'}
+          <fieldset class="look-group">
+            <legend>Clock and timer</legend>
+            <label class="field">
+              <span>Shows</span>
+              <select class="sg-input" bind:value={look.timer_mode}>
+                <option value="clock">A clock: the time on this computer</option>
+                <option value="countdown">A countdown, like “Starting soon”</option>
+                <option value="stopwatch">A stopwatch</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Label above it</span>
+              <input class="sg-input" bind:value={look.timer_label} maxlength="60" placeholder={look.timer_mode === 'countdown' ? 'Starting soon' : 'None'} />
+            </label>
+            {#if (look.timer_mode ?? 'clock') === 'clock'}
+              <label class="choice-inline"><input type="checkbox" bind:checked={look.clock_24h} /> 24-hour clock</label>
+              <label class="choice-inline"><input type="checkbox" bind:checked={look.clock_seconds} /> Show seconds</label>
+              <label class="field">
+                <span>Date under it</span>
+                <select class="sg-input" bind:value={look.clock_date}>
+                  <option value="">None</option>
+                  <option value="short">Short, like Fri, Nov 13</option>
+                  <option value="long">Long, like Friday, November 13, 2026</option>
+                </select>
+              </label>
+            {:else if look.timer_mode === 'countdown'}
+              <label class="field">
+                <span>Length (minutes)</span>
+                <input class="sg-input" type="number" min="0.1" max="1440" step="any" bind:value={lengthMinutes} />
+                <span class="sg-muted field-hint">What Start counts down from, and Reset goes back to.</span>
+              </label>
+              <label class="field">
+                <span>At zero, say</span>
+                <input class="sg-input" bind:value={look.timer_end_text} maxlength="60" placeholder="0:00" />
+              </label>
+            {/if}
+            {#if savedMode !== 'clock' && savedMode === look.timer_mode}
+              <p class="state" aria-live="polite">{timerState(current)}</p>
+              <div class="row-actions">
+                <button type="button" class="sg-button" disabled={busy} onclick={() => timer('start', {}, `Started ${current.name}.`)}>Start</button>
+                <button type="button" class="button" disabled={busy} onclick={() => timer('pause', {}, `Paused ${current.name}.`)}>Pause</button>
+                <button type="button" class="button" disabled={busy} onclick={() => timer('reset', {}, `Reset ${current.name}.`)}>Reset</button>
+                {#if savedMode === 'countdown'}
+                  <button type="button" class="button" disabled={busy} onclick={() => timer('add', { seconds: 60 }, `Added a minute to ${current.name}.`)}
+                    >+1 minute</button
+                  >
+                {/if}
+              </div>
+              {#if savedMode === 'countdown'}
+                <div class="field">
+                  <label for="timer-until">Count down until</label>
+                  <div class="path-row">
+                    <input id="timer-until" class="sg-input" type="time" bind:value={untilTime} />
+                    <button type="button" class="button" disabled={busy || !untilTime}
+                      onclick={() => timer('start', { until: untilTime }, `${current.name} counts down to ${untilTime}.`)}>Start</button
+                    >
+                  </div>
+                  <span class="sg-muted field-hint">Today, or tomorrow if that time has passed.</span>
+                </div>
+              {/if}
+              <p class="sg-muted field-hint">
+                Workflows start, pause and reset it too (“Start a countdown or stopwatch”), so a button or Stream Deck key can, and “A
+                countdown ends” runs when it reaches zero.
+              </p>
+            {:else if (look.timer_mode ?? 'clock') !== 'clock'}
+              <p class="sg-muted field-hint">Save to start, pause and reset it here.</p>
+            {/if}
+          </fieldset>
+        {/if}
         {#if isSong(current)}
           <fieldset class="look-group">
             <legend>Song files</legend>
@@ -532,7 +660,7 @@
             {:else}
               <p class="sg-muted field-hint">It stays up while a song plays, and goes when nothing does or the file can't be read.</p>
             {/if}
-          {:else if !isGiveaway(current) && !isWheel(current)}
+          {:else if !isGiveaway(current) && !isWheel(current) && !isTimer(current)}
             <label class="field">
               <span>Seconds on screen</span>
               <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
@@ -647,13 +775,13 @@
         <div class="row-actions">
           <button type="submit" class="sg-button" disabled={busy || !changed}>Save look</button>
           <button type="button" class="button" disabled={busy || !previewLoaded} onclick={previewLook}
-            >{isGiveaway(current) ? 'Preview a draw' : isWheel(current) ? 'Preview a spin' : isSong(current) ? 'Preview a song' : 'Preview an alert'}</button
+            >{isGiveaway(current) ? 'Preview a draw' : isWheel(current) ? 'Preview a spin' : isSong(current) ? 'Preview a song' : isTimer(current) ? 'Preview changes' : 'Preview an alert'}</button
           >
         </div>
         {#if changed && (isGiveaway(current) || isWheel(current))}
           <p class="sg-muted">Save to see your changes in the preview and in OBS.</p>
         {:else if changed}
-          <p class="sg-muted">{isSong(current) ? 'Preview a song' : 'Preview an alert'} shows your changes here. Save to use them in OBS.</p>
+          <p class="sg-muted">{isSong(current) ? 'Preview a song' : isTimer(current) ? 'Preview changes' : 'Preview an alert'} shows your changes here. Save to use them in OBS.</p>
         {/if}
       </form>
       <div class="overlay-preview-wrap">
@@ -678,6 +806,15 @@
       <label class="choice-inline">
         <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song your music player is playing
       </label>
+      <label class="choice-inline">
+        <input type="radio" name="overlay-kind" value="timer" bind:group={newKind} /> Clock and timers: the time, a countdown, or a stopwatch
+      </label>
+      {#if newKind === 'timer'}
+        <p class="sg-muted field-hint">
+          Choose what it shows in its settings after adding it. Add one for each you want on screen at once, like a clock and a
+          “Starting soon” countdown.
+        </p>
+      {/if}
       {#if newKind === 'song'}
         <p class="sg-muted field-hint">
           It shows the song and album art your music player writes to files, like Pretzel's Write to File. Set the
@@ -701,7 +838,7 @@
       <input class="sg-input" bind:value={newName} maxlength="64" spellcheck="false" placeholder="alerts" />
       <span class="sg-muted field-hint">
         {newKind !== 'alert'
-          ? `Any name, like ${newKind === 'song' ? 'now-playing' : newKind}. One is usually enough.`
+          ? `Any name, like ${newKind === 'song' ? 'now-playing' : newKind === 'timer' ? 'starting-soon' : newKind}.${newKind === 'timer' ? '' : ' One is usually enough.'}`
           : 'Workflows show alerts on it by this name. One overlay usually does; add more for different places on screen.'}
       </span>
     </label>

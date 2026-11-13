@@ -144,6 +144,44 @@ func TestOverlaysThroughTheAPI(t *testing.T) {
 	if code, _ = call("PUT", "/v1/overlays/now-playing", `{"look":{"start_sound":"drumroll"}}`); code != 400 {
 		t.Fatal("a song overlay took a sound:", code)
 	}
+
+	// A clock and timer overlay (D-092): a countdown started, paused,
+	// added to and reset through the API; its state in the list; a clock
+	// has nothing to start; a look with a clock is refused on an alert
+	// overlay.
+	if code, out = call("POST", "/v1/overlays", `{"name":"soon","kind":"timer","look":{"timer_mode":"countdown","timer_length":300,"timer_label":"Starting soon"}}`); code != 201 {
+		t.Fatalf("add a timer: %d %s", code, out)
+	}
+	if code, out = call("POST", "/v1/overlays/soon/timer", `{"action":"start"}`); code != 200 || !strings.Contains(out, `"running":true`) || !strings.Contains(out, `"base_ms":300000`) {
+		t.Fatalf("start: %d %s", code, out)
+	}
+	if code, out = call("POST", "/v1/overlays/soon/timer", `{"action":"add","seconds":60}`); code != 200 || !strings.Contains(out, `"running":true`) {
+		t.Fatalf("add: %d %s", code, out)
+	}
+	if _, out = call("GET", "/v1/overlays", ""); !strings.Contains(out, `"timer":{"running":true`) {
+		t.Fatalf("the list: %s", out)
+	}
+	if code, out = call("POST", "/v1/overlays/soon/timer", `{"action":"reset"}`); code != 200 || !strings.Contains(out, `"running":false`) {
+		t.Fatalf("reset: %d %s", code, out)
+	}
+	if code, _ = call("POST", "/v1/overlays/soon/timer", `{"action":"start","until":"7pm"}`); code != 400 {
+		t.Fatal("a bad time:", code)
+	}
+	if code, out = call("POST", "/v1/overlays/soon/test?preview=1", `{"look":{"timer_mode":"countdown","clock_date":"long"}}`); code != 200 || !strings.Contains(out, `"test":true`) {
+		t.Fatalf("preview: %d %s", code, out)
+	}
+	if code, _ = call("POST", "/v1/overlays/soon/test", ""); code != 503 {
+		t.Fatal("a sample with OBS closed:", code)
+	}
+	if code, out = call("POST", "/v1/overlays", `{"name":"wall-clock","kind":"timer","look":{"timer_mode":"clock","clock_24h":true}}`); code != 201 {
+		t.Fatal(code, out)
+	}
+	if code, _ = call("POST", "/v1/overlays/wall-clock/timer", `{"action":"start"}`); code != 409 {
+		t.Fatal("a clock started:", code)
+	}
+	if code, _ = call("PUT", "/v1/overlays/now-playing", `{"look":{"timer_mode":"clock"}}`); code != 400 {
+		t.Fatal("a song overlay took a clock:", code)
+	}
 }
 
 func waitFor(t *testing.T, ok func() bool) {
@@ -207,7 +245,7 @@ func TestWheelLooksThroughTheAPI(t *testing.T) {
 	if code != 200 || len(list.Themes) != 3 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 4 || !list.Themes[0].OddsChecked {
 		t.Fatalf("%d %s", code, out)
 	}
-	if code, out := call("POST", "/v1/overlays", `{"name":"alerts","look":{"theme":"builtin:workshop"}}`); code != 400 || !strings.Contains(out, "wheel overlays") {
+	if code, out := call("POST", "/v1/overlays", `{"name":"alerts","look":{"theme":"builtin:workshop"}}`); code != 400 || !strings.Contains(out, "wheel, and clock and timer, overlays") {
 		t.Fatalf("an alert overlay with a look: %d %s", code, out)
 	}
 	if code, out := call("POST", "/v1/overlays", `{"name":"wheel","kind":"wheel"}`); code != 201 {

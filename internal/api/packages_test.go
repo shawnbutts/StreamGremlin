@@ -69,7 +69,7 @@ func TestPackagesThroughTheAPI(t *testing.T) {
 		t.Fatal("again:", code)
 	}
 	// Offered to wheel overlays, its odds not checked, its settings checked.
-	if _, out := call("GET", "/v1/overlays", ""); !strings.Contains(out, `"id":"cosy-wheel","name":"Cosy wheel","description":"","odds_checked":false`) {
+	if _, out := call("GET", "/v1/overlays", ""); !strings.Contains(out, `"id":"cosy-wheel","name":"Cosy wheel","description":"","for":"wheel","odds_checked":false`) {
 		t.Fatal(out)
 	}
 	if code, out := call("POST", "/v1/overlays", `{"name":"wheel","kind":"wheel","look":{"theme":"cosy-wheel","theme_settings":{"paper":"Plaid"}}}`); code != 400 {

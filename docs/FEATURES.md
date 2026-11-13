@@ -159,6 +159,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Discord Tier 2: a bot account, editing the announcement, slash commands, roles | new (D-089) | Waiting for a request |
 | A Now playing overlay: the song and album art from the files a music player writes (Pretzel's Write to File, for one) | new (D-091) | Built after M7 |
 | Now playing: !song, a song-changed trigger | new (D-091) | Waiting for a request |
+| Clock and timer overlays: a clock, countdowns and stopwatches, with looks for timers (Flip clock example) | new (D-092, ADR-0045) | Built after M7 |
 
 ## Extending it
 

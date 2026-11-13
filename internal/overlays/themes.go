@@ -42,11 +42,13 @@ type Setting struct {
 	Hint    string   `json:"hint,omitempty"`
 }
 
-// Theme is a look a wheel overlay can have.
+// Theme is a look a wheel, or a clock and timer overlay (D-092), can have.
 type Theme struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	// For is the kind of overlay it draws: wheel or timer.
+	For string `json:"for"`
 	// OddsChecked: StreamGremlin's tests check this look shows the real
 	// odds (wedges at their real size, or each choice's chance). Never
 	// true for an installed theme: its drawing can't be checked.
@@ -73,12 +75,15 @@ var soundsSetting = Setting{Key: "sounds", Label: "Play the look's sounds", Kind
 // InstalledTheme is the theme an installed package's version provides.
 // settings are its manifest's, already checked; files are its paths, for
 // finding its sounds beside its page.
-func InstalledTheme(id, name, description, version, publisher, digest, entry string, settings []Setting, files []string) Theme {
-	t := Theme{ID: id, Name: name, Description: description, Version: version, Publisher: publisher,
+func InstalledTheme(id, name, description, version, publisher, digest, entry, forKind string, settings []Setting, files []string) Theme {
+	t := Theme{ID: id, Name: name, Description: description, For: forKind, Version: version, Publisher: publisher,
 		Settings: append([]Setting(nil), settings...),
 		base:     "/t/" + id + "/" + version + "/" + digest + "/", entry: entry}
 	dir := path.Dir(entry)
 	for _, cue := range ThemeCues {
+		if forKind != KindWheel {
+			break // only wheels have sounds' cues
+		}
 		if slices.Contains(files, path.Join(dir, cue+".wav")) {
 			t.cues = append(t.cues, cue)
 		}
@@ -182,7 +187,7 @@ var Themes = builtin([]Theme{
 
 func builtin(ts []Theme) []Theme {
 	for i := range ts {
-		ts[i].entry, ts[i].cues = "index.html", ThemeCues
+		ts[i].entry, ts[i].cues, ts[i].For = "index.html", ThemeCues, KindWheel
 	}
 	return ts
 }
@@ -210,6 +215,14 @@ func ThemeByID(id string) (Theme, bool) {
 // against the looks in c (nil: the built-in ones). A look naming an
 // installed theme passes when c is nil, if its id could be one: the store
 // checks it against what's installed.
+// checkThemeFor reports a look whose theme draws another kind of overlay.
+func (l Look) checkThemeFor(c *Catalogue, kind string) error {
+	if t, ok := c.Theme(l.Theme); ok && l.Theme != "" && t.For != kind {
+		return invalid("%s is a look for %s overlays", t.Name, t.For)
+	}
+	return nil
+}
+
 func (l Look) checkTheme(c *Catalogue) error {
 	if l.Theme == "" {
 		if len(l.ThemeSettings) > 0 {
@@ -393,11 +406,11 @@ var ThemeCues = []string{"start", "end", "cheer"}
 // themeView is the theme a wheel overlay shows, or nil for Classic (or
 // when themes aren't served, or its theme isn't installed any more).
 func themeView(o Overlay, origin string, c *Catalogue) *ThemeView {
-	if o.Kind != KindWheel || o.Look.Theme == "" || origin == "" {
+	if (o.Kind != KindWheel && o.Kind != KindTimer) || o.Look.Theme == "" || origin == "" {
 		return nil
 	}
 	t, ok := c.Theme(o.Look.Theme)
-	if !ok {
+	if !ok || t.For != o.Kind {
 		return nil
 	}
 	v := &ThemeView{ID: t.ID, Name: t.Name, URL: origin + t.path() + t.entry,

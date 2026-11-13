@@ -314,3 +314,17 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .sg-eq { animation: none; transform: scaleY(0.6); }
 }
+
+/* The clock and timer overlay (D-092), in Classic: a label, the time in
+   even-width digits, and the date if chosen. */
+.sg-timer .sg-words { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.sg-timer .sg-timer-digits {
+  font-size: calc(56px * var(--sg-scale));
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.sg-timer .sg-timer-digits.sg-timer-done { font-size: calc(40px * var(--sg-scale)); white-space: normal; }
+.sg-timer .sg-timer-date { font-size: calc(20px * var(--sg-scale)); color: var(--sg-title); opacity: 0.85; }
+.sg-timer[hidden], .sg-timer [hidden] { display: none; }
+

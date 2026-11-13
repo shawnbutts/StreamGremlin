@@ -1,0 +1,21 @@
+{
+  "format": "streamgremlin.package/v1",
+  "id": "flip-clock",
+  "name": "Flip clock",
+  "version": "1.0.0",
+  "publisher": "StreamGremlin examples",
+  "description": "A split-flap clock whose cards flip as each digit changes, for clocks, countdowns and stopwatches: an example of a clock and timer look.",
+  "license": "MIT",
+  "kind": "theme",
+  "api": "1",
+  "theme": {
+    "for": ["timer"],
+    "entry": "index.html",
+    "settings": [
+      { "key": "cards", "label": "Cards", "kind": "choice", "default": "Charcoal", "options": ["Charcoal", "Cream", "Midnight"] },
+      { "key": "accent", "label": "Label colour", "kind": "colour", "default": "#ffb547" },
+      { "key": "show_label", "label": "Show the label", "kind": "switch", "default": true },
+      { "key": "size", "label": "Card size", "kind": "number", "default": 100, "min": 50, "max": 200, "hint": "Percent of the usual" }
+    ]
+  }
+}

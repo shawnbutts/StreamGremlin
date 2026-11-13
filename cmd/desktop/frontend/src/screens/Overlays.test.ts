@@ -78,7 +78,7 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
       };
     },
   };
-  for (const n of ['alerts', 'corner', 'giveaway', 'wheel', 'now-playing']) {
+  for (const n of ['alerts', 'corner', 'giveaway', 'wheel', 'now-playing', 'soon']) {
     routes[`/v1/overlays/${n}`] = (method, body) => {
       const i = list.findIndex((o) => o.name === n);
       if (method === 'DELETE') {
@@ -100,6 +100,12 @@ function engine(initial: Overlay[], opts: { note?: string; notOpen?: boolean; no
         ? { status: 503, body: { error: { code: 'unavailable', message: "the overlay isn't open in OBS: add its link as a browser source in a scene" } } }
         : { status: 200, body: query === 'preview=1' ? { test: true, previews: 1 } : { shown: true } };
   }
+  routes['/v1/overlays/soon/timer'] = (_m, body) => {
+    const op = body as { action: string };
+    const i = list.findIndex((o) => o.name === 'soon');
+    list[i] = { ...list[i], timer: op.action === 'reset' ? undefined : { running: op.action !== 'pause', base_ms: 240_000, since: now } };
+    return { status: 200, body: list[i].timer ?? { running: false, base_ms: 300_000, since: now } };
+  };
   routes['/desktop/choose-file'] = () => ({ status: 200, body: { path: chosen } });
   routes['/v1/sounds'] = () => ({ status: 200, body: { sounds: [{ name: 'chime' }, { name: 'tada' }], player: true } });
   return { calls: mockFetch(routes), list };
@@ -260,6 +266,53 @@ describe('Overlays', () => {
     el = start();
     await settle();
     expect(el.querySelector('[role=alert]')?.textContent).toContain('is your music player writing it?');
+  });
+
+  it('sets up a countdown, starts, pauses and resets it, and offers timer looks only', async () => {
+    const soon: Overlay = { ...alerts, name: 'soon', kind: 'timer', look: { ...look, timer_mode: 'clock' } };
+    const { calls, list } = engine([soon]);
+    const el = start();
+    await settle();
+    expect(el.textContent).toContain('Clock');
+    // Wheel looks aren't offered to a timer.
+    const looks = Array.from(el.querySelectorAll('option')).map((o) => o.textContent);
+    expect(looks).toContain('Classic');
+    expect(looks.some((t) => t?.includes('Workshop'))).toBe(false);
+    expect(el.textContent).toContain('24-hour clock');
+    expect(el.textContent).not.toContain('Seconds on screen');
+    const select = (label: string, v: string) => {
+      const s = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim().startsWith(label))!.querySelector('select')!;
+      s.value = v;
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      flushSync();
+    };
+    select('Shows', 'countdown');
+    expect(el.textContent).toContain('Save to start, pause and reset it here.');
+    const field = (label: string) => Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim().startsWith(label))!.querySelector('input')!;
+    field('Length (minutes)').value = '2.5';
+    field('Length (minutes)').dispatchEvent(new Event('input', { bubbles: true }));
+    field('Label above it').value = ' Starting soon ';
+    field('Label above it').dispatchEvent(new Event('input', { bubbles: true }));
+    field('At zero, say').value = 'Here we go!';
+    field('At zero, say').dispatchEvent(new Event('input', { bubbles: true }));
+    flushSync();
+    button(el, 'Save look')!.click();
+    await settle(80);
+    expect(list[0].look).toMatchObject({ timer_mode: 'countdown', timer_length: 150, timer_label: 'Starting soon', timer_end_text: 'Here we go!' });
+    expect(el.textContent).toContain('At its start, 2:30.');
+    button(el, 'Start')!.click();
+    await settle(80);
+    expect(calls.find((c) => c.path === '/v1/overlays/soon/timer')).toMatchObject({ method: 'POST', body: { action: 'start' } });
+    button(el, '+1 minute')!.click();
+    await settle(80);
+    expect(calls.filter((c) => c.path === '/v1/overlays/soon/timer').at(-1)).toMatchObject({ body: { action: 'add', seconds: 60 } });
+    button(el, 'Pause')!.click();
+    await settle(80);
+    expect(el.textContent).toContain('Paused at 4:00.');
+    button(el, 'Reset')!.click();
+    await settle(80);
+    expect(el.textContent).toContain('At its start, 2:30.');
+    await noViolations('a countdown overlay');
   });
 
   it('picks sounds for a giveaway overlay, and saves them with its look', async () => {

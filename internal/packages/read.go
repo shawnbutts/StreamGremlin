@@ -374,8 +374,8 @@ func parseManifest(raw []byte) (Manifest, error) {
 		return m, invalid("a theme's manifest has a theme section, and no lua section")
 	}
 	t := m.Theme
-	if !slices.Equal(t.For, []string{"wheel"}) {
-		return m, invalid(`a theme is for ["wheel"]: wheel overlays are the ones with looks`)
+	if !slices.Equal(t.For, []string{"wheel"}) && !slices.Equal(t.For, []string{"timer"}) {
+		return m, invalid(`a theme is for ["wheel"] or ["timer"]: wheel, and clock and timer, overlays are the ones with looks`)
 	}
 	if checkPath(t.Entry) != nil || strings.ToLower(path.Ext(t.Entry)) != ".html" {
 		return m, invalid("the theme's entry is its page: an .html file in the package")

@@ -92,6 +92,7 @@ type Host struct {
 	obs       *obs.Service
 	discord   *discord.Service
 	songs     *overlays.SongReader
+	clocks    *overlays.Timers
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
@@ -197,6 +198,8 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	// Now playing overlays' files are read while one is open (D-091).
 	h.songs = overlays.NewSongReader(ovs, h.hub, log.With("component", "overlays"))
 	h.songs.Start()
+	// Countdowns and stopwatches on clock and timer overlays (D-092).
+	h.clocks = overlays.NewTimers(ovs, h.hub, set, inbox, log.With("component", "overlays"))
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
@@ -223,7 +226,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.discord = discord.New(discord.Options{Settings: set, Secrets: sec, Logger: log.With("component", "discord"), Base: discordBase})
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Filters: h.filters, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox})
+		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox, OverlayTimers: h.clocks})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
 	h.rounds = rounds.New(rounds.Options{DB: h.db, Ledger: ledger, Viewers: h.viewers, Logger: log})
@@ -258,6 +261,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.wheels.Start(ctx); err != nil {
 		return nil, err
 	}
+	// After workflows: a countdown's end is an event they run on.
+	if err := h.clocks.Start(ctx); err != nil {
+		return nil, err
+	}
 	if err := h.viewers.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -274,41 +281,42 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	startedAt := time.Now()
 	paired := clients.New(h.db, nil, log)
 	h.api = api.NewServer(api.Options{Token: h.token, Clients: paired, Logger: log}, api.Routes(api.Deps{
-		DataDir:    opts.DataDir,
-		StartedAt:  startedAt,
-		DB:         h.db,
-		Settings:   set,
-		Secrets:    sec,
-		Events:     inbox,
-		Twitch:     h.twitch,
-		OBS:        h.obs,
-		Workflows:  h.workflows,
-		Variables:  vars,
-		Timers:     h.timers,
-		Quotes:     qs,
-		Sounds:     lib,
-		Player:     player,
-		Overlays:   ovs,
-		Hub:        h.hub,
-		Packages:   h.packages,
-		Themes:     h.themes,
-		FirstWords: h.firsts,
-		Ads:        h.ads,
-		Giveaways:  h.giveaways,
-		Wheels:     h.wheels,
-		Viewers:    h.viewers,
-		Points:     ledger,
-		Earning:    h.earning,
-		Gives:      h.gives,
-		Lua:        h.lua,
-		Plugins:    h.plugins,
-		Rounds:     h.rounds,
-		Buttons:    buttons.New(h.db, inbox, nil),
-		Clients:    paired,
-		Moderation: mods,
-		Filters:    h.filters,
-		Discord:    h.discord,
-		Songs:      h.songs,
+		DataDir:       opts.DataDir,
+		StartedAt:     startedAt,
+		DB:            h.db,
+		Settings:      set,
+		Secrets:       sec,
+		Events:        inbox,
+		Twitch:        h.twitch,
+		OBS:           h.obs,
+		Workflows:     h.workflows,
+		Variables:     vars,
+		Timers:        h.timers,
+		Quotes:        qs,
+		Sounds:        lib,
+		Player:        player,
+		Overlays:      ovs,
+		Hub:           h.hub,
+		Packages:      h.packages,
+		Themes:        h.themes,
+		FirstWords:    h.firsts,
+		Ads:           h.ads,
+		Giveaways:     h.giveaways,
+		Wheels:        h.wheels,
+		Viewers:       h.viewers,
+		Points:        ledger,
+		Earning:       h.earning,
+		Gives:         h.gives,
+		Lua:           h.lua,
+		Plugins:       h.plugins,
+		Rounds:        h.rounds,
+		Buttons:       buttons.New(h.db, inbox, nil),
+		Clients:       paired,
+		Moderation:    mods,
+		Filters:       h.filters,
+		Discord:       h.discord,
+		Songs:         h.songs,
+		OverlayTimers: h.clocks,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -450,6 +458,9 @@ func (h *Host) Close(ctx context.Context) error {
 func (h *Host) cleanup() {
 	if h.songs != nil {
 		h.songs.Close()
+	}
+	if h.clocks != nil {
+		h.clocks.Close()
 	}
 	if h.maint != nil {
 		h.maint.Close() // a backup in progress finishes first

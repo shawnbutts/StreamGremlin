@@ -349,6 +349,11 @@ func Catalog() []Kind {
 				return map[string]any{"spin_id": id, "wheel": "test", "title": v["title"], "started_by": "a test", "label": v["label"],
 					"choice": 1, "display": "no_audience", "draw": 0, "total": 1}, nil, nil
 			}},
+		{Type: "overlays.timer.ended", Label: "Countdown ends", Description: "A countdown on a clock and timer overlay reached zero (D-092).",
+			Sources: []string{"core"}, Fields: []Field{{Name: "label", Label: "Label", Kind: "text", Default: "Starting soon", Max: 60}},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"overlay": "test", "label": v["label"]}, nil, nil
+			}},
 		// Ads (docs/adr/0024-ads.md): asked for, refused, begun, ended (estimated).
 		adKind("ads.break.started", "Ad break begins", "Twitch says an ad break began on your channel, automatic or one you ran.",
 			[]string{"twitch"}, []Field{{Name: "duration", Label: "Length (seconds)", Kind: "number", Default: "90", Max: 3},

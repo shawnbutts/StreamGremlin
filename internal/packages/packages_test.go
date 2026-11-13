@@ -98,6 +98,55 @@ func TestTheExampleThemeIsAPackage(t *testing.T) {
 	}
 }
 
+// The example clock and timer look is a valid package, for timers only
+// (D-092), and its committed ZIP is the same package as its folder.
+func TestTheExampleTimerLookIsAPackage(t *testing.T) {
+	dir := filepath.Join("..", "..", "examples", "themes", "flip-clock")
+	var files []file
+	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := os.ReadFile(p) //nolint:gosec // the repository's own example
+		rel, _ := filepath.Rel(dir, p)
+		files = append(files, file{name: "flip-clock/" + filepath.ToSlash(rel), body: string(b)})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := ReadZip(zipOf(t, files...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Manifest.ID != "flip-clock" || !slices.Equal(r.Manifest.Theme.For, []string{"timer"}) || len(r.Manifest.Theme.Settings) != 4 {
+		t.Fatal(r.Manifest, r.Paths())
+	}
+	committed, err := os.ReadFile(filepath.Join("..", "..", "examples", "themes", "flip-clock.zip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := ReadZip(committed)
+	if err != nil || z.Digest != r.Digest {
+		t.Fatal("flip-clock.zip isn't the folder: zip it again", err)
+	}
+	// A theme is for one kind of overlay, and only the kinds with looks.
+	for _, bad := range []string{`["wheel","timer"]`, `["alert"]`, `[]`} {
+		m := strings.Replace(string(files[slices.IndexFunc(files, func(f file) bool { return strings.HasSuffix(f.name, "streamgremlin.json") })].body),
+			`"for": ["timer"]`, `"for": `+bad, 1)
+		var other []file
+		for _, f := range files {
+			if strings.HasSuffix(f.name, "streamgremlin.json") {
+				f.body = m
+			}
+			other = append(other, f)
+		}
+		if _, err := ReadZip(zipOf(t, other...)); err == nil {
+			t.Errorf("for %s was read", bad)
+		}
+	}
+}
+
 func TestPackagesAreReadWithLimits(t *testing.T) {
 	m := func(old, new string) string {
 		if !strings.Contains(manifest, old) {

@@ -78,6 +78,17 @@ type Look struct {
 	SongFile   string `json:"song_file,omitempty"`
 	ArtFile    string `json:"art_file,omitempty"`
 	PausedText string `json:"paused_text,omitempty"`
+
+	// A clock and timer overlay (D-092): what it shows (TimerModes), a
+	// label above it, a countdown's length in seconds (0: 5 minutes) and
+	// what it says at zero ("": 0:00), and how a clock reads.
+	TimerMode    string `json:"timer_mode,omitempty"`
+	TimerLabel   string `json:"timer_label,omitempty"`
+	TimerLength  int    `json:"timer_length,omitempty"`
+	TimerEndText string `json:"timer_end_text,omitempty"`
+	Clock24      bool   `json:"clock_24h,omitempty"`
+	ClockSeconds bool   `json:"clock_seconds,omitempty"`
+	ClockDate    string `json:"clock_date,omitempty"` // "", short or long
 	// Pace is how long the animation takes, in percent of the usual:
 	// 50 is twice as fast, 300 three times as slow.
 	Pace int `json:"pace"`
@@ -218,17 +229,23 @@ func (l Look) Check() error {
 	case utf8.RuneCountInString(l.PausedText) > 100 || strings.ContainsAny(l.PausedText, "\r\n"):
 		return invalid("the paused text is one line, up to 100 characters")
 	}
+	if err := checkTimer(l); err != nil {
+		return err
+	}
 	return l.checkTheme(nil)
 }
 
 // checkKind reports a look that doesn't suit a kind of overlay: only
 // wheel overlays have themes.
 func (l Look) checkKind(kind string) error {
-	if l.Theme != "" && kind != KindWheel {
-		return invalid("looks other than Classic are for wheel overlays")
+	if l.Theme != "" && kind != KindWheel && kind != KindTimer {
+		return invalid("looks other than Classic are for wheel, and clock and timer, overlays")
 	}
 	if (l.SongFile != "" || l.ArtFile != "" || l.PausedText != "") && kind != KindSong {
 		return invalid("song files are for Now playing overlays")
+	}
+	if timerLook(l) && kind != KindTimer {
+		return invalid("clocks and timers are for clock and timer overlays")
 	}
 	return nil
 }
@@ -313,8 +330,8 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 	if err := CheckName(name); err != nil {
 		return Overlay{}, "", err
 	}
-	if kind != KindAlert && kind != KindGiveaway && kind != KindWheel && kind != KindSong {
-		return Overlay{}, "", invalid("the kind of overlay is alert, giveaway, wheel or song")
+	if kind != KindAlert && kind != KindGiveaway && kind != KindWheel && kind != KindSong && kind != KindTimer {
+		return Overlay{}, "", invalid("the kind of overlay is alert, giveaway, wheel, song or timer")
 	}
 	if err := look.Check(); err != nil {
 		return Overlay{}, "", err
@@ -323,6 +340,9 @@ func (s *Store) Create(ctx context.Context, name, kind string, look Look, now ti
 		return Overlay{}, "", err
 	}
 	if err := look.checkTheme(s.themes); err != nil {
+		return Overlay{}, "", err
+	}
+	if err := look.checkThemeFor(s.themes, kind); err != nil {
 		return Overlay{}, "", err
 	}
 	raw, _ := json.Marshal(look)
@@ -402,15 +422,20 @@ func (s *Store) SetLook(ctx context.Context, name string, look Look, now time.Ti
 	if err := look.Check(); err != nil {
 		return Overlay{}, err
 	}
+	cur, err := s.Get(ctx, name)
+	if err != nil {
+		return Overlay{}, err
+	}
+	// What only one kind of overlay has (a theme, song files, a clock)
+	// is checked against this one's kind.
+	if err := look.checkKind(cur.Kind); err != nil {
+		return Overlay{}, err
+	}
 	if look.Theme != "" {
-		cur, err := s.Get(ctx, name)
-		if err != nil {
-			return Overlay{}, err
-		}
-		if err := look.checkKind(cur.Kind); err != nil {
-			return Overlay{}, err
-		}
 		if err := look.checkTheme(s.themes); err != nil {
+			return Overlay{}, err
+		}
+		if err := look.checkThemeFor(s.themes, cur.Kind); err != nil {
 			return Overlay{}, err
 		}
 	}

@@ -836,6 +836,14 @@ export interface OverlayLook {
   art_file?: string;
   /** What the player writes when paused: the overlay shows nothing then. */
   paused_text?: string;
+  /** A clock and timer overlay (D-092): what it shows, a label, a countdown's length (seconds) and end text, how a clock reads. */
+  timer_mode?: 'clock' | 'countdown' | 'stopwatch';
+  timer_label?: string;
+  timer_length?: number;
+  timer_end_text?: string;
+  clock_24h?: boolean;
+  clock_seconds?: boolean;
+  clock_date?: '' | 'short' | 'long';
   position: OverlayPosition;
   animation: 'slide' | 'pop' | 'unfold';
   seconds: number;
@@ -881,7 +889,7 @@ export interface OverlayLook {
 export interface Overlay {
   name: string;
   // A giveaway overlay shows the running giveaway (docs/adr/0029-giveaway-overlay.md).
-  kind: 'alert' | 'giveaway' | 'wheel' | 'song';
+  kind: 'alert' | 'giveaway' | 'wheel' | 'song' | 'timer';
   look: OverlayLook;
   created_at: string;
   updated_at: string;
@@ -891,7 +899,21 @@ export interface Overlay {
   previews: number;
   /** A Now playing overlay: how reading its files is going (D-091). */
   song?: { open: boolean; song: { playing: boolean; title?: string; artist?: string; picture?: string }; problem?: string };
+  /** A countdown's or stopwatch's state (D-092); absent at its start. */
+  timer?: TimerState;
 }
+
+export interface TimerState {
+  running: boolean;
+  /** A countdown's milliseconds left, or a stopwatch's counted, at `since`. */
+  base_ms: number;
+  since: string;
+  ended?: boolean;
+}
+
+/** Start, pause, reset or add time to a countdown or stopwatch overlay (D-092). */
+export const controlTimer = (name: string, op: { action: 'start' | 'pause' | 'reset' | 'add'; seconds?: number; until?: string }) =>
+  api<TimerState>('POST', `/v1/overlays/${encodeURIComponent(name)}/timer`, op);
 
 /** A look a wheel overlay can have (docs/adr/0036-packages-plugins-and-themes.md). */
 export interface OverlayTheme {
@@ -899,6 +921,8 @@ export interface OverlayTheme {
   name: string;
   description: string;
   // StreamGremlin's tests check it shows the real odds.
+  /** The kind of overlay it draws (D-092). */
+  for: 'wheel' | 'timer';
   odds_checked: boolean;
   settings: ThemeSetting[];
   /** An installed look's version and publisher (as stated, not verified). */
@@ -1543,6 +1567,8 @@ export const setEarning = (rules: EarningRules) => api<EarningView>('PUT', '/v1/
 export interface Package {
   id: string;
   kind: 'theme' | 'lua';
+  /** A theme's kind of overlay: wheel or timer (D-092). */
+  for?: 'wheel' | 'timer';
   name: string;
   version: string;
   /** As the package states it: not verified. */

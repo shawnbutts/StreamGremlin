@@ -60,7 +60,7 @@ Program plugins (any language) and the Go SDK stay Later (FEATURES).
 - `id`: 3 to 40 characters, lowercase letters, digits and `-`, starting with a letter. Not one of StreamGremlin's own namespaces (`chat`, `obs`, `twitch`, `points`, `wheels`, `giveaways`, `workflow`, `builtin`, and the rest of the action groups). It names the package's actions and events (`<id>.<name>`), so it never changes.
 - `name`, `version` (semver), `publisher`, optional `description`, `license` and `homepage`.
 - `kind` and `api` (`"1"`). A package for an API this build doesn't have is refused, naming both.
-- For a theme: `theme.for` (`["wheel"]` for now; giveaways can be added later), `theme.entry` (an HTML file in the package), `theme.settings` (below).
+- For a theme: `theme.for` (`["wheel"]`, or `["timer"]` since ADR-0045; giveaways can be added later), `theme.entry` (an HTML file in the package), `theme.settings` (below).
 - For a Lua plugin: its script, permissions, actions and events, defined in slice 5's ADR.
 
 **The publisher is as stated, not verified.** There's no signing. The app always says "published by X (not verified)".

@@ -147,6 +147,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.file(w, "page/themehost.js", "text/javascript; charset=utf-8")
 	case "song.js":
 		s.file(w, "page/song.js", "text/javascript; charset=utf-8")
+	case "timer.js":
+		s.file(w, "page/timer.js", "text/javascript; charset=utf-8")
+	case "timerhost.js":
+		s.file(w, "page/timerhost.js", "text/javascript; charset=utf-8")
 	case "art":
 		serveArt(w, o) // a Now playing overlay's cover (D-091)
 	case "ws":

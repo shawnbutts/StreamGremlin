@@ -51,16 +51,19 @@ type Deps struct {
 	Twitch    *twitch.Service
 	Discord   *discord.Service
 	// Songs reads Now playing overlays' files (D-091).
-	Songs     *overlays.SongReader
-	OBS       *obs.Service
-	Workflows *workflow.Engine
-	Variables *variables.Store
-	Timers    *timers.Service
-	Quotes    *quotes.Store
-	Sounds    *sounds.Store
-	Player    *sounds.Player
-	Overlays  *overlays.Store
-	Hub       *overlays.Hub
+	Songs *overlays.SongReader
+	// OverlayTimers keeps clock and timer overlays' countdowns and
+	// stopwatches (D-092).
+	OverlayTimers *overlays.Timers
+	OBS           *obs.Service
+	Workflows     *workflow.Engine
+	Variables     *variables.Store
+	Timers        *timers.Service
+	Quotes        *quotes.Store
+	Sounds        *sounds.Store
+	Player        *sounds.Player
+	Overlays      *overlays.Store
+	Hub           *overlays.Hub
 	// Packages are installed themes (and later plugins); Themes is what
 	// overlays may show, refreshed as packages change.
 	Packages *packages.Store

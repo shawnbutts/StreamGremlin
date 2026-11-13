@@ -285,7 +285,7 @@ func TestTheOverlayPageMayFrameOnlyTheThemeServer(t *testing.T) {
 
 // installedTheme is a theme as an installed package gives it.
 func installedTheme(files ...string) Theme {
-	return InstalledTheme("cosy-wheel", "Cosy wheel", "Warm.", "1.0.0", "Someone", strings.Repeat("ab", 32), "page/index.html",
+	return InstalledTheme("cosy-wheel", "Cosy wheel", "Warm.", "1.0.0", "Someone", strings.Repeat("ab", 32), "page/index.html", KindWheel,
 		[]Setting{{Key: "size", Label: "Size", Kind: SettingNumber, Default: 3, Min: 1, Max: 5},
 			{Key: "paper", Label: "Paper", Kind: SettingChoice, Default: "Cream", Options: []string{"Cream", "Sky"}}},
 		append([]string{"streamgremlin.json", "page/index.html"}, files...))
@@ -379,7 +379,7 @@ func TestOverlaysFitANewVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 2.0.0: size now 1-3, no "paper", a new setting.
-	c.SetInstalled([]Theme{InstalledTheme("cosy-wheel", "Cosy wheel", "", "2.0.0", "Someone", strings.Repeat("cd", 32), "page/index.html",
+	c.SetInstalled([]Theme{InstalledTheme("cosy-wheel", "Cosy wheel", "", "2.0.0", "Someone", strings.Repeat("cd", 32), "page/index.html", KindWheel,
 		[]Setting{{Key: "size", Label: "Size", Kind: SettingNumber, Default: 3, Min: 1, Max: 3},
 			{Key: "glow", Label: "Glow", Kind: SettingSwitch, Default: true}}, []string{"page/index.html"})})
 	got, err := s.RefitTheme(ctx, "cosy-wheel", now)

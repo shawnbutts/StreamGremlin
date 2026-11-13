@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Add-ons (docs/adr/0036-packages-plugins-and-themes.md): wheel looks and
+  // Add-ons (docs/adr/0036-packages-plugins-and-themes.md): wheel and timer looks (ADR-0045) and
   // Lua plugins (docs/adr/0038-lua-plugins.md) installed from a ZIP.
   // Installing shows what it is first and asks, a plugin's permissions one
   // by one; removing says which overlays go back to Classic and which
@@ -154,7 +154,7 @@
         ? `Installed ${a.name} ${a.version}. It’s off: turn it on below when you’re ready, then add its steps to a workflow.`
         : a.from
         ? `Updated ${a.name} from ${a.from} to ${a.version}.${a.overlays.length ? ` ${a.overlays.map((o) => o.overlay).join(', ')} use${a.overlays.length === 1 ? 's' : ''} it now.` : ''}${resets(a)}`
-        : `Installed ${a.name} ${a.version}. Pick it for a wheel overlay under Look, on Overlays.`;
+        : `Installed ${a.name} ${a.version}. Pick it for a ${a.for === 'timer' ? 'clock and timer' : 'wheel'} overlay under Look, on Overlays.`;
       clearFile();
     } catch (e) {
       error = message(e);
@@ -212,7 +212,7 @@
   {#if loadError}
     <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
   {:else if list.length === 0}
-    <p class="sg-muted">Nothing installed yet. Install a wheel look or a plugin from a ZIP below.</p>
+    <p class="sg-muted">Nothing installed yet. Install a look or a plugin from a ZIP below.</p>
   {/if}
   <ul class="secret-list" aria-label="Installed add-ons">
     {#each list as p (p.id)}
@@ -224,7 +224,7 @@
       <li class="secret-row">
         <div>
           <strong>{p.name}</strong>
-          {p.version} <span class="sg-muted">· wheel look · published by {p.publisher} (not verified)</span>
+          {p.version} <span class="sg-muted">· {p.for === 'timer' ? 'clock and timer look' : 'wheel look'} · published by {p.publisher} (not verified)</span>
           {#if p.description}<p class="sg-muted field-hint">{p.description}</p>{/if}
           <p class="sg-muted field-hint">
             {p.used_by.length ? `Used by ${p.used_by.join(', ')}.` : 'Not used by an overlay yet.'}
@@ -273,7 +273,7 @@
       {:else}
         <h3>{preview.name} {preview.version}</h3>
       {/if}
-      <p>{preview.plugin ? 'A Lua plugin' : 'A wheel look'}, published by {preview.publisher} <strong>(not verified)</strong>.</p>
+      <p>{preview.plugin ? 'A Lua plugin' : preview.for === 'timer' ? 'A clock and timer look' : 'A wheel look'}, published by {preview.publisher} <strong>(not verified)</strong>.</p>
       {#if preview.publisher_change && preview.installed}
         <div class="publisher-change" role="group" aria-labelledby="publisher-change-heading">
           <p id="publisher-change-heading">
@@ -357,6 +357,16 @@
         {:else}
           <p>It asks for no permissions: it only does what its steps give back.</p>
         {/if}
+      {:else if preview.for === 'timer'}
+      <p>
+        This look runs its own code in OBS and the app’s previews. It can’t reach the internet, your accounts or
+        StreamGremlin’s settings. It’s told the time, and where a countdown or stopwatch is; what it draws is up to whoever made
+        it. If it fails, the overlay shows Classic instead.
+      </p>
+      <p class="sg-muted">
+        In OBS, it only loads while the browser source has “Page permissions” at “No access to OBS”, the setting OBS starts with;
+        otherwise Classic shows instead.
+      </p>
       {:else}
       <p>
         This look runs its own code in OBS and the app’s previews. It can’t reach the internet, your accounts or

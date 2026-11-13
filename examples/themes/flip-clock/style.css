@@ -1,0 +1,85 @@
+/* Flip clock: an example clock and timer look. Its page is transparent:
+   OBS shows only the cards. */
+:root {
+  --card: #26282c;
+  --ink: #f4f1ea;
+  --hinge: rgba(0, 0, 0, 0.45);
+  --accent: #ffb547;
+  --size: 1;
+}
+html, body {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  font-family: "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+}
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(14px * var(--size));
+}
+#stage[hidden] { display: none; }
+#label, #note {
+  margin: 0;
+  color: var(--accent);
+  font-size: calc(26px * var(--size));
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+#note { color: var(--ink); letter-spacing: 0.04em; text-transform: none; }
+#label[hidden], #note[hidden] { display: none; }
+#cards { display: flex; align-items: center; gap: calc(8px * var(--size)); }
+.card {
+  position: relative;
+  width: calc(68px * var(--size));
+  height: calc(96px * var(--size));
+  border-radius: calc(10px * var(--size));
+  background: var(--card);
+  color: var(--ink);
+  font-size: calc(76px * var(--size));
+  font-weight: 700;
+  line-height: calc(96px * var(--size));
+  text-align: center;
+  box-shadow: 0 calc(6px * var(--size)) calc(18px * var(--size)) rgba(0, 0, 0, 0.5);
+  perspective: 300px;
+}
+/* The hinge across the middle. */
+.card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: var(--hinge);
+}
+.card.flip { animation: flip 420ms ease-in; }
+@keyframes flip {
+  0% { transform: rotateX(0); }
+  45% { transform: rotateX(-90deg); filter: brightness(0.6); }
+  55% { transform: rotateX(90deg); filter: brightness(0.6); }
+  100% { transform: rotateX(0); }
+}
+.sep {
+  color: var(--ink);
+  font-size: calc(64px * var(--size));
+  font-weight: 700;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.word {
+  min-width: auto;
+  width: auto;
+  padding: 0 calc(14px * var(--size));
+  font-size: calc(40px * var(--size));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.flip { animation: none; }
+}

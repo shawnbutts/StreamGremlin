@@ -154,6 +154,19 @@
     </select>
     {#if !env.overlays.length}<span class="sg-muted field-hint">No overlays yet: add one on the Overlays screen.</span>{/if}
   </label>
+{:else if param.editor === 'timer_overlay'}
+  {@const timers = env.overlays.filter((o) => o.kind === 'timer' && (o.look.timer_mode ?? 'clock') !== 'clock')}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose a countdown or stopwatch…</option>
+      {#each timers as o (o.name)}<option value={o.name}>{o.name} ({o.look.timer_mode})</option>{/each}
+      {#if typeof current === 'string' && current && !timers.some((o) => o.name === current)}
+        <option value={current}>{current} (not found)</option>
+      {/if}
+    </select>
+    {#if !timers.length}<span class="sg-muted field-hint">No countdowns or stopwatches yet: add a clock and timer overlay on the Overlays screen.</span>{/if}
+  </label>
 {:else if param.editor === 'discord_webhook'}
   <label class="field">
     <span>{label}</span>

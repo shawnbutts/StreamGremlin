@@ -2,6 +2,8 @@
 import { giveawayView } from './giveaway.js';
 import { songView } from './song.js';
 import { OBS_LEVELS, themedWheelView } from './themehost.js';
+import { timerView } from './timer.js';
+import { themedTimerView } from './timerhost.js';
 import { wheelView } from './wheel.js';
 
 // It shows what the engine sends and says how each alert went: started,
@@ -126,6 +128,11 @@ export function start(win, opts = {}) {
   let classicStill = null; // Classic, stopped at once: for a look that fails mid-spin
   // A Now playing overlay (D-091) shows the song the engine sends.
   let sv = null;
+  // A clock and timer overlay (D-092): Classic always counts; a look,
+  // when there is one, shows instead while it can.
+  let tv = null;
+  let themedTimer = null;
+  let lastTimerTheme;
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
   let pace = 1; // how long animations take, times the usual
@@ -305,6 +312,7 @@ export function start(win, opts = {}) {
         if (obsLevel !== 'asking') return;
         obsLevel = Number.isInteger(level) && level >= 0 && level < OBS_LEVELS.length ? level : 'unknown';
         if (lastTheme !== undefined) setWheel(lastTheme);
+        if (lastTimerTheme !== undefined) setTimerTheme(lastTimerTheme);
       };
       try {
         obs.getControlLevel(answer);
@@ -393,6 +401,31 @@ export function start(win, opts = {}) {
     for (const v of waiting) themed.spin(v);
   }
 
+  // A clock and timer overlay's look: Classic, or a theme by its link.
+  // An add-on look loads only where wheels' would (D-067).
+  function setTimerTheme(theme) {
+    lastTimerTheme = theme;
+    const valid = theme && typeof theme.url === 'string' && /^http:\/\/127\.0\.0\.1:\d+\/t\//.test(theme.url);
+    const addOn = valid && (theme.add_on === true || !/^http:\/\/127\.0\.0\.1:\d+\/t\/builtin\//.test(theme.url));
+    const blocked = addOn ? addOnBlocked() : '';
+    if (!valid || blocked) {
+      if (themedTimer) themedTimer.stop();
+      themedTimer = null;
+      const key = valid ? `${theme.url} ${obsLevel}` : '';
+      if (blocked && blocked !== 'asking' && refused !== key) {
+        refused = key;
+        report('refused', `${String(theme.name || 'The add-on look')} not loaded: ${blocked}. Add-on looks only load at “No access to OBS”; Classic shows instead`);
+      }
+      return;
+    }
+    if (themedTimer && themedTimer.url === theme.url) {
+      themedTimer.update(theme);
+      return;
+    }
+    if (themedTimer) themedTimer.stop();
+    themedTimer = themedTimerView(win, stage, theme, { setTimeout: later, now: opts.now, reducedMotion, classic: tv, report });
+  }
+
   function onMessage(ev) {
     let msg;
     try {
@@ -415,10 +448,19 @@ export function start(win, opts = {}) {
         gw = giveawayView(doc, stage, { setTimeout: later, now: opts.now, reducedMotion, cue });
       }
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel') setWheel(msg.body.theme);
+      if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'timer') {
+        if (!tv) tv = timerView(doc, stage, { setTimeout: later, now: opts.now });
+        tv.look(msg.body.overlay.look);
+        setTimerTheme(msg.body.theme);
+        if (themedTimer) themedTimer.changed();
+      }
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'song') {
         if (sv) sv.relook();
         else sv = songView(doc, stage, { setTimeout: later, look: () => look, animation: () => animation, pace: () => pace });
       }
+    } else if (tv && msg.type === 'timer') {
+      tv.state(msg.body);
+      if (themedTimer) themedTimer.changed();
     } else if (sv && msg.type === 'song') {
       sv.song(msg.body);
     } else if (wheel && msg.type === 'spin') {

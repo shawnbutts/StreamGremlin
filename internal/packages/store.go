@@ -46,6 +46,8 @@ type Package struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	// Settings are a theme's settings, as each overlay using it may set them.
 	Settings []overlays.Setting `json:"settings,omitempty"`
+	// For is the kind of overlay a theme draws: wheel or timer (D-092).
+	For string `json:"for,omitempty"`
 	// Kept are the other versions kept for rolling back, newest first.
 	Kept []string `json:"kept"`
 	// RollbackTo is the version Roll back returns to, if any: the highest
@@ -151,6 +153,9 @@ func fromManifest(p *Package, m Manifest) {
 	switch {
 	case m.Theme != nil:
 		p.Settings = m.Theme.Settings
+		if len(m.Theme.For) > 0 {
+			p.For = m.Theme.For[0]
+		}
 	case m.Lua != nil:
 		p.Settings = m.Lua.Settings
 		info := &PluginInfo{Permissions: []PermissionInfo{}, Actions: m.Lua.Actions, Timeout: m.Lua.TimeoutSeconds(), Script: m.Lua.Script,
@@ -181,7 +186,7 @@ func (s *Store) Check(ctx context.Context, data []byte) (Preview, *Read, error) 
 	}
 	pv := Preview{Package: describe(r, time.Time{})}
 	if r.Manifest.Theme != nil {
-		th := overlays.InstalledTheme(r.Manifest.ID, "", "", r.Manifest.Version, "", r.Digest, r.Manifest.Theme.Entry, nil, r.Paths())
+		th := overlays.InstalledTheme(r.Manifest.ID, "", "", r.Manifest.Version, "", r.Digest, r.Manifest.Theme.Entry, r.Manifest.Theme.For[0], nil, r.Paths())
 		pv.Sounds = len(th.Settings) > 0
 	}
 	cur, err := s.Get(ctx, r.Manifest.ID)
@@ -477,7 +482,7 @@ func (s *Store) Themes(ctx context.Context) ([]overlays.Theme, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, overlays.InstalledTheme(p.ID, p.Name, p.Description, p.Version, p.Publisher, p.Digest, m.Theme.Entry, m.Theme.Settings, paths))
+		out = append(out, overlays.InstalledTheme(p.ID, p.Name, p.Description, p.Version, p.Publisher, p.Digest, m.Theme.Entry, m.Theme.For[0], m.Theme.Settings, paths))
 	}
 	return out, nil
 }

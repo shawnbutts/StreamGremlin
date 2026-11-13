@@ -157,7 +157,9 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	t.Cleanup(lr.Close)
 	mods := moderation.New(db, tw, nil)
 	filt := filters.New(filters.Options{Inbox: inbox, Settings: set, Moderation: mods})
-	actions.Register(reg, actions.Services{Filters: filt, Lua: lr, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Gives: gv, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw})
+	clocks := overlays.NewTimers(ovs, hub, set, inbox, nil)
+	t.Cleanup(clocks.Close)
+	actions.Register(reg, actions.Services{Filters: filt, Lua: lr, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Gives: gv, Ads: adsSvc, Twitch: tw, OBS: ob, Timers: tm, Quotes: qs, Sounds: lib, Player: player, Overlays: ovs, Hub: hub, FirstWords: fw, OverlayTimers: clocks})
 	rs := rounds.New(rounds.Options{DB: db, Ledger: ledger, Viewers: vs})
 	pm := plugins.New(plugins.Options{Store: pkgs, Actions: reg, Chat: tw, Inbox: inbox, Rounds: rs})
 	if err := pm.Start(context.Background()); err != nil {
@@ -187,7 +189,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	return NewServer(Options{Token: testToken, Clients: cl}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

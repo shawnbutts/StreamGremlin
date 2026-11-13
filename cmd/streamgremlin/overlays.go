@@ -6,21 +6,24 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/client"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 )
 
 const overlaysUsage = `usage:
   streamgremlin overlays [-json]          list your overlays (links aren't listed)
-  streamgremlin overlays add [-giveaway | -wheel | -song] NAME
+  streamgremlin overlays add [-giveaway | -wheel | -song | -timer] NAME
                                           add an alert overlay (or a giveaway overlay, which shows
                                           the running giveaway and rolls to each winner, a wheel overlay,
                                           which spins every wheel, or a Now playing overlay, which shows
-                                          the song a music player writes to a file), and print its link
+                                          the song a music player writes to a file; or, with -timer, a clock,
+                                          countdown or stopwatch), and print its link
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
   streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
@@ -29,12 +32,16 @@ const overlaysUsage = `usage:
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
                                           giveaway and wheel overlays: -start-sound drumroll -end-sound clunk
                                           -cheer-sound cheer
+                                          clock and timer overlays: -mode countdown -label "Starting soon"
+                                          -length 5m -end-text "Starting now!", or -mode clock -24h -date short
                                           Now playing overlays: -song-file /path/song.txt -art-file /path/art.jpg
                                           -paused-text Paused -song-hides
                                           wheel overlays: -look workshop (or classic, neon-arcade,
                                           selector-board) -look-title "Pick a game" -accent #e8b04e
                                           -look-sounds=false (its own sounds, where none is picked);
                                           an installed look: -look ID -set KEY=VALUE (see packages)
+  streamgremlin overlays timer NAME start [-minutes N | -until 19:00] | pause | reset | add -minutes N
+                                          start, pause, reset or add time to a countdown or stopwatch
   streamgremlin overlays test NAME        show a sample alert (or giveaway and draw) in OBS
   streamgremlin overlays delete NAME      delete it; its link stops working
 
@@ -48,6 +55,7 @@ type overlayList struct {
 		Pages    int                  `json:"pages"`
 		Previews int                  `json:"previews"`
 		Song     *overlays.SongStatus `json:"song,omitempty"`
+		Timer    *overlays.TimerState `json:"timer,omitempty"`
 	} `json:"overlays"`
 	Server     string           `json:"server"`
 	ServerNote string           `json:"server_note"`
@@ -76,6 +84,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			giveaway := fs.Bool("giveaway", false, "a giveaway overlay")
 			wheel := fs.Bool("wheel", false, "a wheel overlay")
 			song := fs.Bool("song", false, "a Now playing overlay: the song a music player writes to a file")
+			timer := fs.Bool("timer", false, "a clock and timer overlay: a clock, a countdown or a stopwatch")
 			if fs.Parse(args[1:]) != nil || fs.NArg() != 1 {
 				return usage()
 			}
@@ -88,6 +97,9 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			if *song {
 				kind = overlays.KindSong
+			}
+			if *timer {
+				kind = overlays.KindTimer
 			}
 			var out struct {
 				Overlay overlays.Overlay `json:"overlay"`
@@ -169,14 +181,21 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.ArtFile, "art-file", l.ArtFile, "Now playing overlays: the full path of the .jpg or .png your music player writes the cover to (none for none)")
 			fs.StringVar(&l.PausedText, "paused-text", l.PausedText, "Now playing overlays: what your music player writes when paused (none for none)")
 			fs.BoolVar(&l.SongHides, "song-hides", l.SongHides, "Now playing overlays: show each song for -seconds, then hide")
+			fs.StringVar(&l.TimerMode, "mode", l.TimerMode, "clock and timer overlays: clock, countdown or stopwatch")
+			fs.StringVar(&l.TimerLabel, "label", l.TimerLabel, "clock and timer overlays: a label above it, like Starting soon (none for none)")
+			fs.StringVar(&l.TimerEndText, "end-text", l.TimerEndText, "countdowns: what it says at zero, like Starting now! (none for 0:00)")
+			length := fs.Duration("length", time.Duration(l.TimerLength)*time.Second, "countdowns: how long, like 5m or 1h30m")
+			fs.BoolVar(&l.Clock24, "24h", l.Clock24, "clocks: a 24-hour clock")
+			fs.BoolVar(&l.ClockSeconds, "clock-seconds", l.ClockSeconds, "clocks: show seconds")
+			fs.StringVar(&l.ClockDate, "date", l.ClockDate, "clocks: the date under the time: short, long or none")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			lookName := strings.TrimPrefix(l.Theme, "builtin:")
 			var sets setFlags
 			if lookName == "" {
 				lookName = "classic"
 			}
-			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id")
-			fs.Var(&sets, "set", "wheel overlays with a look: one of its settings, KEY=VALUE (repeatable; see packages)")
+			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id; clock and timer overlays: classic or an installed look's id")
+			fs.Var(&sets, "set", "an overlay with a look: one of its settings, KEY=VALUE (repeatable; see packages)")
 			lookTitle := fs.String("look-title", "", "wheel overlays with a look: its title (empty for the wheel's own)")
 			lookShowTitle := fs.Bool("look-show-title", true, "wheel overlays with a look: show the title")
 			accent := fs.String("accent", "", "wheel overlays with a look: its accent colour, #RRGGBB")
@@ -240,7 +259,8 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if l.CheerSound == "none" {
 				l.CheerSound = ""
 			}
-			for _, p := range []*string{&l.SongFile, &l.ArtFile, &l.PausedText} {
+			l.TimerLength = int(length.Round(time.Second) / time.Second)
+			for _, p := range []*string{&l.SongFile, &l.ArtFile, &l.PausedText, &l.TimerLabel, &l.TimerEndText, &l.ClockDate} {
 				if *p == "none" {
 					*p = ""
 				}
@@ -251,7 +271,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if code := apiExit(c.Do(ctx, "PUT", path(o.Name), map[string]any{"look": l}, &o), stderr); code != 0 {
 				return code
 			}
-			if o.Kind == overlays.KindWheel {
+			if o.Kind == overlays.KindWheel || o.Kind == overlays.KindTimer {
 				name := "Classic"
 				for _, t := range list.Themes {
 					if t.ID == o.Look.Theme {
@@ -263,6 +283,8 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			fmt.Fprintf(stdout, "%s: %s, %s, %d seconds.\n", o.Name, o.Look.Position, o.Look.Animation, o.Look.Seconds)
 			return 0
+		case "timer":
+			return overlayTimerCmd(ctx, c, path, args[1:], stdout, stderr, usage)
 		case "test":
 			if len(args) != 2 {
 				return usage()
@@ -308,6 +330,18 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			open = fmt.Sprintf("open in %d page(s)", o.Pages)
 		}
 		fmt.Fprintf(stdout, "%-24s %-8s %-13s %s\n", o.Name, o.Kind, o.Look.Position, open)
+		if o.Kind == overlays.KindTimer && o.Look.TimerMode != "" && o.Look.TimerMode != overlays.TimerClock {
+			switch t := o.Timer; {
+			case t == nil:
+				fmt.Fprintf(stdout, "%-24s %s, at its start\n", "", o.Look.TimerMode)
+			case t.Ended:
+				fmt.Fprintf(stdout, "%-24s %s, ended\n", "", o.Look.TimerMode)
+			case t.Running:
+				fmt.Fprintf(stdout, "%-24s %s, running\n", "", o.Look.TimerMode)
+			default:
+				fmt.Fprintf(stdout, "%-24s %s, paused at %s\n", "", o.Look.TimerMode, (time.Duration(t.BaseMS) * time.Millisecond).Round(time.Second))
+			}
+		}
 		if o.Song != nil && o.Song.Open {
 			switch {
 			case o.Song.Problem != "":
@@ -370,4 +404,33 @@ func settingValue(t *overlays.Theme, key, v string) (any, error) {
 		keys = append(keys, s.Key)
 	}
 	return nil, fmt.Errorf("%s has no setting %q; its settings: %s", t.Name, key, strings.Join(keys, ", "))
+}
+
+// overlayTimerCmd starts, pauses, resets or adds time to a countdown or
+// stopwatch overlay (D-092).
+func overlayTimerCmd(ctx context.Context, c *client.Client, path func(string) string, args []string, stdout, stderr io.Writer, usage func() int) int {
+	if len(args) < 2 {
+		return usage()
+	}
+	name, action := args[0], args[1]
+	fs := flag.NewFlagSet("overlays timer", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	minutes := fs.Float64("minutes", 0, "start: count down for this long; add: this much longer")
+	until := fs.String("until", "", "start: count down until this time, like 19:00")
+	if fs.Parse(args[2:]) != nil || fs.NArg() > 0 {
+		return usage()
+	}
+	op := overlays.TimerOp{Action: action, Seconds: int(math.Round(*minutes * 60)), Until: *until}
+	var st overlays.TimerState
+	if code := apiExit(c.Do(ctx, "POST", path(name)+"/timer", op, &st), stderr); code != 0 {
+		return code
+	}
+	left := time.Duration(st.BaseMS) * time.Millisecond
+	switch {
+	case st.Running:
+		fmt.Fprintf(stdout, "%s is running, from %s.\n", name, left.Round(time.Second))
+	default:
+		fmt.Fprintf(stdout, "%s is stopped at %s.\n", name, left.Round(time.Second))
+	}
+	return 0
 }

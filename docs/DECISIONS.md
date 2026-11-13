@@ -1605,3 +1605,19 @@ Decided 2026-11-13. After D-090's overlay showed no picture, the user asked: "si
 
 **Made generic the same day:** the user: "can we make it more generic. this isn't prezel specific anymore since any audio players could write these files". Nothing in how the files are read was Pretzel's, so only words changed: the screens, Help, the CLI's flags and the problems the settings show speak of "your music player", with Pretzel's Write to File as one example. The "Pretzel's files" settings are now "Song files".
 
+## D-092. Clocks, countdowns and stopwatches on overlays
+
+Decided 2026-11-13. The user asked: "can we add some example plugins for time. a configurable clock, a countdown timer, and a stop watch. ideally, all in one plugin. but if it's easier, different ones will work as well. to goal is to allow overlays to show the current time (maybe date as an option), a stream starting countdown, etc." Plugins can't draw on overlays (Lua plugins have no screen; themes only restyled wheels), so the user was asked how to build it, and chose "Timer overlay + example look".
+
+**Who it's for:** the user, and any streamer with a "starting soon" screen or a clock on stream; Streamer.bot users do this with OBS's own text sources and scripts.
+
+**Built (ADR-0045):**
+- **A Clock and timers overlay:** one overlay shows a clock (12- or 24-hour, seconds if chosen, the date short or long if chosen), a countdown (a length, or until a time, and text at zero, like "Starting now!") or a stopwatch, with a label above it, in the same looks as alerts. Add one for each on screen at once.
+- **Countdowns and stopwatches survive restarts:** the engine keeps their state and sends it to every page, and the page counts the seconds.
+- **Controls:** Start, Pause, Reset, +1 minute and "Count down until" on the Overlays screen. Steps: **Start a countdown or stopwatch** (for minutes, or until a time), **Pause…**, **Reset…**, **Add time to a countdown**, so buttons and Stream Deck keys can. The trigger **A countdown ends** runs workflows at zero, like switching to the first scene. A countdown that ran out while StreamGremlin was off doesn't fire late.
+- **Looks for timers:** a theme can be `"for": ["timer"]`, in the same sandbox as wheel looks, and the Overlays screen offers each kind only its own looks. **Flip clock** (`examples/themes/flip-clock.zip`) is the example: split-flap cards that flip as digits change, for all three modes.
+- **Command line:** `overlays add -timer NAME`, `overlays look NAME -mode countdown -length 5m -label … -end-text …` (or `-mode clock -24h -clock-seconds -date short`), `overlays timer NAME start [-minutes N | -until 19:00] | pause | reset | add -minutes N`.
+- **Fixed on the way:** saving a look checked kind-only settings (song files, timers, themes) against the overlay's kind only when a theme was set; it always checks now.
+
+**Not built:** time zones other than this computer's; counting up from a past time ("live for…": Read the stream's uptime does that); several timers on one overlay; sounds at zero (a workflow on "A countdown ends" can play one).
+

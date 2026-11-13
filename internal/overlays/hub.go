@@ -133,6 +133,8 @@ type Hub struct {
 	giveaway *GiveawayView
 	// songs is what each Now playing overlay shows, by name.
 	songs map[string]SongView
+	// timers is each countdown's and stopwatch's state, by name.
+	timers map[string]TimerView
 	// themeOrigin is the theme server's, for wheel looks ("" when off).
 	themeOrigin string
 	themes      *Catalogue
@@ -151,7 +153,7 @@ func NewHub(now func() time.Time) *Hub {
 		now = time.Now
 	}
 	return &Hub{now: now, conns: map[string]map[*conn]bool{}, queues: map[string]*queue{},
-		sessions: map[string]*session{}, shown: map[string]time.Time{}, songs: map[string]SongView{}}
+		sessions: map[string]*session{}, shown: map[string]time.Time{}, songs: map[string]SongView{}, timers: map[string]TimerView{}}
 }
 
 // Open reports how many pages and previews have an overlay open.
@@ -231,6 +233,10 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 	}
 	if o.Kind == KindSong {
 		h.sendLocked(c, message("song", h.songs[o.Name]))
+	}
+	if v, ok := h.timers[o.Name]; ok && o.Kind == KindTimer {
+		v.NowMS = h.now().UnixMilli() // the engine's time as it's sent
+		h.sendLocked(c, message("timer", v))
 	}
 	// An alert still on screen is sent with the time it has left. Pages
 	// skip alerts they've already played.
