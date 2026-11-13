@@ -89,6 +89,10 @@ func moderationRoutes(d Deps) []Route {
 				if !decodeJSON(w, r, &req) {
 					return
 				}
+				if req.From == moderation.FromFilter {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli: only the chat filters act as filter")
+					return
+				}
 				rec, dup, err := d.Moderation.Do(r.Context(), req)
 				switch {
 				case errors.Is(err, moderation.ErrInvalid):

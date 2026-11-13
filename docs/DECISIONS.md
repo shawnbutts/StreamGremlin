@@ -1451,3 +1451,43 @@ Decided 2026-11-12. The user: "i'd like to get some beta testers. do we need to 
 - **The beta guide,** [docs/BETA.md](BETA.md), ships in both installers. It warns that beta data may need a fresh start at the first public release (ADR-0001).
 - **Help covers every screen,** checked by a test against the sidebar. New entries: Giveaways, Points, Viewers, Wheels, Add-ons (wheel looks as well as plugins), Ads, Backups and the window. Help also has a "Something went wrong?" section, with the version and the logs folder.
 
+
+## D-085. Chat filters
+
+Decided 2026-11-13. Asked what common bot features were missing while the beta testers try the app, I suggested chat filters first, then commands for the channel. The user: "let's do chat filters and the channel commands".
+
+**Who it's for:** every streamer with a busy or spam-prone chat, and streamers coming from Nightbot or Streamer.bot, who expect spam protection to be there.
+
+- **Six rules,** each with its own switch, under one switch for all of them. Everything starts off.
+  - **Links:** a web address, with or without `http` or `www`. Matching uses a list of common endings (`.com`, `.tv`, `.ly`…), so "ok.so" isn't a link. Allowed sites never count; `twitch.tv` and `clips.twitch.tv` are allowed at first.
+  - **Capitals:** a message with at least 10 letters, of which 70% or more are capitals.
+  - **Symbols:** a message of at least 15 characters, half or more of them symbols.
+  - **Emotes:** more than 10 emotes in one message, counted from Twitch's emote fragments. `emote_count` is added to chat messages' payload.
+  - **Repeats:** the same viewer sending the same message (ignoring case and spaces) a third time within 60 seconds.
+  - **Words:** the streamer's list of words and phrases, matched as whole words without regard to case. A `*` at the start or end matches the rest of a word.
+- **What happens:** each rule deletes the message (the default), times the viewer out (1 second to 2 weeks) or warns them. The first rule that matches acts, in the order Words, Links, Emotes, Capitals, Symbols, Repeats. A filter never bans: a mistake would cost a viewer too much.
+- **Never filtered:** you, your moderators and your bot. Each rule can also leave VIPs and subscribers alone (VIPs are left alone at first). Messages from another channel in a shared chat aren't filtered: they aren't yours to moderate.
+- **`!permit name`:** a new step, **Let a viewer post a link**, lets one viewer post links for 60 seconds (1 to 10 minutes). A template, "Permit a link" (mods and you), uses it. Permits live only in memory.
+- **Recorded like moderating by hand (ADR-0041):** each action is sent once, as the streamer, and recorded with Twitch's answer, from `filter`. The request id is made from the message id, so a message is never acted on twice. Reasons are shown to the viewer for a warning, and to moderators for a timeout: "Please don't post links here." and so on.
+- **Workflows can react:** each catch adds a `chat.filter.caught` event (rule, action, Twitch's answer, the message), with the trigger "A chat filter catches a message". A template, "Say why a message went", replies in chat.
+- **Test messages are judged too,** but nothing is sent to Twitch: the caught event is a test event.
+- **A Chat filters screen,** in the sidebar after Viewers: the switches and settings, a box to try a message, and what the filters did lately. CLI: `streamgremlin filters` and `filters check TEXT`.
+- **Twitch's own tools stay Twitch's:** AutoMod and Blocked Terms act before StreamGremlin sees a message. Help says where to find them. Copying the word list to Twitch's Blocked Terms waits for a request.
+- **No new scopes:** deleting, timing out and warning were added in D-079. No new storage: the settings are saved with the others, and what filters did is in the moderation record.
+
+## D-086. Commands for the channel: title, category, clips, markers, uptime and follow age
+
+Decided 2026-11-13, with D-085. The user: "let's do chat filters and the channel commands".
+
+**Who it's for:** streamers and their moderators, from chat and from the Live screen's buttons. Viewers asking "how long has the stream been on?" or "how long have I followed?". Streamers coming from Nightbot and Streamer.bot, which have these.
+
+- **Six new steps, using Twitch's documented API:**
+  - **Change the stream title** (Modify Channel Information, 1 to 140 characters).
+  - **Change the category:** a name, matched exactly with Get Games, otherwise Search Categories' first answer. The step says which category it chose.
+  - **Make a clip** (Create Clip, as the streamer, with an optional title and a length of 5 to 60 seconds). Twitch makes clips after answering, so the step checks with Get Clips every 5 seconds. It finishes with the clip's link once Twitch has the clip, and fails after 60 seconds, as Twitch's reference says to assume then. Never sent twice.
+  - **Add a stream marker** (Create Stream Marker, up to 140 characters), only while live with past broadcasts on.
+  - **Read the stream:** live or not, since when, how long in words ("2 hours 5 minutes"), the title, the category and the viewer count (Get Streams and Get Channel Information). It reaches nothing, so it runs for test events too.
+  - **Read when a viewer followed:** following or not, since when, and how long in words (Get Channel Followers). The viewer is the one who chatted, or a name.
+- **Templates:** `!title` and `!game` (mods and you: with words they change the title or category, without them they say what it is), `!clip` (mods, VIPs and you), `!marker` (mods and you), `!uptime` and `!followage` (everyone). Each can be changed in the editor like any workflow.
+- **Two scopes are added:** `channel:manage:broadcast` and `clips:edit`. The streamer signs in again once; until then the steps say to.
+- **Not in this slice:** tags, content labels, language and stream delay.

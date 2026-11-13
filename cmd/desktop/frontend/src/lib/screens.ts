@@ -14,6 +14,7 @@ export type Screen =
   | 'giveaways'
   | 'points'
   | 'viewers'
+  | 'filters'
   | 'wheels'
   | 'rewards'
   | 'polls'
@@ -39,6 +40,7 @@ export const screens: { id: Screen; label: string }[] = [
   { id: 'giveaways', label: 'Giveaways' },
   { id: 'points', label: 'Points' },
   { id: 'viewers', label: 'Viewers' },
+  { id: 'filters', label: 'Chat filters' },
   { id: 'wheels', label: 'Wheels' },
   { id: 'rewards', label: 'Rewards' },
   { id: 'polls', label: 'Polls' },

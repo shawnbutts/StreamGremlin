@@ -1804,3 +1804,53 @@ export const forgetClient = (id: string) => api<void>('DELETE', `/v1/clients/${e
 export const getPairing = () => api<PairingState>('GET', '/v1/clients/pairing');
 export const startPairing = () => api<{ code: string; expires_at: string }>('POST', '/v1/clients/pairing', { kind: 'stream_deck' });
 export const stopPairing = () => api<void>('DELETE', '/v1/clients/pairing');
+
+// Chat filters (D-085).
+
+export type FilterRule = 'words' | 'links' | 'emotes' | 'caps' | 'symbols' | 'repeats';
+export type FilterAction = 'delete' | 'timeout' | 'warn';
+
+export interface FilterRuleSettings {
+  on: boolean;
+  action: FilterAction;
+  /** A timeout's length; 0 for the other actions. */
+  seconds: number;
+  exempt_vips: boolean;
+  exempt_subscribers: boolean;
+}
+export interface FilterSettings {
+  on: boolean;
+  words: FilterRuleSettings & { list: string[] };
+  links: FilterRuleSettings & { allowed: string[] };
+  emotes: FilterRuleSettings & { max: number };
+  caps: FilterRuleSettings & { min_letters: number; percent: number };
+  symbols: FilterRuleSettings & { min_length: number; percent: number };
+  repeats: FilterRuleSettings & { times: number };
+}
+/** One message a filter caught, with Twitch's answer (or test). */
+export interface FilterCatch {
+  at: string;
+  rule: FilterRule;
+  action: FilterAction;
+  seconds?: number;
+  state: 'done' | 'refused' | 'unknown' | 'test';
+  answer?: string;
+  text: string;
+  user_id: string;
+  login: string;
+  name: string;
+}
+export interface FiltersView {
+  settings: FilterSettings;
+  recent: FilterCatch[];
+}
+export interface FilterVerdict {
+  rule: FilterRule | '';
+  reason?: string;
+}
+
+export const getFilters = () => api<FiltersView>('GET', '/v1/filters');
+export const saveFilters = (s: FilterSettings) => api<FiltersView>('PUT', '/v1/filters', s);
+/** Which filter would catch a message, judged with these settings. */
+export const checkFilter = (text: string, role: string, settings?: FilterSettings) =>
+  api<FilterVerdict>('POST', '/v1/filters/check', { text, role, settings });

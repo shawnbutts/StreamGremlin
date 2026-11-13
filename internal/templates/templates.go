@@ -158,7 +158,7 @@ func At(d any, path string) (any, bool) {
 }
 
 // Categories, in the order the gallery shows them.
-var Categories = []string{"Chat commands", "Welcome", "Twitch events", "Quotes", "Scenes", "Stream"}
+var Categories = []string{"Chat commands", "Welcome", "Twitch events", "Moderation", "Quotes", "Scenes", "Stream"}
 
 // All returns every template, by category then title.
 func All() ([]Template, error) {

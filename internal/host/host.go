@@ -27,6 +27,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
+	"code.streamgremlin.com/streamgremlin/internal/filters"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
@@ -88,6 +89,7 @@ type Host struct {
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
+	filters   *filters.Service
 	ads       *ads.Service
 	giveaways *giveaways.Service
 	wheels    *wheels.Service
@@ -199,8 +201,14 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		h.earning.SetMinute(opts.TestMinute)
 	}
 	h.lua = lua.NewRunner(lua.Options{Logger: log})
+	mods := moderation.New(h.db, h.twitch, log)
+	if err := mods.Recover(ctx); err != nil {
+		return nil, err
+	}
+	h.filters = filters.New(filters.Options{Inbox: inbox, Settings: set, Moderation: mods, Logger: log,
+		BotID: func() string { a, _ := h.twitch.Account(twitch.RoleBot); return a.Status().UserID }})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Filters: h.filters, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
@@ -221,6 +229,10 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	if err := h.ads.Start(ctx); err != nil {
+		return nil, err
+	}
+	// After workflows: what filters catch is stored as events, which they run on.
+	if err := h.filters.Start(ctx); err != nil {
 		return nil, err
 	}
 	// A giveaway's commands and workflows' are one answer each.
@@ -246,10 +258,6 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		return nil, err
 	}
 	startedAt := time.Now()
-	mods := moderation.New(h.db, h.twitch, log)
-	if err := mods.Recover(ctx); err != nil {
-		return nil, err
-	}
 	paired := clients.New(h.db, nil, log)
 	h.api = api.NewServer(api.Options{Token: h.token, Clients: paired, Logger: log}, api.Routes(api.Deps{
 		DataDir:    opts.DataDir,
@@ -284,6 +292,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Buttons:    buttons.New(h.db, inbox, nil),
 		Clients:    paired,
 		Moderation: mods,
+		Filters:    h.filters,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -440,6 +449,9 @@ func (h *Host) cleanup() {
 	}
 	if h.ads != nil {
 		h.ads.Close() // before workflows: no new estimated ends while runs finish
+	}
+	if h.filters != nil {
+		h.filters.Close() // before workflows: nothing more caught while runs finish
 	}
 	if h.firsts != nil {
 		h.firsts.Close() // before workflows: no new first words while runs finish

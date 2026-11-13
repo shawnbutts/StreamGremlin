@@ -1,0 +1,253 @@
+<script lang="ts">
+  // Chat filters (D-085): six rules that catch spam and delete, time out or
+  // warn, each sent once as you and recorded; a box to try a message; and
+  // what the filters caught lately, with Twitch's answer.
+  import { onMount } from 'svelte';
+  import {
+    ApiError,
+    checkFilter,
+    getFilters,
+    saveFilters,
+    type FilterCatch,
+    type FilterRule,
+    type FilterRuleSettings,
+    type FilterSettings,
+  } from '../lib/api';
+  import { eventTime } from '../lib/events';
+
+  let { refreshMs = 5000 }: { refreshMs?: number } = $props();
+
+  const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
+
+  // The form, read once so a refresh never undoes what's being typed.
+  let form = $state<FilterSettings | undefined>();
+  let wordsText = $state('');
+  let allowedText = $state('');
+  let recent = $state<FilterCatch[]>([]);
+  let loadError = $state('');
+  let busy = $state(false);
+  let notice = $state('');
+  let error = $state('');
+  let tryText = $state('');
+  let tryRole = $state('viewer');
+  let tryResult = $state('');
+
+  const order: FilterRule[] = ['words', 'links', 'emotes', 'caps', 'symbols', 'repeats'];
+  const ruleName: Record<FilterRule, string> = {
+    words: 'Words',
+    links: 'Links',
+    emotes: 'Emotes',
+    caps: 'Capitals',
+    symbols: 'Symbols',
+    repeats: 'Repeats',
+  };
+  const ruleHelp: Record<FilterRule, string> = {
+    words: 'Your words and phrases, as whole words, in any case. A * at the start or end matches the rest of a word: spoil* catches spoiler.',
+    links: 'Web addresses, with or without http or www. Allowed sites and their subdomains never count. Mods let one viewer post links with !permit (the “Permit a link” template).',
+    emotes: 'Too many emotes in one message.',
+    caps: 'Messages mostly in capitals. Emotes’ names don’t count.',
+    symbols: 'Messages mostly of symbols, like !!!!! or ░░░░.',
+    repeats: 'The same message from the same viewer again and again within a minute, ignoring case and spaces.',
+  };
+  const actionWords: Record<string, string> = { delete: 'deleted', timeout: 'timed out', warn: 'warned' };
+  const stateWords: Record<FilterCatch['state'], string> = { done: 'Done', refused: 'Refused', unknown: 'Unknown', test: 'Test: nothing sent' };
+
+  const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
+
+  function fill(s: FilterSettings) {
+    form = structuredClone(s);
+    wordsText = s.words.list.join('\n');
+    allowedText = s.links.allowed.join('\n');
+  }
+
+  async function load() {
+    try {
+      const v = await getFilters();
+      recent = v.recent;
+      if (!form) fill(v.settings);
+      loadError = '';
+    } catch (e) {
+      loadError = message(e);
+    }
+  }
+
+  onMount(() => {
+    load();
+    const t = setInterval(load, refreshMs);
+    return () => clearInterval(t);
+  });
+
+  // The form as settings, with each length only on a timeout.
+  function settings(): FilterSettings {
+    const s = structuredClone($state.snapshot(form)) as FilterSettings;
+    s.words.list = lines(wordsText);
+    s.links.allowed = lines(allowedText);
+    for (const r of order) {
+      const rule = s[r] as FilterRuleSettings;
+      rule.seconds = rule.action === 'timeout' ? Number(rule.seconds) || 0 : 0;
+    }
+    for (const [k, f] of [['emotes', 'max'], ['caps', 'min_letters'], ['caps', 'percent'], ['symbols', 'min_length'], ['symbols', 'percent'], ['repeats', 'times']] as const) {
+      (s[k] as unknown as Record<string, number>)[f] = Number((s[k] as unknown as Record<string, number>)[f]);
+    }
+    return s;
+  }
+
+  function setAction(r: FilterRule, a: string) {
+    const rule = form![r] as FilterRuleSettings;
+    rule.action = a as FilterRuleSettings['action'];
+    if (a === 'timeout' && !rule.seconds) rule.seconds = 600;
+  }
+
+  async function save(e: SubmitEvent) {
+    e.preventDefault();
+    busy = true;
+    error = '';
+    notice = '';
+    try {
+      const v = await saveFilters(settings());
+      fill(v.settings);
+      recent = v.recent;
+      const on = order.filter((r) => v.settings[r].on).length;
+      notice = !v.settings.on
+        ? 'Saved. The filters are off.'
+        : on === 0
+          ? 'Saved. The filters are on, but no filter is: tick the ones you want.'
+          : `Saved. ${on} filter${on === 1 ? ' is' : 's are'} watching chat from now on.`;
+    } catch (err) {
+      error = message(err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function tryIt(e: SubmitEvent) {
+    e.preventDefault();
+    tryResult = '';
+    error = '';
+    try {
+      const v = await checkFilter(tryText, tryRole, settings());
+      tryResult = v.rule ? `${ruleName[v.rule]} would catch it: “${v.reason}”` : 'No filter that’s ticked would catch it.';
+    } catch (err) {
+      error = message(err);
+    }
+  }
+</script>
+
+<h1>Chat filters</h1>
+<p class="sg-muted screen-intro">
+  Catch spam in your Twitch chat and delete it, time the viewer out or warn them, as you. You, your moderators and your bot are never
+  filtered. Each action is sent to Twitch once and listed below with Twitch’s answer. Twitch’s own AutoMod and Blocked Terms are on
+  Twitch, under Creator Dashboard, Settings, Moderation, and act before StreamGremlin sees a message.
+</p>
+
+{#if loadError}
+  <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
+{/if}
+
+{#if form}
+  <section class="sg-panel card" aria-labelledby="filters-heading" aria-busy={busy}>
+    <h2 id="filters-heading">Filters</h2>
+    <form onsubmit={save} aria-label="Chat filters">
+      <label class="choice-inline"><input type="checkbox" bind:checked={form.on} /> Filters are on</label>
+      {#each order as r (r)}
+        {@const rule = form[r] as FilterRuleSettings}
+        <fieldset>
+          <legend>{ruleName[r]}</legend>
+          <p class="sg-muted">{ruleHelp[r]}</p>
+          <label class="choice-inline"><input type="checkbox" bind:checked={rule.on} /> Filter {ruleName[r].toLowerCase()}</label>
+          {#if rule.on}
+            <div class="row-actions">
+              <label class="field inline-field"
+                ><span>What happens</span>
+                <select class="sg-input" value={rule.action} onchange={(e) => setAction(r, e.currentTarget.value)}>
+                  <option value="delete">Delete the message</option>
+                  <option value="timeout">Time them out</option>
+                  <option value="warn">Warn them</option>
+                </select></label
+              >
+              {#if rule.action === 'timeout'}
+                <label class="field inline-field"
+                  ><span>For (seconds)</span><input class="sg-input" type="number" min="1" max="1209600" bind:value={rule.seconds} /></label
+                >
+              {/if}
+              {#if r === 'emotes'}
+                <label class="field inline-field"><span>More than (emotes)</span><input class="sg-input" type="number" min="1" max="100" bind:value={form.emotes.max} /></label>
+              {:else if r === 'caps'}
+                <label class="field inline-field"><span>At least (letters)</span><input class="sg-input" type="number" min="1" max="500" bind:value={form.caps.min_letters} /></label>
+                <label class="field inline-field"><span>Capitals (%)</span><input class="sg-input" type="number" min="1" max="100" bind:value={form.caps.percent} /></label>
+              {:else if r === 'symbols'}
+                <label class="field inline-field"><span>At least (characters)</span><input class="sg-input" type="number" min="1" max="500" bind:value={form.symbols.min_length} /></label>
+                <label class="field inline-field"><span>Symbols (%)</span><input class="sg-input" type="number" min="1" max="100" bind:value={form.symbols.percent} /></label>
+              {:else if r === 'repeats'}
+                <label class="field inline-field"><span>Times in a minute</span><input class="sg-input" type="number" min="2" max="10" bind:value={form.repeats.times} /></label>
+              {/if}
+            </div>
+            {#if rule.action === 'warn'}
+              <p class="sg-muted">A warning shows the viewer why, and they must accept it before chatting again.</p>
+            {/if}
+            {#if r === 'words'}
+              <label class="field"><span>Words and phrases, one a line</span><textarea class="sg-input" rows="4" bind:value={wordsText}></textarea></label>
+            {:else if r === 'links'}
+              <label class="field"><span>Allowed sites, one a line (like twitch.tv)</span><textarea class="sg-input" rows="3" bind:value={allowedText}></textarea></label>
+            {/if}
+            <div class="row-actions">
+              <label class="choice-inline"><input type="checkbox" bind:checked={rule.exempt_vips} /> Leave VIPs alone</label>
+              <label class="choice-inline"><input type="checkbox" bind:checked={rule.exempt_subscribers} /> Leave subscribers alone</label>
+            </div>
+          {/if}
+        </fieldset>
+      {/each}
+      <button type="submit" class="sg-button" disabled={busy}>Save</button>
+    </form>
+    <p class="saved" role="status">{notice}</p>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+  </section>
+
+  <section class="sg-panel card" aria-labelledby="try-heading">
+    <h2 id="try-heading">Try a message</h2>
+    <p class="sg-muted">Judged with the form above, saved or not, as if the filters were on. Nothing is sent. Repeats need several messages, so they’re not tried here.</p>
+    <form onsubmit={tryIt} aria-label="Try a message" class="row-actions">
+      <label class="field inline-field grow"><span>Message</span><input class="sg-input" maxlength="500" bind:value={tryText} /></label>
+      <label class="field inline-field"
+        ><span>From</span>
+        <select class="sg-input" bind:value={tryRole}>
+          <option value="viewer">a viewer</option>
+          <option value="subscriber">a subscriber</option>
+          <option value="vip">a VIP</option>
+          <option value="moderator">a moderator</option>
+        </select></label
+      >
+      <button type="submit" class="sg-button" disabled={!tryText.trim()}>Try</button>
+    </form>
+    <p role="status">{tryResult}</p>
+  </section>
+{/if}
+
+<section class="sg-panel card" aria-labelledby="caught-heading">
+  <h2 id="caught-heading">Caught lately</h2>
+  {#if recent.length === 0}
+    <p class="sg-muted">Nothing yet.</p>
+  {:else}
+    <ul class="caught">
+      {#each recent as c, i (i)}
+        <li>
+          <span class="sg-muted">{eventTime(c.at)}</span>
+          <strong>{c.name || c.login}</strong>
+          {actionWords[c.action]}{c.action === 'timeout' && c.seconds ? ` for ${c.seconds} s` : ''} by {ruleName[c.rule]}:
+          <span class="text">{c.text}</span>
+          <span class="answer">{stateWords[c.state]}{c.answer ? `: ${c.answer}` : ''}</span>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</section>
+
+<style>
+  fieldset { border: none; padding: 0; margin: 0 0 1rem; }
+  legend { font-weight: 600; margin-bottom: 0.25rem; }
+  fieldset p { margin: 0 0 0.25rem; }
+  .grow { flex: 1; }
+  .caught { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
+  .text { overflow-wrap: anywhere; }
+  .answer { font-weight: 650; }
+</style>

@@ -25,7 +25,7 @@ Migration `0028_moderation.sql`: a `moderation` table, one row per request, neve
 - the platform, and the viewer's id and login;
 - the message id, the length and the reason;
 - for chat modes, the change asked for, as JSON;
-- where it came from (`live` or `cli`);
+- where it came from (`live` or `cli`, or `filter` for the chat filters, D-085; the API refuses `filter` from anyone else);
 - the state and Twitch's answer in words;
 - when it was asked and when it was answered.
 

@@ -290,6 +290,19 @@ func TestTwitchExamplePayload(t *testing.T) {
 	if c["role"] != "moderator" || c["is_subscriber"] != true || c["is_broadcaster"] != false || p["color"] != "#00FF7F" {
 		t.Fatal(p)
 	}
+	if e, ok := p["emotes"].([]any); !ok || len(e) != 0 {
+		t.Fatalf("emotes %v", p["emotes"])
+	}
+	// Emotes' names, once per use, for the emote filter (D-085).
+	if err := json.Unmarshal([]byte(`{"text":"Kappa hi Kappa","fragments":[{"type":"emote","text":"Kappa"},
+		{"type":"text","text":" hi "},{"type":"emote","text":"Kappa"}]}`), &ev.Message); err != nil {
+		t.Fatal(err)
+	}
+	msg, _ = chatEnvelopes(ev, time.Now())
+	_ = json.Unmarshal(msg.Payload, &p)
+	if e, _ := p["emotes"].([]any); len(e) != 2 || e[0] != "Kappa" {
+		t.Fatalf("emotes %v", p["emotes"])
+	}
 	// In a shared chat, another channel's "!command" isn't ours.
 	ev.Message.Text, ev.SourceBroadcasterUserID = "!lurk", "999"
 	if _, cmd := chatEnvelopes(ev, time.Now()); cmd != nil {

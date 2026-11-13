@@ -1,0 +1,32 @@
+{
+  "template": {
+    "id": "filter-reply",
+    "title": "Say why a message went",
+    "category": "Moderation",
+    "description": "When a chat filter catches a message, tells the viewer why in chat, so they know it wasn't a glitch.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.filter_reply",
+    "name": "Say why a message went",
+    "group": "Moderation",
+    "triggers": [
+      {
+        "type": "chat.filter.caught"
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "@${event.actor.login} ${{\"words\": \"that word isn't allowed here.\", \"links\": \"please don't post links without a mod's !permit.\", \"emotes\": \"please don't spam emotes.\", \"caps\": \"please don't type in all capitals.\", \"symbols\": \"please don't spam symbols.\", \"repeats\": \"please don't repeat the same message.\"}[event.payload.rule]}"
+        }
+      }
+    ]
+  }
+}

@@ -63,6 +63,10 @@ const TimerFired = "timers.timer.fired"
 // records (M7, D-075).
 const ButtonPressed = "buttons.button.pressed"
 
+// FilterCaught is the event a chat filter adds when it catches a message
+// (D-085).
+const FilterCaught = "chat.filter.caught"
+
 // Suspicious users (D-079): Twitch's flags on a chatter's message, and a
 // change in how Twitch treats them.
 const (
@@ -97,6 +101,32 @@ func Catalog() []Kind {
 					"message_type": "text",
 					"color":        "",
 				}, a, nil
+			},
+		},
+		{
+			// Made by internal/filters when a chat filter catches a message (D-085).
+			Type: FilterCaught, Label: "Chat filter caught a message",
+			Description: "A chat filter caught a viewer's message and deleted it, timed them out or warned them.",
+			Sources:     []string{"twitch"}, Sensitive: true,
+			Fields: []Field{
+				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
+				{Name: "text", Label: "Message", Kind: "text", Default: "buy followers at example.com", Max: 500},
+				{Name: "rule", Label: "Filter", Kind: "choice", Default: "links", Max: 10, Path: "rule",
+					Choices: []string{"words", "links", "emotes", "caps", "symbols", "repeats"}},
+				{Name: "action", Label: "What it did", Kind: "choice", Default: "delete", Max: 10, Choices: []string{"delete", "timeout", "warn"}},
+			},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				a := testViewer(v["user"])
+				ch, err := chatter(a, "viewer")
+				if err != nil {
+					return nil, nil, err
+				}
+				secs := 0
+				if v["action"] == "timeout" {
+					secs = 600
+				}
+				return map[string]any{"rule": v["rule"], "action": v["action"], "seconds": secs, "state": "test",
+					"message_id": id, "text": v["text"], "chatter": ch}, a, nil
 			},
 		},
 		{

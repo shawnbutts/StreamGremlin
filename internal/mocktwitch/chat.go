@@ -141,7 +141,7 @@ func (s *Server) sayLocked(channelLogin, chatterLogin, text string) string {
 	ev := map[string]any{
 		"broadcaster_user_id": cid, "broadcaster_user_login": c, "broadcaster_user_name": channelLogin,
 		"chatter_user_id": uid, "chatter_user_login": u, "chatter_user_name": chatterLogin,
-		"message_id": msgID, "message": map[string]any{"text": text, "fragments": []any{}},
+		"message_id": msgID, "message": map[string]any{"text": text, "fragments": fragments(text)},
 		"message_type": "text", "color": "", "badges": badges,
 		"cheer": nil, "reply": nil, "channel_points_custom_reward_id": nil,
 		"source_broadcaster_user_id": nil,
@@ -156,6 +156,35 @@ func (s *Server) sayLocked(channelLogin, chatterLogin, text string) string {
 		}
 	}
 	return msgID
+}
+
+// mockEmotes are the words the stand-in Twitch sends as emotes.
+var mockEmotes = map[string]bool{"Kappa": true, "KEKW": true, "LUL": true, "PogChamp": true}
+
+// fragments splits a message as Twitch does: emotes apart from the text
+// around them.
+func fragments(text string) []any {
+	out := []any{}
+	var plain strings.Builder
+	flush := func() {
+		if plain.Len() > 0 {
+			out = append(out, map[string]any{"type": "text", "text": plain.String()})
+			plain.Reset()
+		}
+	}
+	for i, w := range strings.Split(text, " ") {
+		if i > 0 {
+			plain.WriteString(" ")
+		}
+		if mockEmotes[w] {
+			flush()
+			out = append(out, map[string]any{"type": "emote", "text": w, "emote": map[string]any{"id": "1"}})
+			continue
+		}
+		plain.WriteString(w)
+	}
+	flush()
+	return out
 }
 
 // Reconnect asks every session to move to a new connection, as Twitch does

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/ads"
+	"code.streamgremlin.com/streamgremlin/internal/filters"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
@@ -59,6 +60,8 @@ type Services struct {
 	Gives *gives.Service
 	// Lua runs scripts in worker processes.
 	Lua *lua.Runner
+	// Filters catch spam in chat (D-085).
+	Filters *filters.Service
 }
 
 // Register adds every action to reg.
@@ -238,6 +241,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerWheels(reg, sv.Wheels)
 	registerPoints(reg, sv.Viewers, sv.Points, sv.Gives)
 	registerLua(reg, sv.Lua)
+	registerFilters(reg, sv.Filters)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

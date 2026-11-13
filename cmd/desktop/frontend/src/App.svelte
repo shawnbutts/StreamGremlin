@@ -20,6 +20,7 @@
   import Wheels from './screens/Wheels.svelte';
   import Points from './screens/Points.svelte';
   import Viewers from './screens/Viewers.svelte';
+  import Filters from './screens/Filters.svelte';
   import Giveaways from './screens/Giveaways.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
@@ -225,6 +226,8 @@
       {#key viewerId}
         <Viewers openId={viewerId} />
       {/key}
+    {:else if screen === 'filters'}
+      <Filters />
     {:else if screen === 'wheels'}
       <Wheels />
     {:else if screen === 'polls'}

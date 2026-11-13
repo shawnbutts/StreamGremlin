@@ -81,6 +81,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | A "You press a button" trigger, for the Live screen's buttons and the Stream Deck | new (D-075); built in M7 (ADR-0040, D-076) | Live |
 | A viewer card on a chatter's name: what Twitch's API gives (account, follow, subscription, VIP, moderator, banned) and StreamGremlin's record | new (D-075); built in M7 (D-078) | Live |
 | Moderating from chat: delete, time out, ban and unban, warn, shoutout, VIP, moderator, chat modes, as Twitch's API allows | new (D-075); built in M7 (ADR-0041, D-079) | Live |
+| Chat filters: links, capitals, symbols, emotes, repeats and the streamer's words; delete, time out or warn, recorded; `!permit` | new (D-085) | Built after M7 |
 | Twitch's suspicious-user flags (ban evaders, shared bans) on messages and the viewer card, with a workflow trigger; monitor and restrict | new (D-079); built in M7 (ADR-0041) | Live |
 
 ## OBS

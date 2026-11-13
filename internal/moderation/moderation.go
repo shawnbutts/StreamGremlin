@@ -38,6 +38,8 @@ const (
 const (
 	FromLive = "live"
 	FromCLI  = "cli"
+	// FromFilter is a chat filter acting by itself (D-085).
+	FromFilter = "filter"
 )
 
 // Errors. Validation errors wrap ErrInvalid.
@@ -126,8 +128,8 @@ func (s *Service) Recover(ctx context.Context) error {
 
 func check(r Request) error {
 	switch {
-	case r.From != FromLive && r.From != FromCLI:
-		return invalid("a request comes from live or cli")
+	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter:
+		return invalid("a request comes from live, cli or filter")
 	case r.Platform != "twitch":
 		return invalid("platform must be twitch")
 	case r.RequestID == "" || len(r.RequestID) > maxRequest || !requestPattern.MatchString(r.RequestID):

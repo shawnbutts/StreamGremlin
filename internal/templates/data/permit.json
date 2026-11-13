@@ -1,0 +1,47 @@
+{
+  "template": {
+    "id": "permit",
+    "title": "Permit a link",
+    "category": "Moderation",
+    "description": "!permit name (mods and you) lets one viewer post links for a minute, past the link filter on the Chat filters screen.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.permit",
+    "name": "Permit a link",
+    "group": "Moderation",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "permit",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "action": "filters.permit",
+        "with": {
+          "viewer": "${event.payload.arg_list[?0].orValue(\"\")}",
+          "minutes": 1
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "${event.payload.arg_list[?0].orValue(\"\")}, you can post a link for the next minute."
+        }
+      }
+    ]
+  }
+}

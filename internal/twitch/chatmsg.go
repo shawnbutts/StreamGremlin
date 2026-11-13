@@ -17,7 +17,11 @@ type chatEvent struct {
 	ChatterUserName      string `json:"chatter_user_name"`
 	MessageID            string `json:"message_id"`
 	Message              struct {
-		Text string `json:"text"`
+		Text      string `json:"text"`
+		Fragments []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"fragments"`
 	} `json:"message"`
 	MessageType string  `json:"message_type"`
 	Color       string  `json:"color"`
@@ -87,6 +91,14 @@ func chatEnvelopes(ev chatEvent, occurred time.Time) (msg events.Envelope, cmd *
 		"message_type": ev.MessageType,
 		"color":        ev.Color,
 	}
+	// The emotes' names, once per use, for the emote filter (D-085).
+	emotes := []string{}
+	for _, f := range ev.Message.Fragments {
+		if f.Type == "emote" {
+			emotes = append(emotes, f.Text)
+		}
+	}
+	payload["emotes"] = emotes
 	if ev.Cheer != nil {
 		payload["bits"] = ev.Cheer.Bits
 	}

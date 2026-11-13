@@ -58,6 +58,7 @@ Getting started
   server: in OBS, Tools, then WebSocket Server Settings.
 - Workflows: "when this happens, do that". Start from a template.
 - Live: your chat, moderation, and your own buttons.
+- Chat filters: catch links, shouting, spam and words you don't want.
 - Help (Ctrl+/ on Windows, Cmd+/ on macOS) explains every screen.
 
 Stream Deck (Stream Deck 7.1 or later): double-click
