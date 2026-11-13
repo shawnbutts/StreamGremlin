@@ -1621,3 +1621,5 @@ Decided 2026-11-13. The user asked: "can we add some example plugins for time. a
 
 **Not built:** time zones other than this computer's; counting up from a past time ("live for…": Read the stream's uptime does that); several timers on one overlay; sounds at zero (a workflow on "A countdown ends" can play one).
 
+**Added the same day: start on load.** The user: "the timer should have an option to auto-start on load/reload". A countdown or stopwatch can be set to **Start it whenever OBS loads the overlay**: each time OBS loads its page (OBS starting, or the browser source refreshing, including OBS's "Refresh browser when scene becomes active"), a countdown starts afresh from its length and a stopwatch from zero. The page says `loaded` once per load, never on a reconnect, so StreamGremlin restarting doesn't reset a running countdown; the app's preview never starts it; loads within 3 seconds of each other (two sources on one overlay) start it once. Command line: `-auto-start`.
+

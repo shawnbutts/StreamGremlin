@@ -135,6 +135,8 @@ type Hub struct {
 	songs map[string]SongView
 	// timers is each countdown's and stopwatch's state, by name.
 	timers map[string]TimerView
+	// timerLoaded is told when OBS loads a timer overlay's page.
+	timerLoaded func(name string)
 	// themeOrigin is the theme server's, for wheel looks ("" when off).
 	themeOrigin string
 	themes      *Catalogue

@@ -449,6 +449,9 @@ export function start(win, opts = {}) {
       }
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'wheel') setWheel(msg.body.theme);
       if (msg.body && msg.body.overlay && msg.body.overlay.kind === 'timer') {
+        // Once per load, never on a reconnect: a timer set to start on
+        // load starts afresh (D-092). The engine ignores the app's preview.
+        if (!tv) send({ type: 'loaded' });
         if (!tv) tv = timerView(doc, stage, { setTimeout: later, now: opts.now });
         tv.look(msg.body.overlay.look);
         setTimerTheme(msg.body.theme);

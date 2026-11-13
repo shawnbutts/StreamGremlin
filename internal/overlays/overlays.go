@@ -89,6 +89,9 @@ type Look struct {
 	Clock24      bool   `json:"clock_24h,omitempty"`
 	ClockSeconds bool   `json:"clock_seconds,omitempty"`
 	ClockDate    string `json:"clock_date,omitempty"` // "", short or long
+	// TimerAutoStart: a countdown or stopwatch starts afresh whenever OBS
+	// loads the overlay's page (OBS starting, or the source refreshing).
+	TimerAutoStart bool `json:"timer_auto_start,omitempty"`
 	// Pace is how long the animation takes, in percent of the usual:
 	// 50 is twice as fast, 300 three times as slow.
 	Pace int `json:"pace"`

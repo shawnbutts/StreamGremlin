@@ -33,7 +33,7 @@ const overlaysUsage = `usage:
                                           giveaway and wheel overlays: -start-sound drumroll -end-sound clunk
                                           -cheer-sound cheer
                                           clock and timer overlays: -mode countdown -label "Starting soon"
-                                          -length 5m -end-text "Starting now!", or -mode clock -24h -date short
+                                          -length 5m -end-text "Starting now!" -auto-start, or -mode clock -24h -date short
                                           Now playing overlays: -song-file /path/song.txt -art-file /path/art.jpg
                                           -paused-text Paused -song-hides
                                           wheel overlays: -look workshop (or classic, neon-arcade,
@@ -188,6 +188,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.BoolVar(&l.Clock24, "24h", l.Clock24, "clocks: a 24-hour clock")
 			fs.BoolVar(&l.ClockSeconds, "clock-seconds", l.ClockSeconds, "clocks: show seconds")
 			fs.StringVar(&l.ClockDate, "date", l.ClockDate, "clocks: the date under the time: short, long or none")
+			fs.BoolVar(&l.TimerAutoStart, "auto-start", l.TimerAutoStart, "countdowns and stopwatches: start afresh whenever OBS loads the overlay")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			lookName := strings.TrimPrefix(l.Theme, "builtin:")
 			var sets setFlags

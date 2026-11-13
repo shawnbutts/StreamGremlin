@@ -844,6 +844,8 @@ export interface OverlayLook {
   clock_24h?: boolean;
   clock_seconds?: boolean;
   clock_date?: '' | 'short' | 'long';
+  /** A countdown or stopwatch starts afresh whenever OBS loads the overlay's page. */
+  timer_auto_start?: boolean;
   position: OverlayPosition;
   animation: 'slide' | 'pop' | 'unfold';
   seconds: number;

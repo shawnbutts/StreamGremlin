@@ -200,6 +200,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.songs.Start()
 	// Countdowns and stopwatches on clock and timer overlays (D-092).
 	h.clocks = overlays.NewTimers(ovs, h.hub, set, inbox, log.With("component", "overlays"))
+	h.hub.OnTimerLoaded(func(name string) { h.clocks.Loaded(context.Background(), name) })
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})

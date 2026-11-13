@@ -136,6 +136,13 @@ describe('the clock and timer overlay, in Classic', () => {
     expect(digits()).toBe('1:00:05');
   });
 
+  it('says it loaded once per load, never on a reconnect', () => {
+    const { ws } = page(hello({ timer_mode: 'countdown', timer_auto_start: true }));
+    expect(ws.sent.filter((m) => m.type === 'loaded')).toHaveLength(1);
+    ws.fire('message', hello({ timer_mode: 'countdown', timer_auto_start: true })); // a new look, or a reconnect's hello
+    expect(ws.sent.filter((m) => m.type === 'loaded')).toHaveLength(1);
+  });
+
   it('never runs markup in its label or end text', () => {
     const { stage } = page(hello({ timer_mode: 'clock', timer_label: '<img src=x onerror=alert(1)>' }));
     expect(stage.querySelector('img')).toBeNull();

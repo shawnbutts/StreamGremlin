@@ -545,6 +545,15 @@
                 <input class="sg-input" bind:value={look.timer_end_text} maxlength="60" placeholder="0:00" />
               </label>
             {/if}
+            {#if (look.timer_mode ?? 'clock') !== 'clock'}
+              <label class="choice-inline">
+                <input type="checkbox" bind:checked={look.timer_auto_start} /> Start it whenever OBS loads the overlay
+              </label>
+              <p class="sg-muted field-hint">
+                From the top each time: as OBS starts, or the browser source refreshes. To start it when its scene shows, tick “Refresh
+                browser when scene becomes active” on the browser source in OBS. The preview here never starts it.
+              </p>
+            {/if}
             {#if savedMode !== 'clock' && savedMode === look.timer_mode}
               <p class="state" aria-live="polite">{timerState(current)}</p>
               <div class="row-actions">

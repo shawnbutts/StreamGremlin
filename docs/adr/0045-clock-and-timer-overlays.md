@@ -21,6 +21,8 @@ The streamer asked for "example plugins for time": a clock, a countdown and a st
 - **Changes:** start (from where it is; a countdown at zero starts from its length; or a new length; or until a time today, tomorrow if it's passed), pause, reset, add (a countdown, up to 24 hours in all). Through the API (`POST /v1/overlays/{name}/timer`), the Overlays screen, the CLI and workflow steps, so buttons and Stream Deck keys can.
 - **A countdown that reaches zero** is saved as ended and sends `overlays.timer.ended` (`overlay`, `label`) once, keyed by when it started, so a workflow can switch scenes. One that ended while StreamGremlin was off is ended at the next start without the event: a scene switch hours late would be wrong.
 
+- **Starting on load** (`timer_auto_start`): the page sends `{"type":"loaded"}` once per page load, never on a reconnect. For an OBS page (never the app's preview) of a countdown or stopwatch with it set, the engine starts it afresh: a countdown from its length, a stopwatch from zero. Loads within 3 seconds of each other start it once.
+
 ### Protocol to the page
 
 - `timer` messages carry the state and the engine's time (`running`, `base_ms`, `since_ms`, `now_ms`, `ended`), or `null` at its start. The page counts the seconds itself from them, correcting by `now_ms`, and redraws four times a second. Every page of the overlay, and a page that opens later, gets the latest.

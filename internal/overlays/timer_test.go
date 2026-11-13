@@ -212,3 +212,55 @@ func TestTimerLooksAreChecked(t *testing.T) {
 		t.Fatal("an alert overlay took a clock")
 	}
 }
+
+// Auto-start: OBS loading the page starts a countdown afresh from its
+// length (a stopwatch from zero); the app's preview, a clock, a timer
+// without it, and a second load moments later don't.
+func TestTimersStartAsOBSLoadsThem(t *testing.T) {
+	ctx := context.Background()
+	r := newTimerRig(t)
+	r.hub.OnTimerLoaded(func(name string) { r.t.Loaded(ctx, name) })
+	auto := timerLookOf(TimerCountdown, 300)
+	auto.TimerAutoStart = true
+	r.add(t, "soon", auto)
+	r.add(t, "manual", timerLookOf(TimerCountdown, 300))
+	clock := timerLookOf(TimerClock, 0)
+	clock.TimerAutoStart = true
+	r.add(t, "clock", clock)
+	watch := timerLookOf(TimerStopwatch, 0)
+	watch.TimerAutoStart = true
+	r.add(t, "watch", watch)
+
+	r.hub.loaded(r.hub.join(Overlay{Name: "soon", Kind: KindTimer}, true)) // the app's preview
+	if st, _ := r.t.State(ctx, "soon"); st != nil {
+		t.Fatal("the preview started it:", st)
+	}
+	// Half-way through a countdown, OBS reloads the page: from the top again.
+	if _, err := r.t.Do(ctx, "soon", TimerOp{Action: "start", Seconds: 60}); err != nil {
+		t.Fatal(err)
+	}
+	r.later(time.Minute)
+	r.hub.loaded(r.hub.join(Overlay{Name: "soon", Kind: KindTimer}, false))
+	if st, _ := r.t.State(ctx, "soon"); st == nil || !st.Running || st.BaseMS != 300000 || !st.Since.Equal(r.now) {
+		t.Fatal("not started afresh:", st)
+	}
+	r.later(time.Second)
+	r.hub.loaded(r.hub.join(Overlay{Name: "soon", Kind: KindTimer}, false)) // a second source, a moment later
+	if st, _ := r.t.State(ctx, "soon"); !st.Since.Equal(r.now.Add(-time.Second)) {
+		t.Fatal("started twice:", st)
+	}
+	for _, name := range []string{"manual", "clock"} {
+		r.hub.loaded(r.hub.join(Overlay{Name: name, Kind: KindTimer}, false))
+		if st, _ := r.t.State(ctx, name); st != nil {
+			t.Fatal(name, "started:", st)
+		}
+	}
+	r.later(42 * time.Second)
+	r.hub.loaded(r.hub.join(Overlay{Name: "watch", Kind: KindTimer}, false))
+	if st, _ := r.t.State(ctx, "watch"); st == nil || !st.Running || st.BaseMS != 0 {
+		t.Fatal("stopwatch:", st)
+	}
+	if _, _, err := r.store.Create(ctx, "alerts", KindAlert, auto, now); err == nil {
+		t.Fatal("an alert overlay took auto-start")
+	}
+}

@@ -293,12 +293,13 @@ describe('Overlays', () => {
     field('Length (minutes)').dispatchEvent(new Event('input', { bubbles: true }));
     field('Label above it').value = ' Starting soon ';
     field('Label above it').dispatchEvent(new Event('input', { bubbles: true }));
+    (Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.includes('Start it whenever OBS loads'))!.querySelector('input') as HTMLInputElement).click();
     field('At zero, say').value = 'Here we go!';
     field('At zero, say').dispatchEvent(new Event('input', { bubbles: true }));
     flushSync();
     button(el, 'Save look')!.click();
     await settle(80);
-    expect(list[0].look).toMatchObject({ timer_mode: 'countdown', timer_length: 150, timer_label: 'Starting soon', timer_end_text: 'Here we go!' });
+    expect(list[0].look).toMatchObject({ timer_mode: 'countdown', timer_length: 150, timer_label: 'Starting soon', timer_end_text: 'Here we go!', timer_auto_start: true });
     expect(el.textContent).toContain('At its start, 2:30.');
     button(el, 'Start')!.click();
     await settle(80);

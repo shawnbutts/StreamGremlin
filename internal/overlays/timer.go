@@ -68,7 +68,8 @@ func oneLine(s string, max int) bool {
 
 // timerLook reports whether a look sets anything only timers use.
 func timerLook(l Look) bool {
-	return l.TimerMode != "" || l.TimerLabel != "" || l.TimerEndText != "" || l.TimerLength != 0 || l.Clock24 || l.ClockSeconds || l.ClockDate != ""
+	return l.TimerMode != "" || l.TimerLabel != "" || l.TimerEndText != "" || l.TimerLength != 0 || l.Clock24 || l.ClockSeconds || l.ClockDate != "" ||
+		l.TimerAutoStart
 }
 
 // TimerState is a countdown's or a stopwatch's state. A countdown has
@@ -124,6 +125,27 @@ func (h *Hub) SetTimer(name string, v *TimerView) {
 	}
 }
 
+// OnTimerLoaded says what to call when OBS loads a timer overlay's page.
+func (h *Hub) OnTimerLoaded(f func(name string)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.timerLoaded = f
+}
+
+// loaded: a page said it just loaded. Only OBS's pages of timer
+// overlays count; the app's previews never start anything.
+func (h *Hub) loaded(c *conn) {
+	if c.preview || c.kind != KindTimer {
+		return
+	}
+	h.mu.Lock()
+	f := h.timerLoaded
+	h.mu.Unlock()
+	if f != nil {
+		f(c.overlay)
+	}
+}
+
 // Errors from controlling a timer.
 var ErrNotTimer = errors.New("overlays: that overlay isn't a countdown or stopwatch")
 
@@ -155,8 +177,9 @@ type Timers struct {
 	log      *slog.Logger
 	now      func() time.Time
 
-	mu   sync.Mutex
-	ends map[string]*time.Timer
+	mu          sync.Mutex
+	ends        map[string]*time.Timer
+	autoStarted map[string]time.Time
 }
 
 // NewTimers returns Timers; Start loads saved states.
@@ -164,7 +187,8 @@ func NewTimers(store *Store, hub *Hub, settings Settings, inbox *events.Inbox, l
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Timers{store: store, hub: hub, settings: settings, inbox: inbox, log: log, now: time.Now, ends: map[string]*time.Timer{}}
+	return &Timers{store: store, hub: hub, settings: settings, inbox: inbox, log: log, now: time.Now, ends: map[string]*time.Timer{},
+		autoStarted: map[string]time.Time{}}
 }
 
 func timerKey(name string) string { return "overlays.timer." + name }
@@ -317,6 +341,39 @@ func (t *Timers) Do(ctx context.Context, name string, op TimerOp) (TimerState, e
 	}
 	t.publishLocked(o, &st)
 	return st, nil
+}
+
+// autoStartGap: pages loading this close together (OBS loading two
+// scenes with the same source) start it once.
+const autoStartGap = 3 * time.Second
+
+// Loaded: OBS loaded a timer overlay's page (not a reconnect, never the
+// app's preview). With auto-start, a countdown starts afresh from its
+// length and a stopwatch from zero.
+func (t *Timers) Loaded(ctx context.Context, name string) {
+	o, err := t.store.Get(ctx, name)
+	if err != nil || o.Kind != KindTimer || !o.Look.TimerAutoStart || mode(o) == TimerClock {
+		return
+	}
+	t.mu.Lock()
+	now := t.now()
+	if last, ok := t.autoStarted[name]; ok && now.Sub(last) < autoStartGap {
+		t.mu.Unlock()
+		return
+	}
+	t.autoStarted[name] = now
+	st := TimerState{Running: true, Since: now}
+	if mode(o) == TimerCountdown {
+		st.BaseMS = length(o)
+	}
+	if err := t.settings.Save(ctx, timerKey(name), st); err != nil {
+		t.mu.Unlock()
+		t.log.Warn("couldn't start a timer as its page loaded", "overlay", name, "err", err)
+		return
+	}
+	t.publishLocked(o, &st)
+	t.mu.Unlock()
+	t.log.Info("timer started as its page loaded", "overlay", name)
 }
 
 // Forget drops a deleted overlay's state.

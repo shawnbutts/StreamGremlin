@@ -3,9 +3,12 @@
 package acceptance
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/coder/websocket"
 )
 
 // Clock and timer overlays through the real engine and CLI (D-092): a
@@ -54,6 +57,31 @@ func TestCountdownsThroughTheCLI(t *testing.T) {
 	if out, _, _ := cli(t, dir, "overlays", "-json"); !strings.Contains(out, `"ended": true`) {
 		t.Fatal("after a restart:", out)
 	}
+
+	// Auto-start: a page that says it loaded starts it from the top.
+	if out, errOut, code := cli(t, dir, "overlays", "look", "soon", "-length", "3m", "-auto-start"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	link, _, _ := cli(t, dir, "overlays", "link", "soon")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ws, resp, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(linkIn(t, link), "http")+"ws",
+		&websocket.DialOptions{Subprotocols: []string{"streamgremlin.overlay.v1"}})
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ws.Write(ctx, websocket.MessageText, []byte(`{"type":"loaded"}`)); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "started as it loaded", func() string {
+		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "countdown, running") {
+			return out
+		}
+		return ""
+	})
 
 	if out, errOut, code := cli(t, dir, "overlays", "add", "-timer", "wall-clock"); code != 0 {
 		t.Fatal(out, errOut)

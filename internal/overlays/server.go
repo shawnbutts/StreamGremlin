@@ -233,6 +233,10 @@ func (s *Server) connect(w http.ResponseWriter, r *http.Request, o Overlay) {
 			switch in.Type {
 			case "ack":
 				s.hub.ack(c, in.ID, in.Status, in.Detail)
+			case "loaded":
+				// The page just loaded (not a reconnect): a timer with
+				// auto-start starts afresh (D-092).
+				s.hub.loaded(c)
 			case "theme":
 				// A wheel look said it's ready, or that a spin showed in
 				// Classic. Only logged; it changes nothing.
