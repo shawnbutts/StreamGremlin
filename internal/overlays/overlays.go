@@ -14,10 +14,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
@@ -69,6 +71,13 @@ type Look struct {
 	// SongHides: a Now playing overlay shows each song for Seconds as it
 	// starts, then hides. Off, it stays up while a song plays.
 	SongHides bool `json:"song_hides"`
+	// A Now playing overlay's files, as Pretzel's desktop app writes them
+	// (D-091): the song as text, its cover as a picture, and the text it
+	// writes when paused. Full paths on this computer; never sent to the
+	// page.
+	SongFile   string `json:"song_file,omitempty"`
+	ArtFile    string `json:"art_file,omitempty"`
+	PausedText string `json:"paused_text,omitempty"`
 	// Pace is how long the animation takes, in percent of the usual:
 	// 50 is twice as fast, 300 three times as slow.
 	Pace int `json:"pace"`
@@ -150,6 +159,18 @@ func oneOf(v string, list []string) bool {
 
 func between(n, lo, hi int) bool { return n >= lo && n <= hi }
 
+// songPath reports whether p is "" or a clean full path with one of the
+// extensions.
+func songPath(p string, exts ...string) bool {
+	if p == "" {
+		return true
+	}
+	if len(p) > 1024 || !filepath.IsAbs(p) || filepath.Clean(p) != p || strings.ContainsAny(p, "\x00\r\n") {
+		return false
+	}
+	return oneOf(strings.ToLower(filepath.Ext(p)), exts)
+}
+
 // Check reports what's wrong with a look, in words.
 func (l Look) Check() error {
 	for _, c := range []string{l.TextColor, l.TitleColor, l.Background, l.BorderColor, l.ShadowColor, l.OutlineColor} {
@@ -190,6 +211,12 @@ func (l Look) Check() error {
 		return invalid("a sound's volume is 0 to 100")
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
+	case !songPath(l.SongFile, ".txt"):
+		return invalid("the song's file is a full path to a .txt file, like /Users/you/Pretzel/song.txt")
+	case !songPath(l.ArtFile, ".jpg", ".jpeg", ".png"):
+		return invalid("the picture's file is a full path to a .jpg or .png file")
+	case utf8.RuneCountInString(l.PausedText) > 100 || strings.ContainsAny(l.PausedText, "\r\n"):
+		return invalid("the paused text is one line, up to 100 characters")
 	}
 	return l.checkTheme(nil)
 }
@@ -199,6 +226,9 @@ func (l Look) Check() error {
 func (l Look) checkKind(kind string) error {
 	if l.Theme != "" && kind != KindWheel {
 		return invalid("looks other than Classic are for wheel overlays")
+	}
+	if (l.SongFile != "" || l.ArtFile != "" || l.PausedText != "") && kind != KindSong {
+		return invalid("song files are for Now playing overlays")
 	}
 	return nil
 }

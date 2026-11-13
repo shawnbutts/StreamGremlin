@@ -34,6 +34,8 @@ type OverlayView struct {
 	overlays.Overlay
 	Pages    int `json:"pages"`    // open in OBS (or a browser)
 	Previews int `json:"previews"` // open in the app's previews
+	// Song is how reading a Now playing overlay's files is going (D-091).
+	Song *overlays.SongStatus `json:"song,omitempty"`
 }
 
 // OverlayList is the body of GET /v1/overlays.
@@ -68,7 +70,12 @@ func overlayRoutes(d Deps) []Route {
 	}
 	view := func(o overlays.Overlay) OverlayView {
 		pages, previews := d.Hub.Open(o.Name)
-		return OverlayView{Overlay: o, Pages: pages, Previews: previews}
+		v := OverlayView{Overlay: o, Pages: pages, Previews: previews}
+		if o.Kind == overlays.KindSong && d.Songs != nil {
+			st := d.Songs.Status(o.Name)
+			v.Song = &st
+		}
+		return v
 	}
 	link := func(w http.ResponseWriter, name, token string) {
 		base, _ := server()

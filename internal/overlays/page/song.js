@@ -1,7 +1,8 @@
-// The Now playing overlay (D-090): the song Pretzel is playing, in the
-// overlay's look. It shows only what the engine sends: a song while one
-// plays, nothing when nothing plays or it's unknown. Song names are only
-// ever set with textContent.
+// The Now playing overlay (D-091): the song Pretzel's desktop app is
+// playing, from the files it writes, in the overlay's look. It shows only
+// what the engine sends: a song while one plays, nothing otherwise. Song
+// names are only ever set with textContent, and the cover only ever comes
+// through the overlay's own link.
 
 // How long leaving takes, as in overlay.js.
 const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
@@ -9,7 +10,10 @@ const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
 // A sample song shows this long, then the real one comes back.
 export const SAMPLE_MS = 6000;
 
-const same = (a, b) => Boolean(a && b && a.title === b.title && a.artist === b.artist);
+// The cover, through the overlay's own link; it changes name when it changes.
+const ART = /^art\?v=[0-9a-f-]{1,40}$/;
+
+const same = (a, b) => Boolean(a && b && a.title === b.title && a.artist === b.artist && (a.picture || '') === (b.picture || ''));
 
 /**
  * Builds the Now playing display in stage. opts: setTimeout, and look(),
@@ -29,7 +33,8 @@ export function songView(doc, stage, opts = {}) {
   function build(v) {
     const el = doc.createElement('div');
     el.className = 'sg-alert sg-song';
-    // Bars that bounce while it plays, where a picture would go.
+    // Bars that bounce while it plays, where a picture would go; under
+    // the cover, when there is one, in case it won't load.
     const icon = doc.createElement('div');
     icon.className = 'sg-avatar sg-song-icon';
     icon.setAttribute('aria-hidden', 'true');
@@ -38,7 +43,16 @@ export function songView(doc, stage, opts = {}) {
       bar.className = 'sg-eq';
       icon.appendChild(bar);
     }
-    el.appendChild(icon);
+    if (typeof v.picture === 'string' && ART.test(v.picture)) {
+      const img = doc.createElement('img');
+      img.className = 'sg-picture sg-song-art';
+      img.alt = '';
+      img.addEventListener('error', () => img.replaceWith(icon));
+      img.src = v.picture;
+      el.appendChild(img);
+    } else {
+      el.appendChild(icon);
+    }
     const words = doc.createElement('div');
     words.className = 'sg-words';
     const label = doc.createElement('div');
@@ -94,7 +108,7 @@ export function songView(doc, stage, opts = {}) {
   }
 
   const view = {
-    /** The engine's song: { playing, title, artist, sample }. */
+    /** The engine's song: { playing, title, artist, picture, sample }. */
     song(v) {
       if (!v || !v.playing || !v.title) {
         if (v && v.sample) return;

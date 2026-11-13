@@ -131,10 +131,8 @@ type Hub struct {
 	shown    map[string]time.Time
 	// giveaway is the running giveaway as giveaway overlays show it.
 	giveaway *GiveawayView
-	// song is what Now playing overlays show; songOpened is called when
-	// one opens.
-	song       SongView
-	songOpened func()
+	// songs is what each Now playing overlay shows, by name.
+	songs map[string]SongView
 	// themeOrigin is the theme server's, for wheel looks ("" when off).
 	themeOrigin string
 	themes      *Catalogue
@@ -153,7 +151,7 @@ func NewHub(now func() time.Time) *Hub {
 		now = time.Now
 	}
 	return &Hub{now: now, conns: map[string]map[*conn]bool{}, queues: map[string]*queue{},
-		sessions: map[string]*session{}, shown: map[string]time.Time{}}
+		sessions: map[string]*session{}, shown: map[string]time.Time{}, songs: map[string]SongView{}}
 }
 
 // Open reports how many pages and previews have an overlay open.
@@ -178,6 +176,9 @@ func (h *Hub) countLocked(name string) (pages, previews int) {
 // and which version of the page this engine serves: a page left over from
 // before an update reloads.
 func (h *Hub) hello(o Overlay, preview bool) []byte {
+	// Where a Now playing overlay's files are on this computer is the
+	// engine's business, not the page's.
+	o.Look.SongFile, o.Look.ArtFile, o.Look.PausedText = "", "", ""
 	body := map[string]any{"protocol": 1, "overlay": o, "preview": preview, "page_version": PageVersion}
 	if t := themeView(o, h.themeOrigin, h.themes); t != nil {
 		body["theme"] = t
@@ -229,10 +230,7 @@ func (h *Hub) join(o Overlay, preview bool) *conn {
 		h.sendLocked(c, message("giveaway", v))
 	}
 	if o.Kind == KindSong {
-		h.sendLocked(c, message("song", h.song))
-		if f := h.songOpened; f != nil {
-			go f()
-		}
+		h.sendLocked(c, message("song", h.songs[o.Name]))
 	}
 	// An alert still on screen is sent with the time it has left. Pages
 	// skip alerts they've already played.

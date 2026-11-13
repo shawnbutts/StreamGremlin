@@ -13,7 +13,6 @@
   } from '../lib/api';
   import DiscordCard from './DiscordCard.svelte';
   import OBSCard from './OBSCard.svelte';
-  import PretzelCard from './PretzelCard.svelte';
   import StreamDeckCard from './StreamDeckCard.svelte';
   import TwitchAccount from './TwitchAccount.svelte';
   import TwitchChat from './TwitchChat.svelte';
@@ -188,6 +187,5 @@
     <OBSCard status={obs} onchange={refresh} />
   {/if}
   <DiscordCard />
-  <PretzelCard />
   <StreamDeckCard />
 {/if}

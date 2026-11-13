@@ -125,7 +125,7 @@ func TestOverlaysThroughTheAPI(t *testing.T) {
 		t.Fatal(code)
 	}
 
-	// A Now playing overlay (D-090): a sample song in an unsaved look, in
+	// A Now playing overlay (D-091): a sample song in an unsaved look, in
 	// the previews only; a bad look is refused; no sounds of its own.
 	if code, out = call("POST", "/v1/overlays", `{"name":"now-playing","kind":"song","look":{"song_hides":true,"seconds":8}}`); code != 201 ||
 		!strings.Contains(out, `"kind":"song"`) || !strings.Contains(out, `"song_hides":true`) {

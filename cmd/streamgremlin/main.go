@@ -64,7 +64,6 @@ Commands:
   filters   The chat filters: settings and what they caught lately.
             filters check [-role vip] TEXT   which filter would catch it
   discord   Discord webhooks workflows post to (streamgremlin discord help).
-  pretzel   What Pretzel, the music app, is playing now.
   quotes    Numbered quotes (streamgremlin quotes help).
             quotes [-q TEXT]              list, newest first
             quotes add [-by NAME] TEXT    add one
@@ -197,8 +196,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return filtersCmd(dir, rest, stdout, stderr)
 	case "discord":
 		return discordCmd(dir, rest, os.Stdin, stdout, stderr)
-	case "pretzel":
-		return pretzelCmd(dir, rest, stdout, stderr)
 	case "vars":
 		return varsCmd(dir, rest, stdout, stderr)
 	case "chat":
@@ -305,8 +302,6 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	debug := fs.Bool("debug", false, "log every API request")
 	twitchURL := fs.String("twitch-auth-url", os.Getenv(brand.Env("TWITCH_AUTH_URL")),
 		"a loopback stand-in for id.twitch.tv, such as mocktwitch (default $"+brand.Env("TWITCH_AUTH_URL")+")")
-	pretzelURL := fs.String("pretzel-api-url", os.Getenv(brand.Env("PRETZEL_API_URL")),
-		"a loopback stand-in for api.pretzel.rocks, such as mockpretzel (default $"+brand.Env("PRETZEL_API_URL")+")")
 	discordURL := fs.String("discord-api-url", os.Getenv(brand.Env("DISCORD_API_URL")),
 		"a loopback stand-in for discord.com's webhooks, such as mockdiscord (default $"+brand.Env("DISCORD_API_URL")+")")
 	minute := fs.Duration("test-minute", 0, "for tests against a stand-in Twitch only: how long a minute of time in chat lasts")
@@ -341,7 +336,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, DiscordAPIURL: *discordURL, PretzelAPIURL: *pretzelURL, OverlayAddr: *overlayAddr,
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, DiscordAPIURL: *discordURL, OverlayAddr: *overlayAddr,
 		TestMinute: *minute, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)

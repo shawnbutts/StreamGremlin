@@ -20,7 +20,6 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/points"
-	"code.streamgremlin.com/streamgremlin/internal/pretzel"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
 	"code.streamgremlin.com/streamgremlin/internal/sounds"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
@@ -68,8 +67,6 @@ type Services struct {
 	// Discord posts through webhooks (D-089); Inbox is read to sum up a stream.
 	Discord *discord.Service
 	Inbox   *events.Inbox
-	// Pretzel says what's playing (D-090).
-	Pretzel *pretzel.Service
 }
 
 // Register adds every action to reg.
@@ -252,7 +249,6 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerFilters(reg, sv.Filters)
 	registerChannel(reg, sv.Twitch, sv.Inbox)
 	registerDiscord(reg, sv.Discord, sv.Inbox)
-	registerPretzel(reg, sv.Pretzel)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

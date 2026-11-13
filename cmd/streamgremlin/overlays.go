@@ -29,6 +29,8 @@ const overlaysUsage = `usage:
                                           -font-name "Comic Neue" -size 120 -outline 2 -text-shadow 50
                                           giveaway and wheel overlays: -start-sound drumroll -end-sound clunk
                                           -cheer-sound cheer
+                                          Now playing overlays: -song-file /path/song.txt -art-file /path/art.jpg
+                                          -paused-text Paused -song-hides
                                           wheel overlays: -look workshop (or classic, neon-arcade,
                                           selector-board) -look-title "Pick a game" -accent #e8b04e
                                           -look-sounds=false (its own sounds, where none is picked);
@@ -43,8 +45,9 @@ bottom-left, bottom, bottom-right.`
 type overlayList struct {
 	Overlays []struct {
 		overlays.Overlay
-		Pages    int `json:"pages"`
-		Previews int `json:"previews"`
+		Pages    int                  `json:"pages"`
+		Previews int                  `json:"previews"`
+		Song     *overlays.SongStatus `json:"song,omitempty"`
 	} `json:"overlays"`
 	Server     string           `json:"server"`
 	ServerNote string           `json:"server_note"`
@@ -162,6 +165,10 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.EndSound, "end-sound", l.EndSound, "giveaway and wheel overlays: a library sound as it lands (none for no sound)")
 			fs.IntVar(&l.EndVolume, "end-volume", l.EndVolume, "its volume, 0 to 100")
 			fs.StringVar(&l.CheerSound, "cheer-sound", l.CheerSound, "giveaway and wheel overlays: a library sound when the result shows (none for no sound)")
+			fs.StringVar(&l.SongFile, "song-file", l.SongFile, "Now playing overlays: the full path of the .txt file Pretzel writes the song to (none for none)")
+			fs.StringVar(&l.ArtFile, "art-file", l.ArtFile, "Now playing overlays: the full path of the .jpg Pretzel writes the cover to (none for none)")
+			fs.StringVar(&l.PausedText, "paused-text", l.PausedText, "Now playing overlays: what Pretzel writes when paused (none for none)")
+			fs.BoolVar(&l.SongHides, "song-hides", l.SongHides, "Now playing overlays: show each song for -seconds, then hide")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			lookName := strings.TrimPrefix(l.Theme, "builtin:")
 			var sets setFlags
@@ -233,6 +240,11 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if l.CheerSound == "none" {
 				l.CheerSound = ""
 			}
+			for _, p := range []*string{&l.SongFile, &l.ArtFile, &l.PausedText} {
+				if *p == "none" {
+					*p = ""
+				}
+			}
 			if l.FontName != "" && l.Font != "custom" {
 				l.Font = "custom" // naming a font means using it
 			}
@@ -296,6 +308,16 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			open = fmt.Sprintf("open in %d page(s)", o.Pages)
 		}
 		fmt.Fprintf(stdout, "%-24s %-8s %-13s %s\n", o.Name, o.Kind, o.Look.Position, open)
+		if o.Song != nil && o.Song.Open {
+			switch {
+			case o.Song.Problem != "":
+				fmt.Fprintf(stdout, "%-24s %s\n", "", o.Song.Problem)
+			case o.Song.Song.Playing:
+				fmt.Fprintf(stdout, "%-24s showing %s\n", "", strings.TrimSuffix(o.Song.Song.Title+" by "+o.Song.Song.Artist, " by "))
+			default:
+				fmt.Fprintf(stdout, "%-24s nothing playing\n", "")
+			}
+		}
 	}
 	if list.Server == "" {
 		fmt.Fprintln(stdout, "\nThe overlay server is off.")

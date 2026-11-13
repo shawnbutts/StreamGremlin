@@ -36,7 +36,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockpretzel help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -75,9 +75,6 @@ mocktwitch: ## Build the stand-in for Twitch's sign-in server into ./bin
 
 mockdiscord: ## Build the stand-in for Discord's webhooks into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockdiscord ./cmd/mockdiscord
-
-mockpretzel: ## Build the stand-in for Pretzel's now-playing address into ./bin
-	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockpretzel ./cmd/mockpretzel
 
 build: ## Build the CLI into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/streamgremlin ./cmd/streamgremlin
@@ -197,4 +194,4 @@ notices-check:
 verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockpretzel $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

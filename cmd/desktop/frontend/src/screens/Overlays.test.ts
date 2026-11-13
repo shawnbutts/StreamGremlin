@@ -195,7 +195,7 @@ describe('Overlays', () => {
     await settle();
     (el.querySelector('input[value=song]') as HTMLInputElement).click();
     flushSync();
-    expect(el.textContent).toContain("Pretzel's own chat messages naming each song still post");
+    expect(el.textContent).toContain('Write to File');
     expect(el.textContent).toContain('like now-playing');
     const name = el.querySelector<HTMLInputElement>('input[placeholder="alerts"]')!;
     name.value = 'now-playing';
@@ -216,10 +216,34 @@ describe('Overlays', () => {
     button(el, 'Preview a song')!.click();
     await settle();
     expect(calls.find((c) => c.path === '/v1/overlays/now-playing/test?preview=1')).toMatchObject({ body: { look: { song_hides: true } } });
+    expect(el.textContent).toContain('read only while this overlay is open');
+    const typeIn = (label: string, v: string) => {
+      const i = Array.from(el.querySelectorAll('label')).find((l) => l.textContent?.trim().startsWith(label))!.querySelector('input')!;
+      i.value = v;
+      i.dispatchEvent(new Event('input', { bubbles: true }));
+      flushSync();
+    };
+    typeIn("Song's text file", "  '/Users/me/Pretzel/song.txt' ");
+    typeIn('Album art file', '/Users/me/Pretzel/album.jpg');
+    typeIn('Paused text', 'Paused');
     button(el, 'Save look')!.click();
     await settle(80);
-    expect(list[0].look.song_hides).toBe(true);
+    expect(list[0].look).toMatchObject({ song_hides: true, song_file: '/Users/me/Pretzel/song.txt', art_file: '/Users/me/Pretzel/album.jpg', paused_text: 'Paused' });
     await noViolations('a Now playing overlay');
+  });
+
+  it("says what a Now playing overlay's files show, or what's wrong", async () => {
+    const song = (st: Overlay['song']): Overlay => ({ ...alerts, name: 'now-playing', kind: 'song', song: st });
+    engine([song({ open: true, song: { playing: true, title: 'Neon Rain', artist: 'Kyle', picture: 'art?v=1-2' } })]);
+    let el = start();
+    await settle();
+    expect(el.textContent?.replace(/\s+/g, ' ')).toContain('Showing Neon Rain by Kyle, with its album art.');
+    unmount(comp!);
+    document.body.innerHTML = '';
+    engine([song({ open: true, song: { playing: false }, problem: "the song's file isn't there: is Write to File on in Pretzel?" })]);
+    el = start();
+    await settle();
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('is Write to File on in Pretzel?');
   });
 
   it('picks sounds for a giveaway overlay, and saves them with its look', async () => {

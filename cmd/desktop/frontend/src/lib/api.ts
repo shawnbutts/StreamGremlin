@@ -815,6 +815,11 @@ export type OverlayFont = 'system' | 'rounded' | 'serif' | 'mono' | 'condensed' 
 export interface OverlayLook {
   /** A Now playing overlay shows each song for `seconds`, then hides; off, it stays up while a song plays. */
   song_hides?: boolean;
+  /** A Now playing overlay's files, as Pretzel's desktop app writes them: full paths on this computer. */
+  song_file?: string;
+  art_file?: string;
+  /** What Pretzel writes when paused: the overlay shows nothing then. */
+  paused_text?: string;
   position: OverlayPosition;
   animation: 'slide' | 'pop' | 'unfold';
   seconds: number;
@@ -868,6 +873,8 @@ export interface Overlay {
   pages: number;
   /** The app's own previews. */
   previews: number;
+  /** A Now playing overlay: how reading its files is going (D-091). */
+  song?: { open: boolean; song: { playing: boolean; title?: string; artist?: string; picture?: string }; problem?: string };
 }
 
 /** A look a wheel overlay can have (docs/adr/0036-packages-plugins-and-themes.md). */
@@ -1897,15 +1904,3 @@ export const forgetDiscordWebhook = (name: string) => api<void>('DELETE', `/v1/d
 export const testDiscordWebhook = (name: string) =>
   api<{ message_id: string }>('POST', `/v1/discord/webhooks/${encodeURIComponent(name)}/test`);
 
-// Pretzel, the music app (D-090): what it's playing, by your Twitch account.
-export interface PretzelSong {
-  state: 'playing' | 'other' | 'not_using' | 'not_signed_in' | 'unknown';
-  title?: string;
-  artist?: string;
-  text?: string;
-  link?: string;
-  why?: string;
-  checked_at: string;
-}
-export const getPretzel = () => api<{ song: PretzelSong }>('GET', '/v1/pretzel');
-export const checkPretzel = () => api<PretzelSong>('POST', '/v1/pretzel/check');

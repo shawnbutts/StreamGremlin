@@ -206,8 +206,14 @@
       return undefined;
     }
     const n = (v: unknown) => Number(v);
+    // A path pasted with quotes around it, as Terminal copies one, works too.
+    const path = (v?: string) => (v ?? '').trim().replace(/^(['"])(.*)\1$/, '$2');
+    const files = isSong(current)
+      ? { song_file: path(look.song_file), art_file: path(look.art_file), paused_text: (look.paused_text ?? '').trim() }
+      : {};
     return {
       ...look,
+      ...files,
       font_name: look.font === 'custom' ? look.font_name.trim() : look.font_name,
       seconds: n(look.seconds), pace: n(look.pace ?? 100), opacity: n(look.opacity), gradient_angle: n(look.gradient_angle), radius: n(look.radius),
       border_width: n(look.border_width), shadow: n(look.shadow), text_size: n(look.text_size),
@@ -252,7 +258,7 @@
 <p class="sg-muted screen-intro">
   Each overlay is one browser source in OBS. Alert overlays show what workflows send with “Show an alert”, one at a time. A
   giveaway overlay shows the running giveaway and rolls to each winner by itself; chat still tells viewers everything. A Now playing
-  overlay shows the song Pretzel is playing. An alert’s
+  overlay shows the song Pretzel's desktop app is playing, from the files it writes. An alert’s
   sound plays in the overlay, so OBS hears it through the browser source (tick “Control audio via OBS” on it). Keep links
   private: anyone with one can see that overlay.
 </p>
@@ -427,6 +433,45 @@
                 </label>
               {/if}
             {/each}
+          </fieldset>
+        {/if}
+        {#if isSong(current)}
+          <fieldset class="look-group">
+            <legend>Pretzel's files</legend>
+            <p class="sg-muted field-hint">
+              In the Pretzel app, open Settings → Advanced → Write to File, and turn on the song's text file and its album art. Put the
+              title on the first line and the artist on the second, if you like. Then paste each file's full path here: in Finder, select
+              the file and press ⌥⌘C to copy its path.
+            </p>
+            <label class="field">
+              <span>Song's text file</span>
+              <input class="sg-input" bind:value={look.song_file} placeholder="/Users/you/Pretzel/song.txt" spellcheck="false" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Album art file</span>
+              <input class="sg-input" bind:value={look.art_file} placeholder="/Users/you/Pretzel/album.jpg" spellcheck="false" autocomplete="off" />
+              <span class="sg-muted field-hint">Optional. Without it, bars bounce beside the song.</span>
+            </label>
+            <label class="field">
+              <span>Paused text</span>
+              <input class="sg-input" bind:value={look.paused_text} maxlength="100" placeholder="Paused" spellcheck="false" autocomplete="off" />
+              <span class="sg-muted field-hint">What Pretzel writes when paused, if you set one there. The overlay hides then.</span>
+            </label>
+            <div aria-live="polite">
+              {#if !current.song?.open}
+                <p class="sg-muted">The files are read only while this overlay is open, in OBS or the preview here.</p>
+              {:else if current.song.problem}
+                <p class="state state-unknown" role="alert"><span aria-hidden="true">!</span> {current.song.problem}</p>
+              {:else if current.song.song.playing}
+                <p class="state">
+                  <span class="state-ok"><span aria-hidden="true">●</span></span> Showing <strong>{current.song.song.title}</strong>{#if current.song.song.artist}{' by '}<strong
+                      >{current.song.song.artist}</strong
+                    >{/if}{current.song.song.picture ? ', with its album art' : ''}.
+                </p>
+              {:else}
+                <p class="state"><span class="state-unknown"><span aria-hidden="true">○</span></span> Nothing playing.</p>
+              {/if}
+            </div>
           </fieldset>
         {/if}
         <fieldset class="look-group">
@@ -608,12 +653,12 @@
         <input type="radio" name="overlay-kind" value="wheel" bind:group={newKind} /> Wheels: every spin, as it's drawn
       </label>
       <label class="choice-inline">
-        <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song Pretzel is playing
+        <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song Pretzel's desktop app is playing
       </label>
       {#if newKind === 'song'}
         <p class="sg-muted field-hint">
-          It shows the song while Pretzel plays one, found by your Twitch account. Pretzel is asked every 15 seconds, only while the overlay is
-          open. Pretzel's own chat messages naming each song still post, as Pretzel requires.
+          It shows the song and album art Pretzel's desktop app writes to files (Write to File, in Pretzel's Advanced settings). Set the
+          files' paths in the overlay's settings after adding it.
         </p>
       {/if}
       {#if newKind === 'wheel'}

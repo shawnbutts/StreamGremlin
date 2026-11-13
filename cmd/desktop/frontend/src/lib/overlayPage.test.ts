@@ -532,6 +532,22 @@ describe('the Now playing overlay', () => {
     expect(shown(stage)).toHaveLength(0);
   });
 
+  it('shows the cover through its own link only, and the bars if it will not load', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', hello());
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'Neon Rain', picture: 'art?v=18e7-4b' } });
+    const img = stage.querySelector<HTMLImageElement>('.sg-song-art')!;
+    expect(img.getAttribute('src')).toBe('art?v=18e7-4b');
+    expect(stage.querySelector('.sg-eq')).toBeNull();
+    img.dispatchEvent(new Event('error'));
+    expect(stage.querySelectorAll('.sg-eq')).toHaveLength(3);
+    // A new cover for the same song is a change; a picture from anywhere else is never loaded.
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'Neon Rain', picture: 'https://evil.example/x.jpg' } });
+    c.advance(1000);
+    expect(stage.querySelector('img')).toBeNull();
+    expect(shown(stage)).toHaveLength(1);
+  });
+
   it('other overlays ignore songs', () => {
     const { ws, stage } = page();
     ws.fire('message', { type: 'hello', body: { overlay: { name: 'alerts', kind: 'alert', look: {} }, page_version: 'v1' } });

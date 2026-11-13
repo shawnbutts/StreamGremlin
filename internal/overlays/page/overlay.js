@@ -124,7 +124,7 @@ export function start(win, opts = {}) {
   let themed = null; // the look's view, when it isn't Classic
   let classic = null;
   let classicStill = null; // Classic, stopped at once: for a look that fails mid-spin
-  // A Now playing overlay (D-090) shows the song the engine sends.
+  // A Now playing overlay (D-091) shows the song the engine sends.
   let sv = null;
   const reducedMotion =
     opts.reducedMotion || (() => Boolean(win.matchMedia && win.matchMedia('(prefers-reduced-motion: reduce)').matches));
