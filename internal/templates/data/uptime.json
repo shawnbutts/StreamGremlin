@@ -1,0 +1,47 @@
+{
+  "template": {
+    "id": "uptime",
+    "title": "Uptime",
+    "category": "Chat commands",
+    "description": "!uptime says how long you've been live, as Twitch says.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.uptime",
+    "name": "Uptime",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "uptime"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "id": "stream",
+        "action": "twitch.stream.read"
+      },
+      {
+        "if": "steps.stream.output.state == \"live\"",
+        "action": "chat.send",
+        "with": {
+          "message": "We've been live for ${steps.stream.output.uptime}."
+        }
+      },
+      {
+        "if": "steps.stream.output.state == \"offline\"",
+        "action": "chat.send",
+        "with": {
+          "message": "We're not live right now."
+        }
+      }
+    ]
+  }
+}

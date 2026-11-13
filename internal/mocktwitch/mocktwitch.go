@@ -54,6 +54,7 @@ type Server struct {
 	ch      chatterState
 	cd      cardState
 	md      modState
+	bc      broadcastState
 }
 
 type code struct {

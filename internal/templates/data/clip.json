@@ -1,0 +1,56 @@
+{
+  "template": {
+    "id": "clip",
+    "title": "Clip that",
+    "category": "Chat commands",
+    "description": "!clip (mods, VIPs and you) clips the last 30 seconds while you're live and posts the link. Any words after !clip become its title.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.clip",
+    "name": "Clip that",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "clip",
+          "chatter.role": [
+            "vip",
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "id": "clip",
+        "action": "twitch.clip.create",
+        "on_error": "continue",
+        "with": {
+          "title": "${event.payload.args}"
+        }
+      },
+      {
+        "if": "steps.clip.status == \"ok\"",
+        "action": "chat.send",
+        "with": {
+          "message": "Clipped! ${steps.clip.output.url}"
+        }
+      },
+      {
+        "if": "steps.clip.status == \"failed\"",
+        "action": "chat.send",
+        "with": {
+          "message": "@${event.actor.login} couldn't make a clip: ${steps.clip.error}"
+        }
+      }
+    ]
+  }
+}

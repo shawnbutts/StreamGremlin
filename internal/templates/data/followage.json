@@ -1,0 +1,51 @@
+{
+  "template": {
+    "id": "followage",
+    "title": "Follow age",
+    "category": "Chat commands",
+    "description": "!followage says how long the viewer has followed you, or someone else's with !followage name.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.followage",
+    "name": "Follow age",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "followage"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "id": "follow",
+        "action": "twitch.follow.read",
+        "with": {
+          "viewer": "${event.payload.arg_list[?0].orValue(event.actor.login)}"
+        }
+      },
+      {
+        "if": "steps.follow.output.state == \"following\"",
+        "action": "chat.send",
+        "with": {
+          "message": "${steps.follow.output.viewer} has followed for ${steps.follow.output.follow_age}."
+        }
+      },
+      {
+        "if": "steps.follow.output.state == \"not_following\"",
+        "action": "chat.send",
+        "with": {
+          "message": "${steps.follow.output.viewer} doesn't follow yet."
+        }
+      }
+    ]
+  }
+}

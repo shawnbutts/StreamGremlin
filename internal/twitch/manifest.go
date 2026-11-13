@@ -245,6 +245,37 @@ func TwitchManifest() Manifest {
 					"reference: checked in the live check.",
 			},
 			{
+				Name: "channel.title_and_category", Support: PermissionRequired, Scopes: []string{BroadcastScope},
+				Notes: "Modify Channel Information (PATCH /channels, channel:manage:broadcast; 204): title 1-140 characters, never empty; " +
+					"game_id from Get Games (exact name, no scope) or else Search Categories' first answer (no scope; matches the start of " +
+					"words, case-insensitive, close misspellings too). The step says which category it chose. Tags, content labels, " +
+					"language and delay aren't offered (D-086). Read from the API reference 2026-11-13. Not stated: a general rate limit.",
+			},
+			{
+				Name: "clips", Support: PermissionRequired, Scopes: []string{ClipsScope},
+				Notes: "Create Clip (POST /clips, clips:edit; 202 with id and edit_url) with title and duration 5-60 seconds (default " +
+					"30, of up to 90 seconds around the request). Made after answering: Get Clips by id is checked at 2, 5, 10 ... 60 " +
+					"seconds, and a clip not shown by then is taken as failed, as the reference says. 404 not live; 403 clips restricted " +
+					"or off. Never sent twice; no answer is unknown. StreamGremlin limits titles to 100 characters (Twitch states none). " +
+					"Not stated: rate limits.",
+			},
+			{
+				Name: "stream_markers", Support: PermissionRequired, Scopes: []string{BroadcastScope},
+				Notes: "Create Stream Marker (POST /streams/markers, channel:manage:broadcast; 200 with position_seconds): description up to " +
+					"140 characters; 404 when not live, past broadcasts are off, or in a stream's first seconds; 400 for reruns and " +
+					"premieres. Never sent twice. Not stated: rate limits.",
+			},
+			{
+				Name: "stream.read", Support: Supported,
+				Notes: "Get Streams by user_id (no scope): type live, started_at, title, game_name, viewer_count; an empty list is " +
+					"offline. Offline, the title and category come from Get Channel Information. Uptime is worked out from started_at.",
+			},
+			{
+				Name: "follow_age", Support: PermissionRequired, Scopes: []string{FollowersScope},
+				Notes: "Get Users by login (no scope; unknown names are left out), then Get Channel Followers with user_id " +
+					"(moderator:read:followers): followed_at, or an empty list for not following.",
+			},
+			{
 				Name: "users.profile_picture", Support: Supported,
 				Notes: "Get Users by id (no scope) for profile_image_url, for alert overlays. Used only when it's https on " +
 					"static-cdn.jtvnw.net. Kept 30 minutes per viewer. Anonymous gifts and cheers have no viewer, so no picture.",

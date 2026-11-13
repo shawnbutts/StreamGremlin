@@ -242,6 +242,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerPoints(reg, sv.Viewers, sv.Points, sv.Gives)
 	registerLua(reg, sv.Lua)
 	registerFilters(reg, sv.Filters)
+	registerChannel(reg, sv.Twitch)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

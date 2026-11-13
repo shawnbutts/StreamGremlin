@@ -110,6 +110,13 @@
     </dd>
     <dt>Viewers</dt>
     <dd>Everyone who has chatted, followed, subscribed or cheered, from your real chat and events. Find a viewer to see their record and points, give or take points, export their record, or forget them if they ask.</dd>
+    <dt>Channel commands</dt>
+    <dd>
+      Templates for !title and !game (anyone sees them; mods and you change them), !uptime, !followage, !clip (mods, VIPs and
+      you; it posts the clip’s link) and !marker. Their steps, under Twitch in the workflow editor, work from buttons too:
+      “Change the stream title”, “Change the category” (the exact name, or the closest Twitch finds), “Make a clip”, “Add a
+      stream marker”, “Read the stream” and “Read when a viewer followed”. They need you to sign in to Twitch again once.
+    </dd>
     <dt>Chat filters</dt>
     <dd>
       Catch spam in chat: links (except allowed sites), capitals, symbols, too many emotes, repeats, and your own words. Each

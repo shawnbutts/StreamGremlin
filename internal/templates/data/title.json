@@ -1,0 +1,60 @@
+{
+  "template": {
+    "id": "title",
+    "title": "Stream title",
+    "category": "Chat commands",
+    "description": "!title says the stream's title; !title New title (mods and you) changes it.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.title",
+    "name": "Stream title",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "title"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "if": "event.payload.args != \"\" && (event.payload.chatter.role == \"moderator\" || event.payload.chatter.role == \"broadcaster\")",
+        "do": [
+          {
+            "action": "twitch.title.set",
+            "with": {
+              "title": "${event.payload.args}"
+            }
+          },
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Title changed to: ${event.payload.args}"
+            }
+          }
+        ],
+        "else": [
+          {
+            "id": "stream",
+            "action": "twitch.stream.read"
+          },
+          {
+            "if": "steps.stream.output.state != \"unknown\"",
+            "action": "chat.send",
+            "with": {
+              "message": "Title: ${steps.stream.output.title}"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

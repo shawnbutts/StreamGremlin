@@ -47,7 +47,9 @@ var (
 		ModerationReadScope, VIPsReadScope,
 		// Moderating from chat, chat modes and suspicious users (D-079).
 		BansScope, ChatDeleteScope, WarningsScope, ShoutoutsScope, VIPsManageScope, ModsManageScope,
-		ChatSettingsScope, SuspiciousReadScope, SuspiciousManage}
+		ChatSettingsScope, SuspiciousReadScope, SuspiciousManage,
+		// The title and category, markers, and clips (D-086).
+		BroadcastScope, ClipsScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 
@@ -98,8 +100,11 @@ type Service struct {
 	chatMu  sync.Mutex
 	chat    ChatStatus
 	channel ChannelInfo // the channel's title and category
-	log     *slog.Logger
-	now     func() time.Time
+	// clipChecks are the waits before each look for a new clip; nil is
+	// Twitch's minute (tests shorten it).
+	clipChecks []time.Duration
+	log        *slog.Logger
+	now        func() time.Time
 
 	ctx    context.Context
 	stop   context.CancelFunc

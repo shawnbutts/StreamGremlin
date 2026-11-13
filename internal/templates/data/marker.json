@@ -1,0 +1,56 @@
+{
+  "template": {
+    "id": "marker",
+    "title": "Stream marker",
+    "category": "Chat commands",
+    "description": "!marker (mods and you) marks this moment in your past broadcast, with any words after it as its description.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.marker",
+    "name": "Stream marker",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "marker",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "id": "mark",
+        "action": "twitch.marker.create",
+        "on_error": "continue",
+        "with": {
+          "description": "${event.payload.args}"
+        }
+      },
+      {
+        "if": "steps.mark.status == \"ok\"",
+        "action": "chat.send",
+        "with": {
+          "message": "Marked at ${steps.mark.output.position}."
+        }
+      },
+      {
+        "if": "steps.mark.status == \"failed\"",
+        "action": "chat.send",
+        "with": {
+          "message": "@${event.actor.login} couldn't add a marker: ${steps.mark.error}"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "template": {
+    "id": "game",
+    "title": "Stream category",
+    "category": "Chat commands",
+    "description": "!game says the stream's category; !game Name (mods and you) changes it, to the closest Twitch category when the name isn't exact.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.game",
+    "name": "Stream category",
+    "group": "Commands",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "game"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 5
+    },
+    "steps": [
+      {
+        "if": "event.payload.args != \"\" && (event.payload.chatter.role == \"moderator\" || event.payload.chatter.role == \"broadcaster\")",
+        "do": [
+          {
+            "id": "cat",
+            "action": "twitch.category.set",
+            "with": {
+              "category": "${event.payload.args}"
+            }
+          },
+          {
+            "action": "chat.send",
+            "with": {
+              "message": "Category changed to ${steps.cat.output.category}."
+            }
+          }
+        ],
+        "else": [
+          {
+            "id": "stream",
+            "action": "twitch.stream.read"
+          },
+          {
+            "if": "steps.stream.output.state != \"unknown\" && steps.stream.output.category != \"\"",
+            "action": "chat.send",
+            "with": {
+              "message": "We're in ${steps.stream.output.category}."
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

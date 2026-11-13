@@ -282,16 +282,23 @@ func (s *Server) UpdateChannel(channel, title, category string) string {
 
 type channelInfo struct{ title, category string }
 
-// usersLocked answers Get Users by id, with a profile picture on Twitch's
-// picture host for each (the address isn't a real picture).
+// usersLocked answers Get Users by id or login, with a profile picture on
+// Twitch's picture host for each (the address isn't a real picture). A
+// login nobody has is left out, as on Twitch.
 func (s *Server) usersLocked(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.helixAuth(w, r, ""); !ok {
 		return
 	}
 	ids := r.URL.Query()["id"]
-	if len(ids) == 0 || len(ids) > 100 {
-		writeErr(w, 400, "between 1 and 100 id parameters")
+	logins := r.URL.Query()["login"]
+	if len(ids)+len(logins) == 0 || len(ids)+len(logins) > 100 {
+		writeErr(w, 400, "between 1 and 100 id and login parameters")
 		return
+	}
+	for _, l := range logins {
+		if id, ok := s.users[strings.ToLower(l)]; ok {
+			ids = append(ids, id)
+		}
 	}
 	data := []map[string]string{}
 	for _, id := range ids {
