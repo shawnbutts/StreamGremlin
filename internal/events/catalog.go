@@ -71,6 +71,10 @@ const ChatSent = "chat.message.sent"
 // (D-085).
 const FilterCaught = "chat.filter.caught"
 
+// ClipCreated is the event StreamGremlin adds when it makes a clip, from
+// any workflow (D-089).
+const ClipCreated = "broadcast.clip.created"
+
 // Suspicious users (D-079): Twitch's flags on a chatter's message, and a
 // change in how Twitch treats them.
 const (
@@ -406,6 +410,20 @@ func Catalog() []Kind {
 			build: func(_ string, v map[string]string) (any, *Actor, error) {
 				n, _ := strconv.ParseInt(v["counter"], 10, 64)
 				return map[string]any{"timer_id": v["timer_id"], "name": v["name"], "counter": n, "manual": false}, nil, nil
+			},
+		},
+		{
+			Type: ClipCreated, Label: "Clip made",
+			Description: "StreamGremlin made a clip of your stream: !clip, a button or any workflow. Clips made on Twitch's site aren't seen.",
+			Sources:     []string{"twitch"},
+			Fields: []Field{
+				{Name: "user", Label: "Who asked", Kind: "text", Default: "TestViewer", Max: 25},
+				{Name: "title", Label: "Title", Kind: "text", Default: "What a jump", Max: 100},
+			},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				clip := "TestClip" + id
+				return map[string]any{"id": clip, "url": "https://clips.twitch.tv/" + clip, "edit_url": "https://clips.twitch.tv/" + clip + "/edit",
+					"title": v["title"]}, testViewer(v["user"]), nil
 			},
 		},
 		{

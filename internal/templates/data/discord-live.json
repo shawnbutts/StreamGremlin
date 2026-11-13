@@ -1,0 +1,50 @@
+{
+  "template": {
+    "id": "discord-live",
+    "title": "Announce on Discord when you go live",
+    "category": "Discord",
+    "description": "When you go live on Twitch, posts @everyone in a Discord channel with your title, category, a preview of the stream and its link. Add a Discord webhook on Connections first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[1].with.webhook",
+        "hint": "Your Discord webhook's name, like announcements"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "discord.live",
+    "name": "Announce on Discord when you go live",
+    "group": "Discord",
+    "triggers": [
+      {
+        "type": "broadcast.channel.online"
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "id": "stream",
+        "action": "twitch.stream.read",
+        "on_error": "continue"
+      },
+      {
+        "action": "discord.send",
+        "with": {
+          "webhook": "",
+          "mention": "everyone",
+          "message": "I'm live on Twitch! Come hang out${steps.stream.?output.link.orValue(\"\") != \"\" ? \": \" + steps.stream.?output.link.orValue(\"\") : \".\"}",
+          "title": "${steps.stream.?output.title.orValue(\"\")}",
+          "description": "${steps.stream.?output.category.orValue(\"\") != \"\" ? \"Playing \" + steps.stream.?output.category.orValue(\"\") : \"\"}",
+          "link": "${steps.stream.?output.link.orValue(\"\")}",
+          "picture": "${steps.stream.?output.picture.orValue(\"\")}",
+          "color": "#9146ff",
+          "footer": "Twitch"
+        }
+      }
+    ]
+  }
+}

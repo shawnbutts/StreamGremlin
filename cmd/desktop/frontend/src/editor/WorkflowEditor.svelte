@@ -9,6 +9,7 @@
     getCommands,
     getOBSScenes,
     getSounds,
+    getDiscordWebhooks,
     getOverlays,
     getRewards,
     getWorkflowGroups,
@@ -82,6 +83,7 @@
     buttons: [],
     sounds: [],
     overlays: [],
+    discord: [],
     rewards: [],
     // svelte-ignore state_referenced_locally
     selfId: def.id,
@@ -126,6 +128,11 @@
     getOverlays()
       .then((r) => {
         env.overlays = r.overlays;
+      })
+      .catch(() => undefined);
+    getDiscordWebhooks()
+      .then((r) => {
+        env.discord = r.webhooks;
       })
       .catch(() => undefined);
     getRewards()

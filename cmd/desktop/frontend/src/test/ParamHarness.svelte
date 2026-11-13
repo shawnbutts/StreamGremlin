@@ -9,7 +9,7 @@
   let { param, holder, env = {} }: { param: ActionParam; holder: { step: StepDef }; env?: Partial<EditorEnv> } = $props();
   // svelte-ignore state_referenced_locally
   setEditorEnv({
-    triggers: [], actions: [], values: [], saved: [], workflows: [], timers: [], buttons: [], sounds: [], overlays: [], rewards: [],
+    triggers: [], actions: [], values: [], saved: [], workflows: [], timers: [], buttons: [], sounds: [], overlays: [], discord: [], rewards: [],
     selfId: 'wf', scenes: [], sources: [], problems: [], commands: [], more: false, ...env,
   });
   // svelte-ignore state_referenced_locally

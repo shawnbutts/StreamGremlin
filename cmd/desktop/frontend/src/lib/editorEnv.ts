@@ -1,7 +1,7 @@
 // What every part of the workflow editor needs to know, shared through
 // Svelte context so nested step lists don't pass it down by hand.
 import { getContext, setContext } from 'svelte';
-import type { ActionInfo, CommandEntry, LiveButton, Overlay, PaletteValue, Problem, Reward, Sound, TimerStatus, TriggerEntry, WorkflowSummary } from './api';
+import type { ActionInfo, CommandEntry, DiscordWebhook, LiveButton, Overlay, PaletteValue, Problem, Reward, Sound, TimerStatus, TriggerEntry, WorkflowSummary } from './api';
 
 export interface EditorEnv {
   triggers: TriggerEntry[];
@@ -19,6 +19,8 @@ export interface EditorEnv {
   sounds: Sound[];
   /** Overlays, for "Show an alert". */
   overlays: Overlay[];
+  /** Discord webhooks, for "Post to Discord". */
+  discord: DiscordWebhook[];
   /** Channel point rewards, for "Change a reward". */
   rewards: Reward[];
   selfId: string;

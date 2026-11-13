@@ -11,6 +11,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
 	"code.streamgremlin.com/streamgremlin/internal/clients"
+	"code.streamgremlin.com/streamgremlin/internal/discord"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
@@ -48,6 +49,7 @@ type Deps struct {
 	Secrets   *secrets.Store
 	Events    *events.Inbox
 	Twitch    *twitch.Service
+	Discord   *discord.Service
 	OBS       *obs.Service
 	Workflows *workflow.Engine
 	Variables *variables.Store
@@ -178,7 +180,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(clientRoutes(d), filterRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(append(clientRoutes(d), filterRoutes(d)...), discordRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

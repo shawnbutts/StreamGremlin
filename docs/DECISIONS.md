@@ -1527,3 +1527,23 @@ Decided 2026-11-13. The user: "fix the gap under the chat send box and the synci
 - **What wasn't verbatim:** Add Blocked Term's length rule and all of Remove Blocked Term were read from a summary of Twitch's reference. StreamGremlin checks only 2 to 500 characters and shows Twitch's own refusal otherwise. The capability manifest notes it, to check in the live check.
 - **API and CLI:** `GET`, `POST` and `DELETE /v1/filters/blocked-terms`; `streamgremlin filters blocked`, `filters block TERM...`, `filters unblock ID`.
 - **The gap under Live's chat:** the always-present, empty status line for moderation notices kept a line's height and margin under the send box, and the "Sign in to send" note kept its bottom margin. Empty notices now take no room (they stay in place to be announced), so chat ends at the panel's padding and its log gets the space.
+
+## D-089. Discord, Tier 1: webhooks
+
+Decided 2026-11-13. The user asked what Discord features would match other bots, then: "please work on discord tier 1".
+
+**Who it's for:** streamers coming from Streamer.bot, who post to Discord through webhooks, and any streamer who announces streams in a Discord server.
+
+**Tier 1, built:** posting through Discord webhooks, with no bot account, Discord application or live connection (ADR-0044).
+- **Connections → Discord:** add a webhook by pasting its link and naming it, send a test post, forget it after asking. The link is kept with your passwords and never shown again.
+- **The step "Post to Discord":** a message, a card (title, text, link, picture, colour, footer), or both, through a webhook picked by name; optionally as another name. Nobody is notified unless the step chooses @everyone or @here, whatever the text says, since posts often carry a viewer's words. Long text is cut to fit. Sent once; unknown if Discord doesn't answer.
+- **"A clip is made":** a new event and trigger, added whenever StreamGremlin makes a clip (`!clip`, a button, a Stream Deck key, any workflow). Clips made on Twitch's site aren't seen: Twitch offers no event for them. Templates can't share a chat command, so posting clips hangs off this event instead of a second `!clip`.
+- **The step "Sum up the stream":** counts real events since Twitch last said you went live, until it said you went offline: how long, follows, subs, gifted subs, bits, raids (and raiders), chatters and their messages. Test events and your own chat don't count. Unknown when StreamGremlin didn't see you go live.
+- **"Read the stream"** also gives your channel's link, and a preview picture of the stream while live (Get Streams' thumbnail, 1280x720).
+- **Three templates, in a new Discord category:**
+  - **Announce on Discord when you go live:** @everyone, with a card of the title, category, preview picture and link. If Twitch can't be asked, it still posts, without the card.
+  - **Post new clips to Discord.**
+  - **Sum up the stream on Discord**, when you go offline.
+- **Command line:** `streamgremlin discord`, `discord add NAME` (the link on standard input), `discord test NAME`, `discord forget NAME`.
+
+**Not built (Tier 2 and 3, waiting for a request):** a bot account, editing the announcement when the stream ends, slash commands and other Discord triggers, roles, relaying chat, linking accounts. Twitch's own Discord integration already syncs sub roles; Help should point to it if asked. Levels, Discord moderation, music, tickets and welcome messages are left to hosted bots: they need to be online all the time, and StreamGremlin runs only while your computer is on.

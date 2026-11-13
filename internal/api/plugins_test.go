@@ -96,7 +96,7 @@ func TestPluginsThroughTheAPI(t *testing.T) {
 	_, out = call("GET", "/v1/templates", "")
 	if !strings.Contains(out, `"id":"dice-tray/roll"`) || !strings.Contains(out, `"category":"Dice tray"`) ||
 		!strings.Contains(out, `"add_on":{"id":"dice-tray","name":"Dice tray","publisher":"StreamGremlin examples","enabled":false}`) ||
-		!strings.Contains(out, `"Stream","Dice tray"]`) {
+		!strings.Contains(out, `"Discord","Dice tray"]`) {
 		t.Fatal(out)
 	}
 

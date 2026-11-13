@@ -215,6 +215,13 @@ func Triggers() []TriggerEntry {
 		{Type: "broadcast.channel.online", Label: "You go live on Twitch", Category: "Stream",
 			Help:  "Twitch says your channel is live. (\"The stream starts\" is OBS starting to stream, a little earlier.)",
 			Match: []MatchField{}, Values: []Value{}},
+		{Type: "broadcast.clip.created", Label: "A clip is made", Category: "Stream",
+			Help: "StreamGremlin made a clip: by !clip, a button, a Stream Deck key or any workflow. Clips made on Twitch's site " +
+				"aren't seen. Who asked is whoever started the workflow, when a viewer did.",
+			Match: []MatchField{},
+			Values: []Value{{Token: "clip", Label: "The clip's link", Expr: "event.payload.url"},
+				{Token: "clip_title", Label: "The clip's title", Expr: "event.payload.title"},
+				{Token: "viewer", Label: "Who asked for it", Expr: `event.?actor.display_name.orValue("")`}}},
 		{Type: "broadcast.channel.offline", Label: "You go offline on Twitch", Category: "Stream",
 			Help: "Twitch says your channel is offline.", Match: []MatchField{}, Values: []Value{}},
 		{Type: "broadcast.channel.updated", Label: "Your title or category changes", Category: "Stream", More: true,

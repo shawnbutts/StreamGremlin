@@ -208,9 +208,10 @@ func (s *Server) broadcastLocked(w http.ResponseWriter, r *http.Request) bool {
 				login := s.loginOfLocked(id)
 				ch := s.chat.channels[login]
 				data = append(data, map[string]any{"id": "stream-" + id, "user_id": id, "user_login": login, "user_name": login,
-					"game_id": Games[ch.category], "game_name": ch.category, "type": "live", "title": ch.title, "tags": []any{},
+					"thumbnail_url": "https://static-cdn.jtvnw.net/previews-ttv/live_user_" + login + "-{width}x{height}.jpg",
+					"game_id":       Games[ch.category], "game_name": ch.category, "type": "live", "title": ch.title, "tags": []any{},
 					"viewer_count": s.bc.viewers[id], "started_at": started.Format(time.RFC3339), "language": "en",
-					"thumbnail_url": "", "tag_ids": []any{}, "is_mature": false})
+					"tag_ids": []any{}, "is_mature": false})
 			}
 		}
 		writeJSON(w, map[string]any{"data": data, "pagination": map[string]any{}})

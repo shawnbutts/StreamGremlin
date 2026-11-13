@@ -152,6 +152,12 @@ type StreamInfo struct {
 	Title     string     `json:"title"`
 	Category  string     `json:"category"`
 	Viewers   int        `json:"viewers"`
+	// Login and Link are your channel's name and page.
+	Login string `json:"login"`
+	Link  string `json:"link"`
+	// Picture is Twitch's preview of the live stream, 1280x720; empty
+	// when offline.
+	Picture string `json:"picture,omitempty"`
 }
 
 // Stream reads Get Streams and Get Channel Information.
@@ -164,15 +170,20 @@ func (s *Service) Stream(ctx context.Context) (StreamInfo, error) {
 			GameName  string    `json:"game_name"`
 			Viewers   int       `json:"viewer_count"`
 			StartedAt time.Time `json:"started_at"`
+			Thumbnail string    `json:"thumbnail_url"`
 		} `json:"data"`
 	}
 	if err := s.streamerRaw(ctx, "", "GET", "/streams", url.Values{"user_id": {me}}, nil, &out); err != nil {
 		return StreamInfo{}, channelError(err, "read your stream")
 	}
+	login := s.streamer.Status().Login
+	link := "https://www.twitch.tv/" + login
 	for _, d := range out.Data {
 		if d.Type == "live" && !d.StartedAt.IsZero() {
 			at := d.StartedAt
-			return StreamInfo{Live: true, StartedAt: &at, Title: d.Title, Category: d.GameName, Viewers: d.Viewers}, nil
+			pic := strings.NewReplacer("{width}", "1280", "{height}", "720").Replace(d.Thumbnail)
+			return StreamInfo{Live: true, StartedAt: &at, Title: d.Title, Category: d.GameName, Viewers: d.Viewers,
+				Login: login, Link: link, Picture: pic}, nil
 		}
 	}
 	var ch struct {
@@ -187,7 +198,7 @@ func (s *Service) Stream(ctx context.Context) (StreamInfo, error) {
 	if len(ch.Data) == 0 {
 		return StreamInfo{}, errors.New("twitch: Twitch didn't return your channel")
 	}
-	return StreamInfo{Title: ch.Data[0].Title, Category: ch.Data[0].GameName}, nil
+	return StreamInfo{Title: ch.Data[0].Title, Category: ch.Data[0].GameName, Login: login, Link: link}, nil
 }
 
 // Marker is a stream marker Twitch made.

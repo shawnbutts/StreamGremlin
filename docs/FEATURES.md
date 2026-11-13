@@ -155,6 +155,8 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | YouTube: cuepoints and retention | 0036–0039 | Decided at the YouTube milestone |
 | Chat router across platforms | 0035, D-059 | YouTube. The single chat interface and `source` on events exist from the Spine. |
 | Kick | 0043, D-054, D-055, D-067 | Leave |
+| Discord Tier 1: webhooks; post from workflows; go-live, clip and stream-summary templates | new (D-089, ADR-0044) | Built after M7 |
+| Discord Tier 2: a bot account, editing the announcement, slash commands, roles | new (D-089) | Waiting for a request |
 
 ## Extending it
 

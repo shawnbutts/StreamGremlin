@@ -154,6 +154,18 @@
     </select>
     {#if !env.overlays.length}<span class="sg-muted field-hint">No overlays yet: add one on the Overlays screen.</span>{/if}
   </label>
+{:else if param.editor === 'discord_webhook'}
+  <label class="field">
+    <span>{label}</span>
+    <select class="sg-input" value={current ?? ''} onchange={(e) => set(e.currentTarget.value)}>
+      <option value="">Choose a webhook…</option>
+      {#each env.discord as w (w.name)}<option value={w.name}>{w.name} (Discord’s “{w.discord_name}”)</option>{/each}
+      {#if typeof current === 'string' && current && !env.discord.some((w) => w.name === current)}
+        <option value={current}>{current} (not found)</option>
+      {/if}
+    </select>
+    {#if !env.discord.length}<span class="sg-muted field-hint">No Discord webhooks yet: add one on Connections.</span>{/if}
+  </label>
 {:else if param.editor === 'reward'}
   <label class="field">
     <span>{label}</span>

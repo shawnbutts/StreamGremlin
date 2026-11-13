@@ -1878,3 +1878,19 @@ export const getBlockedTerms = () => api<BlockedTermsView>('GET', '/v1/filters/b
 export const addBlockedTerms = (texts: string[]) =>
   api<{ results: BlockedTermResult[] }>('POST', '/v1/filters/blocked-terms', { texts });
 export const removeBlockedTerm = (id: string) => api<void>('DELETE', `/v1/filters/blocked-terms/${encodeURIComponent(id)}`);
+
+// Discord webhooks (D-089). The link is sent once, to add one, and never comes back.
+export interface DiscordWebhook {
+  name: string;
+  id: string;
+  discord_name: string;
+  channel_id: string;
+  guild_id?: string;
+  added_at: string;
+}
+export const getDiscordWebhooks = () => api<{ webhooks: DiscordWebhook[] }>('GET', '/v1/discord/webhooks');
+export const addDiscordWebhook = (name: string, link: string) =>
+  api<DiscordWebhook>('PUT', `/v1/discord/webhooks/${encodeURIComponent(name)}`, { link });
+export const forgetDiscordWebhook = (name: string) => api<void>('DELETE', `/v1/discord/webhooks/${encodeURIComponent(name)}`);
+export const testDiscordWebhook = (name: string) =>
+  api<{ message_id: string }>('POST', `/v1/discord/webhooks/${encodeURIComponent(name)}/test`);

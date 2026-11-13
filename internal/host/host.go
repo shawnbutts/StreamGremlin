@@ -25,6 +25,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
 	"code.streamgremlin.com/streamgremlin/internal/clients"
 	"code.streamgremlin.com/streamgremlin/internal/datadir"
+	"code.streamgremlin.com/streamgremlin/internal/discord"
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
@@ -65,6 +66,9 @@ type Options struct {
 	// TwitchAuthURL replaces id.twitch.tv, for mocktwitch. It must be a
 	// loopback http URL; the app says it's a test server.
 	TwitchAuthURL string
+	// DiscordAPIURL replaces discord.com, for mockdiscord. It must be a
+	// loopback http URL.
+	DiscordAPIURL string
 	// OverlayAddr is where overlay pages are served for OBS. Empty means
 	// brand.DefaultOverlayAddr, falling back to a free port if that is
 	// taken; "off" serves none.
@@ -86,6 +90,7 @@ type Host struct {
 	token     string
 	twitch    *twitch.Service
 	obs       *obs.Service
+	discord   *discord.Service
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
@@ -207,9 +212,14 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	h.filters = filters.New(filters.Options{Inbox: inbox, Settings: set, Moderation: mods, Logger: log,
 		BotID: func() string { a, _ := h.twitch.Account(twitch.RoleBot); return a.Status().UserID }})
+	discordBase, err := testServerURL(opts.DiscordAPIURL, discord.DefaultBase, "Discord")
+	if err != nil {
+		return nil, err
+	}
+	h.discord = discord.New(discord.Options{Settings: set, Secrets: sec, Logger: log.With("component", "discord"), Base: discordBase})
 	reg := workflow.NewRegistry()
 	actions.Register(reg, actions.Services{Filters: h.filters, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: h.hub})
+		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
 	h.rounds = rounds.New(rounds.Options{DB: h.db, Ledger: ledger, Viewers: h.viewers, Logger: log})
@@ -293,6 +303,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Clients:    paired,
 		Moderation: mods,
 		Filters:    h.filters,
+		Discord:    h.discord,
 		OverlayServer: func() (string, string) {
 			return h.OverlayURL(), h.ovNote
 		},
@@ -504,6 +515,22 @@ func writePrivate(path, content string) error {
 
 // twitchAuthURL checks a replacement for id.twitch.tv: only a loopback
 // http server such as mocktwitch, so nothing can point sign-in elsewhere.
+// testServerURL checks a stand-in's address: a loopback http URL. Empty
+// means def.
+func testServerURL(raw, def, what string) (string, error) {
+	if raw == "" {
+		return def, nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "http" || u.User != nil || (u.Path != "" && u.Path != "/") {
+		return "", fmt.Errorf("host: the %s test server must be like http://127.0.0.1:7600, not %q", what, raw)
+	}
+	if err := api.RequireLoopback(u.Host); err != nil {
+		return "", fmt.Errorf("host: the %s test server must be on this computer: %w", what, err)
+	}
+	return strings.TrimRight(raw, "/"), nil
+}
+
 func twitchAuthURL(raw string) (string, error) {
 	if raw == "" {
 		return twitch.DefaultAuthURL, nil

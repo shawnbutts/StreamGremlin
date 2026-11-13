@@ -1,0 +1,46 @@
+{
+  "template": {
+    "id": "discord-ended",
+    "title": "Sum up the stream on Discord",
+    "category": "Discord",
+    "description": "When you go offline on Twitch, posts how long you streamed, and the new followers, subs, bits, raids and chatters, in a Discord channel. Add a Discord webhook on Connections first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[1].with.webhook",
+        "hint": "Your Discord webhook's name, like announcements"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "discord.ended",
+    "name": "Sum up the stream on Discord",
+    "group": "Discord",
+    "triggers": [
+      {
+        "type": "broadcast.channel.offline"
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "id": "sum",
+        "action": "stream.summary"
+      },
+      {
+        "if": "steps.sum.output.state != \"unknown\"",
+        "action": "discord.send",
+        "with": {
+          "webhook": "",
+          "title": "Thanks for watching!",
+          "description": "Live for ${steps.sum.output.duration}.\nNew followers: ${steps.sum.output.follows}\nNew subs: ${steps.sum.output.subs}, gifted: ${steps.sum.output.gifted_subs}\nBits: ${steps.sum.output.bits}\nRaids: ${steps.sum.output.raids} (${steps.sum.output.raiders} raiders)\nChatters: ${steps.sum.output.chatters}",
+          "color": "#9146ff",
+          "footer": "StreamGremlin"
+        }
+      }
+    ]
+  }
+}

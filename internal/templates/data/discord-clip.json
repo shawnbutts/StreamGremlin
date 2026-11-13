@@ -1,0 +1,35 @@
+{
+  "template": {
+    "id": "discord-clip",
+    "title": "Post new clips to Discord",
+    "category": "Discord",
+    "description": "Whenever StreamGremlin makes a clip (with !clip, a button, a Stream Deck key or any workflow), posts its link in a Discord channel. Add a Discord webhook on Connections first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.webhook",
+        "hint": "Your Discord webhook's name, like clips"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "discord.clip",
+    "name": "Post new clips to Discord",
+    "group": "Discord",
+    "triggers": [
+      {
+        "type": "broadcast.clip.created"
+      }
+    ],
+    "steps": [
+      {
+        "action": "discord.send",
+        "with": {
+          "webhook": "",
+          "message": "New clip${event.?actor.display_name.orValue(\"\") != \"\" ? \" by \" + event.actor.display_name : \"\"}: ${event.payload.url}"
+        }
+      }
+    ]
+  }
+}

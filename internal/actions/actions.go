@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/ads"
+	"code.streamgremlin.com/streamgremlin/internal/discord"
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
@@ -62,6 +64,9 @@ type Services struct {
 	Lua *lua.Runner
 	// Filters catch spam in chat (D-085).
 	Filters *filters.Service
+	// Discord posts through webhooks (D-089); Inbox is read to sum up a stream.
+	Discord *discord.Service
+	Inbox   *events.Inbox
 }
 
 // Register adds every action to reg.
@@ -242,7 +247,8 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerPoints(reg, sv.Viewers, sv.Points, sv.Gives)
 	registerLua(reg, sv.Lua)
 	registerFilters(reg, sv.Filters)
-	registerChannel(reg, sv.Twitch)
+	registerChannel(reg, sv.Twitch, sv.Inbox)
+	registerDiscord(reg, sv.Discord, sv.Inbox)
 	reg.Add(workflow.Action{
 		Name: "firstwords.reset", Label: "Start First Words over", Group: "General", SavesState: true, More: true,
 		Description: "Everyone's next message counts as their first words again, as when the stream starts. " +

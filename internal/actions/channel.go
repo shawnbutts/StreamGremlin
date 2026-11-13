@@ -2,11 +2,13 @@ package actions
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
@@ -22,12 +24,23 @@ func plain(err error) error {
 	return errors.New(strings.TrimPrefix(err.Error(), "twitch: "))
 }
 
+// recordClip adds "A clip is made" (D-089), once per clip, so any workflow
+// can share it, whoever made it. The clip is made either way.
+func recordClip(ctx context.Context, inbox *events.Inbox, c workflow.Call, clip map[string]any, title string) {
+	if inbox == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{"id": clip["id"], "url": clip["url"], "edit_url": clip["edit_url"], "title": title})
+	_, _ = inbox.Accept(ctx, events.Envelope{Type: events.ClipCreated, Source: "twitch", SourceEventID: "clip:" + fmt.Sprint(clip["id"]),
+		OccurredAt: time.Now(), Actor: c.Actor, Payload: payload, DeliveryQuality: events.Confirmed})
+}
+
 // registerChannel adds the channel's own steps (D-086): the title and
 // category, clips, stream markers, and reading the stream and when a
 // viewer followed. Changing steps are External: a test event never
 // reaches Twitch. Reading steps run for test events too; then a reading
 // Twitch can't give is unknown, not a failure.
-func registerChannel(reg *workflow.Registry, tw *twitch.Service) {
+func registerChannel(reg *workflow.Registry, tw *twitch.Service, inbox *events.Inbox) {
 	str := func(c workflow.Call, name string) string { s, _ := c.String(name, ""); return strings.TrimSpace(s) }
 	reg.Add(workflow.Action{
 		Name: "twitch.title.set", Label: "Change the stream title", Group: "Twitch", External: true,
@@ -81,7 +94,9 @@ func registerChannel(reg *workflow.Registry, tw *twitch.Service) {
 			if err != nil {
 				return nil, plain(err)
 			}
-			return map[string]any{"id": clip.ID, "url": clip.URL, "edit_url": clip.EditURL}, nil
+			out := map[string]any{"id": clip.ID, "url": clip.URL, "edit_url": clip.EditURL}
+			recordClip(ctx, inbox, c, out, str(c, "title"))
+			return out, nil
 		},
 	})
 	reg.Add(workflow.Action{
@@ -103,7 +118,8 @@ func registerChannel(reg *workflow.Registry, tw *twitch.Service) {
 	})
 	reg.Add(workflow.Action{
 		Name: "twitch.stream.read", Label: "Read the stream", Group: "Twitch",
-		Description: "Asks Twitch whether you're live and since when, with your title, category and viewers. Changes nothing, " +
+		Description: "Asks Twitch whether you're live and since when, with your title, category, viewers, channel link and " +
+			"(when live) a preview picture of the stream. Changes nothing, " +
 			"so it runs for test events too. Its state is live, offline, or unknown when Twitch didn't say.",
 		Run: func(ctx context.Context, c workflow.Call) (any, error) {
 			var st twitch.StreamInfo
@@ -117,7 +133,7 @@ func registerChannel(reg *workflow.Registry, tw *twitch.Service) {
 				}
 				return nil, plain(err)
 			}
-			out := map[string]any{"state": "offline", "title": st.Title, "category": st.Category}
+			out := map[string]any{"state": "offline", "title": st.Title, "category": st.Category, "login": st.Login, "link": st.Link, "picture": st.Picture}
 			if st.Live && st.StartedAt != nil {
 				up := time.Since(*st.StartedAt)
 				out["state"], out["started_at"], out["viewers"] = "live", st.StartedAt.UTC().Format(time.RFC3339), st.Viewers
