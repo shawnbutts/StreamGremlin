@@ -184,8 +184,9 @@ func TestLooksAreServedSandboxedWithNoNetwork(t *testing.T) {
 				pending = append(pending, refs(t, path.Dir(f), body)...)
 			}
 		}
-		// Its sounds, for the overlay page to play (D-065).
-		for _, cue := range ThemeCues {
+		// A wheel look's sounds, for the overlay page to play (D-065).
+		// Timer looks have none (D-092).
+		for _, cue := range th.cues {
 			res, body := get(t, base+th.dir+"/"+cue+".wav")
 			if res.StatusCode != 200 || res.Header.Get("Content-Type") != "audio/wav" || !strings.HasPrefix(body, "RIFF") ||
 				res.Header.Get("Cross-Origin-Resource-Policy") != "cross-origin" {
@@ -202,6 +203,9 @@ func TestLooksAreServedSandboxedWithNoNetwork(t *testing.T) {
 			if part.StatusCode != http.StatusPartialContent || string(b) != "RIFF" {
 				t.Errorf("%s: %s.wav in parts: %d %q", th.ID, cue, part.StatusCode, b)
 			}
+		}
+		if (th.For == KindWheel) != (len(th.cues) == len(ThemeCues)) {
+			t.Errorf("%s: for %s with sounds %v", th.ID, th.For, th.cues)
 		}
 		if !seen[th.dir+"/main.js"] || !seen[th.dir+"/theme.css"] || !seen["shared/bridge.js"] {
 			t.Errorf("%s loads %v", th.ID, seen)
@@ -321,7 +325,7 @@ func TestInstalledThemes(t *testing.T) {
 		}
 	}
 	all := c.All()
-	if len(all) != 4 || all[3].ID != "cosy-wheel" || all[3].OddsChecked || all[3].Publisher != "Someone" || all[3].Settings[2].Key != "sounds" {
+	if len(all) != 7 || all[6].ID != "cosy-wheel" || all[6].OddsChecked || all[6].Publisher != "Someone" || all[6].Settings[2].Key != "sounds" {
 		t.Fatal(all)
 	}
 	// The hello: its page and sounds (beside its page only), its settings.

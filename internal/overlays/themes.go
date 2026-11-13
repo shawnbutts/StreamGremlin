@@ -183,13 +183,34 @@ var Themes = builtin([]Theme{
 		OddsChecked: true, Settings: commonSettings("#3cf2c8"), dir: "neon-arcade"},
 	{ID: "builtin:selector-board", Name: "Selector board", Description: "Not a wheel: a list that rolls to the result, each choice with its chance.",
 		OddsChecked: true, Settings: commonSettings("#9cf03b"), dir: "selector-board"},
+	// The same looks for clocks and timers (D-092): the wheels' materials
+	// around the time.
+	{ID: "builtin:workshop-timer", Name: "Workshop", For: KindTimer, Description: "The time on a parchment plate in a brass and wood frame.",
+		Settings: timerLookSettings("#e8b04e"), dir: "workshop-timer"},
+	{ID: "builtin:neon-arcade-timer", Name: "Neon arcade", For: KindTimer, Description: "The time in glowing neon on a dark arcade cabinet.",
+		Settings: timerLookSettings("#3cf2c8"), dir: "neon-arcade-timer"},
+	{ID: "builtin:selector-board-timer", Name: "Selector board", For: KindTimer, Description: "The time on the board's lit row, between its marker lines.",
+		Settings: timerLookSettings("#9cf03b"), dir: "selector-board-timer"},
 })
 
+// builtin fills in what every built-in look has: its page, and for a
+// wheel's, its sounds.
 func builtin(ts []Theme) []Theme {
 	for i := range ts {
-		ts[i].entry, ts[i].cues, ts[i].For = "index.html", ThemeCues, KindWheel
+		ts[i].entry = "index.html"
+		if ts[i].For == "" {
+			ts[i].For, ts[i].cues = KindWheel, ThemeCues
+		}
 	}
 	return ts
+}
+
+// timerLookSettings are a built-in timer look's settings (D-092).
+func timerLookSettings(accent string) []Setting {
+	return []Setting{
+		{Key: "show_label", Label: "Show the label", Kind: SettingSwitch, Default: true},
+		{Key: "accent", Label: "Accent colour", Kind: SettingColour, Default: accent},
+	}
 }
 
 // base is where a theme's files are served. A built-in look's path has

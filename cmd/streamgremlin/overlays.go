@@ -195,7 +195,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if lookName == "" {
 				lookName = "classic"
 			}
-			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id; clock and timer overlays: classic or an installed look's id")
+			fs.StringVar(&lookName, "look", lookName, "wheel overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id; clock and timer overlays: classic, workshop, neon-arcade, selector-board, or an installed look's id")
 			fs.Var(&sets, "set", "an overlay with a look: one of its settings, KEY=VALUE (repeatable; see packages)")
 			lookTitle := fs.String("look-title", "", "wheel overlays with a look: its title (empty for the wheel's own)")
 			lookShowTitle := fs.Bool("look-show-title", true, "wheel overlays with a look: show the title")
@@ -206,7 +206,10 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			}
 			theme := ""
 			if lookName != "classic" {
-				theme = "builtin:" + lookName
+				theme = "builtin:" + strings.TrimSuffix(lookName, "-timer")
+				if o.Kind == overlays.KindTimer {
+					theme += "-timer" // the same look, made for timers (D-092)
+				}
 				if _, ok := overlays.ThemeByID(theme); !ok {
 					theme = lookName // an installed look, by its id
 				}

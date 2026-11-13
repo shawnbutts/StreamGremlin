@@ -242,7 +242,9 @@ func TestWheelLooksThroughTheAPI(t *testing.T) {
 	code, out := call("GET", "/v1/overlays", "")
 	var list OverlayList
 	_ = json.Unmarshal([]byte(out), &list)
-	if code != 200 || len(list.Themes) != 3 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 4 || !list.Themes[0].OddsChecked {
+	// Three looks for wheels, and the same three for timers (D-092).
+	if code != 200 || len(list.Themes) != 6 || list.Themes[0].ID != "builtin:workshop" || len(list.Themes[0].Settings) != 4 || !list.Themes[0].OddsChecked ||
+		list.Themes[3].ID != "builtin:workshop-timer" || list.Themes[3].For != "timer" {
 		t.Fatalf("%d %s", code, out)
 	}
 	if code, out := call("POST", "/v1/overlays", `{"name":"alerts","look":{"theme":"builtin:workshop"}}`); code != 400 || !strings.Contains(out, "wheel, and clock and timer, overlays") {

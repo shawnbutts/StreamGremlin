@@ -1,0 +1,28 @@
+/* The Neon arcade look for clocks and timers (D-092): the wheel's glowing
+   cabinet, with the time in neon tubes. Transparent around it, so it sits
+   over gameplay. */
+:root { --accent: #3cf2c8; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #f4fdff; }
+#app { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5vh; padding: 3vh; }
+#app[hidden] { display: none; }
+.title { padding: 0.35em 1.4em; border: 3px solid var(--accent); border-radius: 999px; background: #030c14e6;
+  box-shadow: 0 0 18px var(--accent), inset 0 0 12px #1dff9d4d;
+  font-size: clamp(18px, 3.4vh, 46px); font-weight: 900; letter-spacing: 0.18em; text-transform: uppercase;
+  text-shadow: 0 0 10px var(--accent); max-width: 90vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title[hidden], .title:empty { display: none; }
+.plate { padding: clamp(10px, 2vh, 24px) clamp(18px, 4vh, 48px); border-radius: 28px; max-width: 92vw;
+  background: radial-gradient(circle, #1b1745 0%, #050a17 80%); box-shadow: 0 0 30px #00e5ff55, 0 0 0 3px #9b5cff88; }
+.digits { color: #eafffb; font-size: clamp(40px, 12vh, 150px); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0.06em;
+  line-height: 1.1; text-align: center; white-space: nowrap;
+  text-shadow: 0 0 6px var(--accent), 0 0 18px var(--accent), 0 0 34px #b05cff; }
+.digits.done { font-size: clamp(28px, 7vh, 90px); white-space: normal; letter-spacing: 0.1em; text-transform: uppercase; }
+.note { margin-top: 0.4em; text-align: center; color: #c9b6ff; font-size: clamp(16px, 3vh, 38px); font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; text-shadow: 0 0 10px #b05cff; }
+.note[hidden] { display: none; }
+/* Running: the tubes hum. */
+.plate.running .digits { animation: hum 2.4s ease-in-out infinite; }
+@keyframes hum { 50% { text-shadow: 0 0 4px var(--accent), 0 0 12px var(--accent), 0 0 24px #b05cff; } }
+.reduced .plate.running .digits { animation: none; }
+@media (prefers-reduced-motion: reduce) { .plate.running .digits { animation: none; } }

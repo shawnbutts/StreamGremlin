@@ -34,6 +34,7 @@ The streamer asked for "example plugins for time": a clock, a countdown and a st
 - **Messages to the look:** `timer.snapshot` `{settings, reducedMotion, timer}` once it says it's ready; `timer.updated` `{timer}` on each change of state or look; `theme.settings.updated`. `timer` is `{mode, label, endText, clock: {hour24, seconds, date}, lengthMs, valueMs, running, direction, atMs}`: it was `valueMs` at `atMs` on this computer's clock, moving by `direction` (-1, 0 or 1). The look counts from there; it's never told the overlay's link or anything private.
 - **From the look:** only `theme.ready` and `theme.error`. Anything else is dropped.
 - **Classic never stops counting underneath.** It shows until the look is ready, and again for good if the look reports an error, so OBS never shows a blank timer.
+- **Built-in timer looks:** Workshop, Neon arcade and Selector board, made of their wheel looks' materials, served like them from the theme server (`builtin:<look>-timer`), through one shared script. They have no sounds.
 - **The example look, Flip clock** (`examples/themes/flip-clock`), shows all three modes as split-flap cards. Tests read it as a package and install it, zipped, through the CLI.
 
 ## Consequences

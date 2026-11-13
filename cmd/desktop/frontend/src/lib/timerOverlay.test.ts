@@ -262,3 +262,55 @@ describe('the Flip clock example look', () => {
     expect(document.getElementById('label')!.hidden).toBe(true);
   });
 });
+
+describe('the built-in timer looks', () => {
+  type Mod = { reading: (t: unknown, now: number) => { text: string; note: string; done: boolean }; timerTheme: (win: unknown, opts?: unknown) => void };
+  let mod: Mod;
+  beforeAll(async () => {
+    (window as unknown as Record<string, boolean>).__streamgremlinThemeTest = true;
+    mod = (await load('themes/shared/timertheme.js')) as unknown as Mod;
+  });
+
+  it('read a clock, a countdown (with its end text) and a stopwatch', () => {
+    const at = new Date(2026, 10, 13, 18, 5, 9).getTime();
+    expect(mod.reading({ mode: 'clock', clock: { hour24: true, seconds: true } }, at).text).toBe('18:05:09');
+    const down = { mode: 'countdown', valueMs: 90_000, atMs: at, direction: -1, endText: 'Live!' };
+    expect(mod.reading(down, at + 30_500).text).toBe('1:00');
+    expect(mod.reading(down, at + 100_000)).toEqual({ text: 'Live!', note: '', done: true });
+    expect(mod.reading({ mode: 'stopwatch', valueMs: 0, atMs: at, direction: 1 }, at + 75_000).text).toBe('1:15');
+  });
+
+  it('show the label in the title plate and the time on the board, as told, and say they’re ready', () => {
+    document.body.innerHTML = '<main id="app"></main>';
+    let now = new Date(2026, 10, 13, 18, 30, 0).getTime();
+    const ticks: (() => void)[] = [];
+    const sent: { type: string }[] = [];
+    const parent = { postMessage: (m: { type: string }) => sent.push(m) };
+    const listeners: ((ev: MessageEvent) => void)[] = [];
+    const win = { document, parent, addEventListener: (_: string, fn: (ev: MessageEvent) => void) => listeners.push(fn) };
+    mod.timerTheme(win, { setTimeout: (fn: () => void) => ticks.push(fn), now: () => now });
+    expect(sent.at(-1)).toMatchObject({ type: 'theme.ready' });
+    const app = document.getElementById('app')!;
+    expect(app.hidden).toBe(true); // nothing until told
+    const tell = (type: string, payload: unknown, source: unknown = parent) =>
+      listeners.forEach((fn) => fn({ source, data: { protocolVersion: 1, type, payload } } as unknown as MessageEvent));
+    tell('timer.snapshot', {
+      settings: { show_label: true, accent: '#ff00aa' },
+      timer: { mode: 'countdown', label: '<b>Starting soon</b>', valueMs: 300_000, atMs: now, direction: -1, endText: '' },
+    });
+    expect(app.hidden).toBe(false);
+    expect(app.querySelector('.title')!.textContent).toBe('<b>Starting soon</b>');
+    expect(app.querySelector('b')).toBeNull();
+    expect(app.querySelector('.digits')!.textContent).toBe('5:00');
+    expect(app.querySelector('.plate')!.classList.contains('running')).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#ff00aa');
+    now += 61_000;
+    ticks.shift()!();
+    expect(app.querySelector('.digits')!.textContent).toBe('3:59');
+    tell('theme.settings.updated', { settings: { show_label: false, accent: 'red' } });
+    expect((app.querySelector('.title') as HTMLElement).hidden).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#ff00aa'); // not a colour: kept
+    tell('timer.updated', { timer: { mode: 'clock', label: '', clock: {} } }, window); // not from the overlay page
+    expect(app.querySelector('.digits')!.textContent).toBe('3:59');
+  });
+});

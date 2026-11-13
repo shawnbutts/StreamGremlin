@@ -1,0 +1,30 @@
+/* The Workshop look for clocks and timers (D-092): the wheel's brass and
+   wood, with the time on a parchment plate. Transparent around it, so it
+   sits over gameplay. */
+:root { --accent: #e8b04e; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+body { font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif; color: #fbe7b5; }
+#app { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.5vh; padding: 3vh; }
+#app[hidden] { display: none; }
+.title { padding: 0.35em 1.4em; border: 4px ridge #c8913f; border-radius: 12px; background: linear-gradient(#4a321d, #22170c);
+  box-shadow: 0 6px 0 #1b1009, 0 0 18px #000a; font-size: clamp(18px, 3.4vh, 46px); font-weight: 900; letter-spacing: 0.08em;
+  text-shadow: 2px 3px #1b0e04; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title[hidden], .title:empty { display: none; }
+/* The plate: a brass rim around wood, and parchment where the time is. */
+.plate { position: relative; padding: clamp(10px, 2.2vh, 26px); border-radius: 22px; max-width: 92vw;
+  background: radial-gradient(circle at 38% 30%, #fde9a9 0%, #c48d3f 40%, #6e451c 85%, #e7bd72 100%);
+  box-shadow: 0 0 0 4px #4a2b10, 0 18px 30px #000c; }
+.digits { padding: 0.12em 0.55em; border-radius: 12px; background: linear-gradient(#f6e6bd, #e6cd92); border: 3px solid #5c3416;
+  box-shadow: inset 0 3px 10px #7a4f2266, 0 0 0 6px #2a1a0c; color: #3a220e; font-size: clamp(40px, 12vh, 150px); font-weight: 900;
+  font-variant-numeric: tabular-nums; line-height: 1.1; text-align: center; white-space: nowrap; text-shadow: 0 2px 0 #fff6d9; }
+.digits.done { font-size: clamp(28px, 7vh, 90px); white-space: normal; }
+/* Brass studs at the plate's corners. */
+.plate::before, .plate::after { content: ""; position: absolute; top: 50%; width: clamp(8px, 1.4vh, 16px); aspect-ratio: 1;
+  margin-top: calc(clamp(8px, 1.4vh, 16px) / -2); border-radius: 50%; background: #4d2e14; border: 2px solid #f0c77c; }
+.plate::before { left: clamp(2px, 0.5vh, 7px); }
+.plate::after { right: clamp(2px, 0.5vh, 7px); }
+.note { margin: 0.6em auto 0; width: fit-content; padding: 0.1em 0.9em; border-radius: 10px; background: linear-gradient(#4a321d, #22170c);
+  border: 2px ridge #c8913f; text-align: center; color: #fff1c4; font-size: clamp(16px, 3vh, 38px); font-weight: 800; text-shadow: 2px 2px #1b0e04; }
+.note[hidden] { display: none; }
+.plate.running .digits { box-shadow: inset 0 3px 10px #7a4f2266, 0 0 0 6px #2a1a0c, 0 0 22px var(--accent); }
