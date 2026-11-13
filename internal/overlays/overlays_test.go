@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -412,6 +414,28 @@ func TestThePageIsServedSafely(t *testing.T) {
 			t.Fatalf("%q: %d %q", f, res.StatusCode, csp)
 		}
 	}
+	// Every file the page loads is served: a missing module stops the
+	// whole page, every kind of overlay.
+	files, _ := fs.ReadDir(page, "page")
+	imports := regexp.MustCompile(`from '\./([a-z]+\.js)'`)
+	for _, e := range files {
+		b, _ := fs.ReadFile(page, "page/"+e.Name())
+		need := []string{e.Name()}
+		for _, m := range imports.FindAllStringSubmatch(string(b), -1) {
+			need = append(need, m[1])
+		}
+		for _, f := range need {
+			res, err := http.Get(srv.URL + "/o/" + token + "/" + f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = res.Body.Close()
+			if res.StatusCode != 200 {
+				t.Errorf("%s (from %s): %d", f, e.Name(), res.StatusCode)
+			}
+		}
+	}
+
 	// A wrong link shows nothing at all: OBS would show it to viewers.
 	res, err := http.Get(srv.URL + "/o/not-a-token/")
 	if err != nil {

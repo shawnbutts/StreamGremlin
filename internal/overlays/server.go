@@ -145,6 +145,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.file(w, "page/wheel.js", "text/javascript; charset=utf-8")
 	case "themehost.js":
 		s.file(w, "page/themehost.js", "text/javascript; charset=utf-8")
+	case "song.js":
+		s.file(w, "page/song.js", "text/javascript; charset=utf-8")
 	case "ws":
 		s.connect(w, r, o)
 	default:

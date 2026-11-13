@@ -1575,3 +1575,4 @@ Decided 2026-11-13. The user brought a Pretzel integration spec (tmp/prezel-rock
 - **Playback control and choosing stations:** Pretzel offers no way to do it. The spec's pressing of Pretzel's hotkeys was refused: it's fragile, needs OS accessibility permissions, and could send keys to the wrong window.
 - **A general music-provider layer:** the spec's provider interface for Spotify and others isn't built. There's one provider, and the rule is no abstractions for an undecided future.
 
+**Fixed the same day:** the overlay server didn't serve the new `song.js`, so the page's script failed to load and no overlay of any kind connected in OBS. A test now loads every file the page imports.
