@@ -76,7 +76,7 @@ Commands:
             overlays                      list
             overlays add NAME             add one, and print its link
             overlays link|new-link|test|delete NAME, overlays look NAME [flags]
-  packages  Add-ons: wheel looks installed from a ZIP (streamgremlin packages help).
+  packages  Add-ons: looks and plugins installed from a ZIP (streamgremlin packages help).
             packages                      list
             packages install FILE [-yes]  say what it is; -yes installs it
             packages remove ID [-yes], packages history

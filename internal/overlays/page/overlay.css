@@ -328,3 +328,61 @@ html, body {
 .sg-timer .sg-timer-date { font-size: calc(20px * var(--sg-scale)); color: var(--sg-title); opacity: 0.85; }
 .sg-timer[hidden], .sg-timer [hidden] { display: none; }
 
+/* Static (D-093): no motion. It's there, then it isn't. */
+.anim-none .sg-alert { transition: none; transform: none; }
+.anim-none .sg-alert.in { opacity: 1; }
+.anim-none .sg-alert.out { opacity: 0; }
+
+/* Unfold on a box with no picture to unfold from (a clock or timer, a
+   giveaway's panel; D-093): the whole box unfolds, toward the middle. */
+.anim-unfold .sg-timer,
+.anim-unfold .sg-giveaway {
+  background: var(--sg-bg);
+  border: var(--sg-border);
+  box-shadow: var(--sg-shadow);
+  padding: calc(18px * var(--sg-scale)) calc(26px * var(--sg-scale));
+  gap: calc(18px * var(--sg-scale));
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path calc(450ms * var(--sg-pace)) cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.anim-unfold.side-right .sg-timer,
+.anim-unfold.side-right .sg-giveaway { clip-path: inset(0 0 0 100%); flex-direction: row; }
+.anim-unfold .sg-timer.in,
+.anim-unfold .sg-giveaway.in { clip-path: inset(0 0 0 0); }
+.anim-unfold .sg-timer.out,
+.anim-unfold .sg-giveaway.out { clip-path: inset(0 100% 0 0); }
+.anim-unfold .sg-timer .sg-words,
+.anim-unfold .sg-giveaway .sg-words {
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  clip-path: none;
+  transition: none;
+}
+
+/* A clock or timer look's frame (D-093) comes in as the overlay's
+   animation says, from where it's placed. */
+.pos-top-left .sg-timer-frame { transform-origin: 10% 10%; }
+.pos-top .sg-timer-frame { transform-origin: 50% 10%; }
+.pos-top-right .sg-timer-frame { transform-origin: 90% 10%; }
+.pos-center .sg-timer-frame { transform-origin: 50% 50%; }
+.pos-bottom-left .sg-timer-frame { transform-origin: 10% 90%; }
+.pos-bottom .sg-timer-frame { transform-origin: 50% 90%; }
+.pos-bottom-right .sg-timer-frame { transform-origin: 90% 90%; }
+.anim-slide .sg-timer-frame.on { animation: sg-frame-slide var(--sg-in) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-pop .sg-timer-frame.on { animation: sg-frame-pop var(--sg-in) cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.anim-unfold .sg-timer-frame.on { animation: sg-frame-unfold calc(600ms * var(--sg-pace)) cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-unfold.side-right .sg-timer-frame.on { animation-name: sg-frame-unfold-right; }
+@keyframes sg-frame-slide { from { opacity: 0; transform: translateY(var(--sg-from, 40px)); } to { opacity: 1; transform: none; } }
+@keyframes sg-frame-pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes sg-frame-unfold { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes sg-frame-unfold-right { from { clip-path: inset(0 0 0 100%); } to { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .sg-timer-frame.on { animation: none !important; }
+  .anim-unfold .sg-timer, .anim-unfold .sg-giveaway { transition: none; }
+}
+

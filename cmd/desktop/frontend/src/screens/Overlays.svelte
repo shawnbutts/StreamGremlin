@@ -25,7 +25,7 @@
   let { refreshMs = 3000 }: { refreshMs?: number } = $props();
 
   const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-  const ANIMATION_LABELS: Record<string, string> = { slide: 'slide in', pop: 'pop in', unfold: 'picture, then words' };
+  const ANIMATION_LABELS: Record<string, string> = { slide: 'slide in', pop: 'pop in', unfold: 'picture, then words', none: 'static' };
   const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
   const FONT_LABELS: Record<string, string> = {
     system: 'Clean (your system’s)',
@@ -650,6 +650,7 @@
               <option value="slide">Slide in</option>
               <option value="pop">Pop in</option>
               <option value="unfold">Picture, then words</option>
+              <option value="none">Static (no motion)</option>
             </select>
           </label>
           <label class="field">

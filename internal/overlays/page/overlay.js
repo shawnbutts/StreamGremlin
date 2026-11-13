@@ -13,7 +13,7 @@ import { wheelView } from './wheel.js';
 const PICTURE_PREFIX = 'https://static-cdn.jtvnw.net/';
 const POSITIONS = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
 // How long leaving takes: unfold folds the words away, then the picture.
-const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
+const OUT_MS = { slide: 450, pop: 450, unfold: 750, none: 0 };
 
 const HEX = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i;
 const FONT_NAME = /^[A-Za-z0-9][A-Za-z0-9 _.&'-]{0,63}$/;
@@ -186,7 +186,7 @@ export function start(win, opts = {}) {
     for (const [k, v] of Object.entries(lookStyle(l))) root.style.setProperty(k, v);
     pace = clamp(l.pace, 50, 300, 100) / 100;
     const pos = POSITIONS.includes(l.position) ? l.position : 'top';
-    animation = ['pop', 'unfold'].includes(l.animation) ? l.animation : 'slide';
+    animation = ['pop', 'unfold', 'none'].includes(l.animation) ? l.animation : 'slide';
     // Unfold opens toward the middle: from the right edge on the right.
     const side = animation === 'unfold' && pos.endsWith('right') ? ' side-right' : '';
     stage.className = `pos-${pos} anim-${animation}${side}`;
@@ -276,7 +276,7 @@ export function start(win, opts = {}) {
     }
     send({ type: 'ack', id: alert.id, status: 'started' });
     playSound(alert);
-    const outMs = Math.round((OUT_MS[animation] || 450) * pace);
+    const outMs = Math.round((OUT_MS[animation] ?? 450) * pace);
     later(() => {
       box.classList.add('out');
       later(() => {

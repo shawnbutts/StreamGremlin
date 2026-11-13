@@ -2,7 +2,7 @@
   "format": "streamgremlin.package/v1",
   "id": "flip-clock",
   "name": "Flip clock",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "StreamGremlin examples",
   "description": "A split-flap clock whose cards flip as each digit changes, for clocks, countdowns and stopwatches: an example of a clock and timer look.",
   "license": "MIT",

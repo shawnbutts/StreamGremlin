@@ -13,6 +13,21 @@ const CARDS = {
 
 const pad = (n) => String(n).padStart(2, '0');
 
+// Where the overlay is placed: the look sits there, as Classic would.
+const PLACES = {
+  'top-left': ['flex-start', 'flex-start'], top: ['flex-start', 'center'], 'top-right': ['flex-start', 'flex-end'],
+  center: ['center', 'center'],
+  'bottom-left': ['flex-end', 'flex-start'], bottom: ['flex-end', 'center'], 'bottom-right': ['flex-end', 'flex-end'],
+};
+
+/** Puts el (a flex column) where position says. */
+export function place(el, position) {
+  const [v, h] = PLACES[position] || PLACES.center;
+  el.style.justifyContent = v;
+  el.style.alignItems = h;
+}
+
+
 /** "4:05", or "1:02:03" from an hour up. */
 export function duration(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -85,6 +100,7 @@ export function flipClock(win, opts = {}) {
   // Each character is a card, and a colon a separator; a card flips when
   // its character changes.
   function draw() {
+    place($('stage'), timer && timer.position);
     const r = reading(timer, now());
     const label = String((timer && timer.label) || '');
     $('label').textContent = label;

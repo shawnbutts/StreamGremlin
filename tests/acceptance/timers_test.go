@@ -92,7 +92,10 @@ func TestCountdownsThroughTheCLI(t *testing.T) {
 
 	zip := filepath.Join(t.TempDir(), "flip-clock.zip")
 	zipFolder(t, filepath.Join("..", "..", "examples", "themes", "flip-clock"), zip)
-	if out, errOut, code := cli(t, dir, "packages", "install", zip, "-yes"); code != 0 || !strings.Contains(out, "Installed Flip clock 1.0.0") {
+	if out, _, _ := cli(t, dir, "packages", "install", zip); !strings.Contains(out, "a clock and timer look") || strings.Contains(out, "result StreamGremlin drew") {
+		t.Fatal("described as a wheel look:", out)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "install", zip, "-yes"); code != 0 || !strings.Contains(out, "Installed Flip clock 1.1.0") {
 		t.Fatal(out, errOut)
 	}
 	if out, errOut, code := cli(t, dir, "overlays", "look", "soon", "-look", "flip-clock", "-set", "cards=Midnight"); code != 0 || !strings.Contains(out, "the Flip clock look") {

@@ -59,7 +59,8 @@ var (
 var (
 	Positions = []string{"top-left", "top", "top-right", "center", "bottom-left", "bottom", "bottom-right"}
 	// unfold: the picture slides in, then the words unfold from behind it.
-	Animations = []string{"slide", "pop", "unfold"}
+	// none: static, no motion at all (D-093).
+	Animations = []string{"slide", "pop", "unfold", "none"}
 )
 
 // Look is how an alert overlay looks. Fields added later default to how
@@ -196,7 +197,7 @@ func (l Look) Check() error {
 	case !oneOf(l.Position, Positions):
 		return invalid("the position is a corner, top or bottom middle, or center")
 	case !oneOf(l.Animation, Animations):
-		return invalid("the animation is slide, pop or unfold")
+		return invalid("the animation is slide, pop, unfold or none (static)")
 	case l.Background2 != "" && !colorPattern.MatchString(l.Background2):
 		return invalid("the gradient's second color is like #ffffff, or none")
 	case !between(l.GradientAngle, 0, 359):

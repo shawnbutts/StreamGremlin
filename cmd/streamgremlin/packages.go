@@ -18,7 +18,7 @@ import (
 )
 
 const packagesUsage = `usage:
-  streamgremlin packages [-json]              installed add-ons: wheel looks (themes) and Lua plugins
+  streamgremlin packages [-json]              installed add-ons: wheel and clock looks (themes) and Lua plugins
   streamgremlin packages install FILE [-yes] [-publisher NAME] [-allow PERMISSIONS]
                                               install a ZIP, or update to it; without -yes, only
                                               says what it is. Replacing another publisher's
@@ -39,8 +39,9 @@ const packagesUsage = `usage:
 Publishers are as the package states them: StreamGremlin can't verify
 them. An installed look runs its own code in OBS and the app's previews,
 in a sandbox: it can't reach the internet, your accounts or StreamGremlin's
-settings. It's told the result StreamGremlin drew, but what it draws is up
-to whoever made it: the real result is always in chat.`
+settings. A wheel look is told the result StreamGremlin drew, and a clock
+look the time, but what it draws is up to whoever made it: a wheel's real
+result is always in chat.`
 
 type packageView struct {
 	packages.Package
@@ -187,7 +188,7 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return printJSON(stdout, out.Packages)
 		}
 		if len(out.Packages) == 0 {
-			fmt.Fprintln(stdout, "No add-ons installed. Install a wheel look with: streamgremlin packages install FILE.zip")
+			fmt.Fprintln(stdout, "No add-ons installed. Install a look or a plugin with: streamgremlin packages install FILE.zip")
 			return 0
 		}
 		for _, p := range out.Packages {
@@ -223,7 +224,11 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if p.RollbackTo != "" {
 				kept = "; can roll back to " + p.RollbackTo
 			}
-			fmt.Fprintf(stdout, "%s  %s %s, wheel look, published by %s (not verified); %s%s\n", p.ID, p.Name, p.Version, p.Publisher, used, kept)
+			look := "wheel look"
+			if p.For == overlays.KindTimer {
+				look = "clock and timer look"
+			}
+			fmt.Fprintf(stdout, "%s  %s %s, %s, published by %s (not verified); %s%s\n", p.ID, p.Name, p.Version, look, p.Publisher, used, kept)
 		}
 		return 0
 	case sub == "install" && len(pos) == 1:
@@ -246,8 +251,11 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return code
 		}
 		kind := "a wheel look"
-		if pv.Plugin != nil {
+		switch {
+		case pv.Plugin != nil:
 			kind = "a Lua plugin"
+		case pv.For == overlays.KindTimer:
+			kind = "a clock and timer look"
 		}
 		fmt.Fprintf(stdout, "%s %s: %s, published by %s (not verified).\n", pv.Name, pv.Version, kind, pv.Publisher)
 		if pv.Update && pv.Installed != nil {
@@ -304,6 +312,12 @@ func packagesCmd(dir string, args []string, stdout, stderr io.Writer) int {
 				}
 			}
 			describeChange(stdout, pv.ID, pv.PluginUpdate)
+		} else if pv.For == overlays.KindTimer {
+			fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
+				"StreamGremlin's settings. It's told the time, and where a countdown or stopwatch is; what it draws is up to whoever made it. "+
+				"If it fails, the overlay shows Classic instead.")
+			fmt.Fprintln(stdout, `In OBS, it only loads while the browser source has "Page permissions" at "No access to OBS"; `+
+				"otherwise Classic shows instead.")
 		} else {
 			fmt.Fprintln(stdout, "This look runs its own code in OBS and the app's previews. It can't reach the internet, your accounts or "+
 				"StreamGremlin's settings. It's told the result StreamGremlin drew, but what it draws is up to whoever made it: the real result is "+

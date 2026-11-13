@@ -5,7 +5,7 @@
 // the overlay's own link.
 
 // How long leaving takes, as in overlay.js.
-const OUT_MS = { slide: 450, pop: 450, unfold: 750 };
+const OUT_MS = { slide: 450, pop: 450, unfold: 750, none: 0 };
 
 // A sample song shows this long, then the real one comes back.
 export const SAMPLE_MS = 6000;
@@ -77,7 +77,7 @@ export function songView(doc, stage, opts = {}) {
     if (!el) return;
     el.classList.remove('in');
     el.classList.add('out');
-    later(() => el.remove(), Math.round((OUT_MS[animation()] || 450) * pace()));
+    later(() => el.remove(), Math.round((OUT_MS[animation()] ?? 450) * pace()));
   }
 
   function show(v) {
@@ -103,7 +103,7 @@ export function songView(doc, stage, opts = {}) {
       }
     };
     // The old song leaves before the new one comes in.
-    if (old) later(enter, Math.round((OUT_MS[animation()] || 450) * pace()));
+    if (old) later(enter, Math.round((OUT_MS[animation()] ?? 450) * pace()));
     else enter();
   }
 

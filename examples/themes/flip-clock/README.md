@@ -15,8 +15,10 @@ What a look is told, and may say back (protocol 1):
 
 - `timer.snapshot` `{settings, reducedMotion, timer}` once it's said it's ready,
   and `timer.updated` `{timer}` on each change, where `timer` is
-  `{mode, label, endText, clock: {hour24, seconds, date}, lengthMs, valueMs,
-  running, direction, atMs}`: the value was `valueMs` at `atMs` (this
+  `{mode, position, label, endText, clock: {hour24, seconds, date}, lengthMs,
+  valueMs, running, direction, atMs}`; `position` is where the overlay is
+  placed (top-left, top, top-right, center, bottom-left, bottom,
+  bottom-right), so the look can sit there: the value was `valueMs` at `atMs` (this
   computer's clock, in milliseconds) and moves by `direction` (-1 down, 1
   up, 0 still) from there.
 - `theme.settings.updated` `{settings}` when the streamer changes them.

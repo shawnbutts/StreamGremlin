@@ -165,19 +165,39 @@ describe('the clock and timer overlay with a look', () => {
     return { ...p, frame, posted, fromLook, classic };
   }
 
-  it('frames the look sandboxed; Classic shows until it’s ready', () => {
+  it('frames the look sandboxed; nothing shows while it loads, so Classic never comes in first', () => {
     const { frame, classic, fromLook, posted } = themed();
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
     expect(frame.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(frame.classList.contains('sg-timer-frame')).toBe(true); // it comes in as the overlay's animation says
     expect(frame.classList.contains('on')).toBe(false);
-    expect(classic().hidden).toBe(false);
+    expect(classic().hidden).toBe(true);
     fromLook('theme.ready', { apiVersion: '1', obsApi: false });
     expect(frame.classList.contains('on')).toBe(true);
     expect(classic().hidden).toBe(true);
     expect(posted.at(-1)).toMatchObject({
       type: 'timer.snapshot',
-      payload: { settings: { accent: '#ff9900' }, timer: { mode: 'countdown', label: 'Starting soon', lengthMs: 120_000, valueMs: 120_000, running: false, direction: 0 } },
+      payload: { settings: { accent: '#ff9900' }, timer: { mode: 'countdown', position: 'top', label: 'Starting soon', lengthMs: 120_000, valueMs: 120_000, running: false, direction: 0 } },
     });
+  });
+
+  it('shows Classic if the look isn’t ready in 5 seconds', () => {
+    const { c, classic, frame, fromLook } = themed();
+    c.advance(4_900);
+    expect(classic().hidden).toBe(true);
+    c.advance(200);
+    expect(classic().hidden).toBe(false);
+    expect(document.getElementById('status')!.textContent).toContain("Flip clock didn't start");
+    fromLook('theme.ready', {}); // late, but ready: the look shows instead
+    expect(frame.classList.contains('on')).toBe(true);
+    expect(classic().hidden).toBe(true);
+  });
+
+  it('tells the look where the overlay is placed', () => {
+    const { ws, fromLook, posted } = themed();
+    fromLook('theme.ready', {});
+    ws.fire('message', hello({ timer_mode: 'countdown', timer_length: 120, position: 'bottom-right' }, theme));
+    expect(posted.at(-1)).toMatchObject({ type: 'timer.updated', payload: { timer: { position: 'bottom-right' } } });
   });
 
   it('tells the look each change, with where it is and when', () => {
@@ -303,6 +323,10 @@ describe('the built-in timer looks', () => {
     expect(app.querySelector('b')).toBeNull();
     expect(app.querySelector('.digits')!.textContent).toBe('5:00');
     expect(app.querySelector('.plate')!.classList.contains('running')).toBe(true);
+    // No position given: the middle, as before.
+    expect([app.style.justifyContent, app.style.alignItems]).toEqual(['center', 'center']);
+    tell('timer.updated', { timer: { mode: 'countdown', position: 'top-right', label: 'x', valueMs: 300_000, atMs: now, direction: -1 } });
+    expect([app.style.justifyContent, app.style.alignItems]).toEqual(['flex-start', 'flex-end']);
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#ff00aa');
     now += 61_000;
     ticks.shift()!();

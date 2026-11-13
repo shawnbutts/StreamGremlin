@@ -24,8 +24,10 @@ export function timerSettings(look) {
   const l = look || {};
   const mode = ['clock', 'countdown', 'stopwatch'].includes(l.timer_mode) ? l.timer_mode : 'clock';
   const seconds = Number(l.timer_length) > 0 ? Math.min(86400, Math.floor(Number(l.timer_length))) : DEFAULT_SECONDS;
+  const positions = ['top-left', 'top', 'top-right', 'center', 'bottom-left', 'bottom', 'bottom-right'];
   return {
     mode,
+    position: positions.includes(l.position) ? l.position : 'top',
     label: typeof l.timer_label === 'string' ? l.timer_label.slice(0, 60) : '',
     endText: typeof l.timer_end_text === 'string' ? l.timer_end_text.slice(0, 60) : '',
     lengthMs: seconds * 1000,

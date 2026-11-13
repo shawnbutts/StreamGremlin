@@ -470,6 +470,27 @@ describe('giveaway and wheel overlay sounds', () => {
   });
 });
 
+describe('static overlays (D-093)', () => {
+  it('show an alert at once and take it away at once', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', { type: 'hello', body: { overlay: { name: 'alerts', kind: 'alert', look: { animation: 'none', seconds: 3 } }, page_version: 'v1' } });
+    expect(stage.className).toContain('anim-none');
+    ws.fire('message', alert('a1'));
+    expect(stage.querySelector('.sg-alert.in')).not.toBeNull();
+    c.advance(3_000);
+    expect(stage.querySelector('.sg-alert')).toBeNull(); // gone, with no time to leave
+  });
+
+  it('swap songs with no pause between them', () => {
+    const { ws, c, stage } = page();
+    ws.fire('message', { type: 'hello', body: { overlay: { name: 'song', kind: 'song', look: { animation: 'none' } }, page_version: 'v1' } });
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'One' } });
+    ws.fire('message', { type: 'song', body: { playing: true, title: 'Two' } });
+    c.advance(0); // no time to leave: the next song is there at once
+    expect(Array.from(stage.querySelectorAll('.sg-song .sg-song-title')).map((e) => e.textContent)).toEqual(['Two']);
+  });
+});
+
 describe('the Now playing overlay', () => {
   const hello = (look: Record<string, unknown> = {}) => ({
     type: 'hello',

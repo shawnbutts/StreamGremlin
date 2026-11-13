@@ -847,7 +847,7 @@ export interface OverlayLook {
   /** A countdown or stopwatch starts afresh whenever OBS loads the overlay's page. */
   timer_auto_start?: boolean;
   position: OverlayPosition;
-  animation: 'slide' | 'pop' | 'unfold';
+  animation: 'slide' | 'pop' | 'unfold' | 'none';
   seconds: number;
   /** How long the animation takes, percent of the usual (50 to 300; higher is slower). */
   pace: number;

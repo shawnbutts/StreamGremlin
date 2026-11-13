@@ -6,6 +6,21 @@
 import { bridge, sayReady } from './bridge.js';
 
 const HEX = /^#[0-9a-f]{6}$/i;
+
+// Where the overlay is placed: the look sits there, as Classic would.
+const PLACES = {
+  'top-left': ['flex-start', 'flex-start'], top: ['flex-start', 'center'], 'top-right': ['flex-start', 'flex-end'],
+  center: ['center', 'center'],
+  'bottom-left': ['flex-end', 'flex-start'], bottom: ['flex-end', 'center'], 'bottom-right': ['flex-end', 'flex-end'],
+};
+
+/** Puts el (a flex column) where position says. */
+export function place(el, position) {
+  const [v, h] = PLACES[position] || PLACES.center;
+  el.style.justifyContent = v;
+  el.style.alignItems = h;
+}
+
 const pad = (n) => String(n).padStart(2, '0');
 
 /** "4:05", or "1:02:03" from an hour up. */
@@ -73,6 +88,7 @@ export function timerTheme(win, opts = {}) {
 
   function draw() {
     if (!timer) return;
+    place(app, timer.position);
     const label = String(timer.label || '').slice(0, 60);
     title.textContent = label;
     title.hidden = !label || !settings.show_label;

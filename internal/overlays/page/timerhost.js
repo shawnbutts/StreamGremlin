@@ -32,7 +32,7 @@ export function themedTimerView(win, stage, theme, opts) {
   let count = 0;
 
   const frame = doc.createElement('iframe');
-  frame.className = 'sg-theme-frame';
+  frame.className = 'sg-theme-frame sg-timer-frame';
   frame.setAttribute('sandbox', 'allow-scripts');
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.setAttribute('title', theme.name || 'Timer');
@@ -49,7 +49,7 @@ export function themedTimerView(win, stage, theme, opts) {
   function timer() {
     const v = classic.value();
     return {
-      mode: v.settings.mode, label: v.settings.label, endText: v.settings.endText, clock: v.settings.clock, lengthMs: v.settings.lengthMs,
+      mode: v.settings.mode, position: v.settings.position, label: v.settings.label, endText: v.settings.endText, clock: v.settings.clock, lengthMs: v.settings.lengthMs,
       valueMs: v.ms, running: v.running, direction: v.direction, atMs: now(),
     };
   }
@@ -58,10 +58,16 @@ export function themedTimerView(win, stage, theme, opts) {
     frame.classList.toggle('on', on);
     classic.shown(!on);
   }
-  showing(false);
+  // While the look loads, nothing shows: Classic coming in first, then
+  // the look, would show the wrong look moving. If it isn't ready in 5
+  // seconds, Classic shows until it is.
+  frame.classList.remove('on');
+  classic.shown(false);
 
   later(() => {
-    if (!ready && !stopped) report('not_ready', `${theme.name} didn't start`);
+    if (ready || stopped) return;
+    report('not_ready', `${theme.name} didn't start`);
+    classic.shown(true);
   }, 5000);
 
   function onMessage(ev) {

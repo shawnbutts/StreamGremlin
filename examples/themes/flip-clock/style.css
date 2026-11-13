@@ -18,6 +18,8 @@ html, body {
 #stage {
   position: fixed;
   inset: 0;
+  padding: 4vh 4vw;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;

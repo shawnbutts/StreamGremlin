@@ -152,7 +152,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs := flag.NewFlagSet("overlays look", flag.ContinueOnError)
 			fs.SetOutput(stderr)
 			fs.StringVar(&l.Position, "position", l.Position, "where alerts appear")
-			fs.StringVar(&l.Animation, "animation", l.Animation, "slide, pop or unfold (the picture, then the words)")
+			fs.StringVar(&l.Animation, "animation", l.Animation, "slide, pop, unfold (the picture, then the words) or none (static, no motion)")
 			fs.StringVar(&l.TextColor, "text-color", l.TextColor, "#RRGGBB")
 			fs.StringVar(&l.Background, "background", l.Background, "#RRGGBB")
 			fs.IntVar(&l.Opacity, "opacity", l.Opacity, "the background's, 0 to 100")
