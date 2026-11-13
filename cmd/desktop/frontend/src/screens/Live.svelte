@@ -981,16 +981,32 @@
     align-self: start;
     max-height: 100%;
     overflow-y: auto;
+    /* Room for the scroll bar is kept, so it never takes the content's width. */
+    scrollbar-gutter: stable;
   }
   .live-mode-list {
     display: flex;
     flex-wrap: wrap;
     gap: 0.3rem;
   }
+  /* A mode with a choice beside it: the choice shrinks, and wraps under
+     the button when the side is narrow, so the side never scrolls
+     sideways (D-087). */
   .live-mode-with {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.3rem;
     align-items: center;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .live-mode-with label {
+    flex: 1 1 7rem;
+    min-width: 0;
+  }
+  .live-mode-with select {
+    width: 100%;
+    min-width: 0;
   }
   .live-modes .button[aria-pressed='true'] {
     border-color: var(--sg-primary);

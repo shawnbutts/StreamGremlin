@@ -1505,3 +1505,4 @@ Decided 2026-11-13. The user: "when i need to sign in again to get new permissio
   - no workflow starts from it, whatever the trigger's pattern;
   - filters, points, First Words and viewer records ignore it.
 - **Nothing to moderate on them:** these lines have no gear menu.
+- **The side never scrolls sideways** (fixed 2026-11-13). The user: "the buttons and chat modes on the live page now has a horizontal scroll bar no matter how wide i make the page." Fitting the window meant the side could scroll up and down. Its scroll bar then took width the Followers-only row (a button and a menu side by side) needed, so the side scrolled sideways too. The menus now shrink and wrap under their buttons, and room for the scroll bar is kept.
