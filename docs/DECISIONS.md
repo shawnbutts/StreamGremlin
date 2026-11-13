@@ -1526,6 +1526,7 @@ Decided 2026-11-13. The user: "fix the gap under the chat send box and the synci
 - **No storage:** the list stays Twitch's. Not workflow steps: nobody asked, and editing the list from chat would be a moderator's command for a later request.
 - **What wasn't verbatim:** Add Blocked Term's length rule and all of Remove Blocked Term were read from a summary of Twitch's reference. StreamGremlin checks only 2 to 500 characters and shows Twitch's own refusal otherwise. The capability manifest notes it, to check in the live check.
 - **API and CLI:** `GET`, `POST` and `DELETE /v1/filters/blocked-terms`; `streamgremlin filters blocked`, `filters block TERM...`, `filters unblock ID`.
+- **Live-checked** 2026-11-13 on real Twitch. The user: "live checks look good."
 - **The gap under Live's chat:** the always-present, empty status line for moderation notices kept a line's height and margin under the send box, and the "Sign in to send" note kept its bottom margin. Empty notices now take no room (they stay in place to be announced), so chat ends at the panel's padding and its log gets the space.
 
 ## D-089. Discord, Tier 1: webhooks
@@ -1545,5 +1546,7 @@ Decided 2026-11-13. The user asked what Discord features would match other bots,
   - **Post new clips to Discord.**
   - **Sum up the stream on Discord**, when you go offline.
 - **Command line:** `streamgremlin discord`, `discord add NAME` (the link on standard input), `discord test NAME`, `discord forget NAME`.
+
+**Live-checked** 2026-11-13 with real Discord and Twitch. The user: "live checks look good".
 
 **Not built (Tier 2 and 3, waiting for a request):** a bot account, editing the announcement when the stream ends, slash commands and other Discord triggers, roles, relaying chat, linking accounts. Twitch's own Discord integration already syncs sub roles; Help should point to it if asked. Levels, Discord moderation, music, tickets and welcome messages are left to hosted bots: they need to be online all the time, and StreamGremlin runs only while your computer is on.
