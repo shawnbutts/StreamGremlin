@@ -99,8 +99,11 @@ func TestTheBotsOwnMessagesAreNotViewerChat(t *testing.T) {
 		t.Fatalf("%+v", log)
 	}
 	r.mock.Say("streamer", "viewer", "after the bot")
-	recs := waitEvents(t, r.inbox, 1) // only the viewer: the bot's echo is dropped
-	if payload(t, recs[0])["text"] != "after the bot" {
+	// The bot's echo is kept for the Live screen as its own type, never as
+	// viewer chat (D-087); only the viewer's message is chat.
+	recs := waitEvents(t, r.inbox, 2)
+	if recs[0].Type != events.ChatSent || payload(t, recs[0])["sent_by"] != "bot" || payload(t, recs[0])["text"] != "I am the bot" ||
+		recs[1].Type != "chat.message.received" || payload(t, recs[1])["text"] != "after the bot" {
 		t.Fatal(recs)
 	}
 	if m := s.ChatStatus().BotModerator; m == nil || *m {

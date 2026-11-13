@@ -63,6 +63,10 @@ const TimerFired = "timers.timer.fired"
 // records (M7, D-075).
 const ButtonPressed = "buttons.button.pressed"
 
+// ChatSent is StreamGremlin's own chat message, by the bot or a workflow,
+// as Twitch echoed it: for the Live screen, never viewer chat (D-087).
+const ChatSent = "chat.message.sent"
+
 // FilterCaught is the event a chat filter adds when it catches a message
 // (D-085).
 const FilterCaught = "chat.filter.caught"
@@ -101,6 +105,23 @@ func Catalog() []Kind {
 					"message_type": "text",
 					"color":        "",
 				}, a, nil
+			},
+		},
+		{
+			// Stored by the Twitch adapter for the bot's and workflows' own
+			// messages (D-087). No trigger offers it: it isn't viewer chat.
+			Type: ChatSent, Label: "StreamGremlin's own message",
+			Description: "A message the bot, or a workflow as you, sent in your chat, as Twitch showed it. It's never viewer chat.",
+			Sources:     []string{"twitch"}, Sensitive: true,
+			Fields: []Field{{Name: "text", Label: "Message", Kind: "text", Default: "Thanks for the follow!", Max: 500}},
+			build: func(id string, v map[string]string) (any, *Actor, error) {
+				a := testViewer("GremlinBot")
+				ch, err := chatter(a, "viewer")
+				if err != nil {
+					return nil, nil, err
+				}
+				return map[string]any{"message_id": id, "text": v["text"], "chatter": ch, "message_type": "text", "color": "",
+					"sent_by": "bot"}, a, nil
 			},
 		},
 		{

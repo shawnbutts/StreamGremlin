@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"code.streamgremlin.com/streamgremlin/internal/events"
 )
 
 // A workflow's message sent as you isn't stored as you chatting, so no
@@ -21,9 +23,16 @@ func TestAWorkflowsOwnMessagesAreNotStoredAsYouChatting(t *testing.T) {
 	}
 	r.mock.Say("streamer", "streamer", "typed in Twitch")
 	r.mock.Say("streamer", "viewer", "a viewer")
-	recs := waitEvents(t, r.inbox, 3)
+	// The workflow's message is kept only as chat.message.sent (D-087).
+	recs := waitEvents(t, r.inbox, 4)
 	var texts []string
 	for _, rec := range recs {
+		if rec.Type == events.ChatSent {
+			if payload(t, rec)["sent_by"] != "workflow" || payload(t, rec)["text"] != "!hello from a workflow" {
+				t.Fatalf("%+v", rec)
+			}
+			continue
+		}
 		texts = append(texts, payload(t, rec)["text"].(string))
 	}
 	if len(texts) != 3 || texts[0] != "typed in the app" || texts[1] != "typed in Twitch" || texts[2] != "a viewer" {
@@ -34,9 +43,10 @@ func TestAWorkflowsOwnMessagesAreNotStoredAsYouChatting(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.mock.Say("streamer", "streamer", "!hello from a workflow") // you, typing the same thing
-	recs = waitEvents(t, r.inbox, 5)                             // your message and its command
-	if payload(t, recs[3])["text"] != "!hello from a workflow" || recs[4].Type != "chat.command.received" {
-		t.Fatalf("%+v", recs[3:])
+	recs = waitEvents(t, r.inbox, 7)                             // the workflow's, kept as sent; then your message and its command
+	if recs[4].Type != events.ChatSent || payload(t, recs[5])["text"] != "!hello from a workflow" ||
+		recs[5].Type != "chat.message.received" || recs[6].Type != "chat.command.received" {
+		t.Fatalf("%+v", recs[4:])
 	}
 }
 

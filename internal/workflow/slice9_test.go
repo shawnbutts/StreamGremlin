@@ -285,7 +285,9 @@ func TestThePaletteMatchesTheEventCatalog(t *testing.T) {
 		}
 	}
 	for _, k := range events.Catalog() {
-		if !inPalette[k.Type] {
+		// StreamGremlin's own chat messages are never offered: a workflow
+		// answering them would answer itself (D-087).
+		if !inPalette[k.Type] && k.Type != events.ChatSent {
 			t.Errorf("%s has no palette entry: the editor can't offer it", k.Type)
 		}
 	}

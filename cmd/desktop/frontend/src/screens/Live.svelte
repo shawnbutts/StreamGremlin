@@ -36,6 +36,7 @@
   import { eventTime } from '../lib/events';
   import {
     CHAT_MESSAGE,
+    CHAT_SENT,
     SUSPICIOUS_MESSAGE,
     buttonId,
     chatLine,
@@ -201,7 +202,7 @@
     if (words) asking = { line: l, action, extra, words };
     else moderateLine(l, action, extra);
   }
-  const canModerate = (l: ChatLine) => youIn && !l.test && !!l.userId && l.userId !== twitch?.streamer.user_id;
+  const canModerate = (l: ChatLine) => youIn && !l.test && !l.own && !!l.userId && l.userId !== twitch?.streamer.user_id;
 
   // The gear beside a name opens a small menu of quick actions, so they
   // stay next to the name however long the message is.
@@ -396,12 +397,12 @@
       while (!abort.signal.aborted) {
         try {
           if (cursor === undefined) {
-            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE, SUSPICIOUS_MESSAGE] }, abort.signal);
+            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE] }, abort.signal);
             lines = [];
             add(page.events);
             cursor = page.head;
           } else {
-            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE, SUSPICIOUS_MESSAGE] }, abort.signal);
+            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE] }, abort.signal);
             add(page.events);
             if (page.events.length > 0) cursor = page.events[page.events.length - 1].seq;
             if (page.head < cursor) cursor = undefined; // a different data folder: start again
@@ -621,6 +622,8 @@
                 onclick={(e) => toggleGear(l, e.currentTarget)}><span aria-hidden="true">⚙&#xFE0E;</span></button
               >{/if}{#each l.badges as b (b)}<span class="live-badge live-role" title={b}><span aria-hidden="true">{badgeLetter(b)}</span><span class="visually-hidden">{b}</span></span>{/each}{#if l.test}<span
                 class="live-badge">Test</span
+              >{/if}{#if l.own}<span class="live-badge" title={l.own === 'bot' ? 'Sent by your bot' : 'Sent by a workflow, as you'}
+                >{l.own === 'bot' ? 'Bot' : 'Workflow'}</span
               >{/if}{#if l.shared}<span class="live-badge">Shared chat</span>{/if}{#if l.suspicious}<span
                 class="live-badge live-suspicious">Suspicious: {l.suspicious}</span
               >{/if}{#if l.deleted}<span class="live-badge">Deleted</span>{/if}<span class="live-text">: {l.text}</span>
@@ -944,10 +947,12 @@
     box-shadow: inset 0 0 0 1px var(--sg-primary);
   }
   /* The buttons and chat modes stay a fixed width against the right edge;
-     chat takes the rest of the window's width, and resizes with it (D-082). */
+     chat takes the rest of the window's width, and resizes with it (D-082).
+     It takes exactly the height left, never its content's: a long chat
+     scrolls inside its log instead of growing the screen (D-087). */
   .live {
     --live-side: 16rem;
-    flex: 1 0 auto;
+    flex: 1 1 0;
     min-height: 22rem;
     display: grid;
     gap: 1rem;

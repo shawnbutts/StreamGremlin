@@ -76,6 +76,7 @@ function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: 
     '/v1/events': (_m, _b, query) => {
       if (opts.refuseEvents) return { status: 500, body: { error: { code: 'internal', message: 'the database is busy' } } };
       expect(query).toContain('types=chat.message.received');
+      expect(query).toContain('chat.message.sent');
       if (!query.includes('after=')) return { status: 200, body: { events: opts.events ?? [], head: 10 } };
       const out = later;
       later = [];
@@ -474,6 +475,25 @@ const suspicious = (seq: number, name: string, messageId: string, text: string):
 describe('Live moderating', () => {
   const posts = (calls: { method: string; path: string; body: unknown }[]) =>
     calls.filter((c) => c.method === 'POST' && c.path === '/v1/moderation').map((c) => c.body as Record<string, unknown>);
+
+  it('shows the bot’s and workflows’ own messages, marked, with nothing to moderate (D-087)', async () => {
+    engine({
+      events: [chat(3, 'Fan', '!uptime')],
+      later: [
+        { ...chat(4, 'GremlinBot', 'We’ve been live for 2 hours.', { sent_by: 'bot' }), type: 'chat.message.sent' },
+        { ...chat(5, 'Gremlin', 'Thanks for the follow!', { sent_by: 'workflow' }), type: 'chat.message.sent' },
+      ],
+    });
+    const el = start();
+    await settle(80);
+    const lineOf = (name: string) => Array.from(el.querySelectorAll('.live-line')).find((li) => li.querySelector('.live-name')?.textContent === name)!;
+    expect(lineOf('GremlinBot').textContent).toContain('Bot');
+    expect(lineOf('GremlinBot').textContent).toContain('We’ve been live for 2 hours.');
+    expect(lineOf('Gremlin').textContent).toContain('Workflow');
+    expect(lineOf('GremlinBot').querySelector('.live-gear')).toBeNull();
+    expect(lineOf('Fan').querySelector('.live-gear')).not.toBeNull();
+    await noViolations('own messages');
+  });
 
   it('times out, deletes and bans from a chat line, banning only after asking', async () => {
     const { calls } = engine({ events: [chat(3, 'Fan', 'buy followers'), chat(4, 'Gremlin', 'my own', { chatter: { id: 'u1', login: 'gremlin', display_name: 'Gremlin', badges: [] } }),

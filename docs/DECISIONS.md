@@ -1491,3 +1491,17 @@ Decided 2026-11-13, with D-085. The user: "let's do chat filters and the channel
 - **Templates:** `!title` and `!game` (mods and you: with words they change the title or category, without them they say what it is), `!clip` (mods, VIPs and you), `!marker` (mods and you), `!uptime` and `!followage` (everyone). Each can be changed in the editor like any workflow.
 - **Two scopes are added:** `channel:manage:broadcast` and `clips:edit`. The streamer signs in again once; until then the steps say to.
 - **Not in this slice:** tags, content labels, language and stream delay.
+
+## D-087. Fixes after the filters and channel commands: sign in again, Live's height, and the bot's replies
+
+Decided 2026-11-13. The user: "when i need to sign in again to get new permissions, the "needs you" section in the Home screen should say so. something changed on the live screen. the right side (bottons, chant modes) is stuck under the virtual scroll bar. also on the live page, if i put a command in chat (!uptime) i don't see the response from the bot account there. also the chat on the live page should stick to the height of the page and have it's own scroll bar instead of constantly growing."
+
+**Who it's for:** every streamer, after an update that asks for new Twitch permissions, and while live.
+
+- **Home asks you to sign in again** when your sign-in (or the bot's) lacks permissions StreamGremlin now asks for, and says in words what for: "Sign in to your Twitch account again on Connections to let StreamGremlin change your title and category and add markers, and make clips." It replaces the older tip about channel events, so it's said once.
+- **Live fits the window.** Its chat and side took their content's height, so a long chat grew the whole screen past the window. The screen then scrolled, and its scroll bar sat over the buttons and chat modes. Live now takes exactly the height left: chat keeps its own scroll bar, and the side stays clear.
+- **The bot's replies show on Live,** marked **Bot**, and a workflow's messages sent as you are marked **Workflow**. They were dropped so StreamGremlin would never answer itself (D-023). They're now stored as a new event type, `chat.message.sent`, which is never viewer chat:
+  - no trigger offers it;
+  - no workflow starts from it, whatever the trigger's pattern;
+  - filters, points, First Words and viewer records ignore it.
+- **Nothing to moderate on them:** these lines have no gear menu.

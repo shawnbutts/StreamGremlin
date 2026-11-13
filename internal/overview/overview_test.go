@@ -124,3 +124,26 @@ func TestWhatNeedsTheStreamer(t *testing.T) {
 		t.Fatalf("%s", got)
 	}
 }
+
+// A sign-in missing permissions StreamGremlin now asks for says so, in
+// words, once (D-087).
+func TestMissingPermissionsNeedYou(t *testing.T) {
+	me := acct(twitch.StateConnected, "me")
+	me.MissingScopes = []string{twitch.BroadcastScope, twitch.ClipsScope, "moderator:read:followers"}
+	bot := acct(twitch.StateConnected, "bot")
+	bot.MissingScopes = []string{"user:read:moderated_channels"}
+	o := Build(Input{Twitch: twitch.Status{ClientIDSource: twitch.ClientIDPasted, Streamer: me, Bot: bot,
+		Chat: twitch.ChatStatus{State: twitch.ChatConnected, Feeds: []twitch.FeedStatus{{Label: "Follows", Problem: "Sign in again to allow it."}}}},
+		OBS: obs.Status{State: obs.StateOff}})
+	got := messages(o)
+	want := "problem: Sign in to your Twitch account again on Connections to let StreamGremlin change your title and category and add " +
+		"markers, make clips and see follows.\nproblem: Sign in to the bot account again on Connections to let StreamGremlin check it's a moderator.\n"
+	if got != want {
+		t.Fatalf("%s", got)
+	}
+	// Signed out: the checklist says to sign in, not this.
+	me.State = twitch.StateSignedOut
+	if o := Build(Input{Twitch: twitch.Status{Streamer: me, Bot: acct(twitch.StateSignedOut, "")}}); strings.Contains(messages(o), "again") {
+		t.Fatal(messages(o))
+	}
+}

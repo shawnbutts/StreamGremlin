@@ -399,32 +399,36 @@ func closeReason(err error) string {
 }
 
 // storeChat stores a chat message (and its command) in the inbox. The bot's
-// own messages aren't viewer chat: they're read for its badges, then dropped,
-// so StreamGremlin never answers itself. Neither are workflows' messages sent
-// as you (ownSends).
+// own messages aren't viewer chat, so StreamGremlin never answers itself:
+// they're read for its badges and stored as chat.message.sent, which no
+// trigger treats as chat, for the Live screen to show. So are workflows'
+// messages sent as you (ownSends).
 func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 	var ev chatEvent
 	if err := json.Unmarshal(m.Payload.Event, &ev); err != nil || ev.MessageID == "" {
 		s.log.Warn("twitch chat: an event that couldn't be read")
 		return
 	}
+	occurred, err := time.Parse(time.RFC3339Nano, m.Metadata.MessageTimestamp)
+	if err != nil {
+		occurred = s.now()
+	}
+	ours := ev.SourceBroadcasterUserID == "" || ev.SourceBroadcasterUserID == ev.BroadcasterUserID
 	if bot := s.bot.Status(); bot.UserID != "" && ev.ChatterUserID == bot.UserID {
-		if ev.SourceBroadcasterUserID == "" || ev.SourceBroadcasterUserID == ev.BroadcasterUserID {
+		if ours {
 			mod := hasBadge(ev.Badges, "moderator") || hasBadge(ev.Badges, "vip")
 			s.setBotModerator(&mod)
+			s.storeSent(ctx, ev, occurred, "bot")
 		}
 		return
 	}
 	if st := s.streamer.Status(); st.UserID != "" && ev.ChatterUserID == st.UserID && s.own.claim(ev.MessageID, ev.Message.Text, s.now()) {
-		s.log.Debug("twitch chat: a workflow's own message, not stored")
+		s.log.Debug("twitch chat: a workflow's own message, stored as sent")
+		s.storeSent(ctx, ev, occurred, "workflow")
 		return
 	}
 	if s.inbox == nil {
 		return
-	}
-	occurred, err := time.Parse(time.RFC3339Nano, m.Metadata.MessageTimestamp)
-	if err != nil {
-		occurred = s.now()
 	}
 	msg, cmd := chatEnvelopes(ev, occurred)
 	res, err := s.inbox.Accept(ctx, msg)
@@ -437,6 +441,25 @@ func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 		if _, err := s.inbox.Accept(ctx, *cmd); err != nil && !errors.Is(err, events.ErrConflict) {
 			s.log.Warn("twitch chat: couldn't store a command", "err", err)
 		}
+	}
+}
+
+// storeSent stores StreamGremlin's own message, by the bot or a workflow,
+// as chat.message.sent: shown on Live, never viewer chat (D-087).
+func (s *Service) storeSent(ctx context.Context, ev chatEvent, occurred time.Time, by string) {
+	if s.inbox == nil {
+		return
+	}
+	msg, _ := chatEnvelopes(ev, occurred)
+	var p map[string]any
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return
+	}
+	p["sent_by"] = by
+	msg.Payload, _ = json.Marshal(p)
+	msg.Type, msg.SourceEventID = events.ChatSent, "sent:"+ev.MessageID
+	if _, err := s.inbox.Accept(ctx, msg); err != nil {
+		s.log.Warn("twitch chat: couldn't store our own message", "err", err)
 	}
 }
 

@@ -498,6 +498,11 @@ func eventMap(r events.Record) map[string]any {
 
 // matches reports whether any trigger accepts the event.
 func (d *Definition) matches(r events.Record, payload map[string]any) bool {
+	// StreamGremlin's own chat messages never start a workflow, whatever the
+	// pattern: one answering them would answer itself (D-087).
+	if r.Type == events.ChatSent {
+		return false
+	}
 	for _, t := range d.Triggers {
 		if t.matches(r, payload) {
 			return true

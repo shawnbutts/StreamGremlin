@@ -658,3 +658,21 @@ func TestTriggerPatterns(t *testing.T) {
 
 // EventSeq2 is the job's event seq as text, for compact test tables.
 func (j Job) EventSeq2() string { return fmt.Sprint(j.EventSeq) }
+
+// StreamGremlin's own chat messages never start a workflow, even one
+// every chat event matches (D-087): it would answer itself.
+func TestOwnChatMessagesStartNothing(t *testing.T) {
+	r := newRig(t)
+	r.save(def("everything", `"triggers":[{"type":"chat.**"}],"steps":[{"action":"test.local"}]`), true)
+	p, _ := json.Marshal(map[string]any{"text": "thanks!", "sent_by": "bot"})
+	if _, err := r.inbox.Accept(context.Background(), events.Envelope{Type: events.ChatSent, Source: "twitch", SourceEventID: "sent:1",
+		Payload: p, DeliveryQuality: events.Confirmed, Actor: &events.Actor{Platform: "twitch", ID: "9", Login: "bot"}}); err != nil {
+		t.Fatal(err)
+	}
+	r.chat("after", "hi", events.Confirmed)
+	r.jobs("everything", 1)
+	time.Sleep(100 * time.Millisecond)
+	if js, _ := r.eng.Jobs(context.Background(), "everything", 10); len(js) != 1 {
+		t.Fatalf("%d jobs: the bot's message started one", len(js))
+	}
+}

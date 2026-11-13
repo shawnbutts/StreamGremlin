@@ -5,6 +5,8 @@ import type { ChatModes, ChatterCard, EventRecord, ModAction, ModRecord, Suspici
 
 export const BUTTON_PRESSED = 'buttons.button.pressed';
 export const CHAT_MESSAGE = 'chat.message.received';
+/** StreamGremlin's own messages, by the bot or a workflow (D-087): shown, never viewer chat. */
+export const CHAT_SENT = 'chat.message.sent';
 export const SUSPICIOUS_MESSAGE = 'moderation.suspicious_user.message';
 
 export interface ChatLine {
@@ -27,6 +29,8 @@ export interface ChatLine {
   suspicious?: string;
   /** Deleted from StreamGremlin. */
   deleted?: boolean;
+  /** StreamGremlin sent it: the bot, or a workflow as you. */
+  own?: 'bot' | 'workflow';
 }
 
 const badgeWords: Record<string, string> = {
@@ -82,6 +86,7 @@ export function chatLine(ev: EventRecord): ChatLine {
     at: ev.occurred_at,
     test: ev.delivery_quality === 'synthetic',
     shared: typeof p.source_broadcaster_id === 'string' && p.source_broadcaster_id !== '',
+    ...(ev.type === CHAT_SENT ? { own: p.sent_by === 'workflow' ? ('workflow' as const) : ('bot' as const) } : {}),
   };
 }
 

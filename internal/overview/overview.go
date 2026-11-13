@@ -120,6 +120,12 @@ func Build(in Input) Overview {
 		case twitch.StateUnknown:
 			add(Unknown, ScreenConnections, "Can't check %s right now%s.", a.whom, detail(a.st.Detail))
 		}
+		// A sign-in from before StreamGremlin asked for more (D-087): what
+		// it can't do until the streamer signs in again.
+		if signedIn(a.st) && len(a.st.MissingScopes) > 0 {
+			add(Problem, ScreenConnections, "Sign in to %s again on Connections to let StreamGremlin %s.", a.whom,
+				list(twitch.ScopeWords(a.st.MissingScopes)))
+		}
 	}
 	if signedIn(tw.Streamer) {
 		switch tw.Chat.State {
@@ -137,7 +143,8 @@ func Build(in Input) Overview {
 				needSignIn = append(needSignIn, strings.ToLower(f.Label))
 			}
 		}
-		if len(needSignIn) > 0 {
+		// Said once: the item above already asks to sign in again.
+		if len(needSignIn) > 0 && len(tw.Streamer.MissingScopes) == 0 {
 			add(Tip, ScreenConnections, "Sign in to Twitch again to get %s for your workflows.", list(needSignIn))
 		}
 		if signedIn(tw.Bot) && tw.Chat.BotModerator != nil && !*tw.Chat.BotModerator {
