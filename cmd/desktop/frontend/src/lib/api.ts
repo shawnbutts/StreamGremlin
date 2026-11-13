@@ -831,10 +831,10 @@ export type OverlayFont = 'system' | 'rounded' | 'serif' | 'mono' | 'condensed' 
 export interface OverlayLook {
   /** A Now playing overlay shows each song for `seconds`, then hides; off, it stays up while a song plays. */
   song_hides?: boolean;
-  /** A Now playing overlay's files, as Pretzel's desktop app writes them: full paths on this computer. */
+  /** A Now playing overlay's files, as a music player writes them: full paths on this computer. */
   song_file?: string;
   art_file?: string;
-  /** What Pretzel writes when paused: the overlay shows nothing then. */
+  /** What the player writes when paused: the overlay shows nothing then. */
   paused_text?: string;
   position: OverlayPosition;
   animation: 'slide' | 'pop' | 'unfold';

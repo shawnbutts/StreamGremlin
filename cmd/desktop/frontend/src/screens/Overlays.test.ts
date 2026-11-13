@@ -256,10 +256,10 @@ describe('Overlays', () => {
     expect(el.textContent?.replace(/\s+/g, ' ')).toContain('Showing Neon Rain by Kyle, with its album art.');
     unmount(comp!);
     document.body.innerHTML = '';
-    engine([song({ open: true, song: { playing: false }, problem: "the song's file isn't there: is Write to File on in Pretzel?" })]);
+    engine([song({ open: true, song: { playing: false }, problem: "the song's file isn't there: is your music player writing it?" })]);
     el = start();
     await settle();
-    expect(el.querySelector('[role=alert]')?.textContent).toContain('is Write to File on in Pretzel?');
+    expect(el.querySelector('[role=alert]')?.textContent).toContain('is your music player writing it?');
   });
 
   it('picks sounds for a giveaway overlay, and saves them with its look', async () => {

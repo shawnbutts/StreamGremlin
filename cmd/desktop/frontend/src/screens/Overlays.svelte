@@ -273,7 +273,7 @@
 <p class="sg-muted screen-intro">
   Each overlay is one browser source in OBS. Alert overlays show what workflows send with “Show an alert”, one at a time. A
   giveaway overlay shows the running giveaway and rolls to each winner by itself; chat still tells viewers everything. A Now playing
-  overlay shows the song Pretzel's desktop app is playing, from the files it writes. An alert’s
+  overlay shows the song your music player is playing, from the files it writes. An alert’s
   sound plays in the overlay, so OBS hears it through the browser source (tick “Control audio via OBS” on it). Keep links
   private: anyone with one can see that overlay.
 </p>
@@ -452,24 +452,25 @@
         {/if}
         {#if isSong(current)}
           <fieldset class="look-group">
-            <legend>Pretzel's files</legend>
+            <legend>Song files</legend>
             <p class="sg-muted field-hint">
-              In the Pretzel app, open Settings → Advanced → Write to File, and turn on the song's text file and its album art. Put the
-              title on the first line and the artist on the second, if you like. Then choose each file with Browse, or paste its full path.
+              Many music players can write the song playing to a text file, and its album art to a picture, for streaming software. In
+              Pretzel, for one, it's Settings → Advanced → Write to File. Put the title on the first line and the artist on the second, if
+              you can. Then choose each file with Browse, or paste its full path.
               In OBS, make the browser source 1920 × 1080 and place the song with “Where alerts appear” below, or make it about 1100 × 200
               and drag it where you like.
             </p>
             <div class="field">
               <label for="song-file">Song's text file</label>
               <div class="path-row">
-                <input id="song-file" class="sg-input" bind:value={look.song_file} placeholder="/Users/you/Pretzel/song.txt" spellcheck="false" autocomplete="off" />
+                <input id="song-file" class="sg-input" bind:value={look.song_file} placeholder="/Users/you/Music/now-playing.txt" spellcheck="false" autocomplete="off" />
                 <button type="button" class="button" disabled={busy} onclick={() => browse('song_text')}>Browse…</button>
               </div>
             </div>
             <div class="field">
               <label for="art-file">Album art file</label>
               <div class="path-row">
-                <input id="art-file" class="sg-input" bind:value={look.art_file} placeholder="/Users/you/Pretzel/album.jpg" spellcheck="false" autocomplete="off" />
+                <input id="art-file" class="sg-input" bind:value={look.art_file} placeholder="/Users/you/Music/album-art.jpg" spellcheck="false" autocomplete="off" />
                 <button type="button" class="button" disabled={busy} onclick={() => browse('song_art')}>Browse…</button>
               </div>
               <span class="sg-muted field-hint">Optional. Without it, bars bounce beside the song.</span>
@@ -477,7 +478,7 @@
             <label class="field">
               <span>Paused text</span>
               <input class="sg-input" bind:value={look.paused_text} maxlength="100" placeholder="Paused" spellcheck="false" autocomplete="off" />
-              <span class="sg-muted field-hint">What Pretzel writes when paused, if you set one there. The overlay hides then.</span>
+              <span class="sg-muted field-hint">What your player writes when paused, if it writes anything. The overlay hides then.</span>
             </label>
             <div aria-live="polite">
               {#if !current.song?.open}
@@ -529,7 +530,7 @@
                 <input class="sg-input" type="number" min="2" max="60" bind:value={look.seconds} />
               </label>
             {:else}
-              <p class="sg-muted field-hint">It stays up while a song plays, and goes when nothing does or Pretzel can't say.</p>
+              <p class="sg-muted field-hint">It stays up while a song plays, and goes when nothing does or the file can't be read.</p>
             {/if}
           {:else if !isGiveaway(current) && !isWheel(current)}
             <label class="field">
@@ -675,11 +676,11 @@
         <input type="radio" name="overlay-kind" value="wheel" bind:group={newKind} /> Wheels: every spin, as it's drawn
       </label>
       <label class="choice-inline">
-        <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song Pretzel's desktop app is playing
+        <input type="radio" name="overlay-kind" value="song" bind:group={newKind} /> Now playing: the song your music player is playing
       </label>
       {#if newKind === 'song'}
         <p class="sg-muted field-hint">
-          It shows the song and album art Pretzel's desktop app writes to files (Write to File, in Pretzel's Advanced settings). Set the
+          It shows the song and album art your music player writes to files, like Pretzel's Write to File. Set the
           files' paths in the overlay's settings after adding it.
         </p>
       {/if}

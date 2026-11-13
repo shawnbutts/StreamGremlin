@@ -20,7 +20,7 @@ const overlaysUsage = `usage:
                                           add an alert overlay (or a giveaway overlay, which shows
                                           the running giveaway and rolls to each winner, a wheel overlay,
                                           which spins every wheel, or a Now playing overlay, which shows
-                                          the song Pretzel is playing), and print its link
+                                          the song a music player writes to a file), and print its link
   streamgremlin overlays link NAME        print its link, to paste into OBS
   streamgremlin overlays new-link NAME    replace its link; the old one stops working
   streamgremlin overlays look NAME [flags]   change its look; see overlays look -h. For example:
@@ -75,7 +75,7 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.SetOutput(stderr)
 			giveaway := fs.Bool("giveaway", false, "a giveaway overlay")
 			wheel := fs.Bool("wheel", false, "a wheel overlay")
-			song := fs.Bool("song", false, "a Now playing overlay: the song Pretzel is playing")
+			song := fs.Bool("song", false, "a Now playing overlay: the song a music player writes to a file")
 			if fs.Parse(args[1:]) != nil || fs.NArg() != 1 {
 				return usage()
 			}
@@ -165,9 +165,9 @@ func overlaysCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			fs.StringVar(&l.EndSound, "end-sound", l.EndSound, "giveaway and wheel overlays: a library sound as it lands (none for no sound)")
 			fs.IntVar(&l.EndVolume, "end-volume", l.EndVolume, "its volume, 0 to 100")
 			fs.StringVar(&l.CheerSound, "cheer-sound", l.CheerSound, "giveaway and wheel overlays: a library sound when the result shows (none for no sound)")
-			fs.StringVar(&l.SongFile, "song-file", l.SongFile, "Now playing overlays: the full path of the .txt file Pretzel writes the song to (none for none)")
-			fs.StringVar(&l.ArtFile, "art-file", l.ArtFile, "Now playing overlays: the full path of the .jpg Pretzel writes the cover to (none for none)")
-			fs.StringVar(&l.PausedText, "paused-text", l.PausedText, "Now playing overlays: what Pretzel writes when paused (none for none)")
+			fs.StringVar(&l.SongFile, "song-file", l.SongFile, "Now playing overlays: the full path of the .txt file your music player writes the song to (none for none)")
+			fs.StringVar(&l.ArtFile, "art-file", l.ArtFile, "Now playing overlays: the full path of the .jpg or .png your music player writes the cover to (none for none)")
+			fs.StringVar(&l.PausedText, "paused-text", l.PausedText, "Now playing overlays: what your music player writes when paused (none for none)")
 			fs.BoolVar(&l.SongHides, "song-hides", l.SongHides, "Now playing overlays: show each song for -seconds, then hide")
 			fs.IntVar(&l.CheerVolume, "cheer-volume", l.CheerVolume, "its volume, 0 to 100")
 			lookName := strings.TrimPrefix(l.Theme, "builtin:")

@@ -291,7 +291,7 @@ func saveFile(w http.ResponseWriter, r *http.Request, save SaveFunc) {
 // dialog's title and filter: a page can name a kind, never a pattern or
 // a folder. Only the path comes back; nothing is read.
 var Choosable = map[string]struct{ Title, Filter, Pattern string }{
-	// A Now playing overlay's files, as Pretzel writes them (D-091).
+	// A Now playing overlay's files, as a music player writes them (D-091).
 	"song_text": {"Choose the song's text file", "Text files", "*.txt"},
 	"song_art":  {"Choose the album art", "Pictures", "*.jpg;*.jpeg;*.png"},
 }

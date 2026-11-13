@@ -16,7 +16,7 @@ import (
 	"unicode/utf8"
 )
 
-// Reading a Now playing overlay's files (D-091). Pretzel's desktop app
+// Reading a Now playing overlay's files (D-091). The music player
 // rewrites them as the song changes. They're read only while the overlay
 // is open, and only once a file has stopped changing, so a file caught
 // half-written is never shown.
@@ -238,7 +238,7 @@ func readSong(path, paused string) (title, artist, why string) {
 	f, err := os.Open(path) //nolint:gosec // the streamer's own file, named in the overlay's settings
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return "", "", "the song's file isn't there: is Write to File on in Pretzel?"
+			return "", "", "the song's file isn't there: is your music player writing it?"
 		}
 		return "", "", "the song's file can't be read"
 	}
@@ -248,7 +248,7 @@ func readSong(path, paused string) (title, artist, why string) {
 	case err != nil:
 		return "", "", "the song's file can't be read"
 	case len(b) > maxSongFile:
-		return "", "", "the song's file is too big to be Pretzel's"
+		return "", "", "the song's file is too big (over 4 KB) to be a song's"
 	}
 	var lines []string
 	for _, l := range strings.Split(strings.ToValidUTF8(string(b), ""), "\n") {

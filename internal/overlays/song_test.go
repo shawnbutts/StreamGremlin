@@ -126,7 +126,7 @@ func TestReadSong(t *testing.T) {
 	if title, _, _ := readSong(write(strings.Repeat("x", 500)), ""); len([]rune(title)) != maxSongLine {
 		t.Fatal(len(title))
 	}
-	if _, _, why := readSong(filepath.Join(dir, "missing.txt"), ""); !strings.Contains(why, "Write to File") {
+	if _, _, why := readSong(filepath.Join(dir, "missing.txt"), ""); !strings.Contains(why, "music player") {
 		t.Fatal(why)
 	}
 }

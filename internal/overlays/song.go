@@ -1,18 +1,18 @@
 package overlays
 
-// Now playing overlays (D-091) show the song Pretzel's desktop app is
-// playing, read from the files its Write to File writes: the song as
-// text, and its cover as a picture. Each overlay names its own files;
-// the engine reads them while the overlay is open (songfile.go) and sends
-// each change. The page shows nothing when nothing is playing or the
-// files can't be read.
+// Now playing overlays (D-091) show the song a music player is playing,
+// read from the files it writes for streaming software (Pretzel's Write
+// to File, for one): the song as text, and its cover as a picture. Each
+// overlay names its own files; the engine reads them while the overlay is
+// open (songfile.go) and sends each change. The page shows nothing when
+// nothing is playing or the files can't be read.
 
 // KindSong shows the current song.
 const KindSong = "song"
 
 // SongView is what a Now playing overlay shows.
 type SongView struct {
-	// Playing is false when nothing is playing, Pretzel says it's paused,
+	// Playing is false when nothing is playing, the player says it's paused,
 	// or the song's file can't be read: the page shows nothing.
 	Playing bool `json:"playing"`
 	// Title is the file's first line; Artist its second, if any.

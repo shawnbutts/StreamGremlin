@@ -1,8 +1,8 @@
-// The Now playing overlay (D-091): the song Pretzel's desktop app is
-// playing, from the files it writes, in the overlay's look. It shows only
-// what the engine sends: a song while one plays, nothing otherwise. Song
-// names are only ever set with textContent, and the cover only ever comes
-// through the overlay's own link.
+// The Now playing overlay (D-091): the song a music player is playing,
+// from the files it writes, in the overlay's look. It shows only what the
+// engine sends: a song while one plays, nothing otherwise. Song names are
+// only ever set with textContent, and the cover only ever comes through
+// the overlay's own link.
 
 // How long leaving takes, as in overlay.js.
 const OUT_MS = { slide: 450, pop: 450, unfold: 750 };

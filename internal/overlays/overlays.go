@@ -71,7 +71,7 @@ type Look struct {
 	// SongHides: a Now playing overlay shows each song for Seconds as it
 	// starts, then hides. Off, it stays up while a song plays.
 	SongHides bool `json:"song_hides"`
-	// A Now playing overlay's files, as Pretzel's desktop app writes them
+	// A Now playing overlay's files, as a music player writes them
 	// (D-091): the song as text, its cover as a picture, and the text it
 	// writes when paused. Full paths on this computer; never sent to the
 	// page.
@@ -212,7 +212,7 @@ func (l Look) Check() error {
 	case !between(l.Seconds, MinSeconds, MaxSeconds):
 		return invalid("an alert stays %d to %d seconds", MinSeconds, MaxSeconds)
 	case !songPath(l.SongFile, ".txt"):
-		return invalid("the song's file is a full path to a .txt file, like /Users/you/Pretzel/song.txt")
+		return invalid("the song's file is a full path to a .txt file, like /Users/you/Music/now-playing.txt")
 	case !songPath(l.ArtFile, ".jpg", ".jpeg", ".png"):
 		return invalid("the picture's file is a full path to a .jpg or .png file")
 	case utf8.RuneCountInString(l.PausedText) > 100 || strings.ContainsAny(l.PausedText, "\r\n"):
