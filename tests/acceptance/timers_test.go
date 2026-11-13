@@ -62,7 +62,8 @@ func TestCountdownsThroughTheCLI(t *testing.T) {
 		t.Fatal("a clock started:", errOut)
 	}
 
-	zip := filepath.Join("..", "..", "examples", "themes", "flip-clock.zip")
+	zip := filepath.Join(t.TempDir(), "flip-clock.zip")
+	zipFolder(t, filepath.Join("..", "..", "examples", "themes", "flip-clock"), zip)
 	if out, errOut, code := cli(t, dir, "packages", "install", zip, "-yes"); code != 0 || !strings.Contains(out, "Installed Flip clock 1.0.0") {
 		t.Fatal(out, errOut)
 	}

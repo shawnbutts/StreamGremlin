@@ -3,8 +3,7 @@
 An example of an installed StreamGremlin clock and timer look (D-092,
 docs/adr/0036-packages-plugins-and-themes.md). To try it, compress this
 folder into a ZIP (Finder: Compress; Explorer: Send to, Compressed folder)
-and install it on the **Add-ons** screen, or install `flip-clock.zip`
-beside it. Then add a **Clock and timers** overlay on the Overlays screen
+and install it on the **Add-ons** screen. Then add a **Clock and timers** overlay on the Overlays screen
 and pick **Flip clock** under Look.
 
 It shows a clock, a countdown or a stopwatch as split-flap cards that flip

@@ -99,7 +99,7 @@ func TestTheExampleThemeIsAPackage(t *testing.T) {
 }
 
 // The example clock and timer look is a valid package, for timers only
-// (D-092), and its committed ZIP is the same package as its folder.
+// (D-092).
 func TestTheExampleTimerLookIsAPackage(t *testing.T) {
 	dir := filepath.Join("..", "..", "examples", "themes", "flip-clock")
 	var files []file
@@ -121,14 +121,6 @@ func TestTheExampleTimerLookIsAPackage(t *testing.T) {
 	}
 	if r.Manifest.ID != "flip-clock" || !slices.Equal(r.Manifest.Theme.For, []string{"timer"}) || len(r.Manifest.Theme.Settings) != 4 {
 		t.Fatal(r.Manifest, r.Paths())
-	}
-	committed, err := os.ReadFile(filepath.Join("..", "..", "examples", "themes", "flip-clock.zip"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	z, err := ReadZip(committed)
-	if err != nil || z.Digest != r.Digest {
-		t.Fatal("flip-clock.zip isn't the folder: zip it again", err)
 	}
 	// A theme is for one kind of overlay, and only the kinds with looks.
 	for _, bad := range []string{`["wheel","timer"]`, `["alert"]`, `[]`} {
