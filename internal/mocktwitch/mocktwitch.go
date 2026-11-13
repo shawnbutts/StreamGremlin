@@ -55,6 +55,7 @@ type Server struct {
 	cd      cardState
 	md      modState
 	bc      broadcastState
+	bt      blockedState
 }
 
 type code struct {

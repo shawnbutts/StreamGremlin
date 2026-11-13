@@ -252,6 +252,18 @@ func TwitchManifest() Manifest {
 					"language and delay aren't offered (D-086). Read from the API reference 2026-11-13. Not stated: a general rate limit.",
 			},
 			{
+				Name: "moderation.blocked_terms", Support: PermissionRequired, Scopes: []string{BlockedTermsScope},
+				Notes: "D-088, read 2026-11-13. As the streamer (moderator_id = broadcaster), so private terms are listed too, unmarked. " +
+					"Get Blocked Terms (GET /moderation/blocked_terms; first up to 100, newest first; a full page carries a cursor even " +
+					"when the next page is empty; read up to 50 pages). Add Blocked Term (POST, body {text}; answers a term that's already " +
+					"there with the existing one, so adding repeats safely). Remove Blocked Term (DELETE with id; 204, also for an id " +
+					"Twitch doesn't have). expires_at is set only on terms AutoMod blocked for a while. 409, or 400 naming a conflict, " +
+					"means another change is pending: tried again after 0.3 and 1 second. Add's length rule (2 to 500 characters; 3 " +
+					"with a *, which goes at a word's start or end) and all of Remove were read from a summary of the reference, not " +
+					"verbatim: StreamGremlin checks only 2-500 and shows Twitch's own refusal otherwise; checked in the live check. " +
+					"Not stated: how Twitch matches a term (case, whole words), a limit on how many, a rate limit.",
+			},
+			{
 				Name: "clips", Support: PermissionRequired, Scopes: []string{ClipsScope},
 				Notes: "Create Clip (POST /clips, clips:edit; 202 with id and edit_url) with title and duration 5-60 seconds (default " +
 					"30, of up to 90 seconds around the request). Made after answering: Get Clips by id is checked at 2, 5, 10 ... 60 " +

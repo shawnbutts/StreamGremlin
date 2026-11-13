@@ -83,6 +83,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Moderating from chat: delete, time out, ban and unban, warn, shoutout, VIP, moderator, chat modes, as Twitch's API allows | new (D-075); built in M7 (ADR-0041, D-079) | Live |
 | Channel commands: change the title and category, clips, stream markers, uptime and follow age, as steps and templates | new (D-086) | Built after M7 |
 | Chat filters: links, capitals, symbols, emotes, repeats and the streamer's words; delete, time out or warn, recorded; `!permit` | new (D-085) | Built after M7 |
+| Twitch's Blocked Terms on the Chat filters screen: list, remove, copy words either way | new (D-088) | Built after M7 |
 | Twitch's suspicious-user flags (ban evaders, shared bans) on messages and the viewer card, with a workflow trigger; monitor and restrict | new (D-079); built in M7 (ADR-0041) | Live |
 
 ## OBS

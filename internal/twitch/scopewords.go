@@ -30,6 +30,7 @@ var scopeWords = map[string]string{
 	SuspiciousManage:               "handle suspicious users",
 	BroadcastScope:                 "change your title and category and add markers",
 	ClipsScope:                     "make clips",
+	BlockedTermsScope:              "manage Twitch's blocked terms",
 	"user:read:moderated_channels": "check it's a moderator",
 }
 

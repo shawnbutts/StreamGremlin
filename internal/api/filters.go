@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/filters"
+	"code.streamgremlin.com/streamgremlin/internal/twitch"
 )
 
 // Chat filters (D-085).
@@ -75,6 +76,44 @@ func filtersView(r *http.Request, d Deps, st filters.Settings) (FiltersView, err
 	return v, nil
 }
 
+// BlockedTermsView is GET /v1/filters/blocked-terms: Twitch's list, or
+// why it's unknown (D-088).
+type BlockedTermsView struct {
+	Terms   []twitch.BlockedTerm `json:"terms"`
+	Problem string               `json:"problem,omitempty"`
+}
+
+// BlockedTermsAdd is the body of POST /v1/filters/blocked-terms.
+type BlockedTermsAdd struct {
+	Texts []string `json:"texts"`
+}
+
+// BlockedTermResult is Twitch's answer to adding one term: done (added, or
+// there already), refused (with Twitch's words), or unknown.
+type BlockedTermResult struct {
+	Text   string              `json:"text"`
+	State  string              `json:"state"`
+	Answer string              `json:"answer,omitempty"`
+	Term   *twitch.BlockedTerm `json:"term,omitempty"`
+}
+
+// MaxBlockedTermsAdd is the most terms one request adds.
+const MaxBlockedTermsAdd = 100
+
+func blockedTermsAnswer(err error) (state, answer string) {
+	switch {
+	case errors.Is(err, twitch.ErrOutcomeUnknown):
+		return "unknown", "Twitch didn't answer, so it may or may not be on the list. Adding it again is safe."
+	case errors.Is(err, twitch.ErrNeedsPermission):
+		return "refused", "Sign in to Twitch again on Connections and allow StreamGremlin to manage blocked terms."
+	case errors.Is(err, twitch.ErrNoClientID):
+		return "refused", "Twitch isn't set up: add a Client ID on Connections."
+	case twitch.IsSignInError(err):
+		return "refused", "Sign in with your Twitch account first."
+	}
+	return "refused", strings.TrimPrefix(strings.TrimPrefix(err.Error(), "twitch: invalid: "), "twitch: ")
+}
+
 var filterRoles = map[string]bool{"viewer": true, "subscriber": true, "vip": true, "moderator": true, "broadcaster": true}
 
 func filterRoutes(d Deps) []Route {
@@ -123,6 +162,83 @@ func filterRoutes(d Deps) []Route {
 					return
 				}
 				writeJSON(w, http.StatusOK, v)
+			},
+		},
+		{
+			Method: "GET", Path: "/v1/filters/blocked-terms",
+			Summary: "Twitch's Blocked Terms for your channel, newest first: Twitch holds these messages back before anyone sees " +
+				"them. Each has an id, text, created_at, and expires_at when AutoMod blocked it for a while. Unknown, with why, " +
+				"when Twitch can't be asked.",
+			Permission: PermModerationRead,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				if d.Twitch == nil {
+					writeJSON(w, http.StatusOK, BlockedTermsView{Terms: []twitch.BlockedTerm{}, Problem: "Twitch isn't set up."})
+					return
+				}
+				terms, err := d.Twitch.BlockedTerms(r.Context())
+				if err != nil {
+					_, why := blockedTermsAnswer(err)
+					writeJSON(w, http.StatusOK, BlockedTermsView{Terms: []twitch.BlockedTerm{}, Problem: why})
+					return
+				}
+				writeJSON(w, http.StatusOK, BlockedTermsView{Terms: terms})
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/filters/blocked-terms",
+			Summary: "Add terms to Twitch's Blocked Terms: {texts: [...]}, up to 100, each 2 to 500 characters; a * goes at a word's " +
+				"start or end. One answer per term: done (added, or already there), refused with Twitch's words, or unknown. " +
+				"Adding a term again is safe.",
+			Permission: PermModerationWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in BlockedTermsAdd
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				if len(in.Texts) == 0 || len(in.Texts) > MaxBlockedTermsAdd {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "texts is 1 to 100 terms")
+					return
+				}
+				if d.Twitch == nil {
+					writeError(w, http.StatusConflict, CodeNotConnected, "Twitch isn't set up.")
+					return
+				}
+				out := make([]BlockedTermResult, 0, len(in.Texts))
+				for _, text := range in.Texts {
+					res := BlockedTermResult{Text: strings.TrimSpace(text)}
+					term, err := d.Twitch.AddBlockedTerm(r.Context(), text)
+					if err == nil {
+						res.State, res.Term = "done", &term
+					} else {
+						res.State, res.Answer = blockedTermsAnswer(err)
+					}
+					d.Logger.Info("blocked term added", "state", res.State)
+					out = append(out, res)
+				}
+				writeJSON(w, http.StatusOK, map[string]any{"results": out})
+			},
+		},
+		{
+			Method: "DELETE", Path: "/v1/filters/blocked-terms/{id}",
+			Summary:    "Remove a term from Twitch's Blocked Terms by its id. Removing one Twitch doesn't have is fine.",
+			Permission: PermModerationWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				if d.Twitch == nil {
+					writeError(w, http.StatusConflict, CodeNotConnected, "Twitch isn't set up.")
+					return
+				}
+				err := d.Twitch.RemoveBlockedTerm(r.Context(), r.PathValue("id"))
+				if err != nil {
+					state, why := blockedTermsAnswer(err)
+					if state == "unknown" {
+						writeError(w, http.StatusBadGateway, CodeUnknownOutcome, why)
+					} else {
+						writeError(w, http.StatusConflict, CodeConflict, why)
+					}
+					return
+				}
+				d.Logger.Info("blocked term removed", "id", r.PathValue("id"))
+				w.WriteHeader(http.StatusNoContent)
 			},
 		},
 		{

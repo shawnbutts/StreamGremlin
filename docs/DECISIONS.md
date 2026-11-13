@@ -1472,7 +1472,7 @@ Decided 2026-11-13. Asked what common bot features were missing while the beta t
 - **Workflows can react:** each catch adds a `chat.filter.caught` event (rule, action, Twitch's answer, the message), with the trigger "A chat filter catches a message". A template, "Say why a message went", replies in chat.
 - **Test messages are judged too,** but nothing is sent to Twitch: the caught event is a test event.
 - **A Chat filters screen,** in the sidebar after Viewers: the switches and settings, a box to try a message, and what the filters did lately. CLI: `streamgremlin filters` and `filters check TEXT`.
-- **Twitch's own tools stay Twitch's:** AutoMod and Blocked Terms act before StreamGremlin sees a message. Help says where to find them. Copying the word list to Twitch's Blocked Terms waits for a request.
+- **Twitch's own tools stay Twitch's:** AutoMod and Blocked Terms act before StreamGremlin sees a message. Help says where to find them. Copying the word list to Twitch's Blocked Terms waits for a request (requested and built: D-088).
 - **No new scopes:** deleting, timing out and warning were added in D-079. No new storage: the settings are saved with the others, and what filters did is in the moderation record.
 
 ## D-086. Commands for the channel: title, category, clips, markers, uptime and follow age
@@ -1506,3 +1506,24 @@ Decided 2026-11-13. The user: "when i need to sign in again to get new permissio
   - filters, points, First Words and viewer records ignore it.
 - **Nothing to moderate on them:** these lines have no gear menu.
 - **The side never scrolls sideways** (fixed 2026-11-13). The user: "the buttons and chat modes on the live page now has a horizontal scroll bar no matter how wide i make the page." Fitting the window meant the side could scroll up and down. Its scroll bar then took width the Followers-only row (a button and a menu side by side) needed, so the side scrolled sideways too. The menus now shrink and wrap under their buttons. No room is kept for the scroll bar: the user asked for the side to line up with the "Top" button, so the side reaches the right edge, and when it scrolls its scroll bar sits on that edge.
+
+## D-088. Twitch's Blocked Terms on the Chat filters screen, and the gap under Live's chat
+
+Decided 2026-11-13. The user: "fix the gap under the chat send box and the syncing blocked terms".
+
+**Who it's for:** streamers who keep a word list and want Twitch to hold those words back before anyone sees them, without going to the Creator Dashboard; and anyone moving a list from Twitch into StreamGremlin's word filter.
+
+- **A "Twitch's Blocked Terms" panel on Chat filters** lists Twitch's terms, newest first. A term AutoMod blocked for a while says until when. **Remove** takes one off Twitch's list. **Refresh** asks again; the list is read when the screen opens, never every few seconds, since each read is a request to Twitch.
+- **Copying, not syncing.** Two buttons, each saying how many are new:
+  - **Copy my words to Twitch** adds the word filter's words that Twitch hasn't got (the form as it is, saved or not);
+  - **Copy Twitch's terms to my words** puts Twitch's terms in the word list and ticks the words filter; Save keeps them.
+
+  Copying only adds. Nothing is ever removed from either list automatically: Twitch's list can hold AutoMod's terms and ones made on Twitch, and a mistake there would quietly unblock words. Matching is compared in lower case, as the word filter saves words.
+- **Why it's still worth copying Twitch's terms here:** Twitch blocks them first, so StreamGremlin's filter only sees them if a term is later removed or AutoMod's ends. The copy makes the word filter a fallback, and keeps the list in one place.
+- **Safe to repeat:** Twitch answers adding a term that's there with the term it has, and removing one it doesn't have with success, so a retry never doubles anything. When Twitch says the list is busy with another change (409, or a 400 naming a conflict), the add is tried again after 0.3 and 1 second, as the reference asks. No answer is shown as unknown, never as done.
+- **Each term's answer is shown:** done, refused with Twitch's words (too short, for instance), or unknown.
+- **A new Twitch permission,** `moderator:manage:blocked_terms`, so streamers sign in again; Home's Needs you says so, "to manage Twitch's blocked terms". The list is read as the streamer, so private terms are included, as the reference says.
+- **No storage:** the list stays Twitch's. Not workflow steps: nobody asked, and editing the list from chat would be a moderator's command for a later request.
+- **What wasn't verbatim:** Add Blocked Term's length rule and all of Remove Blocked Term were read from a summary of Twitch's reference. StreamGremlin checks only 2 to 500 characters and shows Twitch's own refusal otherwise. The capability manifest notes it, to check in the live check.
+- **API and CLI:** `GET`, `POST` and `DELETE /v1/filters/blocked-terms`; `streamgremlin filters blocked`, `filters block TERM...`, `filters unblock ID`.
+- **The gap under Live's chat:** the always-present, empty status line for moderation notices kept a line's height and margin under the send box, and the "Sign in to send" note kept its bottom margin. Empty notices now take no room (they stay in place to be announced), so chat ends at the panel's padding and its log gets the space.

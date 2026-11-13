@@ -3,7 +3,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Filters from './Filters.svelte';
 import { mockFetch, settle } from '../test/helpers';
-import type { FilterCatch, FilterSettings } from '../lib/api';
+import type { BlockedTerm, FilterCatch, FilterSettings } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -48,9 +48,24 @@ const typed = (i: HTMLInputElement | HTMLTextAreaElement, v: string) => {
   flushSync();
 };
 
-function engine(recent: FilterCatch[] = []) {
+function engine(recent: FilterCatch[] = [], terms: BlockedTerm[] = []) {
   return mockFetch({
     '/v1/filters': (m, body) => ({ status: 200, body: { settings: m === 'PUT' ? body : defaults(), recent } }),
+    '/v1/filters/blocked-terms': (m, body) => {
+      if (m === 'GET') return { status: 200, body: { terms } };
+      const texts = (body as { texts: string[] }).texts;
+      const results = texts.map((text) =>
+        text.length < 2
+          ? { text, state: 'refused', answer: 'The length of the term in the text field is either too short or too long.' }
+          : { text, state: 'done', term: { id: 'bt-' + text, text, created_at: new Date().toISOString() } },
+      );
+      terms = [...results.filter((r) => r.term).map((r) => r.term as BlockedTerm), ...terms];
+      return { status: 200, body: { results } };
+    },
+    '/v1/filters/blocked-terms/bt-1': () => {
+      terms = terms.filter((t) => t.id !== 'bt-1');
+      return { status: 204, body: null };
+    },
     '/v1/filters/check': (_m, body) =>
       (body as { text: string }).text.includes('bit.ly')
         ? { status: 200, body: { rule: 'links', reason: 'Please don’t post links here.' } }
@@ -114,6 +129,58 @@ describe('Chat filters', () => {
     expect(items[1]).toContain('Refused: Sign in to Twitch again');
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('lists Twitch’s Blocked Terms, copies words both ways, and removes one', async () => {
+    const soon = new Date(Date.now() + 3600_000).toISOString();
+    const calls = engine([], [
+      { id: 'bt-1', text: 'darn', created_at: new Date().toISOString() },
+      { id: 'bt-2', text: 'Heck', created_at: new Date().toISOString(), expires_at: soon },
+    ]);
+    const el = start();
+    await settle(30);
+    const panel = el.querySelector('[aria-labelledby=blocked-heading]')!;
+    const items = () => Array.from(panel.querySelectorAll('.blocked li')).map((li) => li.textContent?.replace(/\s+/g, ' ').trim());
+    expect(items()[0]).toContain('darn');
+    expect(items()[1]).toContain('Heck AutoMod, until');
+
+    // Twitch's terms into the word list: both, ticking the words filter.
+    button(panel, 'Copy Twitch’s terms to my words (2 new)').click();
+    flushSync();
+    expect(el.querySelector('textarea')!.value).toBe('darn\nheck');
+    expect(input(el, 'Filter words').checked).toBe(true);
+    expect(panel.textContent).toContain('Put 2 terms in Words above. Save to keep them.');
+
+    // My words onto Twitch: only the ones it hasn't got; a refusal says why.
+    typed(el.querySelector('textarea')!, 'darn\nheck\nspoil*\nx');
+    button(panel, 'Copy my words to Twitch (2 new)').click();
+    await settle(30);
+    const sent = calls.find((c) => c.path === '/v1/filters/blocked-terms' && c.method === 'POST')!.body as { texts: string[] };
+    expect(sent.texts).toEqual(['spoil*', 'x']);
+    expect(panel.textContent).toContain('Added 1 word to Twitch’s Blocked Terms.');
+    expect(panel.querySelector('[role=alert]')?.textContent).toContain('x: refused, The length of the term');
+    expect(items()[0]).toContain('spoil*');
+
+    (panel.querySelector('[aria-label="Remove darn"]') as HTMLButtonElement).click();
+    await settle(30);
+    expect(calls.some((c) => c.method === 'DELETE' && c.path === '/v1/filters/blocked-terms/bt-1')).toBe(true);
+    expect(panel.textContent).toContain('Removed “darn” from Twitch’s Blocked Terms.');
+    expect(items().some((i) => i?.startsWith('darn'))).toBe(false);
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('shows Twitch’s Blocked Terms as unknown, with why', async () => {
+    mockFetch({
+      '/v1/filters': () => ({ status: 200, body: { settings: defaults(), recent: [] } }),
+      '/v1/filters/blocked-terms': () => ({ status: 200, body: { terms: [], problem: 'Sign in to Twitch again on Connections and allow StreamGremlin to manage blocked terms.' } }),
+    });
+    const el = start();
+    await settle(30);
+    const panel = el.querySelector('[aria-labelledby=blocked-heading]')!;
+    expect(panel.textContent).toContain('Unknown: Sign in to Twitch again');
+    expect(panel.querySelector('button.button:not([disabled])')?.textContent).toBe('Refresh');
+    expect(panel.textContent).not.toContain('Copy my words');
   });
 
   it('says why when bad settings are refused', async () => {

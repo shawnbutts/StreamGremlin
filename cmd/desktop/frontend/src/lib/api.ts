@@ -1854,3 +1854,27 @@ export const saveFilters = (s: FilterSettings) => api<FiltersView>('PUT', '/v1/f
 /** Which filter would catch a message, judged with these settings. */
 export const checkFilter = (text: string, role: string, settings?: FilterSettings) =>
   api<FilterVerdict>('POST', '/v1/filters/check', { text, role, settings });
+
+// Twitch's Blocked Terms (D-088).
+export interface BlockedTerm {
+  id: string;
+  text: string;
+  created_at: string;
+  /** Set on a term AutoMod blocked for a while. */
+  expires_at?: string;
+}
+export interface BlockedTermsView {
+  terms: BlockedTerm[];
+  /** Why the list is unknown. */
+  problem?: string;
+}
+export interface BlockedTermResult {
+  text: string;
+  state: 'done' | 'refused' | 'unknown';
+  answer?: string;
+  term?: BlockedTerm;
+}
+export const getBlockedTerms = () => api<BlockedTermsView>('GET', '/v1/filters/blocked-terms');
+export const addBlockedTerms = (texts: string[]) =>
+  api<{ results: BlockedTermResult[] }>('POST', '/v1/filters/blocked-terms', { texts });
+export const removeBlockedTerm = (id: string) => api<void>('DELETE', `/v1/filters/blocked-terms/${encodeURIComponent(id)}`);

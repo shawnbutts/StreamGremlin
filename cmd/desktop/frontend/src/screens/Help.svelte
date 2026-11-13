@@ -123,7 +123,8 @@
       filter deletes the message, times the viewer out or warns them, as you, and never touches you, your moderators or your bot;
       each can leave VIPs or subscribers alone. What they caught is listed with Twitch’s answer. Try a message to see what would
       catch it. Templates add !permit, which lets a viewer post a link for a minute, and a reply saying why a message went.
-      Twitch’s own AutoMod and Blocked Terms are set on Twitch.
+      Twitch’s Blocked Terms are listed there too: remove one, or copy your words to Twitch and Twitch’s terms to your words
+      (copying only adds). Twitch’s AutoMod is set on Twitch.
     </dd>
     <dt>Wheels</dt>
     <dd>A wheel of choices, like the next game. Each spin is drawn with a secure random source and recorded; a wheel overlay in OBS spins to that result, and each wedge is drawn at its real size, so the odds you see are the real odds. Workflows spin one with “Spin a wheel”.</dd>

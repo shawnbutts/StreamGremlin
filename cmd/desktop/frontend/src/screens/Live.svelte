@@ -652,7 +652,7 @@
           <button type="submit" class="sg-button" disabled={sending || !text.trim()}>Send</button>
         </form>
       {:else if twitch}
-        <p class="sg-muted">Sign in to Twitch on Connections to send messages from here.</p>
+        <p class="sg-muted live-send-note">Sign in to Twitch on Connections to send messages from here.</p>
       {/if}
       {#if sendError}<p class="error" role="alert">{sendError}</p>{/if}
       <p class="saved" role="status">{modNotice}</p>
@@ -1162,6 +1162,15 @@
     margin-top: 0.75rem;
     flex-wrap: wrap;
   }
+  /* What's under chat's log sits close to it, and nothing leaves an empty
+     band at the bottom of the panel (D-087). */
+  .live-send-note {
+    margin: 0.75rem 0 0;
+  }
+  .live-chat > .error,
+  .live-chat > .saved {
+    margin-bottom: 0;
+  }
   .live-send-text {
     flex: 1;
     min-width: 12rem;
@@ -1303,7 +1312,7 @@
     font-size: 0.9rem;
   }
   /* Empty notices take no room, but stay in place to be announced. */
-  .live-side .saved:empty {
+  .live .saved:empty {
     margin: 0;
     min-height: 0;
   }

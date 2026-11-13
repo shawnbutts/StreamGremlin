@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,6 +16,9 @@ import (
 const filtersUsage = `usage:
   streamgremlin filters                          the chat filters' settings, and what they caught lately
   streamgremlin filters check [-role R] TEXT     which filter would catch TEXT (role: viewer, subscriber, vip, moderator)
+  streamgremlin filters blocked                  Twitch's Blocked Terms for your channel, with their ids
+  streamgremlin filters block TERM...            add each TERM to Twitch's Blocked Terms
+  streamgremlin filters unblock ID               remove a term from Twitch's Blocked Terms
 
 Change the filters on the Chat filters screen.`
 
@@ -25,6 +29,9 @@ func filtersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
 		fmt.Fprintln(stdout, filtersUsage)
 		return 0
+	}
+	if len(args) > 0 && (args[0] == "blocked" || args[0] == "block" || args[0] == "unblock") {
+		return blockedTermsCmd(dir, args, stdout, stderr)
 	}
 	if len(args) > 0 && args[0] != "check" {
 		fmt.Fprintln(stderr, filtersUsage)
@@ -106,4 +113,63 @@ func nobodyElse(list []string) string {
 		return "nobody else"
 	}
 	return strings.Join(list, ", ")
+}
+
+func blockedTermsCmd(dir string, args []string, stdout, stderr io.Writer) int {
+	if (args[0] == "blocked" && len(args) != 1) || (args[0] == "block" && len(args) < 2) || (args[0] == "unblock" && len(args) != 2) {
+		fmt.Fprintln(stderr, filtersUsage)
+		return 2
+	}
+	c, ok := connect(dir, stderr)
+	if !ok {
+		return 1
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	switch args[0] {
+	case "block":
+		var out struct {
+			Results []api.BlockedTermResult `json:"results"`
+		}
+		if code := apiExit(c.Do(ctx, "POST", "/v1/filters/blocked-terms", api.BlockedTermsAdd{Texts: args[1:]}, &out), stderr); code != 0 {
+			return code
+		}
+		code := 0
+		for _, r := range out.Results {
+			if r.State == "done" {
+				fmt.Fprintf(stdout, "Blocked: %s\n", r.Text)
+				continue
+			}
+			code = 1
+			fmt.Fprintf(stdout, "%s: %s: %s\n", map[string]string{"refused": "Refused", "unknown": "Unknown"}[r.State], r.Text, r.Answer)
+		}
+		return code
+	case "unblock":
+		if code := apiExit(c.Do(ctx, "DELETE", "/v1/filters/blocked-terms/"+url.PathEscape(args[1]), nil, nil), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintln(stdout, "Removed from Twitch's Blocked Terms.")
+		return 0
+	}
+	var v api.BlockedTermsView
+	if code := apiExit(c.Do(ctx, "GET", "/v1/filters/blocked-terms", nil, &v), stderr); code != 0 {
+		return code
+	}
+	if v.Problem != "" {
+		fmt.Fprintf(stdout, "Unknown: %s\n", v.Problem)
+		return 1
+	}
+	if len(v.Terms) == 0 {
+		fmt.Fprintln(stdout, "Twitch's Blocked Terms list is empty.")
+		return 0
+	}
+	fmt.Fprintf(stdout, "Twitch's Blocked Terms (%d):\n", len(v.Terms))
+	for _, t := range v.Terms {
+		until := ""
+		if t.ExpiresAt != nil {
+			until = "  (AutoMod, until " + t.ExpiresAt.Local().Format("Jan 2 15:04") + ")"
+		}
+		fmt.Fprintf(stdout, "  %-12s %s%s\n", t.ID, t.Text, until)
+	}
+	return 0
 }

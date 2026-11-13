@@ -49,7 +49,9 @@ var (
 		BansScope, ChatDeleteScope, WarningsScope, ShoutoutsScope, VIPsManageScope, ModsManageScope,
 		ChatSettingsScope, SuspiciousReadScope, SuspiciousManage,
 		// The title and category, markers, and clips (D-086).
-		BroadcastScope, ClipsScope}
+		BroadcastScope, ClipsScope,
+		// Twitch's Blocked Terms, from Chat filters (D-088).
+		BlockedTermsScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

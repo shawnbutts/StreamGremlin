@@ -1,11 +1,16 @@
 <script lang="ts">
   // Chat filters (D-085): six rules that catch spam and delete, time out or
   // warn, each sent once as you and recorded; a box to try a message; and
-  // what the filters caught lately, with Twitch's answer.
+  // what the filters caught lately, with Twitch's answer. And Twitch's own
+  // Blocked Terms, with copying words either way (D-088).
   import { onMount } from 'svelte';
   import {
     ApiError,
+    addBlockedTerms,
     checkFilter,
+    getBlockedTerms,
+    removeBlockedTerm,
+    type BlockedTerm,
     getFilters,
     saveFilters,
     type FilterCatch,
@@ -73,6 +78,7 @@
 
   onMount(() => {
     load();
+    loadBlocked();
     const t = setInterval(load, refreshMs);
     return () => clearInterval(t);
   });
@@ -120,6 +126,73 @@
     }
   }
 
+  // Twitch's Blocked Terms: read when the screen opens and on Refresh,
+  // never every few seconds, since each read is a request to Twitch.
+  let blocked = $state<BlockedTerm[] | undefined>();
+  let blockedProblem = $state('');
+  let blockedBusy = $state(false);
+  let blockedNotice = $state('');
+  let blockedError = $state('');
+
+  async function loadBlocked() {
+    try {
+      const v = await getBlockedTerms();
+      blocked = v.terms;
+      blockedProblem = v.problem ?? '';
+    } catch (e) {
+      blockedProblem = message(e);
+    }
+  }
+
+  const onTwitch = $derived(new Set((blocked ?? []).map((t) => t.text.toLowerCase())));
+  const myWords = $derived(lines(wordsText).map((w) => w.toLowerCase()));
+  const toTwitch = $derived([...new Set(myWords)].filter((w) => !onTwitch.has(w)));
+  const toWords = $derived([...new Set((blocked ?? []).map((t) => t.text.toLowerCase()))].filter((t) => !myWords.includes(t)));
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+  async function copyToTwitch() {
+    blockedBusy = true;
+    blockedNotice = '';
+    blockedError = '';
+    try {
+      const { results } = await addBlockedTerms(toTwitch);
+      const done = results.filter((r) => r.state === 'done').length;
+      const rest = results.filter((r) => r.state !== 'done').map((r) => `${r.text}: ${r.state === 'unknown' ? 'unknown' : 'refused'}, ${r.answer}`);
+      blockedNotice = `Added ${plural(done, 'word', 'words')} to Twitch’s Blocked Terms.`;
+      if (rest.length) blockedError = `Not added: ${rest.join('; ')}`;
+      await loadBlocked();
+    } catch (e) {
+      blockedError = message(e);
+    } finally {
+      blockedBusy = false;
+    }
+  }
+
+  function copyToWords() {
+    const n = toWords.length;
+    wordsText = [...lines(wordsText), ...toWords].join('\n');
+    if (form && !form.words.on) form.words.on = true;
+    blockedNotice = `Put ${plural(n, 'term', 'terms')} in Words above. Save to keep ${n === 1 ? 'it' : 'them'}.`;
+    blockedError = '';
+  }
+
+  async function unblock(t: BlockedTerm) {
+    blockedBusy = true;
+    blockedNotice = '';
+    blockedError = '';
+    try {
+      await removeBlockedTerm(t.id);
+      blockedNotice = `Removed “${t.text}” from Twitch’s Blocked Terms.`;
+      await loadBlocked();
+    } catch (e) {
+      blockedError = message(e);
+    } finally {
+      blockedBusy = false;
+    }
+  }
+
+  const until = (at: string) => new Date(at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
   async function tryIt(e: SubmitEvent) {
     e.preventDefault();
     tryResult = '';
@@ -136,8 +209,8 @@
 <h1>Chat filters</h1>
 <p class="sg-muted screen-intro">
   Catch spam in your Twitch chat and delete it, time the viewer out or warn them, as you. You, your moderators and your bot are never
-  filtered. Each action is sent to Twitch once and listed below with Twitch’s answer. Twitch’s own AutoMod and Blocked Terms are on
-  Twitch, under Creator Dashboard, Settings, Moderation, and act before StreamGremlin sees a message.
+  filtered. Each action is sent to Twitch once and listed below with Twitch’s answer. Twitch’s Blocked Terms are below; its AutoMod is
+  on Twitch, under Creator Dashboard, Settings, Moderation, and acts before StreamGremlin sees a message.
 </p>
 
 {#if loadError}
@@ -223,6 +296,49 @@
   </section>
 {/if}
 
+{#if form}
+  <section class="sg-panel card" aria-labelledby="blocked-heading" aria-busy={blockedBusy}>
+    <div class="head-row">
+      <h2 id="blocked-heading">Twitch’s Blocked Terms</h2>
+      <button type="button" class="button" onclick={loadBlocked} disabled={blockedBusy}>Refresh</button>
+    </div>
+    <p class="sg-muted">
+      Twitch holds these messages back before anyone sees them, StreamGremlin included, so nothing is deleted or recorded here. Copying adds
+      only; it never removes anything from either list.
+    </p>
+    {#if blockedProblem}
+      <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {blockedProblem}</p>
+    {:else if !blocked}
+      <p class="sg-muted">Asking Twitch…</p>
+    {:else}
+      <div class="row-actions">
+        <button type="button" class="button" onclick={copyToTwitch} disabled={blockedBusy || toTwitch.length === 0}
+          >Copy my words to Twitch ({toTwitch.length} new)</button
+        >
+        <button type="button" class="button" onclick={copyToWords} disabled={blockedBusy || toWords.length === 0}
+          >Copy Twitch’s terms to my words ({toWords.length} new)</button
+        >
+      </div>
+      {#if blocked.length === 0}
+        <p class="sg-muted">The list is empty.</p>
+      {:else}
+        <ul class="blocked">
+          {#each blocked as t (t.id)}
+            <li>
+              <span class="text"
+                >{t.text}{#if t.expires_at}{' '}<span class="sg-muted until">AutoMod, until {until(t.expires_at)}</span>{/if}</span
+              >
+              <button type="button" class="button" onclick={() => unblock(t)} disabled={blockedBusy} aria-label={`Remove ${t.text}`}>Remove</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+    <p class="saved" role="status">{blockedNotice}</p>
+    {#if blockedError}<p class="error" role="alert">{blockedError}</p>{/if}
+  </section>
+{/if}
+
 <section class="sg-panel card" aria-labelledby="caught-heading">
   <h2 id="caught-heading">Caught lately</h2>
   {#if recent.length === 0}
@@ -250,4 +366,11 @@
   .caught { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.4rem; }
   .text { overflow-wrap: anywhere; }
   .answer { font-weight: 650; }
+  .head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+  .blocked { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.3rem; }
+  .blocked li { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.2rem 0; border-bottom: 1px solid var(--sg-border); }
+  .blocked li:last-child { border-bottom: none; }
+  .until { margin-left: 0.75rem; font-size: 0.9rem; }
+  /* An empty notice takes no room, but stays in place to be announced. */
+  .saved:empty { margin: 0; min-height: 0; }
 </style>
