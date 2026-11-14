@@ -34,6 +34,8 @@ const defaults = (): FilterSettings => ({
 
 const caught: FilterCatch[] = [
   { at: new Date().toISOString(), rule: 'links', action: 'delete', state: 'done', text: 'cheap followers at bit.ly/x', user_id: '1', login: 'spammer', name: 'Spammer' },
+  { at: new Date().toISOString(), rule: 'links', action: 'delete', state: 'done', text: 'bit.ly/y', user_id: 'UCs', login: '', name: 'Tuber',
+    platform: 'youtube', note: 'fewer than 1000 YouTube quota units are left today, so it was deleted instead' },
   { at: new Date().toISOString(), rule: 'caps', action: 'timeout', seconds: 600, state: 'refused', answer: 'Sign in to Twitch again and allow StreamGremlin to moderate.', text: 'HELLO', user_id: '2', login: 'loud', name: 'Loud' },
 ];
 
@@ -87,13 +89,15 @@ describe('Chat filters', () => {
     what.dispatchEvent(new Event('change', { bubbles: true }));
     flushSync();
     expect((input(el, 'For (seconds)') as HTMLInputElement).value).toBe('600');
+    // On YouTube it deletes unless asked to time out too (D-100).
+    input(el, 'Time out on YouTube too').click();
     input(el, 'Filter links').click();
     flushSync();
     button(el, 'Save').click();
     await settle(30);
     const sent = calls.find((c) => c.path === '/v1/filters' && c.method === 'PUT')!.body as FilterSettings;
     expect(sent.on).toBe(true);
-    expect(sent.words).toMatchObject({ on: true, action: 'timeout', seconds: 600, list: ['darn', 'spoil*'] });
+    expect(sent.words).toMatchObject({ on: true, action: 'timeout', seconds: 600, list: ['darn', 'spoil*'], youtube_same: true });
     expect(sent.links).toMatchObject({ on: true, action: 'delete', seconds: 0, allowed: ['twitch.tv', 'clips.twitch.tv'] });
     expect(sent.caps.on).toBe(false);
     expect(el.textContent).toContain('2 filters are watching chat from now on.');
@@ -125,8 +129,10 @@ describe('Chat filters', () => {
     await settle(30);
     const items = Array.from(el.querySelectorAll('.caught li')).map((li) => li.textContent?.replace(/\s+/g, ' '));
     expect(items[0]).toContain('Spammer deleted by Links: cheap followers at bit.ly/x Done');
-    expect(items[1]).toContain('Loud timed out for 600 s by Capitals');
-    expect(items[1]).toContain('Refused: Sign in to Twitch again');
+    expect(items[1]).toContain('Tuber on YouTube deleted by Links');
+    expect(items[1]).toContain('(fewer than 1000 YouTube quota units are left today');
+    expect(items[2]).toContain('Loud timed out for 600 s by Capitals');
+    expect(items[2]).toContain('Refused: Sign in to Twitch again');
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });

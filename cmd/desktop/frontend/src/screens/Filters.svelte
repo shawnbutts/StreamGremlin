@@ -208,8 +208,9 @@
 
 <h1>Chat filters</h1>
 <p class="sg-muted screen-intro">
-  Catch spam in your Twitch chat and delete it, time the viewer out or warn them, as you. You, your moderators and your bot are never
-  filtered. Each action is sent to Twitch once and listed below with Twitch’s answer. Twitch’s Blocked Terms are below; its AutoMod is
+  Catch spam in your Twitch and YouTube chat and delete it, time the viewer out or warn them, as you. You, your moderators and your bot
+  are never filtered. Each action is sent once and listed below with the answer. On YouTube a filter deletes (20 quota units) unless you
+  say otherwise: YouTube has no warnings, and a timeout costs 200 units. Twitch’s Blocked Terms are below; its AutoMod is
   on Twitch, under Creator Dashboard, Settings, Moderation, and acts before StreamGremlin sees a message.
 </p>
 
@@ -256,7 +257,12 @@
               {/if}
             </div>
             {#if rule.action === 'warn'}
-              <p class="sg-muted">A warning shows the viewer why, and they must accept it before chatting again.</p>
+              <p class="sg-muted">A warning shows the viewer why, and they must accept it before chatting again. On YouTube, which has no warnings, the message is deleted.</p>
+            {:else if rule.action === 'timeout'}
+              <label class="choice-inline"
+                ><input type="checkbox" bind:checked={rule.youtube_same} /> Time out on YouTube too (200 quota units each; otherwise it deletes there, and
+                it always deletes once fewer than 1,000 units are left today)</label
+              >
             {/if}
             {#if r === 'words'}
               <label class="field"><span>Words and phrases, one a line</span><textarea class="sg-input" rows="4" bind:value={wordsText}></textarea></label>
@@ -348,10 +354,10 @@
       {#each recent as c, i (i)}
         <li>
           <span class="sg-muted">{eventTime(c.at)}</span>
-          <strong>{c.name || c.login}</strong>
+          <strong>{c.name || c.login}</strong>{c.platform === 'youtube' ? ' on YouTube' : ''}
           {actionWords[c.action]}{c.action === 'timeout' && c.seconds ? ` for ${c.seconds} s` : ''} by {ruleName[c.rule]}:
           <span class="text">{c.text}</span>
-          <span class="answer">{stateWords[c.state]}{c.answer ? `: ${c.answer}` : ''}</span>
+          <span class="answer">{stateWords[c.state]}{c.answer ? `: ${c.answer}` : ''}{c.note ? ` (${c.note})` : ''}</span>
         </li>
       {/each}
     </ul>

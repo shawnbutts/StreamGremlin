@@ -7,6 +7,10 @@ export const BUTTON_PRESSED = 'buttons.button.pressed';
 export const CHAT_MESSAGE = 'chat.message.received';
 /** StreamGremlin's own messages, by the bot or a workflow (D-087): shown, never viewer chat. */
 export const CHAT_SENT = 'chat.message.sent';
+/** A message deleted, by anyone: YouTube's tombstones and StreamGremlin's own deletes there (D-100). */
+export const CHAT_DELETED = 'chat.message.deleted';
+/** YouTube's members-only chat turning on or off (D-099). */
+export const MEMBERS_ONLY = 'chat.members_only.changed';
 export const SUSPICIOUS_MESSAGE = 'moderation.suspicious_user.message';
 
 export type Platform = 'twitch' | 'youtube';
@@ -244,9 +248,16 @@ const eventTimeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined,
 
 /** What StreamGremlin knows about a chatter, in words. */
 export function recordWords(card: ChatterCard, now = new Date()): string[] {
+  if (card.platform === 'youtube') {
+    return card.viewer ? recordOf(card, now) : ['StreamGremlin keeps a record and points for YouTube viewers from a later update.'];
+  }
   if (card.twitch === null) return ['A test chatter: Twitch never saw them, and StreamGremlin keeps no record of test events.'];
-  const v = card.viewer;
-  if (!v) return ['StreamGremlin has no record of them yet.'];
+  if (!card.viewer) return ['StreamGremlin has no record of them yet.'];
+  return recordOf(card, now);
+}
+
+function recordOf(card: ChatterCard, now: Date): string[] {
+  const v = card.viewer!;
   const out = [`First seen ${day(v.first_seen)} (${since(v.first_seen, now)} ago); ${v.messages} ${v.messages === 1 ? 'message' : 'messages'} in all.`];
   out.push(`${v.balance.toLocaleString()} ${card.currency || 'points'}.`);
   return out;
@@ -270,6 +281,18 @@ export function lengthWords(seconds: number): string {
   return `${seconds} seconds`;
 }
 
+/** What each YouTube action costs in today's quota units (Google's table). */
+export const YOUTUBE_COST: Partial<Record<ModAction, number>> = { delete: 20, timeout: 200, ban: 200, unban: 200, mod: 200, unmod: 200 };
+
+/** " It uses 200 of today's YouTube quota units." for a YouTube action, else "". */
+export function costWords(platform: string, action: ModAction): string {
+  const n = platform === 'youtube' ? YOUTUBE_COST[action] : undefined;
+  return n ? ` It uses ${n} of today’s YouTube quota units.` : '';
+}
+
+/** "Twitch" or "YouTube". */
+export const platformName = (p: string) => (p === 'youtube' ? 'YouTube' : 'Twitch');
+
 /** The timeouts offered, shortest first. */
 export const TIMEOUTS = [60, 600, 3600, 86400, 604800];
 
@@ -287,20 +310,22 @@ const quote = (t: string) => `“${t.length > 80 ? `${t.slice(0, 79)}…` : t}�
 export function confirmWords(
   action: ModAction,
   name: string,
-  o: { seconds?: number; reason?: string; text?: string } = {},
+  o: { seconds?: number; reason?: string; text?: string; platform?: string } = {},
 ): ConfirmWords | undefined {
   const why = o.reason?.trim() ? ` Reason: ${quote(o.reason.trim())}.` : '';
+  const where = platformName(o.platform ?? 'twitch');
+  const cost = costWords(o.platform ?? 'twitch', action);
   switch (action) {
     case 'delete':
       return { title: `Delete ${name}’s message?`, confirmLabel: 'Delete',
-        message: `${o.text ? `${quote(o.text)} is` : 'It’s'} removed from Twitch chat for everyone. It can’t be put back.` };
+        message: `${o.text ? `${quote(o.text)} is` : 'It’s'} removed from ${where} chat for everyone. It can’t be put back.${cost}` };
     case 'timeout': {
       const len = lengthWords(o.seconds ?? 0);
       return { title: `Time out ${name} for ${len}?`, confirmLabel: 'Time out',
-        message: `${name} can’t chat for ${len}, and Twitch chat shows it. Unban on their card lifts it early.${why}` };
+        message: `${name} can’t chat for ${len}, and ${where} chat shows it. Unban on their card lifts it early.${why}${cost}` };
     }
     case 'ban':
-      return { title: `Ban ${name}?`, confirmLabel: 'Ban', message: `${name} can’t chat until you unban them.${why}` };
+      return { title: `Ban ${name}?`, confirmLabel: 'Ban', message: `${name} can’t chat until you unban them.${why}${cost}` };
     case 'warn':
       return { title: `Warn ${name}?`, confirmLabel: 'Warn',
         message: `Twitch shows ${name} the warning, and they can’t chat until they acknowledge it. It can’t be taken back.${why}` };
@@ -309,7 +334,7 @@ export function confirmWords(
         message: `Twitch posts a shoutout to ${name} in your chat. It can’t be taken back, and Twitch allows only one every 2 minutes.` };
     case 'mod':
       return { title: `Make ${name} a moderator?`, confirmLabel: 'Make moderator',
-        message: `${name} can then delete messages, time out and ban in your chat. Remove moderator takes it away again.` };
+        message: `${name} can then delete messages, time out and ban in your ${where} chat. Remove moderator takes it away again.${cost}` };
   }
   return undefined;
 }
@@ -341,9 +366,10 @@ const actionNames: Record<string, string> = {
 export function modWords(r: ModRecord, name = r.login || 'them', duplicate = false): string {
   const again = duplicate ? ' (already sent; not sent again)' : '';
   if (r.state === 'done') return doneWords[r.action](name, r) + again;
-  if (r.state === 'pending') return `${actionNames[r.action] ?? r.action}: still waiting for Twitch.`;
-  if (r.state === 'unknown') return `Unknown: ${r.answer ?? 'Twitch didn’t answer.'}`;
-  return `Not done: ${r.answer ?? 'Twitch refused.'}`;
+  const where = platformName(r.platform);
+  if (r.state === 'pending') return `${actionNames[r.action] ?? r.action}: still waiting for ${where}.`;
+  if (r.state === 'unknown') return `Unknown: ${r.answer ?? `${where} didn’t answer.`}`;
+  return `Not done: ${r.answer ?? `${where} refused.`}`;
 }
 
 /** One line of a viewer's moderation history. */
@@ -351,6 +377,9 @@ export function historyWords(r: ModRecord): string {
   let w = actionNames[r.action] ?? r.action;
   if (r.action === 'timeout' && r.seconds) w += ` ${lengthWords(r.seconds)}`;
   if (r.reason) w += ` (“${r.reason}”)`;
+  if (r.platform === 'youtube') w += ' on YouTube';
+  if (r.from === 'filter') w += ', by a chat filter';
+  else if (r.from === 'workflow') w += ', by a workflow';
   const state = r.state === 'done' ? '' : r.state === 'refused' ? ': refused' : r.state === 'unknown' ? ': unknown' : ': waiting';
   return w + state;
 }

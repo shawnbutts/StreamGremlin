@@ -1740,3 +1740,32 @@ Decided 2026-11-14. The user said "proceed" to both recommendations: memberships
 - **StreamGremlin's own idea of "live"** keeps following Twitch and OBS, never YouTube, for now: points for watching, first-words resets, timers' "only while live", giveaways' stream window and the Discord summary.
 - **New templates** under "YouTube events": thank Super Chats, Super Stickers and Jewels, welcome new members, and thank gifted memberships. Most show an alert and answer in YouTube chat. There's also a Discord go-live post for YouTube.
 - **Events** describes each event in words. A trigger that can come from either platform has **Which platform**. Test events can come from YouTube.
+
+## D-100. M6 slice 5: moderating YouTube from Live
+
+Decided 2026-11-14. Before building, I checked Google's current docs and found three things that changed the plan. I recommended five defaults and the user said "proceed". The design is in [ADR-0041](adr/0041-moderation-record.md) under "YouTube".
+
+- **What Google's API allows:**
+  - deleting a message (20 quota units);
+  - a ban or a timeout (200);
+  - undoing one (200), but only by the id YouTube gave when it was made, and Google has no way to list bans;
+  - adding or removing a moderator (200; the chat's owner only); listing moderators costs 50.
+  - There's no reason field, no warnings and no VIPs.
+  - Members-only mode and slow mode can't be changed through the API at all.
+- **Members-only mode is left out of Live's controls.** Live says when it last turned on or off (from slice 4's event) and to use YouTube Studio.
+- **Unban is offered only for a ban or timeout made from StreamGremlin.** Its YouTube id is kept in the moderation record (new column `result_id`). The card offers Ban otherwise, and says to undo other bans in YouTube Studio.
+- **Always as your channel**, never the bot: the owner may do everything, while the bot would need to be a moderator, and a refusal there is confusing.
+- **Chat filters watch YouTube too, and delete there by default.**
+  - A timeout rule times out on YouTube only with "Time out on YouTube too", and never with fewer than 1,000 of the day's units left.
+  - A warning rule deletes on YouTube, which has no warnings.
+  - Each catch says on YouTube, with a note when it was changed.
+- **Moderators are looked up only when needed.** The card knows a moderator from their message (YouTube marks them) or from StreamGremlin making them one. YouTube's list (50 units) is asked only to remove a moderator added elsewhere, and kept 10 minutes. This is cheaper than recommended: the list isn't read when a card opens.
+- **Deleted messages are struck through on Live**, whoever deleted them.
+  - YouTube's tombstones and StreamGremlin's own deletes are stored as `chat.message.deleted` (source `youtube`), once each.
+  - Google's wording leaves open whether a deletion sends a tombstone.
+  - It's not a trigger: it marks a message rather than being news.
+- **A "Moderate the viewer" workflow step** (Chat, under More steps): delete the message being answered, time out or ban its sender, on the platform it came from, through the same record, once per step.
+  - It works for Twitch events too. The M6 plan listed these steps for YouTube, and a YouTube-only step would be odd beside the Twitch chat it answers.
+  - Twitch had no moderating step before, and none was asked for. Removing the Twitch half is easy if it isn't wanted.
+- **Every quota cost is said where it's spent:** in the confirmation before an action, on the card, in the filter settings, in the step's description and in Help.
+- **The CLI** has `streamgremlin mod -youtube …`, naming viewers by channel id until YouTube viewers have records (slice 6).

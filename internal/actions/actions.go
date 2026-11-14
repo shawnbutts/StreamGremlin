@@ -18,6 +18,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
+	"code.streamgremlin.com/streamgremlin/internal/moderation"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/points"
@@ -71,6 +72,8 @@ type Services struct {
 	Lua *lua.Runner
 	// Filters catch spam in chat (D-085).
 	Filters *filters.Service
+	// Moderation moderates on Twitch and YouTube, once, and records it.
+	Moderation *moderation.Service
 	// Discord posts through webhooks (D-089); Inbox is read to sum up a stream.
 	Discord *discord.Service
 	Inbox   *events.Inbox
@@ -277,6 +280,9 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerPoints(reg, sv.Viewers, sv.Points, sv.Gives)
 	registerLua(reg, sv.Lua)
 	registerFilters(reg, sv.Filters)
+	if sv.Moderation != nil {
+		registerModeration(reg, sv.Moderation)
+	}
 	registerChannel(reg, sv.Twitch, sv.Inbox)
 	registerDiscord(reg, sv.Discord, sv.Inbox)
 	reg.Add(workflow.Action{

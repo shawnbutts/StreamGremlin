@@ -38,7 +38,9 @@
   } from '../lib/api';
   import { eventTime } from '../lib/events';
   import {
+    CHAT_DELETED,
     CHAT_MESSAGE,
+    MEMBERS_ONLY,
     CHAT_SENT,
     SUSPICIOUS_MESSAGE,
     buttonId,
@@ -90,6 +92,11 @@
   // log; they join this chat in slice 3. Hidden until YouTube is set up.
   let youtube = $state<YouTubeChat | undefined>();
   let youtubeBot = $state(false);
+  // Your YouTube channel, which moderates (D-100): never moderated itself.
+  let youtubeChannel = $state('');
+  // Members-only chat on YouTube, as its chat last said; undefined when
+  // StreamGremlin hasn't seen it change. Only YouTube Studio changes it.
+  let membersOnly = $state<{ on: boolean; at: string } | undefined>();
   // Where the send box sends (D-098): both by default while YouTube chat is read.
   let to = $state<ChatTarget>('both');
   let logEl = $state<HTMLDivElement | undefined>();
@@ -182,6 +189,17 @@
     const next = [...lines];
     let fresh = 0;
     for (const ev of recs) {
+      if (ev.type === MEMBERS_ONLY) {
+        membersOnly = { on: ev.payload?.enabled === true, at: ev.occurred_at };
+        continue;
+      }
+      if (ev.type === CHAT_DELETED) {
+        // A message deleted, by anyone: shown struck through.
+        const id = ev.payload?.message_id;
+        const i = typeof id === 'string' && id ? next.findIndex((x) => x.messageId === id) : -1;
+        if (i >= 0) next[i] = { ...next[i], deleted: true };
+        continue;
+      }
       const l = ev.type === SUSPICIOUS_MESSAGE ? suspiciousLine(ev) : chatLine(ev);
       const i = l.messageId ? next.findIndex((x) => x.messageId === l.messageId) : -1;
       if (i < 0) {
@@ -210,13 +228,16 @@
   let asking = $state<{ line: ChatLine; action: ModAction; extra: { seconds?: number; message_id?: string }; words: ConfirmWords } | undefined>();
 
   function askThen(l: ChatLine, action: ModAction, extra: { seconds?: number; message_id?: string } = {}) {
-    const words = confirmWords(action, l.name, { seconds: extra.seconds, text: action === 'delete' ? l.text : undefined });
+    const words = confirmWords(action, l.name, { seconds: extra.seconds, text: action === 'delete' ? l.text : undefined, platform: l.platform });
     if (words) asking = { line: l, action, extra, words };
     else moderateLine(l, action, extra);
   }
-  // YouTube lines are moderated from here in M6 slice 5.
+  // YouTube lines are moderated as your channel while its chat is read (D-100).
   const canModerate = (l: ChatLine) =>
-    l.platform === 'twitch' && youIn && !l.test && !l.own && !!l.userId && l.userId !== twitch?.streamer.user_id;
+    !l.test && !l.own && !!l.userId &&
+    (l.platform === 'youtube'
+      ? ytLive && !!youtubeChannel && l.userId !== youtubeChannel
+      : youIn && l.userId !== twitch?.streamer.user_id);
 
   // The gear beside a name opens a small menu of quick actions, so they
   // stay next to the name however long the message is.
@@ -282,7 +303,7 @@
     modNotice = '';
     modProblem = '';
     try {
-      const res = await moderate({ request_id: newRequestId(), action, platform: 'twitch', user_id: l.userId, login: l.login, from: 'live', ...extra });
+      const res = await moderate({ request_id: newRequestId(), action, platform: l.platform, user_id: l.userId, login: l.login || l.name, from: 'live', ...extra });
       moderated(res.record);
       const words = modWords(res.record, l.name, res.duplicate);
       if (res.record.state === 'done') modNotice = words;
@@ -383,6 +404,7 @@
       const st = await getYouTube();
       youtube = st.chat && st.chat.state !== 'off' ? st.chat : undefined;
       youtubeBot = st.bot?.state === 'connected';
+      youtubeChannel = st.streamer?.state === 'connected' || st.streamer?.state === 'unknown' ? (st.streamer.channel?.id ?? '') : '';
     } catch {
       youtube = undefined; // the Twitch line already says when the engine is unknown
     }
@@ -423,12 +445,12 @@
       while (!abort.signal.aborted) {
         try {
           if (cursor === undefined) {
-            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE] }, abort.signal);
+            const page = await getEvents({ limit: 100, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE, CHAT_DELETED, MEMBERS_ONLY] }, abort.signal);
             lines = [];
             add(page.events);
             cursor = page.head;
           } else {
-            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE] }, abort.signal);
+            const page = await getEvents({ after: cursor, wait: 20, limit: 200, types: [CHAT_MESSAGE, CHAT_SENT, SUSPICIOUS_MESSAGE, CHAT_DELETED, MEMBERS_ONLY] }, abort.signal);
             add(page.events);
             if (page.events.length > 0) cursor = page.events[page.events.length - 1].seq;
             if (page.head < cursor) cursor = undefined; // a different data folder: start again
@@ -909,6 +931,12 @@
       {#if modesProblem}
         <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> {modes ? modesProblem : `Unknown: ${modesProblem}`}</p>
       {/if}
+      {#if youtube}
+        <p class="sg-muted live-yt-modes">
+          YouTube: members-only chat {membersOnly ? `turned ${membersOnly.on ? 'on' : 'off'} at ${eventTime(membersOnly.at)}` : 'hasn’t changed while StreamGremlin was reading'}.
+          YouTube’s API can’t change it or slow mode: use YouTube Studio.
+        </p>
+      {/if}
       <details class="live-log-details" ontoggle={(e) => {
         logOpen = (e.currentTarget as HTMLDetailsElement).open;
         if (logOpen) loadLog();
@@ -955,7 +983,7 @@
   {@const q = asking}
   <ConfirmDialog
     title={q.words.title}
-    message={q.action === 'ban' ? `${q.words.message} To give a reason, use their card (click their name).` : q.words.message}
+    message={q.action === 'ban' && q.line.platform === 'twitch' ? `${q.words.message} To give a reason, use their card (click their name).` : q.words.message}
     confirmLabel={q.words.confirmLabel}
     onconfirm={() => {
       const { line, action, extra } = q; // read before closing clears it

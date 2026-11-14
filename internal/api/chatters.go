@@ -29,6 +29,10 @@ type ChatterCard struct {
 	// Suspicious is Twitch's newest flag on them while StreamGremlin was
 	// listening; nil when Twitch hasn't flagged them in that time.
 	Suspicious *Suspicion `json:"suspicious"`
+	// YouTubeBan is the ban or timeout made on a YouTube viewer from
+	// StreamGremlin and not undone from here: only it can be undone
+	// (D-100). nil for Twitch, or when there's none.
+	YouTubeBan *moderation.Record `json:"youtube_ban,omitempty"`
 }
 
 // cardMessages is how many recent messages a card shows.
@@ -40,7 +44,8 @@ func chatterRoutes(d Deps) []Route {
 		Summary: "A viewer card for a chatter: what Twitch says now (account, follow, subscription, VIP, moderator, banned; " +
 			"each fact it couldn't read is listed as unknown, with why), StreamGremlin's record and points, and their newest " +
 			"10 chat messages, what was done to them from StreamGremlin, and Twitch's newest suspicious-user flag on them. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed. " +
-			"For platform youtube: their newest messages only, for now.",
+			"For platform youtube: their newest messages, what was done to them from StreamGremlin, and youtube_ban, the ban or " +
+			"timeout made from StreamGremlin that can be undone (YouTube lists no bans).",
 		Permission: PermViewersRead,
 		Handler: func(w http.ResponseWriter, r *http.Request) {
 			platform, id := r.PathValue("platform"), r.PathValue("user_id")
@@ -48,8 +53,9 @@ func chatterRoutes(d Deps) []Route {
 				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "platform must be twitch or youtube")
 				return
 			}
-			// A YouTube chatter's card has their newest messages; YouTube's
-			// facts, points and moderating come in M6 slices 5 and 6 (D-098).
+			// A YouTube chatter's card has their newest messages and what was
+			// done from StreamGremlin (D-100); YouTube has no facts to ask
+			// about one viewer. Points come in M6 slice 6.
 			yt := platform == events.SourceYouTube
 			if id == "" || len(id) > 64 {
 				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "user_id must be 1 to 64 characters")
@@ -98,10 +104,16 @@ func chatterRoutes(d Deps) []Route {
 			}
 			out.Messages = msgs
 			out.Moderation = []moderation.Record{}
-			if !test && !yt && d.Moderation != nil {
+			if !test && d.Moderation != nil {
 				if out.Moderation, err = d.Moderation.List(r.Context(), platform, id, 10); err != nil {
 					internalError(w, r, d.Logger, err)
 					return
+				}
+				if yt {
+					if out.YouTubeBan, err = d.Moderation.YouTubeBan(r.Context(), id); err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
 				}
 			}
 			if !test && !yt {

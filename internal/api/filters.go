@@ -33,6 +33,10 @@ type FilterCatch struct {
 	UserID string `json:"user_id"`
 	Login  string `json:"login"`
 	Name   string `json:"name"`
+	// Platform is twitch or youtube; Note says why YouTube got a delete
+	// instead (D-100).
+	Platform string `json:"platform"`
+	Note     string `json:"note,omitempty"`
 }
 
 // FilterCheck is the body of POST /v1/filters/check.
@@ -65,9 +69,11 @@ func filtersView(r *http.Request, d Deps, st filters.Settings) (FiltersView, err
 			State   string `json:"state"`
 			Answer  string `json:"answer"`
 			Text    string `json:"text"`
+			Note    string `json:"note"`
 		}
 		_ = json.Unmarshal(rec.Payload, &p)
-		c := FilterCatch{At: rec.OccurredAt, Rule: p.Rule, Action: p.Action, Seconds: p.Seconds, State: p.State, Answer: p.Answer, Text: p.Text}
+		c := FilterCatch{At: rec.OccurredAt, Rule: p.Rule, Action: p.Action, Seconds: p.Seconds, State: p.State, Answer: p.Answer, Text: p.Text,
+			Platform: rec.Source, Note: p.Note}
 		if a := rec.Actor; a != nil {
 			c.UserID, c.Login, c.Name = a.ID, a.Login, a.DisplayName
 		}

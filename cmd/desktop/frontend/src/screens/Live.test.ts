@@ -180,7 +180,7 @@ describe('Live', () => {
     expect(lines[1].textContent).toContain('YouTube');
     expect(lines[1].textContent).toContain(': from YouTube');
     expect(lines[1].querySelector('.live-badge[title="Member"]')).toBeTruthy();
-    // YouTube lines are moderated from Live in a later slice.
+    // Without your YouTube channel signed in, YouTube lines can't be moderated.
     expect(lines[0].querySelector('.live-gear')).toBeTruthy();
     expect(lines[1].querySelector('.live-gear')).toBeNull();
     expect(el.textContent).toContain('YouTube: reading the chat of “Friday stream”');
@@ -554,6 +554,54 @@ describe('Live moderating', () => {
   const posts = (calls: { method: string; path: string; body: unknown }[]) =>
     calls.filter((c) => c.method === 'POST' && c.path === '/v1/moderation').map((c) => c.body as Record<string, unknown>);
 
+  it('moderates YouTube lines as your channel, and strikes through deleted messages (D-100)', async () => {
+    const ytChat = (seq: number, id: string, name: string, text: string) => ({
+      ...chat(seq, name, text, { message_id: `LCC.${seq}`, chatter: { id, display_name: name } }),
+      source: 'youtube',
+      actor: { platform: 'youtube', id, display_name: name },
+    });
+    const { calls } = engine({
+      events: [ytChat(3, 'UCfan', 'Fan', 'spam here'), ytChat(4, 'UCme', 'Me', 'my own'), ytChat(5, 'UCother', 'Other', 'deleted elsewhere')],
+      later: [
+        { ...ytChat(6, 'UCother', 'Other', ''), type: 'chat.message.deleted', actor: undefined, payload: { message_id: 'LCC.5' } },
+        { ...ytChat(7, 'UCstreamer', 'Me', ''), type: 'chat.members_only.changed', actor: undefined, payload: { enabled: true } },
+      ],
+      extra: {
+        '/v1/connections/youtube': () => ({
+          status: 200,
+          body: { streamer: { state: 'connected', channel: { id: 'UCme', title: 'Me' } }, bot: { state: 'signed_out' },
+            chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'Friday stream', live_chat_id: 'c1' } } },
+        }),
+      },
+    });
+    const el = start();
+    await settle(120);
+    const lineOf = (name: string) => Array.from(el.querySelectorAll('.live-line')).find((li) => li.querySelector('.live-name')?.textContent === name)!;
+    expect(lineOf('Me').querySelector('.live-gear')).toBeNull(); // your own channel
+    expect(lineOf('Other').textContent).toContain('Deleted'); // YouTube said it was deleted
+    expect(el.textContent).toContain('members-only chat turned on');
+    expect(el.textContent).toContain('use YouTube Studio');
+    lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click();
+    flushSync();
+    button(document.querySelector('[role="menu"]')!, 'Delete message…')!.click();
+    flushSync();
+    const ask = document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    expect(ask.textContent).toContain('removed from YouTube chat');
+    expect(ask.textContent).toContain('20 of today’s YouTube quota units');
+    button(ask, 'Delete')!.click();
+    await settle(20);
+    expect(posts(calls)[0]).toMatchObject({ action: 'delete', message_id: 'LCC.3', user_id: 'UCfan', login: 'Fan', platform: 'youtube', from: 'live' });
+    expect(lineOf('Fan').textContent).toContain('Deleted');
+    lineOf('Fan').querySelector<HTMLButtonElement>('.live-gear')!.click();
+    flushSync();
+    button(document.querySelector('[role="menu"]')!, 'Ban…')!.click();
+    flushSync();
+    const ban = document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    expect(ban.textContent).toContain('200 of today’s YouTube quota units');
+    expect(ban.textContent).not.toContain('give a reason'); // YouTube takes none
+    await noViolations('YouTube moderating');
+  });
+
   it('shows the bot’s and workflows’ own messages, marked, with nothing to moderate (D-087)', async () => {
     engine({
       events: [chat(3, 'Fan', '!uptime')],
@@ -752,6 +800,48 @@ describe('Live moderating', () => {
     await settle(60);
     expect(el.querySelector('.live-modes')!.textContent).toContain('Unknown: Sign in with your Twitch account first.');
     expect(button(el, 'Slow')).toBeUndefined();
+  });
+
+  it('moderates a YouTube viewer from their card, undoing only a ban made here (D-100)', async () => {
+    const yt = {
+      ...chat(3, 'Fan', 'hello', { message_id: 'LCC.3', chatter: { id: 'UCfan', display_name: 'Fan', is_moderator: true } }),
+      source: 'youtube',
+      actor: { platform: 'youtube', id: 'UCfan', display_name: 'Fan' },
+    };
+    let card: ChatterCard = {
+      platform: 'youtube', user_id: 'UCfan', twitch: null, viewer: null, currency: 'points', messages: [], suspicious: null,
+      moderation: [{ id: 'm1', request_id: 'r1', action: 'timeout', platform: 'youtube', login: 'Fan', seconds: 600, from: 'filter', state: 'done',
+        created_at: now, result_id: 'ban1' }],
+    };
+    card.youtube_ban = card.moderation[0];
+    const { calls } = engine({
+      events: [yt],
+      extra: {
+        '/v1/chatters/youtube/UCfan': () => ({ status: 200, body: card }),
+        '/v1/connections/youtube': () => ({
+          status: 200,
+          body: { streamer: { state: 'connected', channel: { id: 'UCme', title: 'Me' } }, bot: { state: 'signed_out' },
+            chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'T', live_chat_id: 'c1' } } },
+        }),
+      },
+    });
+    const el = start();
+    await settle(120);
+    button(el, 'Fan')!.click();
+    await settle(30);
+    const dlg = document.querySelector<HTMLElement>('.viewer-card')!;
+    expect(dlg.textContent).toContain('Moderate on YouTube');
+    expect(dlg.textContent).toContain('Time out 10 minutes on YouTube, by a chat filter');
+    expect(dlg.textContent).toContain('200 of today’s YouTube quota units');
+    expect(dlg.textContent).not.toContain('A test chatter');
+    expect(button(dlg, 'Warn…')).toBeUndefined(); // YouTube has no warnings
+    expect(button(dlg, 'Remove moderator')).toBeTruthy(); // their message says they're a moderator
+    await noViolations('YouTube card');
+    card = { ...card, youtube_ban: null };
+    button(dlg, 'End the timeout')!.click();
+    await settle(30);
+    expect(posts(calls)[0]).toMatchObject({ action: 'unban', user_id: 'UCfan', platform: 'youtube' });
+    expect(button(dlg, 'Ban…')).toBeTruthy();
   });
 
   it('moderates from the card: a timeout with a reason, a warning needs one, a ban asks first', async () => {

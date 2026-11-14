@@ -71,8 +71,8 @@ func YouTubeManifest() Manifest {
 				"one resumes from nextPageToken, also after a restart (saved). FAILED_PRECONDITION means the chat ended or is " +
 				"off (Google can't say which); chatEndedEvent and offlineAt end it too; RESOURCE_EXHAUSTED is too fast, unless " +
 				"it says quota. Text messages are stored as chat.message.received (source youtube) and, for !commands said while " +
-				"reading, chat.command.received; Live shows them with Twitch's (D-098). Super Chats and the other types in slice 4, " +
-				"deletions and bans in slice 5."},
+				"reading, chat.command.received; Live shows them with Twitch's (D-098). Super Chats and the other types in slice 4; " +
+				"tombstones (deleted messages) as chat.message.deleted in slice 5."},
 			{Name: "send", Support: "supported", Notes: "liveChatMessages.insert (POST /liveChat/messages?part=snippet, " +
 				"textMessageEvent), 20 units a message, as the bot channel when signed in, otherwise yours, to the chat being " +
 				"read. Google's reference states no length limit; YouTube's chat box takes 200 characters, so longer messages " +
@@ -88,8 +88,22 @@ func YouTubeManifest() Manifest {
 				"sponsorOnlyModeStarted/Ended as chat.members_only.changed; userBannedEvent as moderation.user.banned or " +
 				".timed_out (banType, banDurationSeconds), about the banned channel. Amounts aren't converted. Your broadcast " +
 				"going live is recorded when its chat first answers, and offline when the chat ends (chatEndedEvent, offlineAt " +
-				"or FAILED_PRECONDITION): a broadcast ending while StreamGremlin is closed has no offline event. Deletions " +
-				"(tombstone) come in slice 5, polls in slice 7. Events from before StreamGremlin was reading are marked backlog."},
+				"or FAILED_PRECONDITION): a broadcast ending while StreamGremlin is closed has no offline event. A tombstone is " +
+				"stored as chat.message.deleted (source youtube, deleted:<message id>), shown struck through on Live; Google's wording " +
+				"leaves open whether a deletion sends one, so StreamGremlin's own deletes record it too. Polls in slice 7. Events " +
+				"from before StreamGremlin was reading are marked backlog."},
+			{Name: "moderate", Support: "partial", Notes: "M6 slice 5 (D-100), always as your channel, the chat's owner, to the " +
+				"chat being read: liveChatMessages.delete (20 units); liveChatBans.insert, type permanent or temporary with " +
+				"banDurationSeconds (200; Google states no longest timeout, so StreamGremlin keeps Twitch's 2 weeks); " +
+				"liveChatBans.delete (200) by the ban's id, which only insert's answer gives: Google has no way to list bans, so " +
+				"only a ban or timeout made from StreamGremlin can be undone, and the id is kept in the moderation record. Whether a " +
+				"ban's id still works after its broadcast ends isn't documented. liveChatModerators.insert and .delete (200, owner " +
+				"only); a moderator added elsewhere is found with liveChatModerators.list (50 a page, owner only, kept 10 minutes; " +
+				"its scope isn't stated, youtube.force-ssl is assumed). No reason field, no warnings, no VIPs. Not in the API: " +
+				"members-only mode and slow mode (YouTube Studio only; members-only changes are seen as events). Errors in words: " +
+				"liveChatBanInsertionNotAllowed (the owner or a moderator), modificationNotAllowed, liveChatMessageNotFound, " +
+				"liveChatBanNotFound, quotaExceeded. Nothing is retried: no answer is recorded as unknown. Chat filters delete on " +
+				"YouTube unless a rule asks to time out too, and only delete with under 1,000 units left."},
 			{Name: "roles", Support: "supported", Notes: "authorDetails: isChatOwner is the broadcaster, isChatModerator a " +
 				"moderator, isChatSponsor a channel member, counted as a subscriber for roles and command permissions (D-098). " +
 				"YouTube has no VIPs."},

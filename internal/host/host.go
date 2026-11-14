@@ -230,15 +230,17 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := mods.Recover(ctx); err != nil {
 		return nil, err
 	}
+	mods.UseYouTube(h.youtube)
 	h.filters = filters.New(filters.Options{Inbox: inbox, Settings: set, Moderation: mods, Logger: log,
-		BotID: func() string { a, _ := h.twitch.Account(twitch.RoleBot); return a.Status().UserID }})
+		BotID:            func() string { a, _ := h.twitch.Account(twitch.RoleBot); return a.Status().UserID },
+		YouTubeQuotaLeft: h.youtube.QuotaLeft})
 	discordBase, err := testServerURL(opts.DiscordAPIURL, discord.DefaultBase, "Discord")
 	if err != nil {
 		return nil, err
 	}
 	h.discord = discord.New(discord.Options{Settings: set, Secrets: sec, Logger: log.With("component", "discord"), Base: discordBase})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Filters: h.filters, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, YouTube: h.youtube, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Filters: h.filters, Moderation: mods, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, YouTube: h.youtube, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox, OverlayTimers: h.clocks})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).

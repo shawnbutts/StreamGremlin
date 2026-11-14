@@ -1503,10 +1503,12 @@ export interface ChatterCard {
   moderation: ModRecord[];
   /** Twitch's newest suspicious-user flag while StreamGremlin listened; null when none. */
   suspicious: Suspicion | null;
+  /** YouTube: the ban or timeout made from StreamGremlin, the only kind that can be undone here (D-100). */
+  youtube_ban?: ModRecord | null;
 }
 
-// Moderating from chat (D-079). Each request is sent to Twitch once, as you,
-// and recorded with Twitch's answer.
+// Moderating from chat (D-079; YouTube D-100). Each request is sent once, as
+// you, and recorded with the platform's answer.
 export type ModAction =
   | 'delete' | 'timeout' | 'ban' | 'unban' | 'warn' | 'shoutout' | 'vip' | 'unvip' | 'mod' | 'unmod'
   | 'monitor' | 'restrict' | 'unsuspect' | 'chat_modes';
@@ -1534,7 +1536,7 @@ export type ChatModesChange = Partial<{
 export interface ModRequest {
   request_id: string;
   action: ModAction;
-  platform: 'twitch';
+  platform: 'twitch' | 'youtube';
   user_id?: string;
   login?: string;
   message_id?: string;
@@ -1562,6 +1564,8 @@ export interface ModRecord {
   created_at: string;
   answered_at?: string;
   settings?: ChatModes;
+  /** YouTube's id for the ban or moderator it made, so it can be undone. */
+  result_id?: string;
 }
 
 export interface Suspicion {
@@ -1958,6 +1962,8 @@ export interface FilterRuleSettings {
   seconds: number;
   exempt_vips: boolean;
   exempt_subscribers: boolean;
+  /** On YouTube, a timeout too (200 quota units); otherwise it only deletes there (D-100). */
+  youtube_same?: boolean;
 }
 export interface FilterSettings {
   on: boolean;
@@ -1980,6 +1986,9 @@ export interface FilterCatch {
   user_id: string;
   login: string;
   name: string;
+  platform?: 'twitch' | 'youtube' | string;
+  /** Why YouTube got a delete instead. */
+  note?: string;
 }
 export interface FiltersView {
   settings: FilterSettings;

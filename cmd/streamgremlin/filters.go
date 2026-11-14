@@ -103,7 +103,14 @@ func filtersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintln(stdout, "Caught lately:")
 	for _, c := range v.Recent {
-		fmt.Fprintf(stdout, "  %s  %-9s %-8s %-8s %s: %s\n", c.At.Local().Format("Jan 2 15:04"), ruleNames[c.Rule], c.Action, c.State, c.Login, c.Text)
+		who := c.Login
+		if who == "" {
+			who = c.Name
+		}
+		if c.Platform == "youtube" {
+			who += " (YouTube)"
+		}
+		fmt.Fprintf(stdout, "  %s  %-9s %-8s %-8s %s: %s\n", c.At.Local().Format("Jan 2 15:04"), ruleNames[c.Rule], c.Action, c.State, who, c.Text)
 	}
 	return 0
 }

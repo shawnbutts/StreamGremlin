@@ -134,3 +134,18 @@ func (s *Service) broadcastEvent(ctx context.Context, b Broadcast, channel strin
 	env.CorrelationID = env.EventID
 	s.storeEvent(ctx, env)
 }
+
+// storeDeleted records that a chat message was deleted, once, whether
+// Google's tombstone or StreamGremlin's own delete says so first. Live
+// shows the message struck through.
+func (s *Service) storeDeleted(ctx context.Context, messageID, chatID string) {
+	channel := ""
+	if st := s.streamer.Status(); st.Channel != nil {
+		channel = st.Channel.ID
+	}
+	raw, _ := json.Marshal(map[string]any{"message_id": messageID, "live_chat_id": chatID})
+	env := events.Envelope{EventID: events.NewID(), Type: events.ChatDeleted, Source: events.SourceYouTube,
+		SourceEventID: "deleted:" + messageID, OccurredAt: s.now(), ChannelID: channel, Payload: raw, DeliveryQuality: events.Confirmed}
+	env.CorrelationID = env.EventID
+	s.storeEvent(ctx, env)
+}

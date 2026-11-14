@@ -29,9 +29,12 @@ type Options struct {
 	Moderation Moderator
 	// BotID returns the bot account's Twitch user id, or "": the bot is
 	// never filtered.
-	BotID  func() string
-	Logger *slog.Logger
-	Now    func() time.Time
+	BotID func() string
+	// YouTubeQuotaLeft is today's YouTube quota units left; nil counts
+	// as none (D-100).
+	YouTubeQuotaLeft func(context.Context) int
+	Logger           *slog.Logger
+	Now              func() time.Time
 }
 
 // Service watches chat and acts on what the filters catch.
@@ -224,8 +227,8 @@ var requestSafe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,50}$`)
 
 // handle judges one chat message and acts on a catch.
 func (s *Service) handle(ctx context.Context, r events.Record) {
-	if events.LogOnly(r) {
-		return
+	if events.Backlog(r) {
+		return // from before StreamGremlin was reading
 	}
 	a := r.Actor
 	if a == nil || a.ID == "" || r.Source == "core" {
@@ -255,7 +258,18 @@ func (s *Service) handle(ctx context.Context, r events.Record) {
 		return
 	}
 	rs, _ := c.Settings().RuleFor(rule)
-	out := map[string]any{"rule": rule, "action": rs.Action, "seconds": rs.Seconds, "message_id": p.MessageID, "text": p.Text}
+	action, seconds, why := rs.Action, rs.Seconds, ""
+	if a.Platform == events.SourceYouTube {
+		left := 0
+		if s.o.YouTubeQuotaLeft != nil {
+			left = s.o.YouTubeQuotaLeft(ctx)
+		}
+		action, seconds, why = rs.OnYouTube(left)
+	}
+	out := map[string]any{"rule": rule, "action": action, "seconds": seconds, "message_id": p.MessageID, "text": p.Text}
+	if why != "" {
+		out["note"] = why
+	}
 	var chatter map[string]any
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(r.Payload, &raw) == nil {
@@ -271,21 +285,21 @@ func (s *Service) handle(ctx context.Context, r events.Record) {
 		if !requestSafe.MatchString(id) {
 			id = r.EventID
 		}
-		req := moderation.Request{RequestID: "filter-" + id, Action: rs.Action, Platform: a.Platform, UserID: a.ID, Login: a.Login,
-			Seconds: rs.Seconds, From: moderation.FromFilter}
-		if rs.Action == ActionDelete {
+		req := moderation.Request{RequestID: "filter-" + id, Action: action, Platform: a.Platform, UserID: a.ID, Login: a.Login,
+			Seconds: seconds, From: moderation.FromFilter}
+		if action == ActionDelete {
 			req.MessageID = p.MessageID
 		} else {
 			req.Reason = Reason(rule)
 		}
 		rec, _, err := s.o.Moderation.Do(ctx, req)
 		if err != nil {
-			s.log.Warn("a chat filter couldn't act", "rule", rule, "action", rs.Action, "user_id", a.ID, "err", err)
+			s.log.Warn("a chat filter couldn't act", "rule", rule, "action", action, "user_id", a.ID, "err", err)
 			out["state"], out["answer"] = moderation.Refused, err.Error()
 		} else {
 			out["state"], out["answer"], out["request_id"] = rec.State, rec.Answer, rec.RequestID
 		}
-		s.log.Info("a chat filter caught a message", "rule", rule, "action", rs.Action, "user_id", a.ID, "login", a.Login,
+		s.log.Info("a chat filter caught a message", "platform", a.Platform, "rule", rule, "action", action, "user_id", a.ID, "login", a.Login,
 			"state", out["state"])
 	}
 	payload, _ := json.Marshal(out)

@@ -79,18 +79,20 @@ func moderationRoutes(d Deps) []Route {
 	return []Route{
 		{
 			Method: "POST", Path: "/v1/moderation",
-			Summary: "Moderate on Twitch as you, once: {request_id, action, platform, user_id, login?, message_id?, seconds?, reason?, " +
-				"chat_modes?, from}. Actions: delete (message_id), timeout (seconds 1-1209600, reason?), ban (reason?), unban, warn (reason), " +
-				"shoutout, vip, unvip, mod, unmod, monitor, restrict, unsuspect, chat_modes. Recorded with Twitch's answer: done, refused " +
-				"(with why) or unknown (no answer: never sent again). The same request_id again returns the record and sends nothing.",
+			Summary: "Moderate on Twitch or YouTube as you, once: {request_id, action, platform, user_id, login?, message_id?, seconds?, " +
+				"reason?, chat_modes?, from}. Twitch: delete (message_id), timeout (seconds 1-1209600, reason?), ban (reason?), unban, warn " +
+				"(reason), shoutout, vip, unvip, mod, unmod, monitor, restrict, unsuspect, chat_modes. YouTube (user_id is the channel id; " +
+				"quota units in brackets): delete (message_id) [20], timeout (seconds, reason? kept here only) [200], ban [200], unban, only " +
+				"of a ban made from StreamGremlin [200], mod [200], unmod [200, +50 to look them up]. Recorded with the answer: done, " +
+				"refused (with why) or unknown (no answer: never sent again). The same request_id again returns the record and sends nothing.",
 			Permission: PermModerationWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				var req moderation.Request
 				if !decodeJSON(w, r, &req) {
 					return
 				}
-				if req.From == moderation.FromFilter {
-					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli: only the chat filters act as filter")
+				if req.From == moderation.FromFilter || req.From == moderation.FromWorkflow {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli: only the chat filters and workflows act as filter and workflow")
 					return
 				}
 				rec, dup, err := d.Moderation.Do(r.Context(), req)
@@ -108,7 +110,7 @@ func moderationRoutes(d Deps) []Route {
 		},
 		{
 			Method: "GET", Path: "/v1/moderation",
-			Summary:    "Moderating done from StreamGremlin, newest first: everyone's, or ?platform=twitch&user_id= one account's. ?limit= 1-500 (default 50).",
+			Summary:    "Moderating done from StreamGremlin, newest first: everyone's, or ?platform=twitch|youtube&user_id= one account's. ?limit= 1-500 (default 50).",
 			Permission: PermModerationRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				limit, err := intParam(r.URL.Query().Get("limit"), 50, 1, 500)

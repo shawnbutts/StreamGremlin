@@ -57,6 +57,20 @@ The viewer is the actor. Twitch has no request to read a viewer's flags, so the 
   - **Done from StreamGremlin** lists the record;
   - suspicious users' messages are marked, merged with the chat message by its id in either order, or shown on their own when chat didn't carry them.
 
+### YouTube (M6 slice 5, D-100)
+
+Added 2026-11-14. The same record, sent once the same way, with `platform` `youtube`:
+
+- **As your channel**, the chat's owner, to the live chat being read. YouTube's actions are delete, timeout, ban, unban, mod and unmod, under the same names. Warnings, shoutouts, VIPs, suspicious users and chat modes are refused as invalid: YouTube has none of them in its API.
+- **`user_id` is the channel id** (UC…). A reason is kept in the record only; YouTube takes none.
+- **Migration `0033_moderation_youtube.sql`** adds `result_id`, what YouTube made: a ban's id or a moderator's id. YouTube can't list bans, and an unban needs the ban's id, so:
+  - an unban looks up the newest done ban or timeout for that channel with a `result_id`, not followed by a done unban;
+  - with none, it's refused as invalid before anything is recorded: "undo it in YouTube Studio";
+  - removing a moderator uses the id from StreamGremlin's own `mod`, else YouTube's list (50 units).
+- **`from` can be `workflow`** for the "Moderate the viewer" step. Its request id is made from the step's idempotency key, so a retried step returns the record and sends nothing. The API refuses `workflow`, as it does `filter`, from anyone else.
+- **`GET /v1/chatters/youtube/{channel}`** includes the viewer's record and `youtube_ban`, the ban that can be undone.
+- **`streamgremlin mod -youtube …`** sends timeout, ban, unban, delete, mod, unmod and history, naming viewers by channel id.
+
 ## Alternatives considered
 
 - **Retrying an unclear answer:** a timeout sent twice restarts its clock. Rejected, as for ads.
@@ -70,3 +84,4 @@ The viewer is the actor. Twitch has no request to read a viewer's flags, so the 
 - Every moderating request from StreamGremlin can be looked up later with Twitch's answer, from the app or `streamgremlin mod history`.
 - An action Twitch never answered stays unknown. The streamer checks chat, and can send it again as a new request.
 - Moderating done on Twitch's site or by mods isn't in this record; their effect shows on the viewer card, which asks Twitch fresh.
+- On YouTube, a ban or timeout made elsewhere can't be undone from StreamGremlin, and nothing tells it about one beyond the chat's own ban event. A ban whose id was lost (an unknown answer) can't be undone here either.

@@ -115,6 +115,7 @@ type Service struct {
 	lastEnded  string
 	onlineFor  string // the broadcast whose going live was recorded
 	lookEvery  time.Duration
+	mods       moderatorList // the chat's moderators, kept a while (moderate.go)
 	own        chat.OwnSends // workflows' messages sent as you, to skip their echo
 	retryAfter time.Duration // the first wait before reconnecting
 }

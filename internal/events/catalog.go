@@ -68,6 +68,11 @@ const ButtonPressed = "buttons.button.pressed"
 // as Twitch echoed it: for the Live screen, never viewer chat (D-087).
 const ChatSent = "chat.message.sent"
 
+// ChatDeleted is a chat message deleted, by anyone, with its message_id:
+// for the Live screen, which strikes it through (D-100). No trigger offers
+// it, and it isn't in the catalog: it's a mark on a message, not news.
+const ChatDeleted = "chat.message.deleted"
+
 // FilterCaught is the event a chat filter adds when it catches a message
 // (D-085).
 const FilterCaught = "chat.filter.caught"
@@ -809,8 +814,8 @@ const SourceYouTube = "youtube"
 
 // LogOnly reports whether r is a YouTube event that the caller doesn't
 // handle yet. M6 brings YouTube in slice by slice (D-097): workflows,
-// commands, first words and timers take it in slice 3 (D-098); chat
-// filters (slice 5), points, giveaways and viewers (slice 6) and the
+// commands, first words and timers take it in slice 3 (D-098), chat
+// filters in slice 5 (D-100); points, giveaways and viewers (slice 6) and the
 // Discord summary skip it until theirs, rather than treat a YouTube viewer
 // as a Twitch one.
 func LogOnly(r Record) bool { return r.Source == SourceYouTube }

@@ -60,6 +60,30 @@ type Rule struct {
 	Seconds           int  `json:"seconds"`
 	ExemptVIPs        bool `json:"exempt_vips"`
 	ExemptSubscribers bool `json:"exempt_subscribers"`
+	// YouTubeSame makes a timeout a timeout on YouTube too (200 quota
+	// units each); otherwise the rule only deletes there (D-100).
+	YouTubeSame bool `json:"youtube_same"`
+}
+
+// YouTubeQuotaFloor: with fewer of today's YouTube quota units left, the
+// filters only delete on YouTube, so a spam wave can't spend the rest.
+const YouTubeQuotaFloor = 1000
+
+// OnYouTube is what the rule does to a YouTube message (D-100): YouTube has
+// no warnings, and a timeout costs ten deletes, so a rule deletes unless
+// YouTubeSame is on and the quota allows. why says when it was changed.
+func (r Rule) OnYouTube(quotaLeft int) (action string, seconds int, why string) {
+	switch {
+	case r.Action == ActionWarn:
+		return ActionDelete, 0, "YouTube has no warnings, so it was deleted"
+	case r.Action != ActionTimeout:
+		return r.Action, r.Seconds, ""
+	case !r.YouTubeSame:
+		return ActionDelete, 0, ""
+	case quotaLeft < YouTubeQuotaFloor:
+		return ActionDelete, 0, fmt.Sprintf("fewer than %d YouTube quota units are left today, so it was deleted instead", YouTubeQuotaFloor)
+	}
+	return r.Action, r.Seconds, ""
 }
 
 // LinkRule catches web addresses, except to allowed sites.

@@ -36,6 +36,8 @@ export function eventSummary(ev: EventRecord): string {
       return `${from} gifted ${num('count') > 1 ? `${num('count')} × ` : ''}${p.gift ?? 'a gift'} (${num('jewels')} Jewels)`;
     case 'chat.members_only.changed':
       return p.enabled ? 'YouTube chat is members-only' : 'YouTube chat is open to everyone';
+    case 'chat.message.deleted':
+      return 'A YouTube chat message was deleted';
     case 'moderation.user.banned':
       return `${who} was banned on YouTube`;
     case 'moderation.user.timed_out':

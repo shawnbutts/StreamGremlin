@@ -468,9 +468,15 @@ func (s *Service) storeChat(ctx context.Context, b Broadcast, channel string, it
 			ended = true
 			continue
 		case livechat.TypeText:
+		case livechat.TypeTombstone:
+			// A deleted message, by anyone (D-100).
+			if m.ID != "" {
+				s.storeDeleted(ctx, m.ID, b.LiveChatID)
+			}
+			continue
 		default:
-			// Super Chats, memberships, bans and the rest (D-099). Deletions
-			// come with moderating in slice 5, polls in slice 7.
+			// Super Chats, memberships, bans and the rest (D-099). Polls
+			// come in slice 7.
 			if env := eventEnvelope(m, b, channel, backlog); env != nil && m.ID != "" {
 				s.storeEvent(ctx, *env)
 			} else {

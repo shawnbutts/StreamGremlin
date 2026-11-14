@@ -68,7 +68,7 @@
   let asking = $state<{ action: ModAction; extra: { seconds?: number; reason?: string }; words: ConfirmWords } | undefined>();
 
   function askThen(action: ModAction, extra: { seconds?: number; reason?: string } = {}) {
-    const words = confirmWords(action, line.name, extra);
+    const words = confirmWords(action, line.name, { ...extra, platform: line.platform });
     if (words) asking = { action, extra, words };
     else act(action, extra);
   }
@@ -78,7 +78,7 @@
     modNotice = '';
     modProblem = '';
     try {
-      const res = await moderate({ request_id: newRequestId(), action, platform: 'twitch', user_id: line.userId, login: line.login, from: 'live', ...extra });
+      const res = await moderate({ request_id: newRequestId(), action, platform: line.platform, user_id: line.userId, login: line.login || line.name, from: 'live', ...extra });
       const words = modWords(res.record, line.name, res.duplicate);
       if (res.record.state === 'done') {
         modNotice = words;
@@ -102,6 +102,12 @@
   }
 
   let card = $state<ChatterCard | undefined>();
+  // A YouTube moderator: as StreamGremlin last made them, else as their
+  // message said.
+  const youtubeModerator = $derived.by(() => {
+    const last = card?.moderation.find((m) => m.state === 'done' && (m.action === 'mod' || m.action === 'unmod'));
+    return last ? last.action === 'mod' : line.badges.includes('Moderator');
+  });
   let error = $state('');
   let loading = $state(false);
   let headingEl = $state<HTMLHeadingElement | undefined>();
@@ -191,7 +197,7 @@
       {#if line.channelUrl}
         <p><button type="button" class="button" onclick={() => openInBrowser(line.channelUrl!)}>Open their YouTube channel</button></p>
       {/if}
-      <p class="sg-muted">Points and moderating YouTube viewers come in a later update.</p>
+      <p class="sg-muted">YouTube’s API tells apps nothing more about one viewer. Points for YouTube viewers come in a later update.</p>
     {/if}
     {#if card.twitch}
       <h3>On Twitch</h3>
@@ -253,6 +259,38 @@
             <button type="button" class="button" disabled={busy} onclick={() => act('unsuspect')}>Treat as usual</button>
           {/if}
         </div>
+        <p class="saved" role="status">{modNotice}</p>
+        {#if modProblem}<p class="error" role="alert">{modProblem}</p>{/if}
+      </div>
+    {/if}
+    {#if canModerate && line.platform === 'youtube'}
+      <h3>Moderate on YouTube</h3>
+      <div class="viewer-card-mod">
+        <div class="row-actions">
+          <label>
+            <span class="visually-hidden">Timeout length</span>
+            <select class="sg-input" bind:value={seconds}>
+              {#each TIMEOUTS as t (t)}<option value={t}>{lengthWords(t)}</option>{/each}
+            </select>
+          </label>
+          <button type="button" class="button" disabled={busy} onclick={() => askThen('timeout', { seconds })}>Time out…</button>
+          {#if card.youtube_ban}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unban')}>
+              {card.youtube_ban.action === 'timeout' ? 'End the timeout' : 'Unban'}
+            </button>
+          {:else}
+            <button type="button" class="button button-danger" disabled={busy} onclick={() => askThen('ban')}>Ban…</button>
+          {/if}
+          {#if youtubeModerator}
+            <button type="button" class="button" disabled={busy} onclick={() => act('unmod')}>Remove moderator</button>
+          {:else}
+            <button type="button" class="button" disabled={busy} onclick={() => askThen('mod')}>Make moderator…</button>
+          {/if}
+        </div>
+        <p class="sg-muted viewer-card-when">
+          Each uses 200 of today’s YouTube quota units. YouTube takes no reason. Only a ban or timeout made from StreamGremlin can be
+          undone here; undo others in YouTube Studio.
+        </p>
         <p class="saved" role="status">{modNotice}</p>
         {#if modProblem}<p class="error" role="alert">{modProblem}</p>{/if}
       </div>

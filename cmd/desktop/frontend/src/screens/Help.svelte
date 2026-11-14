@@ -63,7 +63,12 @@
       doesn’t answer it says unknown and isn’t sent again. <strong>Chat modes</strong> turns emote-only, followers-only,
       slow, subscribers-only and unique chat on and off. Twitch’s suspicious-user flags (a likely or possible ban evader,
       someone banned in a channel you share bans with) show on their messages and card, and “A suspicious user chats” can
-      start a workflow.
+      start a workflow. YouTube lines are moderated too, as your YouTube channel, while its chat is read: delete (20 quota
+      units), time out, ban, and make or remove a moderator (200 each). YouTube takes no reason, has no warnings, and can
+      only undo a ban or timeout StreamGremlin made: undo others in YouTube Studio. Members-only and slow mode on YouTube
+      change only in YouTube Studio; Live says when members-only turns on or off. Messages deleted on YouTube, by anyone,
+      are struck through. The step “Moderate the viewer” deletes, times out or bans the viewer behind a workflow’s event,
+      on the platform it came from.
     </dd>
     <dt>Events</dt>
     <dd>Everything StreamGremlin hears: chat messages, <code>!commands</code>, OBS scene changes. Test events look real to workflows but are marked Test.</dd>
@@ -121,7 +126,9 @@
     <dd>
       Catch spam in chat: links (except allowed sites), capitals, symbols, too many emotes, repeats, and your own words. Each
       filter deletes the message, times the viewer out or warns them, as you, and never touches you, your moderators or your bot;
-      each can leave VIPs or subscribers alone. What they caught is listed with Twitch’s answer. Try a message to see what would
+      each can leave VIPs or subscribers alone. They watch YouTube chat too, where they delete (20 quota units) unless a
+      timeout rule says “Time out on YouTube too” (200 units each, and only while at least 1,000 units are left today);
+      YouTube has no warnings, so a warning deletes there. What they caught is listed with the answer. Try a message to see what would
       catch it. Templates add !permit, which lets a viewer post a link for a minute, and a reply saying why a message went.
       Twitch’s Blocked Terms are listed there too: remove one, or copy your words to Twitch and Twitch’s terms to your words
       (copying only adds). Twitch’s AutoMod is set on Twitch.

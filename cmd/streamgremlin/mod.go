@@ -30,9 +30,15 @@ const modUsage = `usage:
   streamgremlin mod modes [emote=on|off] [followers=off|MINUTES] [slow=off|SECONDS] [subs=on|off] [unique=on|off]
   streamgremlin mod history [@NAME]                      what was done from StreamGremlin, newest first
 
-Each is sent to Twitch once, as you, and recorded with Twitch's answer. @NAME is
-someone StreamGremlin has seen in chat. If Twitch doesn't answer, it's not sent
-again: check chat.`
+  streamgremlin mod -youtube timeout|ban|unban|mod|unmod CHANNEL_ID [DURATION]
+  streamgremlin mod -youtube delete MESSAGE_ID
+  streamgremlin mod -youtube history [CHANNEL_ID]
+
+Each is sent once, as you, and recorded with the answer. @NAME is someone
+StreamGremlin has seen in chat. If there's no answer, it's not sent again:
+check chat. On YouTube (your live chat, by channel id: UC…) a delete costs 20
+of the day's quota units and the rest 200; only a ban or timeout made from
+StreamGremlin can be undone, and YouTube takes no reason.`
 
 func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "help" || args[0] == "-h" || args[0] == "--help" {
@@ -46,9 +52,22 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	usage := func() int { fmt.Fprintln(stderr, modUsage); return 2 }
+	platform := moderation.PlatformTwitch
+	if args[0] == "-youtube" {
+		platform, args = moderation.PlatformYouTube, args[1:]
+		if len(args) == 0 {
+			return usage()
+		}
+		switch args[0] {
+		case "timeout", "ban", "unban", "mod", "unmod", "delete", "history":
+		default:
+			fmt.Fprintf(stderr, "YouTube can't %s: it can time out, ban, unban, delete, and add or remove moderators.\n", args[0])
+			return 2
+		}
+	}
 	sub, args := args[0], args[1:]
 	send := func(req moderation.Request, what string) int {
-		req.RequestID, req.Platform, req.From = events.NewID(), "twitch", moderation.FromCLI
+		req.RequestID, req.Platform, req.From = events.NewID(), platform, moderation.FromCLI
 		var res api.ModerationResult
 		if code := apiExit(c.Do(ctx, "POST", "/v1/moderation", req, &res), stderr); code != 0 {
 			return code
@@ -64,7 +83,15 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		}
 		return 1
 	}
-	who := func(name string) (api.ViewerView, int) { return findViewer(ctx, c, name, stderr) }
+	who := func(name string) (api.ViewerView, int) {
+		if platform == moderation.PlatformYouTube {
+			// YouTube viewers are named by channel id until they have records (M6 slice 6).
+			v := api.ViewerView{}
+			v.UserID, v.DisplayName = strings.TrimPrefix(name, "@"), strings.TrimPrefix(name, "@")
+			return v, 0
+		}
+		return findViewer(ctx, c, name, stderr)
+	}
 	switch sub {
 	case "timeout", "ban":
 		fs := flag.NewFlagSet(sub, flag.ContinueOnError)
@@ -204,7 +231,7 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if code != 0 {
 				return code
 			}
-			path += "?platform=twitch&user_id=" + url.QueryEscape(v.UserID)
+			path += "?platform=" + platform + "&user_id=" + url.QueryEscape(v.UserID)
 		} else if len(args) > 1 {
 			return usage()
 		}

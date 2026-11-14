@@ -73,6 +73,9 @@ type Server struct {
 	lastToken  string
 	sent       []SentMessage
 	banned     map[string]bool
+	bansByID   map[string]ban
+	mods       map[string]moderator
+	deleted    []string
 	grpc       interface {
 		ServeHTTP(http.ResponseWriter, *http.Request)
 	}
@@ -89,6 +92,7 @@ func New() *Server {
 		},
 		codes: map[string]grant{}, access: map[string]token{}, refresh: map[string]token{},
 		ttl: time.Hour, calls: map[string]int{}, now: time.Now, chats: map[string]*chat{}, banned: map[string]bool{},
+		bansByID: map[string]ban{}, mods: map[string]moderator{},
 	}
 	s.grpc = s.grpcServer()
 	return s
@@ -142,7 +146,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/youtube/v3/liveBroadcasts":
 		s.liveBroadcasts(w, r)
 	case "/youtube/v3/liveChat/messages":
-		s.insertMessage(w, r)
+		if r.Method == http.MethodDelete {
+			s.deleteMessage(w, r)
+		} else {
+			s.insertMessage(w, r)
+		}
+	case "/youtube/v3/liveChat/bans":
+		s.bans(w, r)
+	case "/youtube/v3/liveChat/moderators":
+		s.moderators(w, r)
 	case "/mock", "/mock/live", "/mock/say", "/mock/superchat", "/mock/member", "/mock/end", "/mock/drop":
 		s.controlPage(w, r)
 	case "/o/oauth2/v2/auth":

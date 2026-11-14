@@ -343,3 +343,76 @@ func TestYouTubeEventsThroughTheCLI(t *testing.T) {
 		return ""
 	})
 }
+
+// Moderating YouTube through the real engine, CLI and mockyoutube (M6
+// slice 5, D-100): a timeout undone by the ban id YouTube gave, an unban
+// refused for a ban not made here, Twitch-only actions refused, and a chat
+// filter deleting a link on YouTube by default, shown as deleted.
+func TestYouTubeModerationThroughTheCLI(t *testing.T) {
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	e := startEngine(t, dir, "-youtube-url", ytSrv.URL)
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	b := yt.GoLive("UCstreamer", "Mod stream")
+	if out, _, code := cli(t, dir, "youtube", "find"); code != 0 || !strings.Contains(out, "reading chat") {
+		t.Fatal(code, out)
+	}
+	ok := func(want string, args ...string) {
+		t.Helper()
+		out, errOut, code := cli(t, dir, args...)
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("%v: %d %s %s", args, code, out, errOut)
+		}
+	}
+	ok("Timed out UCspam for 10m0s.", "mod", "-youtube", "timeout", "UCspam", "10m")
+	if !yt.Banned("UCspam") {
+		t.Fatal("not timed out")
+	}
+	ok("Unbanned UCspam.", "mod", "-youtube", "unban", "UCspam")
+	if yt.Banned("UCspam") {
+		t.Fatal("still timed out")
+	}
+	if _, errOut, code := cli(t, dir, "mod", "-youtube", "unban", "UCspam"); code == 0 || !strings.Contains(errOut, "YouTube Studio") {
+		t.Fatal("an unban without a ban from here:", code, errOut)
+	}
+	if _, errOut, code := cli(t, dir, "mod", "-youtube", "warn", "UCspam", "hi"); code != 2 || !strings.Contains(errOut, "YouTube can't warn") {
+		t.Fatal(code, errOut)
+	}
+	ok("UCspam", "mod", "-youtube", "history", "UCspam")
+
+	// A filter set to time out deletes on YouTube unless told otherwise.
+	body := `{"on":true,
+		"words":{"on":false,"action":"delete","seconds":0,"exempt_vips":true,"exempt_subscribers":false,"list":[]},
+		"links":{"on":true,"action":"timeout","seconds":600,"exempt_vips":true,"exempt_subscribers":false,"allowed":["twitch.tv"]},
+		"emotes":{"on":false,"action":"delete","seconds":0,"exempt_vips":true,"exempt_subscribers":false,"max":10},
+		"caps":{"on":false,"action":"delete","seconds":0,"exempt_vips":true,"exempt_subscribers":false,"min_letters":10,"percent":70},
+		"symbols":{"on":false,"action":"delete","seconds":0,"exempt_vips":true,"exempt_subscribers":false,"min_length":15,"percent":50},
+		"repeats":{"on":false,"action":"delete","seconds":0,"exempt_vips":true,"exempt_subscribers":false,"times":3}}`
+	if code, out := call(t, e, "PUT", "/v1/filters", e.token, body, nil); code != 200 {
+		t.Fatal(code, out)
+	}
+	msg := yt.Say(b.ChatID, "UClinker", "Linker", "cheap followers at bit.ly/x")
+	eventually(t, "the link deleted on YouTube", func() string {
+		if d := yt.Deleted(); len(d) != 1 || d[0] != msg {
+			return fmt.Sprintf("%v", d)
+		}
+		return ""
+	})
+	if yt.Banned("UClinker") {
+		t.Fatal("timed out on YouTube without being asked to")
+	}
+	eventually(t, "the deletion in the event log", func() string {
+		if out, _, _ := cli(t, dir, "events", "-types", "chat.message.deleted"); !strings.Contains(out, "chat.message.deleted  (youtube)") {
+			return out
+		}
+		return ""
+	})
+	ok("Linker", "filters")
+}

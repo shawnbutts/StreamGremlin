@@ -1,7 +1,7 @@
 // Package moderation sends the streamer's moderating requests to Twitch
-// and records each one with Twitch's answer (M7 slice 3;
-// docs/adr/0041-moderation-record.md). Twitch gives these requests no
-// idempotency key, so a request is sent at most once: a request id makes a
+// or YouTube and records each one with the platform's answer (M7 slice 3,
+// M6 slice 5; docs/adr/0041-moderation-record.md). Neither gives these
+// requests an idempotency key, so a request is sent at most once: a request id makes a
 // repeat return the stored answer, and an answer that never came is
 // recorded as unknown, never retried.
 package moderation
@@ -17,10 +17,12 @@ import (
 	"log/slog"
 	"regexp"
 	"slices"
+	"strings"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // ChatModes is the action that changes the chat modes.
@@ -40,6 +42,14 @@ const (
 	FromCLI  = "cli"
 	// FromFilter is a chat filter acting by itself (D-085).
 	FromFilter = "filter"
+	// FromWorkflow is a workflow's step (D-100).
+	FromWorkflow = "workflow"
+)
+
+// Platforms.
+const (
+	PlatformTwitch  = "twitch"
+	PlatformYouTube = "youtube"
 )
 
 // Errors. Validation errors wrap ErrInvalid.
@@ -56,6 +66,11 @@ var requestPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 type Twitch interface {
 	Moderate(ctx context.Context, m twitch.Mod) (twitch.ModOutcome, error)
 	ChangeChatSettings(ctx context.Context, c twitch.ChatSettingsChange) (twitch.ChatSettings, twitch.ModOutcome, error)
+}
+
+// YouTube is what moderating needs from the YouTube adapter.
+type YouTube interface {
+	Moderate(ctx context.Context, m youtube.Mod) (youtube.ModOutcome, error)
 }
 
 // Request is one moderating request.
@@ -91,12 +106,16 @@ type Record struct {
 	AnsweredAt *time.Time                 `json:"answered_at,omitempty"`
 	// Settings are the chat modes after a change, when Twitch said.
 	Settings *twitch.ChatSettings `json:"settings,omitempty"`
+	// ResultID is what YouTube made (a ban or a moderator), so it can be
+	// undone.
+	ResultID string `json:"result_id,omitempty"`
 }
 
 // Service sends and records.
 type Service struct {
 	db  *storage.DB
 	tw  Twitch
+	yt  YouTube
 	log *slog.Logger
 	now func() time.Time
 }
@@ -108,6 +127,10 @@ func New(db *storage.DB, tw Twitch, log *slog.Logger) *Service {
 	}
 	return &Service{db: db, tw: tw, log: log.With("component", "moderation"), now: time.Now}
 }
+
+// UseYouTube lets requests for platform youtube through. Until it's
+// called they're refused as invalid.
+func (s *Service) UseYouTube(yt YouTube) { s.yt = yt }
 
 func invalid(f string, a ...any) error { return fmt.Errorf("%w: %s", ErrInvalid, fmt.Sprintf(f, a...)) }
 
@@ -121,21 +144,26 @@ func newID() string {
 // may not have acted. Run it once at start, before Do.
 func (s *Service) Recover(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE moderation SET state = 'unknown', answered_at = ?,
-		answer = 'StreamGremlin stopped before Twitch answered, so it may or may not have happened.' WHERE state = 'pending'`,
+		answer = 'StreamGremlin stopped before the answer came, so it may or may not have happened.' WHERE state = 'pending'`,
 		storage.Timestamp(s.now()))
 	return err
 }
 
-func check(r Request) error {
+func (s *Service) check(r Request) error {
 	switch {
-	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter:
-		return invalid("a request comes from live, cli or filter")
-	case r.Platform != "twitch":
-		return invalid("platform must be twitch")
+	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter && r.From != FromWorkflow:
+		return invalid("a request comes from live, cli, filter or workflow")
+	case r.Platform != PlatformTwitch && r.Platform != PlatformYouTube:
+		return invalid("platform must be twitch or youtube")
+	case r.Platform == PlatformYouTube && s.yt == nil:
+		return invalid("YouTube isn't set up")
 	case r.RequestID == "" || len(r.RequestID) > maxRequest || !requestPattern.MatchString(r.RequestID):
 		return invalid("a request id is 1 to %d letters, digits, - and _", maxRequest)
 	case len(r.Login) > 64:
 		return invalid("a login is up to 64 characters")
+	}
+	if r.Platform == PlatformYouTube {
+		return checkYouTube(r)
 	}
 	if r.Action == ChatModes {
 		if r.Chat == nil {
@@ -164,11 +192,18 @@ func same(rec Record, r Request) bool {
 // id seen before returns the stored record, with dup true, and sends
 // nothing.
 func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
-	if err := check(r); err != nil {
-		if errors.Is(err, twitch.ErrInvalid) {
+	if err := s.check(r); err != nil {
+		if errors.Is(err, twitch.ErrInvalid) || errors.Is(err, youtube.ErrInvalid) {
 			return Record{}, false, fmt.Errorf("%w: %w", ErrInvalid, err)
 		}
 		return Record{}, false, err
+	}
+	var ytMod youtube.Mod
+	if r.Platform == PlatformYouTube {
+		var err error
+		if ytMod, err = s.youtubeMod(ctx, r); err != nil {
+			return Record{}, false, err
+		}
 	}
 	chat := ""
 	if r.Chat != nil {
@@ -209,6 +244,10 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 		if err == nil && out.State == Done {
 			rec.Settings = &cs
 		}
+	} else if r.Platform == PlatformYouTube {
+		var yo youtube.ModOutcome
+		yo, err = s.yt.Moderate(send, ytMod)
+		out, rec.ResultID = twitch.ModOutcome{State: yo.State, Detail: yo.Detail}, yo.ID
 	} else {
 		out, err = s.tw.Moderate(send, twitch.Mod{Action: r.Action, UserID: r.UserID, MessageID: r.MessageID, Seconds: r.Seconds, Reason: r.Reason})
 	}
@@ -218,23 +257,23 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 	}
 	at := s.now().UTC()
 	rec.State, rec.Answer, rec.AnsweredAt = out.State, out.Detail, &at
-	if _, err := s.db.ExecContext(send, `UPDATE moderation SET state = ?, answer = ?, answered_at = ? WHERE id = ?`,
-		rec.State, rec.Answer, storage.Timestamp(at), rec.ID); err != nil {
+	if _, err := s.db.ExecContext(send, `UPDATE moderation SET state = ?, answer = ?, answered_at = ?, result_id = ? WHERE id = ?`,
+		rec.State, rec.Answer, storage.Timestamp(at), rec.ResultID, rec.ID); err != nil {
 		return Record{}, false, fmt.Errorf("moderation: record the answer: %w", err)
 	}
-	s.log.Info("moderated", "action", rec.Action, "user_id", rec.UserID, "login", rec.Login, "from", rec.From, "state", rec.State)
+	s.log.Info("moderated", "platform", rec.Platform, "action", rec.Action, "user_id", rec.UserID, "login", rec.Login, "from", rec.From, "state", rec.State)
 	return rec, false, nil
 }
 
 const selectRecord = `SELECT id, request_id, action, platform, user_id, user_login, message_id, seconds, reason, detail_json,
-	from_where, state, answer, created_at, answered_at FROM moderation `
+	from_where, state, answer, created_at, answered_at, result_id FROM moderation `
 
 func scan(sc interface{ Scan(...any) error }) (Record, error) {
 	var r Record
 	var chat, created string
 	var answered sql.NullString
 	if err := sc.Scan(&r.ID, &r.RequestID, &r.Action, &r.Platform, &r.UserID, &r.Login, &r.MessageID, &r.Seconds, &r.Reason, &chat,
-		&r.From, &r.State, &r.Answer, &created, &answered); err != nil {
+		&r.From, &r.State, &r.Answer, &created, &answered, &r.ResultID); err != nil {
 		return Record{}, err
 	}
 	if chat != "" {
@@ -284,5 +323,83 @@ func (s *Service) List(ctx context.Context, platform, userID string, limit int) 
 	return out, rows.Err()
 }
 
-// Actions are the actions a request may name.
+// Actions are the actions a request may name, on either platform.
 func Actions() []string { return append(slices.Clone(twitch.ModActions), ChatModes) }
+
+// checkYouTube checks a YouTube request: YouTube has no chat modes,
+// warnings, shoutouts, VIPs or suspicious-user treatment. A reason is kept
+// in the record only: YouTube takes none.
+func checkYouTube(r Request) error {
+	if r.Chat != nil || r.Action == ChatModes {
+		return invalid("YouTube's chat modes can only be changed in YouTube Studio")
+	}
+	if r.Reason != "" && r.Action != youtube.ModBan && r.Action != youtube.ModTimeout {
+		return invalid("only a ban or a timeout has a reason")
+	}
+	if len([]rune(r.Reason)) > twitch.MaxModReason {
+		return invalid("a reason is up to %d characters", twitch.MaxModReason)
+	}
+	m := youtube.Mod{Action: r.Action, ChannelID: r.UserID, MessageID: r.MessageID, Seconds: r.Seconds}
+	if r.Action == youtube.ModUnban {
+		m.BanID = "checked-later" // found in the record by youtubeMod
+	}
+	if r.Action == youtube.ModDelete {
+		m.ChannelID = ""
+	}
+	return youtube.CheckMod(m)
+}
+
+// youtubeMod makes the request YouTube is sent. Undoing a ban needs the
+// ban's id from when StreamGremlin made it; removing a moderator uses
+// theirs when StreamGremlin added them (else YouTube is asked).
+func (s *Service) youtubeMod(ctx context.Context, r Request) (youtube.Mod, error) {
+	m := youtube.Mod{Action: r.Action, ChannelID: r.UserID, MessageID: r.MessageID, Seconds: r.Seconds}
+	if r.Action == youtube.ModDelete {
+		m.ChannelID = ""
+	}
+	switch r.Action {
+	case youtube.ModUnban:
+		ban, err := s.YouTubeBan(ctx, r.UserID)
+		if err != nil {
+			return m, err
+		}
+		if ban == nil {
+			return m, invalid("YouTube can only undo a ban or timeout made from StreamGremlin: undo this one in YouTube Studio")
+		}
+		m.BanID = ban.ResultID
+	case youtube.ModUnmod:
+		last, ok, err := s.latestDone(ctx, r.UserID, youtube.ModMod, youtube.ModUnmod)
+		if err != nil {
+			return m, err
+		}
+		if ok && last.Action == youtube.ModMod {
+			m.ModeratorID = last.ResultID
+		}
+	}
+	return m, nil
+}
+
+// YouTubeBan is the ban or timeout StreamGremlin made on a YouTube
+// viewer that hasn't been undone from here, or nil: only it can be undone.
+func (s *Service) YouTubeBan(ctx context.Context, channelID string) (*Record, error) {
+	last, ok, err := s.latestDone(ctx, channelID, youtube.ModBan, youtube.ModTimeout, youtube.ModUnban)
+	if err != nil || !ok || last.Action == youtube.ModUnban || last.ResultID == "" {
+		return nil, err
+	}
+	return &last, nil
+}
+
+// latestDone is the newest done YouTube request for a viewer among actions.
+func (s *Service) latestDone(ctx context.Context, channelID string, actions ...string) (Record, bool, error) {
+	q := selectRecord + `WHERE platform = 'youtube' AND user_id = ? AND state = 'done' AND action IN (?` +
+		strings.Repeat(", ?", len(actions)-1) + `) ORDER BY created_at DESC, rowid DESC LIMIT 1`
+	args := []any{channelID}
+	for _, a := range actions {
+		args = append(args, a)
+	}
+	rec, err := scan(s.db.QueryRowContext(ctx, q, args...))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Record{}, false, nil
+	}
+	return rec, err == nil, err
+}
