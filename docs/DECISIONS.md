@@ -1816,3 +1816,10 @@ Decided 2026-11-14. I proposed this slice and the user said "proceed". Checked a
   - StreamGremlin's own limits, since Google gives none: a question up to 100 characters, a choice up to 35.
 - **Active chatters:** every 5 minutes while you're live on Twitch or YouTube, the people who spoke in either chat in the last 10 minutes (**Active chatters**, `chat.chatters.active`), never you, history or test events, and only when someone spoke. It never claims who's watching. Changed from the proposal's "each minute": a minute would store 60 events an hour for little use.
 - **Workflows made before this slice** keep their follow, title and poll triggers to Twitch, once, as D-099 did for going live. New triggers hear both unless **Which platform** says otherwise.
+
+## D-103. Add-ons see YouTube and any later chat
+
+Decided 2026-11-14. Until now an add-on's `sg.chat` sent to Twitch only, even when the event that ran it came from YouTube. The user: "add-ons should see youtube and any future chats".
+
+- Add-ons get every platform's chat and events the way workflows do, and nothing in an add-on names a platform unless it wants to. A platform added later reaches add-ons without changing them.
+- Built in M6 slice 8; the details are recorded when it's built.
