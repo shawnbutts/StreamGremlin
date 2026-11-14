@@ -1646,7 +1646,7 @@ Decided 2026-11-13. The user: "when doing the slide-in, pop-in, etc, the Look is
 
 **Live-checked** 2026-11-13. The user: "looks good".
 
-**Not yet live-checked: D-091's files.** Now playing from Pretzel's real Write to File files hasn't been tried since the API version was removed; it's on M7's real-stream checklist.
+**Live-checked 2026-11-13: D-091's files.** Now playing from Pretzel's real Write to File files passed on M7's real stream, on macOS and Windows. The user: "live stream checks went well.  no issues found".
 
 ## D-094. Two races the tests caught: OBS's status and ads' breaks
 
