@@ -26,6 +26,11 @@ type ChatModesView struct {
 	// Settings are nil when Twitch couldn't be asked; Problem says why.
 	Settings *twitch.ChatSettings `json:"settings"`
 	Problem  string               `json:"problem,omitempty"`
+	// Shield is Shield Mode, nil when unknown (ShieldProblem says why);
+	// Lock is the lock in place from StreamGremlin, if any (D-105).
+	Shield        *twitch.Shield     `json:"shield"`
+	ShieldProblem string             `json:"shield_problem,omitempty"`
+	Lock          *moderation.Record `json:"lock"`
 }
 
 // Suspicion is what Twitch last said about a suspicious chatter, while
@@ -81,7 +86,8 @@ func moderationRoutes(d Deps) []Route {
 			Method: "POST", Path: "/v1/moderation",
 			Summary: "Moderate on Twitch or YouTube as you, once: {request_id, action, platform, user_id, login?, message_id?, seconds?, " +
 				"reason?, chat_modes?, from}. Twitch: delete (message_id), timeout (seconds 1-1209600, reason?), ban (reason?), unban, warn " +
-				"(reason), shoutout, vip, unvip, mod, unmod, monitor, restrict, unsuspect, chat_modes. YouTube (user_id is the channel id; " +
+				"(reason), shoutout, vip, unvip, mod, unmod, monitor, restrict, unsuspect, chat_modes, shield_mode (on: true or false), lock " +
+				"(Shield Mode, emote-only and followers-only on, recording what was there) and unlock (puts back what the lock changed). YouTube (user_id is the channel id; " +
 				"quota units in brackets): delete (message_id) [20], timeout (seconds, reason? kept here only) [200], ban [200], unban, only " +
 				"of a ban made from StreamGremlin [200], mod [200], unmod [200, +50 to look them up]. Recorded with the answer: done, " +
 				"refused (with why) or unknown (no answer: never sent again). The same request_id again returns the record and sends nothing.",
@@ -128,19 +134,35 @@ func moderationRoutes(d Deps) []Route {
 		},
 		{
 			Method: "GET", Path: "/v1/chat/settings",
-			Summary:    "Your Twitch chat modes now: emote-only, followers-only (and for how long), slow (and the wait), subscribers-only, unique chat. Unknown, with why, when Twitch can't be asked.",
+			Summary: "Your Twitch chat modes now: emote-only, followers-only (and for how long), slow (and the wait), subscribers-only, " +
+				"unique chat; Shield Mode; and the lock in place from StreamGremlin, with what it changed. Unknown, with why, when Twitch " +
+				"can't be asked.",
 			Permission: PermModerationRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
 				if d.Twitch == nil {
 					writeJSON(w, http.StatusOK, ChatModesView{Problem: "Twitch isn't set up."})
 					return
 				}
-				cs, err := d.Twitch.ChatSettings(r.Context())
-				if err != nil {
-					writeJSON(w, http.StatusOK, ChatModesView{Problem: chatModesProblem(err)})
-					return
+				var v ChatModesView
+				if cs, err := d.Twitch.ChatSettings(r.Context()); err != nil {
+					v.Problem = chatModesProblem(err)
+				} else {
+					v.Settings = &cs
 				}
-				writeJSON(w, http.StatusOK, ChatModesView{Settings: &cs})
+				if sh, err := d.Twitch.ShieldMode(r.Context()); err != nil {
+					v.ShieldProblem = chatModesProblem(err)
+				} else {
+					v.Shield = &sh
+				}
+				if d.Moderation != nil {
+					lock, err := d.Moderation.Locked(r.Context())
+					if err != nil {
+						internalError(w, r, d.Logger, err)
+						return
+					}
+					v.Lock = lock
+				}
+				writeJSON(w, http.StatusOK, v)
 			},
 		},
 	}

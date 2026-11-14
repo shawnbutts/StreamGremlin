@@ -1,0 +1,35 @@
+{
+  "template": {
+    "id": "shield-live",
+    "title": "Shield Mode off when I go live",
+    "category": "Moderation",
+    "description": "When you go live on Twitch, turns Shield Mode off. Goes with \"Shield Mode on when I go offline\".",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "moderation.shield-live",
+    "name": "Shield Mode off when I go live",
+    "group": "Moderation",
+    "triggers": [
+      {
+        "type": "broadcast.channel.online",
+        "sources": [
+          "twitch"
+        ]
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "twitch.shield_mode.set",
+        "with": {
+          "on": "off"
+        }
+      }
+    ]
+  }
+}

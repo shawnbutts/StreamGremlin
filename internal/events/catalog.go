@@ -452,6 +452,14 @@ func Catalog() []Kind {
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"gift": v["gift"], "jewels": atoi(v["jewels"]), "count": atoi(v["count"]), "description": v["gift"], "from": a.DisplayName}
 			}),
+		{Type: "moderation.shield_mode.changed", Label: "Shield Mode", Description: "Shield Mode turned on or off on Twitch, from anywhere.",
+			Sources: []string{"twitch"},
+			Fields: []Field{{Name: "enabled", Label: "Turned on", Kind: "choice", Default: "true", Max: 5, Choices: []string{"true", "false"}},
+				{Name: "moderator", Label: "Who did it", Kind: "text", Default: "TestMod", Max: 25}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"enabled": v["enabled"] == "true", "at": "2026-11-08T20:00:00Z",
+					"moderator": map[string]any{"id": "test-mod", "login": strings.ToLower(v["moderator"]), "name": v["moderator"]}}, nil, nil
+			}},
 		{Type: "chat.members_only.changed", Label: "Members-only chat", Description: "Members-only chat turned on or off on YouTube.",
 			Sources: []string{SourceYouTube},
 			Fields:  []Field{{Name: "enabled", Label: "Turned on", Kind: "choice", Default: "true", Max: 5, Choices: []string{"true", "false"}}},

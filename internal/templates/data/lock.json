@@ -1,0 +1,57 @@
+{
+  "template": {
+    "id": "lock",
+    "title": "!lock and !unlock chat",
+    "category": "Moderation",
+    "description": "Mods and you type !lock to turn on Shield Mode, emote-only and followers-only at once, as Live's Lock chat button does, and !unlock to put chat back as it was.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.lock",
+    "name": "!lock and !unlock chat",
+    "group": "Moderation",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "sources": [
+          "twitch"
+        ],
+        "where": {
+          "command": "lock",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      },
+      {
+        "type": "chat.command.received",
+        "sources": [
+          "twitch"
+        ],
+        "where": {
+          "command": "unlock",
+          "chatter.role": [
+            "moderator",
+            "broadcaster"
+          ]
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 2
+    },
+    "steps": [
+      {
+        "id": "lock",
+        "action": "twitch.chat.lock",
+        "with": {
+          "how": "${event.payload.command}"
+        }
+      }
+    ]
+  }
+}

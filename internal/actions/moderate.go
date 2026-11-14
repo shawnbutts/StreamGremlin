@@ -61,20 +61,63 @@ func registerModeration(reg *workflow.Registry, mods *moderation.Service) {
 			}
 			// The same step of the same run is the same request, so a
 			// repeat never moderates twice.
-			sum := sha256.Sum256([]byte(c.IdempotencyKey))
-			req.RequestID = "wf-" + hex.EncodeToString(sum[:20])
-			rec, _, err := mods.Do(ctx, req)
-			if err != nil {
-				return nil, err
-			}
-			out := map[string]any{"platform": rec.Platform, "action": rec.Action, "state": rec.State, "answer": rec.Answer, "request_id": rec.RequestID}
-			switch rec.State {
-			case moderation.Done:
-				return out, nil
-			case moderation.Unknown:
-				return out, fmt.Errorf("no answer, so it may or may not have happened: %s", rec.Answer)
-			}
-			return out, fmt.Errorf("refused: %s", rec.Answer)
+			return doMod(ctx, mods, c, req)
 		},
 	})
+}
+
+// registerProtection adds Shield Mode and locking chat (D-105): Twitch
+// only, as you, through the moderation record. They're always offered.
+func registerProtection(reg *workflow.Registry, mods *moderation.Service) {
+	reg.Add(workflow.Action{
+		Name: "twitch.shield_mode.set", Label: "Turn Shield Mode on or off", Group: "Twitch", External: true,
+		Description: "Turns Twitch's Shield Mode on or off, as you. Shield Mode applies the stricter settings you chose in Twitch's " +
+			"Mod View. Sent once and kept in the moderation record.",
+		Params: []workflow.Param{{Name: "on", Label: "Shield Mode", Type: "choice", Required: true, Choices: []string{"on", "off"}}},
+		Run: func(ctx context.Context, c workflow.Call) (any, error) {
+			v, _ := c.String("on", "")
+			if v != "on" && v != "off" {
+				return nil, fmt.Errorf("on or off, not %q", v)
+			}
+			on := v == "on"
+			return doMod(ctx, mods, c, moderation.Request{Action: moderation.ShieldMode, Platform: moderation.PlatformTwitch, On: &on,
+				From: moderation.FromWorkflow})
+		},
+	})
+	reg.Add(workflow.Action{
+		Name: "twitch.chat.lock", Label: "Lock or unlock chat", Group: "Twitch", External: true,
+		Description: fmt.Sprintf("Lock: Shield Mode, emote-only and followers-only (followed at least %d minutes) on at once, as "+
+			"Live's Lock chat button does. Unlock: puts back only what the lock changed. Kept in the moderation record.",
+			moderation.LockFollowerMinutes),
+		Params: []workflow.Param{{Name: "how", Label: "Lock or unlock", Type: "choice", Required: true, Choices: []string{"lock", "unlock"}}},
+		Run: func(ctx context.Context, c workflow.Call) (any, error) {
+			how, _ := c.String("how", "")
+			if how != moderation.Lock && how != moderation.Unlock {
+				return nil, fmt.Errorf("lock or unlock, not %q", how)
+			}
+			return doMod(ctx, mods, c, moderation.Request{Action: how, Platform: moderation.PlatformTwitch, From: moderation.FromWorkflow})
+		},
+	})
+}
+
+// doMod sends a step's request once: the same step of the same run is the
+// same request, so a repeat never moderates twice.
+func doMod(ctx context.Context, mods *moderation.Service, c workflow.Call, req moderation.Request) (any, error) {
+	if mods == nil {
+		return nil, errors.New("moderating isn't available here")
+	}
+	sum := sha256.Sum256([]byte(c.IdempotencyKey))
+	req.RequestID = "wf-" + hex.EncodeToString(sum[:20])
+	rec, _, err := mods.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"platform": rec.Platform, "action": rec.Action, "state": rec.State, "answer": rec.Answer, "request_id": rec.RequestID}
+	switch rec.State {
+	case moderation.Done:
+		return out, nil
+	case moderation.Unknown:
+		return out, fmt.Errorf("no answer, so it may or may not have happened: %s", rec.Answer)
+	}
+	return out, fmt.Errorf("refused: %s", rec.Answer)
 }

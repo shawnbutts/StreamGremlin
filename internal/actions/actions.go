@@ -287,6 +287,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	if sv.Moderation != nil {
 		registerModeration(reg, sv.Moderation)
 	}
+	registerProtection(reg, sv.Moderation)
 	registerLinks(reg, sv.Links)
 	registerChannel(reg, sv.Twitch, sv.Inbox)
 	registerDiscord(reg, sv.Discord, sv.Inbox)

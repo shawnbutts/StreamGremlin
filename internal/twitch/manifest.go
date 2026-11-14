@@ -234,6 +234,17 @@ func TwitchManifest() Manifest {
 					"reference: checked in the live check.",
 			},
 			{
+				Name: "shield_mode", Support: PermissionRequired, Scopes: []string{ShieldScope},
+				Notes: "M8 slice 1 (D-105): Get Shield Mode Status (GET /moderation/shield_mode, broadcaster_id and moderator_id) and " +
+					"Update Shield Mode Status (PUT, body is_active), moderator:manage:shield_mode (it covers reading too); " +
+					"channel.shield_mode.begin and .end v1, condition broadcaster_user_id and moderator_user_id, either shield scope, " +
+					"stored as moderation.shield_mode.changed (enabled, moderator). StreamGremlin only turns Shield Mode on and off: " +
+					"what it does is the profile the streamer set up in Twitch's Mod View, which the API doesn't expose. A lock is " +
+					"StreamGremlin's own: Shield Mode, then emote-only and followers-only (at least 10 minutes) through Update Chat " +
+					"Settings, with what was there kept so an unlock puts back only what it changed. Each request is sent once; no " +
+					"answer is unknown. Read from a summary of the reference: checked in the live check.",
+			},
+			{
 				Name: "events.suspicious_users", Support: PermissionRequired, Scopes: []string{SuspiciousReadScope},
 				Notes: "channel.suspicious_user.message and channel.suspicious_user.update v1, condition broadcaster_user_id and " +
 					"moderator_user_id (both you). Stored as moderation.suspicious_user.message (keyed by the chat message id) and " +

@@ -794,6 +794,61 @@ describe('Live moderating', () => {
     expect(details.textContent).toContain('fan: Time out 10 minutes');
   });
 
+  it('locks chat in one press, unlocks it, and turns Shield Mode on (D-105)', async () => {
+    let locked: Record<string, unknown> | null = null;
+    let shieldOn = false;
+    const { calls } = engine({
+      extra: {
+        '/v1/chat/settings': () => ({ status: 200, body: { settings: modesOff, shield: { active: shieldOn }, lock: locked } }),
+        '/v1/moderation': (method, body) => {
+          if (method !== 'POST') return { status: 200, body: { moderation: [] } };
+          const b = body as { action: string; on?: boolean };
+          let answer = '';
+          if (b.action === 'lock') {
+            locked = { id: 'lk', action: 'lock', platform: 'twitch', from: 'live', state: 'done', created_at: now };
+            shieldOn = true;
+            answer = 'Locked: Shield Mode, emote-only and followers-only (followed 10 minutes) on.';
+          } else if (b.action === 'unlock') {
+            locked = null;
+            shieldOn = false;
+            answer = 'Unlocked: chat is back as it was before the lock.';
+          } else if (b.action === 'shield_mode') shieldOn = !!b.on;
+          return { status: 200, body: { record: { id: 'm', from: 'live', platform: 'twitch', created_at: now, ...b, state: 'done', answer }, duplicate: false } };
+        },
+      },
+    });
+    const el = start();
+    await settle(60);
+    const modes = el.querySelector('.live-modes')!;
+    expect(modes.textContent).toContain('Shield Mode, emote-only and followers-only (followed at least 10 minutes) on');
+    expect(button(el, 'Shield Mode')!.getAttribute('aria-pressed')).toBe('false');
+    await noViolations('lock offered');
+    button(el, 'Lock chat')!.click();
+    await settle(30);
+    expect(posts(calls).at(-1)).toMatchObject({ action: 'lock', platform: 'twitch', from: 'live' });
+    expect(modes.textContent).toContain('Locked: Shield Mode, emote-only and followers-only');
+    expect(modes.textContent).toContain('Chat is locked');
+    expect(button(el, 'Shield Mode')!.getAttribute('aria-pressed')).toBe('true');
+    expect(button(el, 'Lock chat')).toBeUndefined();
+    await noViolations('locked');
+    button(el, 'Unlock chat')!.click();
+    await settle(30);
+    expect(posts(calls).at(-1)).toMatchObject({ action: 'unlock' });
+    expect(modes.textContent).toContain('Unlocked: chat is back as it was');
+    button(el, 'Shield Mode')!.click();
+    await settle(30);
+    expect(posts(calls).at(-1)).toMatchObject({ action: 'shield_mode', on: true });
+    expect(modes.textContent).toContain('Shield Mode is on.');
+  });
+
+  it('says Shield Mode is unknown when Twitch can’t say', async () => {
+    engine({ extra: { '/v1/chat/settings': () => ({ status: 200, body: { settings: modesOff, shield: null, shield_problem: 'Sign in to Twitch again and allow it.', lock: null } }) } });
+    const el = start();
+    await settle(60);
+    expect(el.querySelector('.live-modes')!.textContent).toContain('Shield Mode: unknown: Sign in to Twitch again and allow it.');
+    expect(button(el, 'Shield Mode')).toBeUndefined();
+  });
+
   it('says the chat modes are unknown when Twitch isn’t signed in', async () => {
     engine({ signedIn: false, extra: { '/v1/chat/settings': () => ({ status: 200, body: { settings: null, problem: 'Sign in with your Twitch account first.' } }) } });
     const el = start();

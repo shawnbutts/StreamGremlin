@@ -228,6 +228,11 @@ func Triggers() []TriggerEntry {
 			Help:  "A gift bought with YouTube Jewels, such as on a vertical stream.",
 			Match: []MatchField{}, Values: []Value{from, {Token: "gift", Label: "The gift", Expr: "event.payload.gift"},
 				{Token: "jewels", Label: "Jewels", Expr: "event.payload.jewels"}, {Token: "count", Label: "How many", Expr: "event.payload.count"}}},
+		{Type: "moderation.shield_mode.changed", Label: "Shield Mode turns on or off", Category: "Twitch", More: true,
+			Help: "Twitch's Shield Mode turns on or off, from StreamGremlin, Twitch's site or another bot. Shield Mode applies the " +
+				"stricter settings you chose in Twitch's Mod View.",
+			Match:  []MatchField{{Path: "enabled", Label: "Only when it turns", Kind: "on_off"}},
+			Values: []Value{{Token: "moderator", Label: "Who did it", Expr: "event.payload.moderator.name"}}},
 		{Type: "chat.members_only.changed", Label: "Members-only chat turns on or off", Category: "YouTube", More: true,
 			Help:  "Your YouTube chat becomes members-only, or open to everyone again.",
 			Match: []MatchField{{Path: "enabled", Label: "Only when it turns", Kind: "on_off"}}, Values: []Value{}},

@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -84,7 +85,9 @@ type Request struct {
 	Seconds   int                        `json:"seconds,omitempty"`
 	Reason    string                     `json:"reason,omitempty"`
 	Chat      *twitch.ChatSettingsChange `json:"chat_modes,omitempty"`
-	From      string                     `json:"from"`
+	// On is shield_mode's on or off (D-105).
+	On   *bool  `json:"on,omitempty"`
+	From string `json:"from"`
 }
 
 // Record is a request as recorded, with Twitch's answer.
@@ -109,15 +112,25 @@ type Record struct {
 	// ResultID is what YouTube made (a ban or a moderator), so it can be
 	// undone.
 	ResultID string `json:"result_id,omitempty"`
+	// On is shield_mode's on or off; Shield is Shield Mode after it, when
+	// Twitch said (D-105).
+	On     *bool          `json:"on,omitempty"`
+	Shield *twitch.Shield `json:"shield,omitempty"`
+	// Lock is what a lock changed and what was there before; UnlockOf is
+	// the lock an unlock undid.
+	Lock     *LockDetail `json:"lock,omitempty"`
+	UnlockOf string      `json:"unlock_of,omitempty"`
 }
 
 // Service sends and records.
 type Service struct {
-	db  *storage.DB
-	tw  Twitch
-	yt  YouTube
-	log *slog.Logger
-	now func() time.Time
+	// lockMu keeps one lock or unlock at a time (lock.go).
+	lockMu sync.Mutex
+	db     *storage.DB
+	tw     Twitch
+	yt     YouTube
+	log    *slog.Logger
+	now    func() time.Time
 }
 
 // New returns a Service.
@@ -165,6 +178,19 @@ func (s *Service) check(r Request) error {
 	if r.Platform == PlatformYouTube {
 		return checkYouTube(r)
 	}
+	switch r.Action {
+	case ShieldMode, Lock, Unlock:
+		if r.UserID != "" || r.MessageID != "" || r.Seconds != 0 || r.Reason != "" || r.Chat != nil {
+			return invalid("%s takes nothing but on", r.Action)
+		}
+		if (r.Action == ShieldMode) != (r.On != nil) {
+			return invalid("shield_mode takes on, true or false; lock and unlock take nothing")
+		}
+		return nil
+	}
+	if r.On != nil {
+		return invalid("only shield_mode takes on")
+	}
 	if r.Action == ChatModes {
 		if r.Chat == nil {
 			return invalid("chat modes need a change")
@@ -185,7 +211,8 @@ func same(rec Record, r Request) bool {
 	a, _ := json.Marshal(rec.Chat)
 	b, _ := json.Marshal(r.Chat)
 	return rec.Action == r.Action && rec.Platform == r.Platform && rec.UserID == r.UserID && rec.MessageID == r.MessageID &&
-		rec.Seconds == r.Seconds && rec.Reason == r.Reason && string(a) == string(b)
+		rec.Seconds == r.Seconds && rec.Reason == r.Reason && string(a) == string(b) && (rec.On == nil) == (r.On == nil) &&
+		(rec.On == nil || *rec.On == *r.On)
 }
 
 // Do sends a request once and records it with Twitch's answer. A request
@@ -205,6 +232,11 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 			return Record{}, false, err
 		}
 	}
+	if r.Action == Lock || r.Action == Unlock {
+		// One at a time: a lock records what was there before it.
+		s.lockMu.Lock()
+		defer s.lockMu.Unlock()
+	}
 	chat := ""
 	if r.Chat != nil {
 		b, err := json.Marshal(r.Chat)
@@ -213,8 +245,11 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 		}
 		chat = string(b)
 	}
+	if r.On != nil {
+		chat = fmt.Sprintf(`{"on":%t}`, *r.On)
+	}
 	rec := Record{ID: newID(), RequestID: r.RequestID, Action: r.Action, Platform: r.Platform, UserID: r.UserID, Login: r.Login,
-		MessageID: r.MessageID, Seconds: r.Seconds, Reason: r.Reason, Chat: r.Chat, From: r.From, State: Pending, CreatedAt: s.now().UTC()}
+		MessageID: r.MessageID, Seconds: r.Seconds, Reason: r.Reason, Chat: r.Chat, On: r.On, From: r.From, State: Pending, CreatedAt: s.now().UTC()}
 	res, err := s.db.ExecContext(ctx, `INSERT INTO moderation (id, request_id, action, platform, user_id, user_login, message_id, seconds,
 		reason, detail_json, from_where, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
 		ON CONFLICT (request_id) DO NOTHING`,
@@ -238,17 +273,21 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 	// is recorded even if the caller goes away.
 	send := context.WithoutCancel(ctx)
 	var out twitch.ModOutcome
-	if r.Action == ChatModes {
+	detail := ""
+	switch {
+	case r.Action == ShieldMode || r.Action == Lock || r.Action == Unlock:
+		out, detail = s.shieldOrLock(send, &rec)
+	case r.Action == ChatModes:
 		var cs twitch.ChatSettings
 		cs, out, err = s.tw.ChangeChatSettings(send, *r.Chat)
 		if err == nil && out.State == Done {
 			rec.Settings = &cs
 		}
-	} else if r.Platform == PlatformYouTube {
+	case r.Platform == PlatformYouTube:
 		var yo youtube.ModOutcome
 		yo, err = s.yt.Moderate(send, ytMod)
 		out, rec.ResultID = twitch.ModOutcome{State: yo.State, Detail: yo.Detail}, yo.ID
-	} else {
+	default:
 		out, err = s.tw.Moderate(send, twitch.Mod{Action: r.Action, UserID: r.UserID, MessageID: r.MessageID, Seconds: r.Seconds, Reason: r.Reason})
 	}
 	if err != nil {
@@ -257,8 +296,11 @@ func (s *Service) Do(ctx context.Context, r Request) (Record, bool, error) {
 	}
 	at := s.now().UTC()
 	rec.State, rec.Answer, rec.AnsweredAt = out.State, out.Detail, &at
-	if _, err := s.db.ExecContext(send, `UPDATE moderation SET state = ?, answer = ?, answered_at = ?, result_id = ? WHERE id = ?`,
-		rec.State, rec.Answer, storage.Timestamp(at), rec.ResultID, rec.ID); err != nil {
+	if detail == "" {
+		detail = chat
+	}
+	if _, err := s.db.ExecContext(send, `UPDATE moderation SET state = ?, answer = ?, answered_at = ?, result_id = ?, detail_json = ? WHERE id = ?`,
+		rec.State, rec.Answer, storage.Timestamp(at), rec.ResultID, detail, rec.ID); err != nil {
 		return Record{}, false, fmt.Errorf("moderation: record the answer: %w", err)
 	}
 	s.log.Info("moderated", "platform", rec.Platform, "action", rec.Action, "user_id", rec.UserID, "login", rec.Login, "from", rec.From, "state", rec.State)
@@ -277,8 +319,7 @@ func scan(sc interface{ Scan(...any) error }) (Record, error) {
 		return Record{}, err
 	}
 	if chat != "" {
-		r.Chat = &twitch.ChatSettingsChange{}
-		if err := json.Unmarshal([]byte(chat), r.Chat); err != nil {
+		if err := r.readDetail(chat); err != nil {
 			return Record{}, err
 		}
 	}
@@ -324,7 +365,9 @@ func (s *Service) List(ctx context.Context, platform, userID string, limit int) 
 }
 
 // Actions are the actions a request may name, on either platform.
-func Actions() []string { return append(slices.Clone(twitch.ModActions), ChatModes) }
+func Actions() []string {
+	return append(slices.Clone(twitch.ModActions), ChatModes, ShieldMode, Lock, Unlock)
+}
 
 // checkYouTube checks a YouTube request: YouTube has no chat modes,
 // warnings, shoutouts, VIPs or suspicious-user treatment. A reason is kept

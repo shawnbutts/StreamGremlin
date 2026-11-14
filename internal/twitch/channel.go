@@ -54,12 +54,16 @@ var Feeds = []Feed{
 	// Suspicious users (D-079): Twitch's ban-evasion and shared-ban flags.
 	{Type: "channel.suspicious_user.message", Label: "Suspicious users' messages", Version: "1", Scopes: suspiciousScopes},
 	{Type: "channel.suspicious_user.update", Label: "Suspicious users' treatment", Version: "1", Scopes: suspiciousScopes},
+	// Shield Mode (D-105).
+	{Type: "channel.shield_mode.begin", Label: "Shield Mode turning on", Version: "1", Scopes: shieldScopes},
+	{Type: "channel.shield_mode.end", Label: "Shield Mode turning off", Version: "1", Scopes: shieldScopes},
 }
 
 var (
 	pollScopes       = []string{"channel:read:polls", "channel:manage:polls"}
 	predictionScopes = []string{"channel:read:predictions", "channel:manage:predictions"}
 	suspiciousScopes = []string{SuspiciousReadScope}
+	shieldScopes     = []string{ShieldReadScope, ShieldScope}
 )
 
 // FeedStatus says whether Twitch sends one kind of event.
@@ -127,7 +131,8 @@ func (s *Service) subscribeFeeds(ctx context.Context, clientID, token, sessionID
 		}
 		cond := map[string]string{"broadcaster_user_id": userID}
 		switch f.Type {
-		case "channel.follow", "channel.suspicious_user.message", "channel.suspicious_user.update":
+		case "channel.follow", "channel.suspicious_user.message", "channel.suspicious_user.update", "channel.shield_mode.begin",
+			"channel.shield_mode.end":
 			cond["moderator_user_id"] = userID
 		case "channel.raid":
 			cond = map[string]string{"to_broadcaster_user_id": userID}
@@ -434,6 +439,25 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 			return events.Envelope{}, false
 		}
 		env.Type, payload = "moderation.suspicious_user.updated", map[string]any{"low_trust_status": e.LowTrust,
+			"moderator": map[string]any{"id": e.ModID, "login": e.ModLogin, "name": e.ModName}}
+	case "channel.shield_mode.begin", "channel.shield_mode.end":
+		var e struct {
+			ModID    string `json:"moderator_user_id"`
+			ModLogin string `json:"moderator_user_login"`
+			ModName  string `json:"moderator_user_name"`
+			Started  string `json:"started_at"`
+			Ended    string `json:"ended_at"`
+		}
+		if json.Unmarshal(raw, &e) != nil {
+			return events.Envelope{}, false
+		}
+		on := typ == "channel.shield_mode.begin"
+		at := e.Ended
+		if on {
+			at = e.Started
+		}
+		// Who turned it on or off is the moderator, not a viewer.
+		env.Type, env.Actor, payload = ShieldChanged, nil, map[string]any{"enabled": on, "at": at,
 			"moderator": map[string]any{"id": e.ModID, "login": e.ModLogin, "name": e.ModName}}
 	default:
 		return events.Envelope{}, false

@@ -42,6 +42,8 @@ var subTypes = map[string]subType{
 	"channel.ad_break.begin":          {"1", []string{"channel:read:ads"}, "broadcaster_user_id"},
 	"channel.suspicious_user.message": {"1", []string{"moderator:read:suspicious_users"}, "broadcaster_user_id"},
 	"channel.suspicious_user.update":  {"1", []string{"moderator:read:suspicious_users"}, "broadcaster_user_id"},
+	"channel.shield_mode.begin":       {"1", []string{"moderator:read:shield_mode", "moderator:manage:shield_mode"}, "broadcaster_user_id"},
+	"channel.shield_mode.end":         {"1", []string{"moderator:read:shield_mode", "moderator:manage:shield_mode"}, "broadcaster_user_id"},
 }
 
 // RefuseType makes Twitch refuse new subscriptions of typ with 403, as for

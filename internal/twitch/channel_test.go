@@ -256,3 +256,31 @@ func TestSuspiciousUsersReachTheInbox(t *testing.T) {
 		t.Fatalf("%s", upd.Payload)
 	}
 }
+
+// Shield Mode (D-105): turned on and off, from StreamGremlin or Twitch's
+// site, each an event naming the moderator, never a viewer; and read back.
+func TestShieldMode(t *testing.T) {
+	r, s := chatRig(t, false)
+	ctx := context.Background()
+	if sh, err := s.ShieldMode(ctx); err != nil || sh.Active {
+		t.Fatalf("%+v %v", sh, err)
+	}
+	sh, out, err := s.SetShieldMode(ctx, true)
+	if err != nil || out.State != ModDone || !sh.Active || sh.LastActivatedAt == nil || !r.mock.ShieldActive("streamer") {
+		t.Fatalf("%+v %+v %v", sh, out, err)
+	}
+	r.mock.SetShieldMode("streamer", "AMod", false)
+	recs := waitEvents(t, r.inbox, 2)
+	for i, on := range []bool{true, false} {
+		p := payload(t, recs[i])
+		if recs[i].Type != ShieldChanged || recs[i].Actor != nil || p["enabled"] != on {
+			t.Fatalf("%d: %+v %v", i, recs[i], p)
+		}
+	}
+	if m := payload(t, recs[1])["moderator"].(map[string]any); m["login"] != "amod" {
+		t.Fatalf("%v", m)
+	}
+	if sh, _ := s.ShieldMode(ctx); sh.Active {
+		t.Fatal("still on")
+	}
+}

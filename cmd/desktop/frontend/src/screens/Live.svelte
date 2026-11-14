@@ -27,6 +27,7 @@
     type ButtonColor,
     type ChatModes,
     type ChatModesChange,
+    type TwitchShield,
     type EventRecord,
     type ModAction,
     type ModRecord,
@@ -331,10 +332,18 @@
   const FOLLOW_CHOICES = [0, 10, 30, 60, 1440, 10080];
   const SLOW_CHOICES = [3, 5, 10, 30, 60, 120];
 
+  // Shield Mode and locking chat (D-105).
+  let shield = $state<TwitchShield | null>(null);
+  let shieldProblem = $state('');
+  let lock = $state<ModRecord | null>(null);
+
   async function loadModes() {
     if (modesBusy) return;
     try {
       const v = await getChatModes();
+      shield = v.shield ?? null;
+      shieldProblem = v.shield ? '' : (v.shield_problem ?? '');
+      lock = v.lock ?? null;
       modes = v.settings;
       modesProblem = v.settings ? '' : (v.problem ?? 'Twitch didn’t say.');
       if (v.settings?.follower_mode_duration != null) followMinutes = v.settings.follower_mode_duration;
@@ -363,6 +372,26 @@
     } finally {
       modesBusy = false;
     }
+  }
+
+  async function shieldOrLock(r: { action: 'shield_mode' | 'lock' | 'unlock'; on?: boolean }) {
+    modesBusy = true;
+    modesNotice = '';
+    try {
+      const res = await moderate({ request_id: newRequestId(), action: r.action, platform: 'twitch', on: r.on, from: 'live' });
+      if (res.record.state === 'done') {
+        modesNotice = modWords(res.record);
+        modesProblem = '';
+      } else {
+        modesProblem = modWords(res.record);
+      }
+      if (logOpen) loadLog();
+    } catch (e) {
+      modesProblem = `Not sent: ${message(e)}`;
+    } finally {
+      modesBusy = false;
+    }
+    await loadModes();
   }
 
   // What was done from StreamGremlin.
@@ -932,6 +961,26 @@
 
     <section class="sg-panel live-modes" aria-labelledby="live-modes-heading">
       <h2 id="live-modes-heading">Chat modes</h2>
+      {#if youIn}
+        <div class="live-lock">
+          {#if lock}
+            <p class="state state-unknown" role="status"><span aria-hidden="true">!</span> Chat is locked, since {eventTime(lock.created_at)}.</p>
+            <button type="button" class="button" disabled={modesBusy} onclick={() => shieldOrLock({ action: 'unlock' })}>Unlock chat</button>
+            <p class="sg-muted field-hint">Puts back only what the lock changed.</p>
+          {:else}
+            <button type="button" class="button button-danger" disabled={modesBusy} onclick={() => shieldOrLock({ action: 'lock' })}>Lock chat</button>
+            <p class="sg-muted field-hint">At once: Shield Mode, emote-only and followers-only (followed at least 10 minutes) on. Unlock puts it back.</p>
+          {/if}
+        </div>
+        {#if shield}
+          <button type="button" class="button" aria-pressed={shield.active} disabled={modesBusy}
+            onclick={() => shieldOrLock({ action: 'shield_mode', on: !shield!.active })}>Shield Mode</button
+          >
+          <p class="sg-muted field-hint">Uses the settings you chose in Twitch’s Mod View.</p>
+        {:else if shieldProblem}
+          <p class="state state-unknown"><span aria-hidden="true">?</span> Shield Mode: unknown: {shieldProblem}</p>
+        {/if}
+      {/if}
       {#if modes}
         <div class="live-mode-list">
           <button type="button" class="button" aria-pressed={modes.emote_mode} disabled={modesBusy || !youIn}
@@ -1121,6 +1170,9 @@
   }
   .live-platform[data-platform='twitch'] {
     color: var(--sg-twitch, #8f5cff);
+  }
+  .live-lock {
+    margin-bottom: 0.75rem;
   }
   .live-yt-desc {
     white-space: pre-line;

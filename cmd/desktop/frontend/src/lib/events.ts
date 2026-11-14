@@ -108,6 +108,10 @@ export function eventSummary(ev: EventRecord): string {
       return yt ? 'Offline on YouTube' : 'Offline on Twitch';
     case 'broadcast.channel.updated':
       return yt ? `YouTube title: “${p.title ?? ''}”` : `“${p.title ?? ''}”, in ${p.category || 'no category'}`;
+    case 'moderation.shield_mode.changed': {
+      const m = (p.moderator ?? {}) as { name?: string; login?: string };
+      return `Shield Mode ${p.enabled ? 'on' : 'off'}${m.name || m.login ? `, by ${m.name || m.login}` : ''}`;
+    }
     case 'broadcast.viewers.changed':
       return `${num('viewers')} watching on ${yt ? 'YouTube' : 'Twitch'} (was ${num('previous')})`;
     case 'chat.chatters.active': {

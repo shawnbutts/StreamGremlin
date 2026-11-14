@@ -355,12 +355,16 @@ const doneWords: Record<string, (name: string, r: ModRecord) => string> = {
   restrict: (n) => `Twitch restricts ${n}: only you and your mods see their messages.`,
   unsuspect: (n) => `Twitch treats ${n} as usual now.`,
   chat_modes: () => 'Chat modes changed.',
+  shield_mode: (_n, r) => `Shield Mode is ${r.on ? 'on' : 'off'}.`,
+  lock: (_n, r) => r.answer || 'Locked.',
+  unlock: (_n, r) => r.answer || 'Unlocked.',
 };
 
 const actionNames: Record<string, string> = {
   delete: 'Delete a message', timeout: 'Time out', ban: 'Ban', unban: 'Unban', warn: 'Warn', shoutout: 'Shoutout',
   vip: 'Make VIP', unvip: 'Remove VIP', mod: 'Make moderator', unmod: 'Remove moderator', monitor: 'Monitor',
   restrict: 'Restrict', unsuspect: 'Stop treating as suspicious', chat_modes: 'Chat modes',
+  shield_mode: 'Shield Mode', lock: 'Lock chat', unlock: 'Unlock chat',
 };
 
 /** How a moderating request went, in words. */
@@ -377,6 +381,7 @@ export function modWords(r: ModRecord, name = r.login || 'them', duplicate = fal
 export function historyWords(r: ModRecord): string {
   let w = actionNames[r.action] ?? r.action;
   if (r.action === 'timeout' && r.seconds) w += ` ${lengthWords(r.seconds)}`;
+  if (r.action === 'shield_mode') w += r.on ? ' on' : ' off';
   if (r.reason) w += ` (“${r.reason}”)`;
   if (r.platform === 'youtube') w += ' on YouTube';
   if (r.from === 'filter') w += ', by a chat filter';

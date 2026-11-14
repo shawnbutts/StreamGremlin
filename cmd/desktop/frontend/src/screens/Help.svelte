@@ -61,7 +61,11 @@
       the message, a 10-minute timeout, Ban, or their card. Anything that can’t be taken back asks first: deleting, a
       timeout, a ban, a warning, a shoutout and making a moderator (buttons ending in “…”). Each is sent to Twitch once, as you, and kept under “Done from StreamGremlin”; if Twitch
       doesn’t answer it says unknown and isn’t sent again. <strong>Chat modes</strong> turns emote-only, followers-only,
-      slow, subscribers-only and unique chat on and off. Twitch’s suspicious-user flags (a likely or possible ban evader,
+      slow, subscribers-only and unique chat on and off. <strong>Lock chat</strong> is the panic button for a raid: in one press
+      it turns on Twitch’s Shield Mode (the stricter settings you chose in Twitch’s Mod View), emote-only and followers-only
+      (followed at least 10 minutes); <strong>Unlock chat</strong> puts back only what it changed. <strong>Shield Mode</strong>
+      turns it on and off by itself. Mods can type <code>!lock</code> and <code>!unlock</code> with the template, and
+      “Shield Mode on when I go offline” guards chat while you’re away. Twitch’s suspicious-user flags (a likely or possible ban evader,
       someone banned in a channel you share bans with) show on their messages and card, and “A suspicious user chats” can
       start a workflow. YouTube lines are moderated too, as your YouTube channel, while its chat is read: delete (20 quota
       units), time out, ban, and make or remove a moderator (200 each). YouTube takes no reason, has no warnings, and can

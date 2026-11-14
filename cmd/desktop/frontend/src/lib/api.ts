@@ -1553,7 +1553,9 @@ export interface ChatterCard {
 // you, and recorded with the platform's answer.
 export type ModAction =
   | 'delete' | 'timeout' | 'ban' | 'unban' | 'warn' | 'shoutout' | 'vip' | 'unvip' | 'mod' | 'unmod'
-  | 'monitor' | 'restrict' | 'unsuspect' | 'chat_modes';
+  | 'monitor' | 'restrict' | 'unsuspect' | 'chat_modes'
+  // M8 slice 1 (D-105): Twitch only.
+  | 'shield_mode' | 'lock' | 'unlock';
 
 export interface ChatModes {
   emote_mode: boolean;
@@ -1585,6 +1587,8 @@ export interface ModRequest {
   seconds?: number;
   reason?: string;
   chat_modes?: ChatModesChange;
+  /** shield_mode's on or off. */
+  on?: boolean;
   from: 'live';
 }
 
@@ -1608,6 +1612,28 @@ export interface ModRecord {
   settings?: ChatModes;
   /** YouTube's id for the ban or moderator it made, so it can be undone. */
   result_id?: string;
+  on?: boolean;
+  shield?: TwitchShield;
+  /** What a lock found and changed (D-105). */
+  lock?: { before?: ChatModes; shield_before?: boolean; shield_on: boolean; chat_on: boolean; follower_minutes: number };
+  unlock_of?: string;
+}
+
+export interface TwitchShield {
+  active: boolean;
+  moderator_login?: string;
+  moderator_name?: string;
+  last_activated_at?: string;
+}
+
+export interface ChatModesView {
+  settings: ChatModes | null;
+  problem?: string;
+  /** Shield Mode; null when unknown (shield_problem says why). */
+  shield: TwitchShield | null;
+  shield_problem?: string;
+  /** The lock in place from StreamGremlin, if any. */
+  lock: ModRecord | null;
 }
 
 export interface Suspicion {
@@ -1621,7 +1647,7 @@ export interface Suspicion {
 
 export const moderate = (r: ModRequest) => api<{ record: ModRecord; duplicate: boolean }>('POST', '/v1/moderation', r);
 export const getModeration = (limit = 20) => api<{ moderation: ModRecord[] }>('GET', `/v1/moderation?limit=${limit}`);
-export const getChatModes = () => api<{ settings: ChatModes | null; problem?: string }>('GET', '/v1/chat/settings');
+export const getChatModes = () => api<ChatModesView>('GET', '/v1/chat/settings');
 
 export const getChatterCard = (platform: string, userId: string, test = false) =>
   api<ChatterCard>('GET', `/v1/chatters/${encodeURIComponent(platform)}/${encodeURIComponent(userId)}` + (test ? '?test=1' : ''));

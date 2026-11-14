@@ -392,6 +392,7 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 	case r.Method == "GET" && r.URL.Path == "/helix/chat/settings":
 		s.getChatSettingsLocked(w, r)
 	case s.moderateLocked(w, r):
+	case s.shieldLocked(w, r):
 	case s.broadcastLocked(w, r):
 	case s.blockedTermsLocked(w, r):
 	case r.Method == "GET" && r.URL.Path == "/helix/channels/vips":

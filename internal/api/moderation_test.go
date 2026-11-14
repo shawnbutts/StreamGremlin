@@ -84,6 +84,30 @@ func TestModerationThroughTheAPI(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 
+	// Shield Mode, and a lock undone (D-105).
+	if code, res, out := post(`{"request_id":"sh1","action":"shield_mode","platform":"twitch","on":true,"from":"live"}`); code != 200 ||
+		res.Record.State != "done" || !testMock.ShieldActive("modstreamer") {
+		t.Fatalf("shield: %d %s", code, out)
+	}
+	if code, res, out := post(`{"request_id":"lk1","action":"lock","platform":"twitch","from":"live"}`); code != 200 || res.Record.State != "done" ||
+		res.Record.Lock == nil || res.Record.Lock.ShieldOn {
+		t.Fatalf("lock: %d %s", code, out)
+	}
+	w = do(t, s, req{method: "GET", path: "/v1/chat/settings", token: testToken})
+	var locked ChatModesView
+	_ = json.Unmarshal(w.Body.Bytes(), &locked)
+	if locked.Shield == nil || !locked.Shield.Active || locked.Lock == nil || locked.Settings == nil || !locked.Settings.EmoteOnly {
+		t.Fatal(w.Body.String())
+	}
+	if code, res, out := post(`{"request_id":"ul1","action":"unlock","platform":"twitch","from":"live"}`); code != 200 || res.Record.State != "done" {
+		t.Fatalf("unlock: %d %s", code, out)
+	}
+	w = do(t, s, req{method: "GET", path: "/v1/chat/settings", token: testToken})
+	if !strings.Contains(w.Body.String(), `"emote_mode":false`) || !strings.Contains(w.Body.String(), `"slow_mode":true`) ||
+		!strings.Contains(w.Body.String(), `"lock":null`) || !testMock.ShieldActive("modstreamer") {
+		t.Fatal("not put back:", w.Body.String())
+	}
+
 	// History, and on the card with a suspicious flag.
 	w = do(t, s, req{method: "GET", path: "/v1/moderation?platform=twitch&user_id=" + fan, token: testToken})
 	var hist struct {

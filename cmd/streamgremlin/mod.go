@@ -29,6 +29,9 @@ const modUsage = `usage:
   streamgremlin mod modes                                the chat modes now
   streamgremlin mod modes [emote=on|off] [followers=off|MINUTES] [slow=off|SECONDS] [subs=on|off] [unique=on|off]
   streamgremlin mod history [@NAME]                      what was done from StreamGremlin, newest first
+  streamgremlin mod shield on|off                        Twitch's Shield Mode (the settings you chose in Twitch's Mod View)
+  streamgremlin mod lock                                 Shield Mode, emote-only and followers-only on at once
+  streamgremlin mod unlock                               put back what the lock changed
 
   streamgremlin mod -youtube timeout|ban|unban|mod|unmod CHANNEL_ID [DURATION]
   streamgremlin mod -youtube delete MESSAGE_ID
@@ -66,6 +69,10 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	sub, args := args[0], args[1:]
+	if platform == moderation.PlatformYouTube && (sub == "shield" || sub == "lock" || sub == "unlock") {
+		fmt.Fprintln(stderr, "YouTube has no Shield Mode or lock: use Twitch.")
+		return 2
+	}
 	send := func(req moderation.Request, what string) int {
 		req.RequestID, req.Platform, req.From = events.NewID(), platform, moderation.FromCLI
 		var res api.ModerationResult
@@ -144,6 +151,31 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return code
 		}
 		return send(moderation.Request{Action: "warn", UserID: v.UserID, Login: v.Login, Reason: strings.Join(args[1:], " ")}, "Warned "+v.DisplayName+".")
+	case "shield":
+		if len(args) != 1 || (args[0] != "on" && args[0] != "off") {
+			return usage()
+		}
+		on := args[0] == "on"
+		return send(moderation.Request{Action: moderation.ShieldMode, On: &on}, "Shield Mode is "+args[0]+".")
+	case "lock", "unlock":
+		if len(args) != 0 {
+			return usage()
+		}
+		req := moderation.Request{Action: sub, RequestID: events.NewID(), Platform: platform, From: moderation.FromCLI}
+		var res api.ModerationResult
+		if code := apiExit(c.Do(ctx, "POST", "/v1/moderation", req, &res), stderr); code != 0 {
+			return code
+		}
+		switch res.Record.State {
+		case moderation.Done:
+			fmt.Fprintln(stdout, res.Record.Answer)
+			return 0
+		case moderation.Unknown:
+			fmt.Fprintln(stderr, "Unknown: "+res.Record.Answer)
+		default:
+			fmt.Fprintln(stderr, "Not done: "+res.Record.Answer)
+		}
+		return 1
 	case "delete":
 		if len(args) != 1 {
 			return usage()
@@ -160,6 +192,17 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 				return 1
 			}
 			fmt.Fprintln(stdout, modesWords(*v.Settings))
+			switch {
+			case v.Shield != nil && v.Shield.Active:
+				fmt.Fprintln(stdout, "Shield Mode: on.")
+			case v.Shield != nil:
+				fmt.Fprintln(stdout, "Shield Mode: off.")
+			default:
+				fmt.Fprintln(stdout, "Shield Mode: unknown: "+v.ShieldProblem)
+			}
+			if v.Lock != nil {
+				fmt.Fprintf(stdout, "Locked from StreamGremlin since %s: `streamgremlin mod unlock` puts it back.\n", v.Lock.CreatedAt.Local().Format("Jan 2 15:04"))
+			}
 			return 0
 		}
 		var ch twitch.ChatSettingsChange
@@ -252,6 +295,9 @@ func modCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			if r.Action == moderation.ChatModes {
 				b, _ := json.Marshal(r.Chat)
 				target = string(b)
+			}
+			if r.Action == moderation.ShieldMode && r.On != nil {
+				target = map[bool]string{true: "on", false: "off"}[*r.On]
 			}
 			answer := ""
 			if r.Answer != "" {

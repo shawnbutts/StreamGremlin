@@ -1,0 +1,35 @@
+{
+  "template": {
+    "id": "shield-offline",
+    "title": "Shield Mode on when I go offline",
+    "category": "Moderation",
+    "description": "When you go offline on Twitch, turns Shield Mode on, so your chat is guarded while you're away. Shield Mode uses the settings you chose in Twitch's Mod View. Add \"Shield Mode off when I go live\" too.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "moderation.shield-offline",
+    "name": "Shield Mode on when I go offline",
+    "group": "Moderation",
+    "triggers": [
+      {
+        "type": "broadcast.channel.offline",
+        "sources": [
+          "twitch"
+        ]
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    },
+    "steps": [
+      {
+        "action": "twitch.shield_mode.set",
+        "with": {
+          "on": "on"
+        }
+      }
+    ]
+  }
+}

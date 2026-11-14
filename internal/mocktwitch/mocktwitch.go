@@ -27,6 +27,8 @@ import (
 // Server is a mock id.twitch.tv.
 type Server struct {
 	mu sync.Mutex
+	// shield is each channel's Shield Mode (shield.go).
+	shield map[string]*shieldState
 
 	// Settings; change them before or between calls.
 	ClientIDs      map[string]bool // accepted Client IDs; empty accepts any
