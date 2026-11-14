@@ -21,6 +21,12 @@ LDFLAGS := -buildid= \
 ifneq ($(TWITCH_CLIENT_ID),)
 LDFLAGS += -X code.streamgremlin.com/streamgremlin/internal/twitch.BuiltInClientID=$(TWITCH_CLIENT_ID)
 endif
+# StreamGremlin's own Google project, once Google approves it (D-095).
+# Never commit them. Without them, streamers use their own project.
+ifneq ($(YOUTUBE_CLIENT_ID),)
+LDFLAGS += -X code.streamgremlin.com/streamgremlin/internal/youtube.BuiltInClientID=$(YOUTUBE_CLIENT_ID)
+LDFLAGS += -X code.streamgremlin.com/streamgremlin/internal/youtube.BuiltInClientSecret=$(YOUTUBE_CLIENT_SECRET)
+endif
 
 # Prefer a Homebrew Node 24 or 22 when the default node is another version.
 NODE_BIN ?= $(firstword $(wildcard /opt/homebrew/opt/node@24/bin /opt/homebrew/opt/node@22/bin /usr/local/opt/node@24/bin /usr/local/opt/node@22/bin))
@@ -36,7 +42,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -75,6 +81,9 @@ mocktwitch: ## Build the stand-in for Twitch's sign-in server into ./bin
 
 mockdiscord: ## Build the stand-in for Discord's webhooks into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockdiscord ./cmd/mockdiscord
+
+mockyoutube: ## Build the stand-in for Google's sign-in and YouTube's API into ./bin
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockyoutube ./cmd/mockyoutube
 
 build: ## Build the CLI into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/streamgremlin ./cmd/streamgremlin

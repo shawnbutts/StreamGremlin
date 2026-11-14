@@ -1666,3 +1666,16 @@ Decided 2026-11-13, after M7 closed. The user: "draft the M6 proposal with a com
 - **Quota: each streamer's own Google project first,** with a guide in the app; StreamGremlin's own project once Google's verification and quota increase are approved. Quota is per project, so a shared one would run out. Client IDs and secrets are given at build time, never committed.
 - **Linked viewers share one points balance** (`!link`, D-045). Unlinked, a YouTube viewer is their own viewer.
 - **Later:** several broadcasts at once, scheduled broadcasts, new-upload posts, cuepoints. **Leave:** comments, community posts, clips, retention.
+
+## D-096. M6 slice 1: YouTube sign-in through Google's desktop flow, with the streamer's own project
+
+Decided 2026-11-13, building M6 slice 1 after the user's "proceed". The design is [ADR-0046](adr/0046-youtube-sign-in.md). In short:
+
+- **Google's flow for desktop apps, not Twitch's device codes.** Google's device flow only allows the `youtube` and `youtube.readonly` scopes, and Google recommends the loopback flow for desktop apps. The browser opens Google's page, which comes back to a one-time address on this computer. PKCE and a random state every time.
+- **One scope, `youtube.force-ssl`,** for both accounts: sending chat, moderating and the broadcast all need it or the broader `youtube`.
+- **The streamer's own Google project,** pasted on Connections with its client secret, as D-095 decided. The card has a step-by-step guide to making one, including publishing it: a project left in Testing has its sign-ins ended by Google after 7 days. A build can carry StreamGremlin's own project once Google approves it, set at build time and never committed.
+- **States like Twitch's:** not configured, signed out, signing in, connected, needs signing in again, unknown. A sign-in is checked by refreshing it (no quota) at start and every 50 minutes.
+- **Two accounts, two channels.** The bot can't be your own channel. A refused sign-in of a channel that's already signed in isn't revoked, because Google ends the whole grant.
+- **Quota is counted by StreamGremlin,** since Google doesn't report it: each call's documented cost, per Pacific day. When Google says it's used up, nothing more is asked until midnight Pacific.
+- **`mockyoutube`** stands in for Google's sign-in and the Data API, in tests and to try it (`-youtube-url`).
+

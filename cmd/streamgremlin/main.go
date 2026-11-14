@@ -39,6 +39,7 @@ Commands:
             twitch sign-in [-bot]         sign in with a code at twitch.tv/activate
             twitch sign-out [-bot]        sign out
             twitch client-id ID           use your own Twitch app ("" for the built-in one)
+  youtube   YouTube sign-ins and today's quota (streamgremlin youtube help).
   obs       OBS: connect, scenes, sources, snapshots (streamgremlin obs help).
   workflows Workflows: list, show, save FILE, on/off, delete, deleted, restore
             (streamgremlin workflows help).
@@ -202,6 +203,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return chatCmd(dir, rest, stdout, stderr)
 	case "twitch":
 		return twitchCmd(dir, rest, stdout, stderr)
+	case "youtube":
+		return youtubeCmd(dir, rest, os.Stdin, stdout, stderr)
 	case "events":
 		return eventsCmd(dir, rest, stdout, stderr)
 	case "secrets":
@@ -304,6 +307,8 @@ func engine(dir string, args []string, stderr io.Writer) int {
 		"a loopback stand-in for id.twitch.tv, such as mocktwitch (default $"+brand.Env("TWITCH_AUTH_URL")+")")
 	discordURL := fs.String("discord-api-url", os.Getenv(brand.Env("DISCORD_API_URL")),
 		"a loopback stand-in for discord.com's webhooks, such as mockdiscord (default $"+brand.Env("DISCORD_API_URL")+")")
+	youtubeURL := fs.String("youtube-url", os.Getenv(brand.Env("YOUTUBE_URL")),
+		"a loopback stand-in for Google's sign-in and YouTube's API, such as mockyoutube (default $"+brand.Env("YOUTUBE_URL")+")")
 	minute := fs.Duration("test-minute", 0, "for tests against a stand-in Twitch only: how long a minute of time in chat lasts")
 	store := fs.String("secret-store", os.Getenv(brand.Env("SECRET_STORE")),
 		"auto, keyring or file (default auto, or $"+brand.Env("SECRET_STORE")+")")
@@ -336,7 +341,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, DiscordAPIURL: *discordURL, OverlayAddr: *overlayAddr,
+	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, DiscordAPIURL: *discordURL, YouTubeURL: *youtubeURL, OverlayAddr: *overlayAddr,
 		TestMinute: *minute, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)

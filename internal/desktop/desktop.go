@@ -169,9 +169,10 @@ func bridge(w http.ResponseWriter, r *http.Request, state *State) {
 }
 
 // AllowedURL reports whether the app may open u in the system browser:
-// Twitch's activation page and developer console, or a loopback test
-// server's /activate page (mocktwitch). Nothing else, so a compromised page
-// can't send the streamer anywhere.
+// Twitch's activation page and developer console; Google's sign-in page
+// and the Google Cloud console's pages the YouTube guide uses; or a
+// loopback test server's sign-in page (mocktwitch, mockyoutube). Nothing
+// else, so a compromised page can't send the streamer anywhere.
 func AllowedURL(u string) bool {
 	p, err := url.Parse(u)
 	if err != nil || p.User != nil || p.Fragment != "" {
@@ -183,7 +184,12 @@ func AllowedURL(u string) bool {
 	case p.Scheme == "https" && p.Host == "dev.twitch.tv" && (p.Path == "/console" || strings.HasPrefix(p.Path, "/console/") ||
 		strings.HasPrefix(p.Path, "/docs/")):
 		return true
-	case p.Scheme == "http" && p.Path == "/activate":
+	case p.Scheme == "https" && p.Host == "accounts.google.com" && p.Path == "/o/oauth2/v2/auth":
+		return true
+	case p.Scheme == "https" && p.Host == "console.cloud.google.com" && (p.Path == "/projectcreate" ||
+		strings.HasPrefix(p.Path, "/apis/") || strings.HasPrefix(p.Path, "/auth/")):
+		return true
+	case p.Scheme == "http" && (p.Path == "/activate" || p.Path == "/o/oauth2/v2/auth"):
 		ip := net.ParseIP(p.Hostname())
 		return ip != nil && ip.IsLoopback() && p.Port() != ""
 	}

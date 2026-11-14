@@ -16,6 +16,7 @@
   import StreamDeckCard from './StreamDeckCard.svelte';
   import TwitchAccount from './TwitchAccount.svelte';
   import TwitchChat from './TwitchChat.svelte';
+  import YouTubeCard from './YouTubeCard.svelte';
 
   let { fastMs = 1500, slowMs = 15_000 }: { fastMs?: number; slowMs?: number } = $props();
 
@@ -91,7 +92,7 @@
 </script>
 
 <h1>Connections</h1>
-<p class="sg-muted screen-intro">Where StreamGremlin signs in to Twitch and connects to OBS. Sign-ins and passwords stay in your system’s keyring.</p>
+<p class="sg-muted screen-intro">Where StreamGremlin signs in to Twitch and YouTube and connects to OBS. Sign-ins and passwords stay in your system’s keyring.</p>
 
 {#if loadError}
   <section class="sg-panel card" role="alert">
@@ -182,6 +183,8 @@
     />
     <TwitchChat {twitch} />
   </section>
+
+  <YouTubeCard />
 
   {#if obs}
     <OBSCard status={obs} onchange={refresh} />

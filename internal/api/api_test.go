@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/mockyoutube"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
+
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
@@ -105,6 +108,12 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	tw.Start(context.Background())
 	t.Cleanup(tw.Close)
 	testMock = mock
+	ytMock := mockyoutube.New()
+	ytSrv := httptest.NewServer(ytMock)
+	t.Cleanup(ytSrv.Close)
+	yt := youtube.New(youtube.Options{Secrets: sec, Settings: set, TestServer: ytSrv.URL})
+	yt.Start(context.Background())
+	t.Cleanup(yt.Close)
 	obsMock := mockobs.New()
 	obsSrv := httptest.NewServer(obsMock)
 	t.Cleanup(obsSrv.Close)
@@ -188,7 +197,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	cl := clients.New(db, nil, nil)
 	return NewServer(Options{Token: testToken, Clients: cl}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
-		Events: inbox, Twitch: tw, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
+		Events: inbox, Twitch: tw, YouTube: yt, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },

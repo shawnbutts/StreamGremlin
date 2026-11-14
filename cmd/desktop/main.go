@@ -174,7 +174,8 @@ func (e *engine) start(dir string, state *desktop.State) {
 	// STREAMGREMLIN_TWITCH_AUTH_URL points sign-in at mocktwitch, for trying
 	// the app without a Twitch app; the Connections screen says so.
 	h, err := host.Start(context.Background(), host.Options{
-		DataDir: dir, TwitchAuthURL: os.Getenv(brand.Env("TWITCH_AUTH_URL")), Logger: e.log,
+		DataDir: dir, TwitchAuthURL: os.Getenv(brand.Env("TWITCH_AUTH_URL")),
+		YouTubeURL: os.Getenv(brand.Env("YOUTUBE_URL")), Logger: e.log,
 	})
 	e.mu.Lock()
 	defer e.mu.Unlock()

@@ -248,7 +248,60 @@ export const cancelTwitchSignIn = (role: TwitchRole) => api<void>('DELETE', `/v1
 
 export const twitchSignOut = (role: TwitchRole) => api<void>('POST', `/v1/connections/twitch/${role}/sign-out`);
 
-/** Open an allow-listed page (twitch.tv/activate, dev.twitch.tv) in the system browser. */
+// YouTube sign-ins (M6 slice 1, D-096). The client secret goes in and never
+// comes back; tokens never leave the engine.
+export type YouTubeRole = 'streamer' | 'bot';
+
+export interface YouTubeChannel {
+  id: string;
+  title: string;
+  handle?: string;
+}
+
+export interface YouTubeAccount {
+  role: YouTubeRole;
+  state: AccountState;
+  channel?: YouTubeChannel;
+  scopes: string[];
+  missing_scopes: string[];
+  detail?: string;
+  since: string;
+  checked_at?: string;
+  sign_in?: { auth_url: string; expires_at: string };
+}
+
+export interface YouTubeQuota {
+  used: number;
+  limit: number;
+  day: string;
+  resets_at: string;
+  exhausted: boolean;
+}
+
+export interface YouTubeStatus {
+  client_id: string;
+  client_source: 'none' | 'built_in' | 'own';
+  has_secret: boolean;
+  has_built_in: boolean;
+  test_server?: string;
+  streamer: YouTubeAccount;
+  bot: YouTubeAccount;
+  quota: YouTubeQuota;
+}
+
+export const getYouTube = (signal?: AbortSignal) => api<YouTubeStatus>('GET', '/v1/connections/youtube', undefined, signal);
+
+export const setYouTubeClient = (clientId: string, clientSecret: string) =>
+  api<YouTubeStatus>('PUT', '/v1/connections/youtube/client', { client_id: clientId, client_secret: clientSecret });
+
+export const startYouTubeSignIn = (role: YouTubeRole) =>
+  api<{ auth_url: string; expires_at: string }>('POST', `/v1/connections/youtube/${role}/sign-in`);
+
+export const cancelYouTubeSignIn = (role: YouTubeRole) => api<void>('DELETE', `/v1/connections/youtube/${role}/sign-in`);
+
+export const youtubeSignOut = (role: YouTubeRole) => api<void>('POST', `/v1/connections/youtube/${role}/sign-out`);
+
+/** Open an allow-listed page (twitch.tv/activate, dev.twitch.tv, Google's sign-in and Cloud console) in the system browser. */
 export async function openInBrowser(url: string): Promise<void> {
   const resp = await fetch('/desktop/open-url', {
     method: 'POST',

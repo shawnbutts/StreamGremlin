@@ -52,6 +52,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // Options configure Start.
@@ -69,6 +70,10 @@ type Options struct {
 	// DiscordAPIURL replaces discord.com, for mockdiscord. It must be a
 	// loopback http URL.
 	DiscordAPIURL string
+	// YouTubeURL replaces Google's sign-in and YouTube's Data API, for
+	// mockyoutube. It must be a loopback http URL; the app says it's a
+	// test server.
+	YouTubeURL string
 	// OverlayAddr is where overlay pages are served for OBS. Empty means
 	// brand.DefaultOverlayAddr, falling back to a free port if that is
 	// taken; "off" serves none.
@@ -91,6 +96,7 @@ type Host struct {
 	twitch    *twitch.Service
 	obs       *obs.Service
 	discord   *discord.Service
+	youtube   *youtube.Service
 	songs     *overlays.SongReader
 	clocks    *overlays.Timers
 	workflows *workflow.Engine
@@ -174,6 +180,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	inbox := events.NewInbox(h.db, log)
 	h.twitch = twitch.New(twitch.Options{Secrets: sec, Settings: set, AuthURL: authURL, Inbox: inbox, Logger: log})
 	h.twitch.Start(ctx)
+	ytBase, err := testServerURL(opts.YouTubeURL, "", "YouTube")
+	if err != nil {
+		return nil, err
+	}
+	h.youtube = youtube.New(youtube.Options{Secrets: sec, Settings: set, TestServer: ytBase, Logger: log})
+	h.youtube.Start(ctx)
 	h.obs = obs.New(obs.Options{DB: h.db, Settings: set, Secrets: sec, Inbox: inbox, Logger: log})
 	if err := h.obs.Start(ctx); err != nil {
 		return nil, err
@@ -289,6 +301,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Secrets:       sec,
 		Events:        inbox,
 		Twitch:        h.twitch,
+		YouTube:       h.youtube,
 		OBS:           h.obs,
 		Workflows:     h.workflows,
 		Variables:     vars,
@@ -501,6 +514,9 @@ func (h *Host) cleanup() {
 	}
 	if h.obs != nil {
 		h.obs.Close()
+	}
+	if h.youtube != nil {
+		h.youtube.Close()
 	}
 	if h.twitch != nil {
 		h.twitch.Close()
