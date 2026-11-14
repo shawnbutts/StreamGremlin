@@ -1822,4 +1822,10 @@ Decided 2026-11-14. I proposed this slice and the user said "proceed". Checked a
 Decided 2026-11-14. Until now an add-on's `sg.chat` sent to Twitch only, even when the event that ran it came from YouTube. The user: "add-ons should see youtube and any future chats".
 
 - Add-ons get every platform's chat and events the way workflows do, and nothing in an add-on names a platform unless it wants to. A platform added later reaches add-ons without changing them.
-- Built in M6 slice 8; the details are recorded when it's built.
+- **Built in M6 slice 8** (I proposed it; the user said "proceed"):
+  - `sg.chat` sends through the same path as workflows' "Send a chat message" (`chatsend`). Without `to`, it answers on the platform whose event ran the call (`event.source`), or, when no platform's event ran it (a button, a timer, `sg.after`, StreamGremlin's own events), in every chat being read: Twitch, and YouTube while its chat is read.
+  - `sg.chat(text, {to = "twitch" | "youtube" | "both"})` chooses; `both` is every chat platform. An existing add-on works unchanged.
+  - Future platforms: `chatsend.Platforms` lists the chat platforms. A new one added there reaches "both" and "where it came from" for workflows and add-ons alike. The add-on guide (ADR-0038's amendment) says to read `event.source` and `event.actor.platform` rather than assume Twitch.
+  - The `chat.send` permission covers every platform; its wording now says so, and that each YouTube message costs 20 quota units. The 20-a-minute limit counts messages, whatever the platforms.
+  - The activity log says which chats each message reached ("to Twitch and YouTube: …") and which refused. A chat skipped because you're not live on YouTube isn't a failure and isn't said.
+  - The example **Dice tray** (1.4.0) answers each viewer where they typed, and says an open round in both (`to = "both"`).

@@ -18,11 +18,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"code.streamgremlin.com/streamgremlin/internal/chatsend"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/packages"
 	"code.streamgremlin.com/streamgremlin/internal/rounds"
-	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
 )
 
@@ -36,10 +36,9 @@ const (
 	activityPerRun  = lua.MaxLogLines
 )
 
-// Chat sends to the streamer's chat (the Twitch service, or a stand-in).
-type Chat interface {
-	SendChat(ctx context.Context, req twitch.SendRequest) (twitch.SendResult, error)
-}
+// Chat sends to the streamer's Twitch chat (the Twitch service, or a
+// stand-in).
+type Chat = chatsend.TwitchSender
 
 // Workflows is what the manager needs from the workflow engine.
 type Workflows interface {
@@ -58,6 +57,9 @@ type Options struct {
 	Store   *packages.Store
 	Actions *workflow.Registry
 	Chat    Chat
+	// YouTube sends to the YouTube chat being read (D-103); nil sends only
+	// to Twitch.
+	YouTube chatsend.YouTubeSender
 	// Inbox takes plugins' events (D-073); without it they're refused.
 	Inbox Inbox
 	// Rounds keeps plugins' rounds (ADR-0039); without it they're refused.
@@ -701,7 +703,10 @@ func (m *Manager) hostCall(ctx context.Context, id, version string, r *running, 
 			return ok, why
 		case "chat":
 			message := c.Message
-			ok, why := m.chat(ctx, id, r, message)
+			ok, why, where := m.chat(ctx, id, r, c)
+			if where != "" {
+				message = "to " + where + ": " + message
+			}
 			outcome := "ok"
 			switch {
 			case !ok && strings.HasPrefix(why, "refused: "):
@@ -784,18 +789,40 @@ func (m *Manager) emit(ctx context.Context, id string, r *running, c lua.HostCal
 	return true, ""
 }
 
-// chat sends a plugin's message: "refused: …" when it may not.
-func (m *Manager) chat(ctx context.Context, id string, r *running, message string) (bool, string) {
+// chatWhere is where a plugin's message goes (D-103): where it asked
+// ("to"), else back to the platform whose event ran it, else every chat
+// being read (a timer, a button, StreamGremlin's own events).
+func chatWhere(c lua.HostCall) (chatsend.Where, string, error) {
+	origin, _ := c.Event["source"].(string)
+	to, _ := c.Payload["to"].(string)
+	switch w := chatsend.Where(strings.ToLower(strings.TrimSpace(to))); {
+	case w == "" && chatsend.IsPlatform(origin):
+		return chatsend.Origin, origin, nil
+	case w == "":
+		return chatsend.Both, origin, nil
+	case w.Valid():
+		return w, origin, nil
+	}
+	return "", "", fmt.Errorf("refused: to is %s or both", strings.Join(chatsend.Platforms, ", "))
+}
+
+// chat sends a plugin's message: "refused: …" when it may not. where says
+// which chats it reached, for the activity log.
+func (m *Manager) chat(ctx context.Context, id string, r *running, c lua.HostCall) (ok bool, why, where string) {
 	allowed := false
 	for _, p := range r.spec.Permissions {
 		allowed = allowed || p == packages.PermChatSend
 	}
 	if !allowed {
-		return false, "refused: it doesn't have permission to send chat"
+		return false, "refused: it doesn't have permission to send chat", ""
 	}
-	msg := strings.TrimSpace(message)
+	msg := strings.TrimSpace(c.Message)
 	if msg == "" || utf8.RuneCountInString(msg) > MaxChatRunes {
-		return false, fmt.Sprintf("refused: a message is 1 to %d characters", MaxChatRunes)
+		return false, fmt.Sprintf("refused: a message is 1 to %d characters", MaxChatRunes), ""
+	}
+	to, origin, err := chatWhere(c)
+	if err != nil {
+		return false, err.Error(), ""
 	}
 	now := m.opts.Now()
 	r.mu.Lock()
@@ -808,18 +835,41 @@ func (m *Manager) chat(ctx context.Context, id string, r *running, message strin
 	r.chat = keep
 	if len(r.chat) >= ChatPerMinute {
 		r.mu.Unlock()
-		return false, fmt.Sprintf("refused: at most %d messages a minute", ChatPerMinute)
+		return false, fmt.Sprintf("refused: at most %d messages a minute", ChatPerMinute), ""
 	}
 	r.chat = append(r.chat, now)
 	r.mu.Unlock()
 	if m.opts.Chat == nil {
-		return false, "chat isn't available"
+		return false, "chat isn't available", ""
 	}
-	_, err := m.opts.Chat.SendChat(ctx, twitch.SendRequest{Text: msg, As: twitch.SendAuto, Workflow: "plugin:" + id})
+	var yt chatsend.YouTubeSender
+	if m.opts.YouTube != nil {
+		yt = m.opts.YouTube
+	}
+	res, err := chatsend.Send(ctx, m.opts.Chat, yt, chatsend.Request{Text: msg, To: to, Origin: origin, Workflow: "plugin:" + id})
+	var reached []string
+	if res.Twitch != nil {
+		reached = append(reached, "twitch")
+	}
+	if res.YouTube != nil {
+		reached = append(reached, events.SourceYouTube)
+	}
+	where = chatsend.Names(reached)
 	if err != nil {
-		return false, err.Error()
+		var pe *chatsend.PlatformError
+		if errors.As(err, &pe) {
+			return false, chatsend.Names([]string{pe.Platform}) + ": " + strings.TrimPrefix(strings.TrimPrefix(err.Error(), "twitch: "), "youtube: "), ""
+		}
+		return false, err.Error(), ""
 	}
-	return true, ""
+	var notes []string
+	for p, w := range res.Failed {
+		notes = append(notes, chatsend.Names([]string{p})+" refused: "+strings.TrimPrefix(strings.TrimPrefix(w, "twitch: "), "youtube: "))
+	}
+	// A chat that's skipped (YouTube while you're not live there) is
+	// normal, and not said.
+	slices.Sort(notes)
+	return true, strings.Join(notes, "; "), where
 }
 
 // using are the workflows using a plugin's steps or started by its events.

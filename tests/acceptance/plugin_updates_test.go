@@ -54,7 +54,7 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 		t.Fatal(out, errOut)
 	}
 	out, _, _ := cli(t, dir, "packages", "install", v2)
-	for _, want := range []string{"An update: 1.3.0 is installed", "It asks for the permissions you allowed already: chat.send, events.publish, points.rounds.",
+	for _, want := range []string{"An update: 1.4.0 is installed", "It asks for the permissions you allowed already: chat.send, events.publish, points.rounds.",
 		"Steps it doesn't have: Roll dice (dice-tray.roll). These workflows use them and are turned off (not deleted): Throw.",
 		"Settings that go back to their default: Sides on each die.",
 		"Run again with -yes to install it."} {
@@ -63,7 +63,7 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 		}
 	}
 	out, errOut, code := cli(t, dir, "packages", "install", v2, "-yes")
-	if code != 0 || !strings.Contains(out, "Updated Dice tray from 1.3.0 to 2.0.0. These workflows used a step it doesn't have and are turned off (not deleted): Throw.") ||
+	if code != 0 || !strings.Contains(out, "Updated Dice tray from 1.4.0 to 2.0.0. These workflows used a step it doesn't have and are turned off (not deleted): Throw.") ||
 		!strings.Contains(out, "Back to the default: Sides on each die.") || !strings.Contains(out, "It started again, fresh, as 2.0.0.") {
 		t.Fatal(out, errOut)
 	}
@@ -79,17 +79,17 @@ func TestLuaPluginUpdatesThroughTheCLI(t *testing.T) {
 		}
 		return "no roll"
 	})
-	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Dice tray 2.0.0") || !strings.Contains(out, "can roll back to 1.3.0") {
+	if out, _, _ := cli(t, dir, "packages"); !strings.Contains(out, "Dice tray 2.0.0") || !strings.Contains(out, "can roll back to 1.4.0") {
 		t.Fatalf("list:\n%s", out)
 	}
 
 	// Roll back: "Roll dice" is there again; nothing else is turned off.
 	out, _, _ = cli(t, dir, "packages", "rollback", "dice-tray")
-	if !strings.Contains(out, "Rolling Dice tray back from 2.0.0 to 1.3.0") || !strings.Contains(out, "Run again with -yes to roll back.") {
+	if !strings.Contains(out, "Rolling Dice tray back from 2.0.0 to 1.4.0") || !strings.Contains(out, "Run again with -yes to roll back.") {
 		t.Fatalf("rollback check:\n%s", out)
 	}
 	if out, errOut, code := cli(t, dir, "packages", "rollback", "dice-tray", "-yes"); code != 0 ||
-		!strings.Contains(out, "Rolled Dice tray back from 2.0.0 to 1.3.0. It started again, fresh, as 1.3.0.") {
+		!strings.Contains(out, "Rolled Dice tray back from 2.0.0 to 1.4.0. It started again, fresh, as 1.4.0.") {
 		t.Fatal(out, errOut)
 	}
 	if out, errOut, code := cli(t, dir, "workflows", "on", "chat.throw"); code != 0 {

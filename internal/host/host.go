@@ -251,7 +251,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
 	h.rounds = rounds.New(rounds.Options{DB: h.db, Ledger: ledger, Viewers: h.viewers, Logger: log})
-	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, Inbox: inbox, Rounds: h.rounds, Logger: log})
+	h.plugins = plugins.New(plugins.Options{Store: h.packages, Actions: reg, Chat: h.twitch, YouTube: h.youtube, Inbox: inbox, Rounds: h.rounds, Logger: log})
 	if err := h.plugins.Start(ctx); err != nil {
 		return nil, err
 	}

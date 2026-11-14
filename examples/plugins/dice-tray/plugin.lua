@@ -86,7 +86,10 @@ sg.action("open_round", function(call)
   round = {rolls = 0}
   sg.after(seconds, close_round)
   local text = string.format("A dice round is open for %d seconds: type !roll to join.", seconds)
-  sg.chat(text)
+  -- Everyone can join, so it's said in every chat being read, wherever
+  -- the round was opened from. Without "to", sg.chat answers where the
+  -- event came from (D-103).
+  sg.chat(text, {to = "both"})
   return {open = true, seconds = seconds, text = text}
 end)
 

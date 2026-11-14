@@ -193,11 +193,29 @@ func (p *pluginWorker) luaAction(L *glua.LState) int {
 	return 0
 }
 
-// luaChat is sg.chat(message) → ok, reason. It never raises: the engine
+// luaChat is sg.chat(message [, {to = "twitch" | "youtube" | "both"}])
+// → ok, reason. Without to, it answers where the event that ran it came
+// from, or every chat being read (D-103). It never raises: the engine
 // decides, and says why not.
 func (p *pluginWorker) luaChat(L *glua.LState) int {
 	msg := L.CheckString(1)
-	ok, reason := p.host(frame{Op: "chat", Message: msg})
+	f := frame{Op: "chat", Message: msg}
+	switch opt := L.Get(2).(type) {
+	case *glua.LNilType:
+	case *glua.LTable:
+		if to, isStr := opt.RawGetString("to").(glua.LString); isStr {
+			f.Payload = map[string]any{"to": string(to)}
+		} else if opt.RawGetString("to") != glua.LNil {
+			L.Push(glua.LFalse)
+			L.Push(glua.LString(`to is a word: "twitch", "youtube" or "both"`))
+			return 2
+		}
+	default:
+		L.Push(glua.LFalse)
+		L.Push(glua.LString(`the second argument is a table, like {to = "youtube"}`))
+		return 2
+	}
+	ok, reason := p.host(f)
 	L.Push(glua.LBool(ok))
 	if ok {
 		L.Push(glua.LNil)

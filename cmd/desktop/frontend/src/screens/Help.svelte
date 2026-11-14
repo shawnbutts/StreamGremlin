@@ -168,6 +168,7 @@
       its own, and “Show its rounds” lists every stake, roll and payout.
       To update one, install its new version: it says first what changes, and asks only for permissions you haven’t allowed.
       Roll back returns to the version before.
+      A plugin’s chat goes back where its event came from (a YouTube viewer is answered on YouTube), or, when no viewer is behind it (a button, a timer), to every chat being read; a plugin can also ask for one chat or both. Each message to YouTube uses 20 quota units, and “What it has done” says which chats each message reached.
     </dd>
     <dt>Ads</dt>
     <dd>For Affiliates and Partners, the Ads card on Home shows your next ad and your snoozes, and runs or snoozes one. A running break shows an estimate of the time left: Twitch doesn’t say when ads end.</dd>

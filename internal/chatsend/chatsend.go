@@ -27,6 +27,36 @@ const (
 	Both    Where = "both"
 )
 
+// Platforms are the chat platforms, in the order Both sends to them. A
+// later platform is added here, so everything sending "everywhere" (Both)
+// reaches it (D-103).
+var Platforms = []string{"twitch", events.SourceYouTube}
+
+// IsPlatform reports whether a source is a chat platform, as opposed to
+// StreamGremlin itself, OBS, a timer or an add-on.
+func IsPlatform(source string) bool {
+	for _, p := range Platforms {
+		if p == source {
+			return true
+		}
+	}
+	return false
+}
+
+// Names says platforms in words: "Twitch and YouTube".
+func Names(ps []string) string {
+	words := map[string]string{"twitch": "Twitch", events.SourceYouTube: "YouTube"}
+	var out []string
+	for _, p := range ps {
+		if w, ok := words[p]; ok {
+			out = append(out, w)
+		} else {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, " and ")
+}
+
 // ErrInvalid wraps bad input.
 var ErrInvalid = errors.New("chatsend: invalid")
 
@@ -94,7 +124,7 @@ func Targets(to Where, origin string) []string {
 	case YouTube:
 		return []string{"youtube"}
 	case Both:
-		return []string{"twitch", "youtube"}
+		return append([]string(nil), Platforms...)
 	}
 	if origin == events.SourceYouTube {
 		return []string{"youtube"}

@@ -23,6 +23,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // TestMain lets this test binary be the Lua worker, as the app is.
@@ -290,7 +291,7 @@ func TestTheExamplePlugin(t *testing.T) {
 		t.Errorf("best: %v", out)
 	}
 	act := strings.Join(activity(t, r, "dice-tray"), "\n")
-	if !strings.Contains(act, "log ok: Dice tray ready: d6") || !strings.Contains(act, "chat.send ok: Pal rolled a ") {
+	if !strings.Contains(act, "log ok: Dice tray ready: d6") || !strings.Contains(act, "chat.send ok: to Twitch: Pal rolled a ") {
 		t.Errorf("activity:\n%s", act)
 	}
 
@@ -544,11 +545,11 @@ func TestUpdatingAPlugin(t *testing.T) {
 	if _, err := r.step(t, "dice-tray.roll", nil); err != nil {
 		t.Fatal(err)
 	}
-	// 1.4.0 drops "Roll dice", keeping "Roll dice and say it".
+	// 1.4.1 drops "Roll dice", keeping "Roll dice and say it".
 	v2 := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			s := strings.Replace(string(b), `"version": "1.3.0"`, `"version": "1.4.0"`, 1)
+			s := strings.Replace(string(b), `"version": "1.4.0"`, `"version": "1.4.1"`, 1)
 			i := strings.Index(s, `{
         "name": "roll",`)
 			j := strings.Index(s, `{
@@ -580,12 +581,12 @@ func TestUpdatingAPlugin(t *testing.T) {
 	if _, ok := r.reg.Get("dice-tray.roll"); ok {
 		t.Error("the dropped step is still there")
 	}
-	// Loaded again as 1.4.0: the session starts over.
+	// Loaded again as 1.4.1: the session starts over.
 	out, err := r.step(t, "dice-tray.best", nil)
 	if err != nil || out.(map[string]any)["rolls"] != int64(0) {
 		t.Fatalf("after the update: %v %v", out, err)
 	}
-	if list, _ := r.store.ActivityOf(ctx, "dice-tray", 1); len(list) == 0 || list[0].Version != "1.4.0" {
+	if list, _ := r.store.ActivityOf(ctx, "dice-tray", 1); len(list) == 0 || list[0].Version != "1.4.1" {
 		t.Errorf("activity: %+v", list)
 	}
 
@@ -605,7 +606,7 @@ func TestUpdatingAPlugin(t *testing.T) {
 	broken := zipFolder(t, example, func(name string, b []byte) []byte {
 		switch name {
 		case "streamgremlin.json":
-			return bytes.Replace(b, []byte(`"version": "1.3.0"`), []byte(`"version": "1.5.0"`), 1)
+			return bytes.Replace(b, []byte(`"version": "1.4.0"`), []byte(`"version": "1.5.0"`), 1)
 		case "plugin.lua":
 			return append(b, []byte("\nlocal x = = 1\n")...)
 		}
@@ -883,5 +884,130 @@ func TestRoundsNeedThePermission(t *testing.T) {
 	}
 	if out, _ := r.stepBy(t, "dice-tray.gamble", "Fan", "j1", map[string]any{"amount": "5"}); !strings.Contains(fmt.Sprint(out["why"]), "doesn't have permission to hold points") {
 		t.Errorf("without permission: %v", out)
+	}
+}
+
+// fakeYouTube is YouTube's chat, read while live is true.
+type fakeYouTube struct {
+	mu   sync.Mutex
+	live bool
+	sent []string
+}
+
+func (f *fakeYouTube) SendChat(_ context.Context, req youtube.SendRequest) (youtube.SendResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.live {
+		return youtube.SendResult{}, youtube.ErrNotLive
+	}
+	f.sent = append(f.sent, req.Text)
+	return youtube.SendResult{MessageIDs: []string{"y1"}}, nil
+}
+
+func (f *fakeYouTube) ChatStatus() youtube.ChatStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.live {
+		return youtube.ChatStatus{State: youtube.ChatLooking}
+	}
+	return youtube.ChatStatus{State: youtube.ChatConnected, Broadcast: &youtube.Broadcast{ID: "b"}}
+}
+
+func (f *fakeYouTube) texts() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.sent...)
+}
+
+// An add-on's chat goes where its event came from, to every chat being
+// read when no platform's event ran it, or where it asks (D-103).
+func TestPluginChatGoesToEveryPlatform(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	yt := &fakeYouTube{live: true}
+	r.m.Close()
+	r.m = New(Options{Store: r.store, Actions: r.reg, Chat: r.chat, YouTube: yt, Inbox: r.inbox, Rounds: r.rounds, Now: func() time.Time { return r.now }})
+	t.Cleanup(r.m.Close)
+	r.install(t, zipFolder(t, example, nil), "chat.send", "events.publish", "points.rounds")
+	if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+		t.Fatal(err)
+	}
+	run := func(name, source string, args map[string]any) {
+		t.Helper()
+		a, _ := r.reg.Get(name)
+		ev := map[string]any{"id": "e1", "source": source, "actor": map[string]any{"platform": source, "id": "v", "display_name": "Viewer"}}
+		if _, err := a.Run(ctx, workflow.Call{Args: args, IdempotencyKey: "k-" + name + source, JobID: "j", WorkflowID: "w", Event: ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A YouTube viewer's roll is answered on YouTube only.
+	run("dice-tray.roll_and_say", "youtube", nil)
+	if len(yt.texts()) != 1 || len(r.chat.texts()) != 0 || !strings.HasPrefix(yt.texts()[0], "Viewer rolled") {
+		t.Fatalf("youtube %q, twitch %q", yt.texts(), r.chat.texts())
+	}
+	// A Twitch viewer's on Twitch only.
+	run("dice-tray.roll_and_say", "twitch", nil)
+	if len(yt.texts()) != 1 || len(r.chat.texts()) != 1 {
+		t.Fatalf("youtube %q, twitch %q", yt.texts(), r.chat.texts())
+	}
+	// Opening a round asks for both.
+	run("dice-tray.open_round", "twitch", map[string]any{"seconds": int64(60)})
+	if len(yt.texts()) != 2 || len(r.chat.texts()) != 2 || !strings.Contains(yt.texts()[1], "dice round is open") {
+		t.Fatalf("youtube %q, twitch %q", yt.texts(), r.chat.texts())
+	}
+	// No platform's event (a button, a timer): every chat being read.
+	run("dice-tray.roll_and_say", "buttons", nil)
+	if len(yt.texts()) != 3 || len(r.chat.texts()) != 3 {
+		t.Fatalf("youtube %q, twitch %q", yt.texts(), r.chat.texts())
+	}
+	// Not live on YouTube: everywhere is Twitch, and that's no failure.
+	yt.mu.Lock()
+	yt.live = false
+	yt.mu.Unlock()
+	run("dice-tray.roll_and_say", "buttons", nil)
+	if len(yt.texts()) != 3 || len(r.chat.texts()) != 4 {
+		t.Fatalf("youtube %q, twitch %q", yt.texts(), r.chat.texts())
+	}
+	// Answering a YouTube viewer while YouTube isn't read: refused, in words.
+	a, _ := r.reg.Get("dice-tray.roll_and_say")
+	out, err := a.Run(ctx, workflow.Call{IdempotencyKey: "k-late", JobID: "j", WorkflowID: "w",
+		Event: map[string]any{"id": "e2", "source": "youtube", "actor": map[string]any{"platform": "youtube", "id": "v", "display_name": "Viewer"}}})
+	if err != nil || out.(map[string]any)["said"] != false {
+		t.Fatalf("%v %v", err, out)
+	}
+	act := strings.Join(activity(t, r, "dice-tray"), "\n")
+	for _, want := range []string{"chat.send ok: to YouTube: Viewer rolled", "chat.send ok: to Twitch: Viewer rolled",
+		"chat.send ok: to Twitch and YouTube: A dice round is open", "chat.send failed: Viewer rolled", "YouTube: not live on YouTube"} {
+		if !strings.Contains(act, want) {
+			t.Errorf("activity lacks %q:\n%s", want, act)
+		}
+	}
+}
+
+// A "to" that isn't a chat is refused, and never raises.
+func TestPluginChatTo(t *testing.T) {
+	for _, c := range []struct{ call, want string }{
+		{`sg.chat(line, {to = "discord"})`, "to is twitch, youtube or both"},
+		{`sg.chat(line, 5)`, "the second argument is a table"},
+		{`sg.chat(line, {to = 5})`, "to is a word"},
+	} {
+		r := newRig(t)
+		ctx := context.Background()
+		r.install(t, zipFolder(t, example, func(name string, b []byte) []byte {
+			if name == "plugin.lua" {
+				return bytes.Replace(b, []byte("local ok, why = sg.chat(line)"), []byte("local ok, why = "+c.call), 1)
+			}
+			return b
+		}), "chat.send", "events.publish", "points.rounds")
+		if err := r.m.SetEnabled(ctx, "dice-tray", true); err != nil {
+			t.Fatal(err)
+		}
+		out, err := r.step(t, "dice-tray.roll_and_say", nil)
+		if err != nil || out.(map[string]any)["said"] != false || len(r.chat.texts()) != 0 {
+			t.Fatalf("%s: %v %v", c.call, err, out)
+		}
+		if act := strings.Join(activity(t, r, "dice-tray"), "\n"); !strings.Contains(act, c.want) {
+			t.Errorf("%s: activity:\n%s", c.call, act)
+		}
 	}
 }

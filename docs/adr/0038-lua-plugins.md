@@ -88,7 +88,7 @@ As ADR-0036, and:
 | `sg.log(...)`, `print(...)` | a line in StreamGremlin's log and the plugin's activity; up to 100 a call (or while loading), more are counted, not kept |
 | `sg.emit(name, payload [, id])` → `ok, reason` | with `events.publish` (D-073): sends one of its declared events, `plugin.<id>.<name>`, to start workflows. At most 10 a second; never from a call its own event started; an `id` (such as `call.key`) sends it once. Never raises an error |
 | `sg.after(seconds, fn)` → `id`, `sg.cancel(id)` → `bool` | a timer (D-073): `fn()` runs once, 1 to 86,400 seconds later, one at a time with calls, within the plugin's timeout; up to 100 waiting; gone with the plugin's memory |
-| `sg.chat(message)` → `ok, reason` | with `chat.send`: sends to your chat, as the bot when one is signed in, else as you. At most 500 characters and 20 a minute. It never raises an error: it returns false and why (no permission, not signed in, too many, Twitch refused it) |
+| `sg.chat(message [, {to = "twitch" \| "youtube" \| "both"}])` → `ok, reason` | with `chat.send`: sends as the bot when one is signed in, else as you. Without `to` (D-103, M6 slice 8), it answers on the platform whose event ran the call (`event.source`: a YouTube viewer on YouTube), or, when no platform's event ran it (a button, a timer, `sg.after`), in every chat being read: Twitch, and YouTube while its chat is read. `both` means every chat platform, including any added later. At most 500 characters and 20 a minute in all. It never raises an error: it returns false and why (no permission, not signed in, too many, not live on YouTube, a platform refused it). Sent through the same path as workflows' "Send a chat message" (`chatsend`). |
 
 Everything else is ADR-0037's sandbox: no files, network, `os` beyond the clock, modules or bytecode; `math.random` from `crypto/rand`. Host calls aren't allowed while loading.
 
@@ -144,3 +144,8 @@ Migration 0025: `packages.enabled`, `packages.state_error`; `package_settings` (
 - Calls to one plugin wait for each other; a slow call slows the plugin's other steps.
 - A plugin's memory goes on restart: a game in progress ends. Slice 6 refunds points held in a round when that happens.
 - Lua numbers are float64: values above 2^53 lose precision.
+
+## Amendment: every chat (D-103, M6 slice 8, 2026-11-14)
+
+Add-ons see every platform's events as workflows do: each call's `event` has `source` and `actor.platform`. An add-on should read those rather than assume Twitch. `sg.chat` gained the `to` option above and sends through `chatsend`. A platform added later joins `chatsend.Platforms`, and so reaches every add-on, with no add-on changed. The `chat.send` permission covers every platform. Each message to YouTube costs 20 of the day's quota units; the 20-a-minute limit counts messages, not platforms. The activity log says which chats a message reached ("to Twitch and YouTube: …") and which refused.
+

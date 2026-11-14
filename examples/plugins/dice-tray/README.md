@@ -12,6 +12,8 @@ It adds five steps to workflows:
 
 It sends two events, to start workflows (it asks for the `events.publish` permission): **A dice round ends**, with the winner, their roll and how many rolled, and **A new best roll**. In the workflow editor they're under **When**, in the **Dice tray (add-on)** group.
 
+It talks on Twitch and YouTube ([D-103](../../../docs/DECISIONS.md)): `sg.chat` answers a viewer on the platform they typed on, and says the end of a round (from a timer, with no viewer behind it) in every chat being read. Opening a round asks for every chat with `sg.chat(text, {to = "both"})`, since anyone can join. Nothing in it names a platform otherwise, so a platform StreamGremlin adds later works too.
+
 Settings: the sides on each die, whether to cheer a new best roll, and the roll that wins a gamble.
 
 It adds five templates to the gallery, in their own **Dice tray** section: **!roll** (rolls dice and says it), **!best** (the session's best roll), **!diceround** (mods open a 60-second round), **!gamble** (gamble points) and **Cheer a dice round's winner** (started by its event). Templates are in `templates/`, one JSON file each, in the same format as StreamGremlin's own.

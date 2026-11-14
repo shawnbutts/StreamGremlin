@@ -51,7 +51,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	if _, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes"); code != 1 || !strings.Contains(errOut, "-allow chat.send,events.publish,points.rounds") {
 		t.Fatalf("without -allow: %d %s", code, errOut)
 	}
-	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish,points.rounds"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.3.0, off") {
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish,points.rounds"); code != 0 || !strings.Contains(out, "Installed Dice tray 1.4.0, off") {
 		t.Fatalf("install: %d %s%s", code, out, errOut)
 	}
 

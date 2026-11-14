@@ -178,7 +178,7 @@ func diceVersion(t *testing.T, version string, perms bool, dropRoll bool) string
 		s := string(b)
 		switch name {
 		case "streamgremlin.json":
-			s = strings.Replace(s, `"version": "1.3.0"`, `"version": "`+version+`"`, 1)
+			s = strings.Replace(s, `"version": "1.4.0"`, `"version": "`+version+`"`, 1)
 			if !perms {
 				s = strings.Replace(s, `"chat.send", "events.publish", "points.rounds"`, `"events.publish", "points.rounds"`, 1)
 			}

@@ -2,7 +2,7 @@
   "format": "streamgremlin.package/v1",
   "id": "dice-tray",
   "name": "Dice tray",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "publisher": "StreamGremlin examples",
   "description": "Rolls dice for chat and keeps the session's best roll: an example of a Lua plugin.",
   "license": "MIT",

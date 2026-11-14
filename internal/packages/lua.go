@@ -36,9 +36,10 @@ const (
 // Permissions are what a plugin may ask for, with what each lets it do, in
 // the words the install screen shows.
 var Permissions = map[string]string{
-	PermChatSend: "Send messages in your chat, as the bot when one is signed in (at most 20 a minute)",
-	PermEvents:   "Start your workflows with its own events (at most 10 a second)",
-	PermRounds:   "Hold viewers' points in its rounds and pay them out, within the limits it states. Its odds are its own: StreamGremlin can't check them",
+	PermChatSend: "Send messages in your chats: back where its event came from, or in every chat being read; as the bot when one is " +
+		"signed in; at most 20 a minute (each to YouTube uses 20 of its daily quota units)",
+	PermEvents: "Start your workflows with its own events (at most 10 a second)",
+	PermRounds: "Hold viewers' points in its rounds and pay them out, within the limits it states. Its odds are its own: StreamGremlin can't check them",
 }
 
 // PermissionWhat is what a permission lets this plugin do: points.rounds

@@ -599,3 +599,93 @@ func TestYouTubeStreamAndPollsThroughTheCLI(t *testing.T) {
 		t.Fatal("the poll is still running")
 	}
 }
+
+// An add-on on both chats (M6 slice 8, D-103) through the real engine,
+// mocktwitch and mockyoutube: Dice tray answers each viewer where they
+// typed, and opening a round is said in both.
+func TestAddOnOnEveryChat(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL, "-youtube-url", ytSrv.URL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	zipPath := filepath.Join(t.TempDir(), "dice-tray.zip")
+	zipFolder(t, filepath.Join("..", "..", "examples", "plugins", "dice-tray"), zipPath)
+	if out, errOut, code := cli(t, dir, "packages", "install", zipPath, "-yes", "-allow", "chat.send,events.publish,points.rounds"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	if out, errOut, code := cli(t, dir, "packages", "on", "dice-tray"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	files := t.TempDir()
+	for _, id := range []string{"dice-tray/roll", "dice-tray/round"} {
+		w, errOut, code := cli(t, dir, "templates", "show", id)
+		if code != 0 {
+			t.Fatal(errOut)
+		}
+		if out, errOut, code := cli(t, dir, "workflows", "save", writeFile(t, files, "w.json", w)); code != 0 {
+			t.Fatal(out, errOut)
+		}
+	}
+	cli(t, dir, "workflows", "on", "chat.dice-tray-roll")
+	cli(t, dir, "workflows", "on", "chat.dice-tray-round")
+	b := yt.GoLive("UCstreamer", "Both")
+	if out, _, code := cli(t, dir, "youtube", "find"); code != 0 || !strings.Contains(out, "reading chat") {
+		t.Fatal(out)
+	}
+	eventually(t, "Twitch chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not yet"
+		}
+		return ""
+	})
+	onTwitch := func(text string) bool {
+		for _, m := range tw.ChatLog() {
+			if strings.Contains(m.Text, text) {
+				return true
+			}
+		}
+		return false
+	}
+	onYouTube := func(text string) bool {
+		for _, m := range yt.Sent() {
+			if strings.Contains(m.Text, text) {
+				return true
+			}
+		}
+		return false
+	}
+	yt.Say(b.ChatID, "UCyoko", "@Yoko", "!roll")
+	tw.Say("streamer", "Tess", "!roll")
+	eventually(t, "each answered where they typed", func() string {
+		if !onYouTube("Yoko rolled") || !onTwitch("Tess rolled") {
+			return fmt.Sprintf("twitch %+v, youtube %+v", tw.ChatLog(), yt.Sent())
+		}
+		return ""
+	})
+	if onTwitch("Yoko rolled") || onYouTube("Tess rolled") {
+		t.Fatalf("answered in the wrong chat: twitch %+v, youtube %+v", tw.ChatLog(), yt.Sent())
+	}
+	tw.Say("streamer", "streamer", "!diceround")
+	eventually(t, "the round said in both", func() string {
+		if !onYouTube("dice round is open") || !onTwitch("dice round is open") {
+			return fmt.Sprintf("twitch %+v, youtube %+v", tw.ChatLog(), yt.Sent())
+		}
+		return ""
+	})
+	out, _, _ := cli(t, dir, "packages", "activity", "dice-tray")
+	if !strings.Contains(out, "to YouTube: @Yoko rolled") && !strings.Contains(out, "to YouTube: Yoko rolled") || !strings.Contains(out, "to Twitch and YouTube: A dice round is open") {
+		t.Fatalf("activity:\n%s", out)
+	}
+}
