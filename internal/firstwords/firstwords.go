@@ -185,6 +185,10 @@ func (s *Service) handle(ctx context.Context, r events.Record, emit bool) {
 		return
 	}
 	test := r.DeliveryQuality == events.Synthetic
+	if starts[r.Type] && r.Source == events.SourceYouTube {
+		s.mu.Unlock()
+		return // YouTube going live doesn't start a stream over yet (D-099)
+	}
 	if starts[r.Type] {
 		// A real start starts both over; a test start only test chat. It's
 		// placed by its order in the inbox, not its time: a message stored

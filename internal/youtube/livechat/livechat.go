@@ -96,6 +96,84 @@ type Snippet struct {
 	Text              string // 19: text_message_details.message_text (1)
 	LiveChatID        string // 201
 	AuthorChannelID   string // 301
+
+	// The details of the other types (M6 slice 4, D-099), at most one.
+	SuperChat              *SuperChat              // 27
+	SuperSticker           *SuperSticker           // 28
+	NewSponsor             *NewSponsor             // 29
+	MemberMilestone        *MemberMilestone        // 30
+	MembershipGifting      *MembershipGifting      // 31
+	GiftMembershipReceived *GiftMembershipReceived // 32
+	UserBanned             *UserBanned             // 22
+	Gift                   *Gift                   // 34
+}
+
+// SuperChat is LiveChatSuperChatDetails.
+type SuperChat struct {
+	AmountMicros        uint64 // 1
+	Currency            string // 2
+	AmountDisplayString string // 3
+	UserComment         string // 4
+	Tier                uint32 // 5
+}
+
+// SuperSticker is LiveChatSuperStickerDetails.
+type SuperSticker struct {
+	AmountMicros        uint64 // 1
+	Currency            string // 2
+	AmountDisplayString string // 3
+	Tier                uint32 // 4
+	StickerID           string // 5: super_sticker_metadata.sticker_id (1)
+	AltText             string // 5: super_sticker_metadata.alt_text (2)
+}
+
+// NewSponsor is LiveChatNewSponsorDetails: someone became a member.
+type NewSponsor struct {
+	MemberLevelName string // 1
+	IsUpgrade       bool   // 2
+}
+
+// MemberMilestone is LiveChatMemberMilestoneChatDetails.
+type MemberMilestone struct {
+	MemberLevelName string // 1
+	MemberMonth     uint32 // 2
+	UserComment     string // 3
+}
+
+// MembershipGifting is LiveChatMembershipGiftingDetails.
+type MembershipGifting struct {
+	Count     int32  // 1
+	LevelName string // 2
+}
+
+// GiftMembershipReceived is LiveChatGiftMembershipReceivedDetails.
+type GiftMembershipReceived struct {
+	MemberLevelName string // 1
+	GifterChannelID string // 2
+	GiftingID       string // 3: associated_membership_gifting_message_id
+}
+
+// Ban types (LiveChatUserBannedMessageDetails.BanType).
+const (
+	BanPermanent = 1
+	BanTemporary = 2
+)
+
+// UserBanned is LiveChatUserBannedMessageDetails.
+type UserBanned struct {
+	ChannelID       string // 1: banned_user_details.channel_id (101)
+	ChannelURL      string // 1: .channel_url (2)
+	DisplayName     string // 1: .display_name (3)
+	BanType         int32  // 2
+	DurationSeconds uint64 // 4
+}
+
+// Gift is LiveChatGiftDetails: a Jewels gift.
+type Gift struct {
+	Name        string // 1
+	JewelsCount int32  // 3: jewels_amount
+	AltText     string // 5
+	ComboCount  int32  // 8
 }
 
 // Author is LiveChatMessageAuthorDetails.
@@ -134,6 +212,20 @@ const (
 	snLiveChatID     = 201
 	snAuthorChannel  = 301
 	textMessageText  = 1
+
+	snUserBanned   = 22
+	snSuperChat    = 27
+	snSuperSticker = 28
+	snNewSponsor   = 29
+	snMilestone    = 30
+	snGifting      = 31
+	snGiftReceived = 32
+	snGift         = 34
+	profileChannel = 101
+	profileURL     = 2
+	profileName    = 3
+	stickerID      = 1
+	stickerAltText = 2
 
 	auVerified   = 4
 	auOwner      = 5
@@ -210,6 +302,7 @@ func (m Message) Marshal() []byte {
 	if m.Snippet.Type == TypeText {
 		sn = appendMessage(sn, snTextDetails, appendString(nil, textMessageText, m.Snippet.Text))
 	}
+	sn = appendDetails(sn, m.Snippet)
 	sn = appendString(sn, snLiveChatID, m.Snippet.LiveChatID)
 	sn = appendString(sn, snAuthorChannel, m.Snippet.AuthorChannelID)
 
@@ -228,6 +321,81 @@ func (m Message) Marshal() []byte {
 	b = appendMessage(b, msgSnippet, sn)
 	b = appendMessage(b, msgAuthor, au)
 	return b
+}
+
+func appendVarint(b []byte, n protowire.Number, v uint64) []byte {
+	if v == 0 {
+		return b
+	}
+	b = protowire.AppendTag(b, n, protowire.VarintType)
+	return protowire.AppendVarint(b, v)
+}
+
+// signed is a proto int32's varint: its int64 bits.
+func signed(v int32) uint64 { return uint64(int64(v)) } //nolint:gosec // protobuf's encoding of int32
+
+func appendDetails(sn []byte, s Snippet) []byte {
+	if d := s.SuperChat; d != nil {
+		var b []byte
+		b = appendVarint(b, 1, d.AmountMicros)
+		b = appendString(b, 2, d.Currency)
+		b = appendString(b, 3, d.AmountDisplayString)
+		b = appendString(b, 4, d.UserComment)
+		b = appendVarint(b, 5, uint64(d.Tier))
+		sn = appendMessage(sn, snSuperChat, b)
+	}
+	if d := s.SuperSticker; d != nil {
+		var meta []byte
+		meta = appendString(meta, stickerID, d.StickerID)
+		meta = appendString(meta, stickerAltText, d.AltText)
+		var b []byte
+		b = appendVarint(b, 1, d.AmountMicros)
+		b = appendString(b, 2, d.Currency)
+		b = appendString(b, 3, d.AmountDisplayString)
+		b = appendVarint(b, 4, uint64(d.Tier))
+		b = appendMessage(b, 5, meta)
+		sn = appendMessage(sn, snSuperSticker, b)
+	}
+	if d := s.NewSponsor; d != nil {
+		b := appendString(nil, 1, d.MemberLevelName)
+		b = appendBool(b, 2, d.IsUpgrade)
+		sn = appendMessage(sn, snNewSponsor, b)
+	}
+	if d := s.MemberMilestone; d != nil {
+		b := appendString(nil, 1, d.MemberLevelName)
+		b = appendVarint(b, 2, uint64(d.MemberMonth))
+		b = appendString(b, 3, d.UserComment)
+		sn = appendMessage(sn, snMilestone, b)
+	}
+	if d := s.MembershipGifting; d != nil {
+		b := appendVarint(nil, 1, signed(d.Count))
+		b = appendString(b, 2, d.LevelName)
+		sn = appendMessage(sn, snGifting, b)
+	}
+	if d := s.GiftMembershipReceived; d != nil {
+		b := appendString(nil, 1, d.MemberLevelName)
+		b = appendString(b, 2, d.GifterChannelID)
+		b = appendString(b, 3, d.GiftingID)
+		sn = appendMessage(sn, snGiftReceived, b)
+	}
+	if d := s.UserBanned; d != nil {
+		var prof []byte
+		prof = appendString(prof, profileChannel, d.ChannelID)
+		prof = appendString(prof, profileURL, d.ChannelURL)
+		prof = appendString(prof, profileName, d.DisplayName)
+		b := appendMessage(nil, 1, prof)
+		b = appendVarint(b, 2, signed(d.BanType))
+		b = appendVarint(b, 4, d.DurationSeconds)
+		sn = appendMessage(sn, snUserBanned, b)
+	}
+	if d := s.Gift; d != nil {
+		b := appendString(nil, 1, d.Name)
+		b = appendVarint(b, 3, signed(d.JewelsCount))
+		b = appendString(b, 5, d.AltText)
+		b = appendVarint(b, 8, signed(d.ComboCount))
+		sn = appendMessage(sn, snGift, b)
+	}
+	return sn
 }
 
 // fields walks b's fields, calling f with each one's number, wire type and
@@ -356,10 +524,70 @@ func parseSnippet(b []byte) (Snippet, error) {
 				}
 				return nil
 			})
+		default:
+			return parseDetails(&s, n, bs)
 		}
 		return nil
 	})
 	return s, err
+}
+
+// detail reads one detail message's fields into vals (varints) and strs.
+func detail(b []byte) (map[protowire.Number]uint64, map[protowire.Number][]byte, error) {
+	vals, strs := map[protowire.Number]uint64{}, map[protowire.Number][]byte{}
+	err := fields(b, func(n protowire.Number, t protowire.Type, v uint64, bs []byte) error {
+		switch t {
+		case protowire.VarintType:
+			vals[n] = v
+		case protowire.BytesType:
+			strs[n] = bs
+		}
+		return nil
+	})
+	return vals, strs, err
+}
+
+// i32 is a proto int32 from its varint.
+func i32(v uint64) int32 { return int32(int64(v)) } //nolint:gosec // protobuf's encoding of int32
+
+func parseDetails(s *Snippet, n protowire.Number, b []byte) error {
+	switch n {
+	case snSuperChat, snSuperSticker, snNewSponsor, snMilestone, snGifting, snGiftReceived, snUserBanned, snGift:
+	default:
+		return nil
+	}
+	v, str, err := detail(b)
+	if err != nil {
+		return err
+	}
+	st := func(k protowire.Number) string { return string(str[k]) }
+	switch n {
+	case snSuperChat:
+		s.SuperChat = &SuperChat{AmountMicros: v[1], Currency: st(2), AmountDisplayString: st(3), UserComment: st(4), Tier: uint32(v[5])} //nolint:gosec // a proto uint32
+	case snSuperSticker:
+		d := &SuperSticker{AmountMicros: v[1], Currency: st(2), AmountDisplayString: st(3), Tier: uint32(v[4])} //nolint:gosec // a proto uint32
+		if _, ms, err := detail(str[5]); err == nil {
+			d.StickerID, d.AltText = string(ms[stickerID]), string(ms[stickerAltText])
+		}
+		s.SuperSticker = d
+	case snNewSponsor:
+		s.NewSponsor = &NewSponsor{MemberLevelName: st(1), IsUpgrade: v[2] != 0}
+	case snMilestone:
+		s.MemberMilestone = &MemberMilestone{MemberLevelName: st(1), MemberMonth: uint32(v[2]), UserComment: st(3)} //nolint:gosec // a proto uint32
+	case snGifting:
+		s.MembershipGifting = &MembershipGifting{Count: i32(v[1]), LevelName: st(2)}
+	case snGiftReceived:
+		s.GiftMembershipReceived = &GiftMembershipReceived{MemberLevelName: st(1), GifterChannelID: st(2), GiftingID: st(3)}
+	case snUserBanned:
+		d := &UserBanned{BanType: i32(v[2]), DurationSeconds: v[4]}
+		if _, ps, err := detail(str[1]); err == nil {
+			d.ChannelID, d.ChannelURL, d.DisplayName = string(ps[profileChannel]), string(ps[profileURL]), string(ps[profileName])
+		}
+		s.UserBanned = d
+	case snGift:
+		s.Gift = &Gift{Name: st(1), JewelsCount: i32(v[3]), AltText: st(5), ComboCount: i32(v[8])}
+	}
+	return nil
 }
 
 func parseAuthor(b []byte) (Author, error) {

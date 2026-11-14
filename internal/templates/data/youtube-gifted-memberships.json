@@ -1,0 +1,46 @@
+{
+  "template": {
+    "id": "youtube-gifted-memberships",
+    "title": "Thank gifted YouTube memberships, with an alert",
+    "category": "YouTube events",
+    "description": "Shows an alert when someone gifts memberships on YouTube, and thanks them in YouTube chat. Add an overlay on the Overlays screen first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.overlay",
+        "hint": "Your alert overlay's name, like alerts"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "youtube.gifted-memberships",
+    "name": "Thank gifted memberships",
+    "group": "Thanks",
+    "triggers": [
+      {
+        "type": "monetization.subscription.gifted",
+        "sources": [
+          "youtube"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "action": "overlays.alert",
+        "with": {
+          "overlay": "",
+          "title": "Gifted memberships",
+          "text": "${event.payload.from} gifted ${event.payload.total} memberships!",
+          "picture": true
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "${event.payload.from} just gifted ${event.payload.total} memberships! Thank you 🎁"
+        }
+      }
+    ]
+  }
+}

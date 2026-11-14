@@ -705,3 +705,41 @@ func TestYouTubeChatStartsWorkflows(t *testing.T) {
 		}
 	}
 }
+
+// Workflows made before YouTube could go live keep their go-live and
+// go-offline triggers to Twitch, once (D-099); others are untouched.
+func TestLiveTriggersKeptToTwitch(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.save(def("live", `"triggers":[{"type":"broadcast.channel.online"},{"type":"broadcast.channel.offline"}],"steps":[{"action":"test.local"}]`), true)
+	r.save(def("yt", `"triggers":[{"type":"broadcast.channel.online","sources":["youtube"]}],"steps":[{"action":"test.local"}]`), false)
+	r.save(def("chat", `"triggers":[{"type":"chat.message.received"}],"steps":[{"action":"test.local"}]`), true)
+	ids, err := r.eng.MarkLiveTriggersTwitchOnly(ctx)
+	if err != nil || len(ids) != 1 || ids[0] != "live" {
+		t.Fatal(ids, err)
+	}
+	d, v, err := r.eng.Definition(ctx, "live")
+	if err != nil || v != 2 || len(d.Triggers[0].Sources) != 1 || d.Triggers[0].Sources[0] != "twitch" || d.Triggers[1].Sources[0] != "twitch" {
+		t.Fatalf("%+v v%d %v", d.Triggers, v, err)
+	}
+	if s, _ := r.eng.Get(ctx, "live"); !s.Enabled {
+		t.Fatal("turned off")
+	}
+	if s, _ := r.eng.Get(ctx, "yt"); s.Enabled || s.Version != 1 {
+		t.Fatalf("%+v", s)
+	}
+	if ids, err := r.eng.MarkLiveTriggersTwitchOnly(ctx); err != nil || len(ids) != 0 {
+		t.Fatal("twice", ids, err)
+	}
+	// YouTube going live now starts only the YouTube one (were it on).
+	r.save(def("yt", `"triggers":[{"type":"broadcast.channel.online","sources":["youtube"]}],"steps":[{"action":"test.local"}]`), true)
+	if _, err := r.inbox.Accept(ctx, events.Envelope{Type: "broadcast.channel.online", Source: events.SourceYouTube, SourceEventID: "online:b",
+		Payload: json.RawMessage(`{}`), DeliveryQuality: events.Confirmed}); err != nil {
+		t.Fatal(err)
+	}
+	r.jobs("yt", 1)
+	time.Sleep(100 * time.Millisecond)
+	if js, _ := r.eng.Jobs(ctx, "live", 5); len(js) != 0 {
+		t.Fatal("the Twitch-only workflow ran for YouTube")
+	}
+}

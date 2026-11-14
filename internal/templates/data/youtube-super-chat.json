@@ -1,0 +1,43 @@
+{
+  "template": {
+    "id": "youtube-super-chat",
+    "title": "Thank Super Chats, with an alert",
+    "category": "YouTube events",
+    "description": "Shows an alert with the amount and their message, and says thanks in YouTube chat. Add an overlay on the Overlays screen first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.overlay",
+        "hint": "Your alert overlay's name, like alerts"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "youtube.super-chat",
+    "name": "Thank Super Chats",
+    "group": "Thanks",
+    "triggers": [
+      {
+        "type": "monetization.super_chat.received"
+      }
+    ],
+    "steps": [
+      {
+        "action": "overlays.alert",
+        "with": {
+          "overlay": "",
+          "title": "Super Chat",
+          "text": "${event.payload.from} sent ${event.payload.amount_display}${event.payload.text != \"\" ? \": \" + event.payload.text : \"\"}",
+          "picture": true
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Thank you for the ${event.payload.amount_display} Super Chat, ${event.payload.from}! 💛"
+        }
+      }
+    ]
+  }
+}

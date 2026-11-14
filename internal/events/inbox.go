@@ -230,13 +230,15 @@ func (in *Inbox) CountViewerChat(ctx context.Context, after int64) (int, error) 
 }
 
 // LatestReal returns the newest event of any of the types, test events
-// left out; ok is false when there's none.
+// left out; ok is false when there's none. YouTube's events are left out
+// too: StreamGremlin's own idea of being live, which this serves, follows
+// Twitch and OBS for now (D-099).
 func (in *Inbox) LatestReal(ctx context.Context, types ...string) (rec Record, ok bool, err error) {
 	if len(types) == 0 {
 		return Record{}, false, nil
 	}
 	cond, args := Filter(types).where()
-	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic'"+cond+" ORDER BY seq DESC LIMIT 1", append(args, 1)...)
+	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic' AND source != 'youtube'"+cond+" ORDER BY seq DESC LIMIT 1", append(args, 1)...)
 	if err != nil || len(recs) == 0 {
 		return Record{}, false, err
 	}
@@ -249,7 +251,7 @@ func (in *Inbox) LatestRealUpTo(ctx context.Context, upTo int64, types ...string
 		return Record{}, false, nil
 	}
 	cond, args := Filter(types).where()
-	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic' AND seq <= ?"+cond+" ORDER BY seq DESC LIMIT ?", append(append([]any{upTo}, args...), 1)...)
+	recs, err := in.query(ctx, "WHERE delivery_quality != 'synthetic' AND source != 'youtube' AND seq <= ?"+cond+" ORDER BY seq DESC LIMIT ?", append(append([]any{upTo}, args...), 1)...)
 	if err != nil || len(recs) == 0 {
 		return Record{}, false, err
 	}
@@ -320,7 +322,7 @@ func (in *Inbox) SeqBefore(ctx context.Context, t time.Time) (int64, error) {
 func (in *Inbox) StreamStartSeq(ctx context.Context, since time.Time, synthetic bool) (seq int64, ok bool, err error) {
 	var n sql.NullInt64
 	err = in.db.QueryRowContext(ctx, `SELECT MAX(seq) FROM events WHERE type IN ('broadcast.channel.online', 'broadcast.stream.started')
-		AND received_at >= ? AND (delivery_quality = 'synthetic') = ?`, storage.Timestamp(since), synthetic).Scan(&n)
+		AND source != 'youtube' AND received_at >= ? AND (delivery_quality = 'synthetic') = ?`, storage.Timestamp(since), synthetic).Scan(&n)
 	if err != nil {
 		return 0, false, fmt.Errorf("events: stream start: %w", err)
 	}

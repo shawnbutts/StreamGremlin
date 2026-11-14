@@ -306,6 +306,10 @@ func (s *Service) readChat(ctx context.Context, b Broadcast) {
 		case outStopped:
 			return
 		case outEnded:
+			if s.onlineFor == b.ID {
+				s.broadcastEvent(ctx, b, channel, false)
+				s.onlineFor = ""
+			}
 			s.endedChats[b.LiveChatID] = true
 			s.lastEnded = fmt.Sprintf("The chat of “%s” ended. Looking for your next live broadcast.", b.Title)
 			if detail != "" {
@@ -388,6 +392,12 @@ func (s *Service) streamOnce(ctx context.Context, b Broadcast, channel string, t
 			return outFailed, "YouTube sent something StreamGremlin couldn't read."
 		}
 		s.setChat(ChatConnected, "", &b, nil)
+		if s.onlineFor != b.ID {
+			// Live once its chat answers: a broadcast whose chat is off
+			// never "goes live" here, and so never goes offline either.
+			s.broadcastEvent(ctx, b, channel, true)
+			s.onlineFor = b.ID
+		}
 		ended := s.storeChat(ctx, b, channel, resp.Items, backlog)
 		backlog = false
 		if resp.NextPageToken != "" {
@@ -459,9 +469,13 @@ func (s *Service) storeChat(ctx context.Context, b Broadcast, channel string, it
 			continue
 		case livechat.TypeText:
 		default:
-			// Super Chats, memberships and the rest come in slice 4, deletions
-			// and bans with moderating in slice 5.
-			s.log.Debug("youtube chat: not stored yet", "type", m.Snippet.Type.String())
+			// Super Chats, memberships, bans and the rest (D-099). Deletions
+			// come with moderating in slice 5, polls in slice 7.
+			if env := eventEnvelope(m, b, channel, backlog); env != nil && m.ID != "" {
+				s.storeEvent(ctx, *env)
+			} else {
+				s.log.Debug("youtube chat: not stored", "type", m.Snippet.Type.String())
+			}
 			continue
 		}
 		if s.inbox == nil || m.ID == "" {

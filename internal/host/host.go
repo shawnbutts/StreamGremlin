@@ -253,6 +253,19 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err := h.workflows.Start(ctx); err != nil {
 		return nil, err
 	}
+	// Once (D-099): workflows made before YouTube could go live keep their
+	// go-live and go-offline triggers to Twitch.
+	var liveMarked bool
+	if ok, err := set.Load(ctx, "migrations.live_triggers_twitch_only", &liveMarked); err == nil && (!ok || !liveMarked) {
+		if ids, err := h.workflows.MarkLiveTriggersTwitchOnly(ctx); err != nil {
+			log.Warn("couldn't keep go-live triggers to Twitch; trying again at the next start", "err", err)
+		} else {
+			_ = set.Save(ctx, "migrations.live_triggers_twitch_only", true)
+			if len(ids) > 0 {
+				log.Info("go-live and go-offline triggers kept to Twitch", "workflows", len(ids))
+			}
+		}
+	}
 	h.timers.Start(context.Background())
 	// After workflows: first words are stored as events, which they run on.
 	if err := h.firsts.Start(ctx); err != nil {

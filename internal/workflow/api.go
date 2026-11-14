@@ -323,3 +323,43 @@ func (e *Engine) Starting(ctx context.Context, r events.Record) ([]Summary, erro
 	}
 	return out, nil
 }
+
+// MarkLiveTriggersTwitchOnly makes every go-live and go-offline trigger
+// that hears all platforms hear Twitch only, as a new version of each
+// workflow (D-099): YouTube's going live arrived in M6 slice 4, and
+// workflows made before it were made for Twitch. The host runs it once.
+// Deleted workflows are left as they are.
+func (e *Engine) MarkLiveTriggersTwitchOnly(ctx context.Context) ([]string, error) {
+	e.cmdMu.Lock()
+	defer e.cmdMu.Unlock()
+	list, err := e.st.list(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	var changed []string
+	for _, s := range list {
+		d, _, _, err := e.st.definition(ctx, s.ID, 0)
+		if err != nil {
+			return changed, err
+		}
+		mark := false
+		for i, t := range d.Triggers {
+			if (t.Type == "broadcast.channel.online" || t.Type == "broadcast.channel.offline") && len(t.Sources) == 0 {
+				d.Triggers[i].Sources = []string{"twitch"}
+				mark = true
+			}
+		}
+		if !mark {
+			continue
+		}
+		if _, _, err := e.st.save(ctx, d, false); err != nil {
+			return changed, err
+		}
+		changed = append(changed, d.ID)
+		e.log.Info("workflow's go-live trigger kept to Twitch", "workflow", d.ID)
+	}
+	if len(changed) > 0 {
+		return changed, e.reload(ctx)
+	}
+	return changed, nil
+}

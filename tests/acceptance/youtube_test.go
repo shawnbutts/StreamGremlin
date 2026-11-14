@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/mockyoutube"
+	"code.streamgremlin.com/streamgremlin/internal/youtube/livechat"
 )
 
 const ytClientID = "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com"
@@ -277,4 +278,68 @@ func TestYouTubeCombinedChatThroughTheCLI(t *testing.T) {
 	if out, _, _ := cli(t, dir, "youtube"); !quotaUsed.MatchString(out) {
 		t.Fatal(out)
 	}
+}
+
+// YouTube's events through the real engine, CLI and mockyoutube (M6
+// slice 4, D-099): going live, a Super Chat thanked on YouTube by a
+// workflow, a new member in the event log, and going offline.
+func TestYouTubeEventsThroughTheCLI(t *testing.T) {
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	startEngine(t, dir, "-youtube-url", ytSrv.URL)
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	files := t.TempDir()
+	f := writeFile(t, files, "sc.json", `{"schema":"streamgremlin.workflow/v1","id":"sc","name":"Thank Super Chats",
+		"triggers":[{"type":"monetization.super_chat.received"}],
+		"steps":[{"action":"chat.send","with":{"message":"Thanks for the ${event.payload.amount_display}, ${event.payload.from}!"}}]}`)
+	if out, errOut, code := cli(t, dir, "workflows", "save", f); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	if out, errOut, code := cli(t, dir, "workflows", "on", "sc"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	b := yt.GoLive("UCstreamer", "Events stream")
+	if out, _, code := cli(t, dir, "youtube", "find"); code != 0 || !strings.Contains(out, "reading chat") {
+		t.Fatal(code, out)
+	}
+	yt.Add(b.ChatID, livechat.Message{Author: livechat.Author{ChannelID: "UCfan", DisplayName: "Big Fan"},
+		Snippet: livechat.Snippet{Type: livechat.TypeSuperChat, SuperChat: &livechat.SuperChat{AmountMicros: 5_000_000, Currency: "USD",
+			AmountDisplayString: "$5.00", UserComment: "love it"}}})
+	yt.Add(b.ChatID, livechat.Message{Author: livechat.Author{ChannelID: "UCnew", DisplayName: "New Member"},
+		Snippet: livechat.Snippet{Type: livechat.TypeNewSponsor, NewSponsor: &livechat.NewSponsor{MemberLevelName: "Gold"}}})
+	eventually(t, "the thanks on YouTube", func() string {
+		for _, m := range yt.Sent() {
+			if m.Text == "Thanks for the $5.00, Big Fan!" {
+				return ""
+			}
+		}
+		return fmt.Sprintf("%+v", yt.Sent())
+	})
+	all := func() string {
+		out, _, _ := cli(t, dir, "events", "-types", "monetization.*,broadcast.*")
+		return out
+	}
+	eventually(t, "the events", func() string {
+		out := all()
+		if !strings.Contains(out, "monetization.super_chat.received  (youtube)  Big Fan") ||
+			!strings.Contains(out, "monetization.subscription.started  (youtube)  New Member") ||
+			strings.Count(out, "broadcast.channel.online  (youtube)") != 1 {
+			return out
+		}
+		return ""
+	})
+	yt.EndBroadcast(b.ID)
+	eventually(t, "offline", func() string {
+		if out := all(); strings.Count(out, "broadcast.channel.offline  (youtube)") != 1 {
+			return out
+		}
+		return ""
+	})
 }

@@ -1,0 +1,29 @@
+{
+  "template": {
+    "id": "youtube-jewels",
+    "title": "Thank Jewels gifts",
+    "category": "YouTube events",
+    "description": "Says thanks in YouTube chat for a gift bought with Jewels.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "youtube.jewels",
+    "name": "Thank Jewels gifts",
+    "group": "Thanks",
+    "triggers": [
+      {
+        "type": "monetization.jewels.gifted"
+      }
+    ],
+    "steps": [
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "Thanks for the ${event.payload.gift}, ${event.payload.from}! ✨"
+        }
+      }
+    ]
+  }
+}

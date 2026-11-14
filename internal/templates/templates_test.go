@@ -150,7 +150,11 @@ func TestEveryTemplateWorks(t *testing.T) {
 		if r, ok := where["chatter.role"].([]any); ok {
 			fields["role"] = r[0].(string)
 		}
-		sims = append(sims, events.Simulation{Type: tr.Type, Fields: fields, RequestID: tp.ID})
+		sim := events.Simulation{Type: tr.Type, Fields: fields, RequestID: tp.ID}
+		if len(tr.Sources) > 0 {
+			sim.Source = tr.Sources[0] // a YouTube-only template hears a YouTube test event
+		}
+		sims = append(sims, sim)
 	}
 	for _, s := range sims {
 		env, err := s.Build()

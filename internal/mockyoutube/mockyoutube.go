@@ -143,7 +143,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.liveBroadcasts(w, r)
 	case "/youtube/v3/liveChat/messages":
 		s.insertMessage(w, r)
-	case "/mock", "/mock/live", "/mock/say", "/mock/end", "/mock/drop":
+	case "/mock", "/mock/live", "/mock/say", "/mock/superchat", "/mock/member", "/mock/end", "/mock/drop":
 		s.controlPage(w, r)
 	case "/o/oauth2/v2/auth":
 		s.authorize(w, r)

@@ -306,6 +306,10 @@ var controls = template.Must(template.New("c").Parse(`<!doctype html><meta chars
 {{range .Broadcasts}}<h2>{{.Title}} ({{.ID}}){{if .Ended}}: ended{{end}}</h2>{{if not .Ended}}
 <form method="post" action="/mock/say"><input type="hidden" name="chat" value="{{.ChatID}}">
 <label>From <input name="name" value="Viewer"></label> <label>Message <input name="text" required></label> <button>Say</button></form>
+<form method="post" action="/mock/superchat"><input type="hidden" name="chat" value="{{.ChatID}}">
+<label>From <input name="name" value="Big Fan"></label> <label>Amount (USD) <input name="amount" value="5" size="4"></label> <label>Message <input name="text"></label> <button>Super Chat</button></form>
+<form method="post" action="/mock/member"><input type="hidden" name="chat" value="{{.ChatID}}">
+<label>Who <input name="name" value="New Member"></label> <label>Level <input name="level" value="Gold" size="8"></label> <button>Becomes a member</button></form>
 <form method="post" action="/mock/end"><input type="hidden" name="broadcast" value="{{.ID}}"><button>End broadcast</button></form>{{end}}{{end}}
 <form method="post" action="/mock/drop"><button>Drop chat streams</button></form>`))
 
@@ -324,6 +328,16 @@ func (s *Server) controlPage(w http.ResponseWriter, r *http.Request) {
 		case "/mock/say":
 			name := f.Get("name")
 			s.Say(f.Get("chat"), "UC"+strings.ReplaceAll(strings.ToLower(name), " ", ""), name, f.Get("text"))
+		case "/mock/superchat":
+			name := f.Get("name")
+			amount, _ := strconv.ParseFloat(f.Get("amount"), 64)
+			s.Add(f.Get("chat"), livechat.Message{Author: livechat.Author{ChannelID: "UC" + strings.ReplaceAll(strings.ToLower(name), " ", ""), DisplayName: name},
+				Snippet: livechat.Snippet{Type: livechat.TypeSuperChat, SuperChat: &livechat.SuperChat{AmountMicros: uint64(amount * 1e6), Currency: "USD", //nolint:gosec // a test amount
+					AmountDisplayString: fmt.Sprintf("$%.2f", amount), UserComment: f.Get("text"), Tier: 1}}})
+		case "/mock/member":
+			name := f.Get("name")
+			s.Add(f.Get("chat"), livechat.Message{Author: livechat.Author{ChannelID: "UC" + strings.ReplaceAll(strings.ToLower(name), " ", ""), DisplayName: name},
+				Snippet: livechat.Snippet{Type: livechat.TypeNewSponsor, NewSponsor: &livechat.NewSponsor{MemberLevelName: f.Get("level")}}})
 		case "/mock/end":
 			s.EndBroadcast(f.Get("broadcast"))
 		case "/mock/drop":

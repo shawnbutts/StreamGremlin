@@ -279,22 +279,22 @@ func Catalog() []Kind {
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"followed_at": "2026-11-08T20:00:00Z"}
 			}),
-		twitchKind("monetization.subscription.started", "New sub", "Someone subscribed, or was given a sub.", false,
+		alsoYouTube(twitchKind("monetization.subscription.started", "New sub", "Someone subscribed, or was given a sub.", false,
 			[]Field{tierField, {Name: "is_gift", Label: "Given as a gift", Kind: "choice", Default: "false", Max: 5, Choices: []string{"false", "true"}}},
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"tier": atoi(v["tier"]), "is_gift": v["is_gift"] == "true"}
-			}),
-		twitchKind("monetization.subscription.renewed", "Resub", "Someone shared their resub, with a message.", true,
+			})),
+		alsoYouTube(twitchKind("monetization.subscription.renewed", "Resub", "Someone shared their resub, with a message.", true,
 			[]Field{tierField, {Name: "months", Label: "Months in all", Kind: "number", Default: "12", Max: 5},
 				{Name: "text", Label: "Their message", Kind: "text", Default: "A whole year!", Max: 500}},
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"tier": atoi(v["tier"]), "months": atoi(v["months"]), "text": v["text"], "duration_months": 1}
-			}),
-		twitchKind("monetization.subscription.gifted", "Gifted subs", "Someone gave subs to the community.", false,
+			})),
+		alsoYouTube(twitchKind("monetization.subscription.gifted", "Gifted subs", "Someone gave subs to the community.", false,
 			[]Field{tierField, {Name: "total", Label: "How many", Kind: "number", Default: "5", Max: 4}},
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"tier": atoi(v["tier"]), "total": atoi(v["total"]), "is_anonymous": false, "from": a.DisplayName}
-			}),
+			})),
 		twitchKind("monetization.bits.cheered", "Cheer", "Someone cheered bits.", true,
 			[]Field{{Name: "bits", Label: "Bits", Kind: "number", Default: "100", Max: 7},
 				{Name: "text", Label: "Their message", Kind: "text", Default: "Cheer100 nice!", Max: 500}},
@@ -389,14 +389,52 @@ func Catalog() []Kind {
 			func(v map[string]string) map[string]any {
 				return map[string]any{"request_id": "test", "action": "snooze", "next_ad_at": "2026-11-08T20:35:00Z", "snooze_count": atoi(v["snoozes"])}
 			}),
-		{Type: "broadcast.channel.online", Label: "Live on Twitch", Description: "Your channel went live on Twitch.",
-			Sources: []string{"twitch"}, Fields: []Field{},
+		{Type: "broadcast.channel.online", Label: "Live", Description: "Your channel went live on Twitch, or your broadcast on YouTube.",
+			Sources: []string{"twitch", SourceYouTube}, Fields: []Field{},
 			build: func(string, map[string]string) (any, *Actor, error) {
 				return map[string]any{"stream_type": "live", "started_at": "2026-11-08T20:00:00Z"}, nil, nil
 			}},
-		{Type: "broadcast.channel.offline", Label: "Offline on Twitch", Description: "Your channel went offline on Twitch.",
-			Sources: []string{"twitch"}, Fields: []Field{},
+		{Type: "broadcast.channel.offline", Label: "Offline", Description: "Your channel went offline on Twitch, or your YouTube broadcast ended.",
+			Sources: []string{"twitch", SourceYouTube}, Fields: []Field{},
 			build: func(string, map[string]string) (any, *Actor, error) { return map[string]any{}, nil, nil }},
+		youtubeKind("monetization.super_chat.received", "Super Chat", "Someone sent a Super Chat on YouTube.", true,
+			[]Field{{Name: "amount", Label: "Amount", Kind: "number", Default: "5", Max: 9},
+				{Name: "currency", Label: "Currency", Kind: "text", Default: "USD", Max: 3},
+				{Name: "text", Label: "Their message", Kind: "text", Default: "Love the stream!", Max: 500}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"amount": atof(v["amount"]), "amount_micros": int64(atof(v["amount"]) * 1e6), "currency": v["currency"],
+					"amount_display": v["currency"] + " " + v["amount"], "tier": 1, "text": v["text"], "from": a.DisplayName}
+			}),
+		youtubeKind("monetization.super_sticker.received", "Super Sticker", "Someone sent a Super Sticker on YouTube.", false,
+			[]Field{{Name: "amount", Label: "Amount", Kind: "number", Default: "2", Max: 9},
+				{Name: "currency", Label: "Currency", Kind: "text", Default: "USD", Max: 3},
+				{Name: "sticker", Label: "The sticker", Kind: "text", Default: "A dancing cat", Max: 100}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"amount": atof(v["amount"]), "amount_micros": int64(atof(v["amount"]) * 1e6), "currency": v["currency"],
+					"amount_display": v["currency"] + " " + v["amount"], "tier": 1, "sticker_id": "test", "sticker": v["sticker"], "from": a.DisplayName}
+			}),
+		youtubeKind("monetization.jewels.gifted", "Jewels gift", "Someone sent a gift with Jewels on YouTube.", false,
+			[]Field{{Name: "gift", Label: "Gift", Kind: "text", Default: "Rose", Max: 50},
+				{Name: "jewels", Label: "Jewels", Kind: "number", Default: "10", Max: 6},
+				{Name: "count", Label: "How many", Kind: "number", Default: "1", Max: 4}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"gift": v["gift"], "jewels": atoi(v["jewels"]), "count": atoi(v["count"]), "description": v["gift"], "from": a.DisplayName}
+			}),
+		{Type: "chat.members_only.changed", Label: "Members-only chat", Description: "Members-only chat turned on or off on YouTube.",
+			Sources: []string{SourceYouTube},
+			Fields:  []Field{{Name: "enabled", Label: "Turned on", Kind: "choice", Default: "true", Max: 5, Choices: []string{"true", "false"}}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"enabled": v["enabled"] == "true"}, nil, nil
+			}},
+		youtubeKind("moderation.user.banned", "Banned", "A viewer was banned from your YouTube chat.", false, nil,
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"permanent": true, "reason": "", "moderator": map[string]any{"id": "test-mod", "display_name": "TestMod"}}
+			}),
+		youtubeKind("moderation.user.timed_out", "Timed out", "A viewer was timed out in your YouTube chat.", false,
+			[]Field{{Name: "seconds", Label: "Seconds", Kind: "number", Default: "300", Max: 6}},
+			func(a *Actor, v map[string]string) map[string]any {
+				return map[string]any{"duration_seconds": atoi(v["seconds"]), "moderator": map[string]any{"id": "test-mod", "display_name": "TestMod"}}
+			}),
 		{Type: "broadcast.channel.updated", Label: "Title or category changed", Description: "Your channel's title or category changed on Twitch.",
 			Sources: []string{"twitch"},
 			Fields: []Field{{Name: "title", Label: "Title", Kind: "text", Default: "Speedrun night", Max: 140},
@@ -462,6 +500,22 @@ func Catalog() []Kind {
 var tierField = Field{Name: "tier", Label: "Tier", Kind: "choice", Default: "1", Max: 1, Choices: []string{"1", "2", "3"}}
 
 func atoi(s string) int64 { n, _ := strconv.ParseInt(s, 10, 64); return n }
+
+func atof(s string) float64 { f, _ := strconv.ParseFloat(s, 64); return f }
+
+// alsoYouTube adds YouTube to a Twitch event's sources: memberships use
+// the subscription types (D-099).
+func alsoYouTube(k Kind) Kind {
+	k.Sources = append(k.Sources, SourceYouTube)
+	return k
+}
+
+// youtubeKind is a catalog entry for an event only YouTube sends (D-099).
+func youtubeKind(typ, label, desc string, sensitive bool, fields []Field, payload func(*Actor, map[string]string) map[string]any) Kind {
+	k := twitchKind(typ, label, desc, sensitive, fields, payload)
+	k.Sources = []string{SourceYouTube}
+	return k
+}
 
 // twitchKind is a catalog entry for a Twitch channel event with a viewer
 // (docs/adr/0015-twitch-channel-events.md).

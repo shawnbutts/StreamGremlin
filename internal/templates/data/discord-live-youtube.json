@@ -1,0 +1,46 @@
+{
+  "template": {
+    "id": "discord-live-youtube",
+    "title": "Announce on Discord when you go live on YouTube",
+    "category": "Discord",
+    "description": "When StreamGremlin finds your live YouTube broadcast, posts @everyone in a Discord channel with its title and link. Add a Discord webhook on Connections first.",
+    "starter": false,
+    "blanks": [
+      {
+        "path": "$.steps[0].with.webhook",
+        "hint": "Your Discord webhook's name, like announcements"
+      }
+    ]
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "discord.live-youtube",
+    "name": "Announce on Discord when you go live on YouTube",
+    "group": "Discord",
+    "triggers": [
+      {
+        "type": "broadcast.channel.online",
+        "sources": [
+          "youtube"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "action": "discord.send",
+        "with": {
+          "webhook": "",
+          "mention": "everyone",
+          "message": "I'm live on YouTube! Come hang out${event.payload.?url.orValue(\"\") != \"\" ? \": \" + event.payload.url : \".\"}",
+          "title": "${event.payload.?title.orValue(\"\")}",
+          "link": "${event.payload.?url.orValue(\"\")}",
+          "color": "#ff0000",
+          "footer": "YouTube"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "drop"
+    }
+  }
+}

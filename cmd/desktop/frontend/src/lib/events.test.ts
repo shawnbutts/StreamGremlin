@@ -22,6 +22,24 @@ describe('eventSummary', () => {
   it('describes a scene change', () => {
     expect(eventSummary(ev({ scene_name: 'BRB', previous_scene_name: 'Game' }))).toBe('Now on BRB (was Game)');
   });
+  it('says YouTube’s events in words (D-099)', () => {
+    const yt = (type: string, payload: Record<string, unknown>) => ({
+      ...ev(payload, { platform: 'youtube', id: 'UC1', display_name: 'Fan' }),
+      type,
+      source: 'youtube',
+    });
+    expect(eventSummary(yt('monetization.super_chat.received', { amount_display: '$5.00', text: 'gg', from: 'Fan' }))).toBe('Fan sent a $5.00 Super Chat: gg');
+    expect(eventSummary(yt('monetization.super_sticker.received', { amount_display: '€2.00', sticker: 'A cat', from: 'Fan' }))).toBe('Fan sent a €2.00 Super Sticker: A cat');
+    expect(eventSummary(yt('monetization.jewels.gifted', { gift: 'Rose', jewels: 10, count: 3, from: 'Fan' }))).toBe('Fan gifted 3 × Rose (10 Jewels)');
+    expect(eventSummary(yt('monetization.subscription.started', { level: 'Gold', is_gift: false, tier: 0 }))).toBe('Fan became a member (Gold)');
+    expect(eventSummary(yt('monetization.subscription.started', { level: '', is_gift: true, tier: 0 }))).toBe('Fan became a member, a gift');
+    expect(eventSummary(yt('monetization.subscription.renewed', { months: 12, text: 'yay' }))).toBe('Fan: 12 months a member. “yay”');
+    expect(eventSummary(yt('monetization.subscription.gifted', { total: 1, from: 'Fan' }))).toBe('Fan gifted 1 membership');
+    expect(eventSummary(yt('chat.members_only.changed', { enabled: true }))).toBe('YouTube chat is members-only');
+    expect(eventSummary(yt('moderation.user.timed_out', { duration_seconds: 300 }))).toBe('Fan was timed out on YouTube for 300 seconds');
+    expect(eventSummary(yt('broadcast.channel.online', { title: 'Friday' }))).toBe('Live on YouTube: “Friday”');
+    expect(eventSummary({ ...ev({}), type: 'broadcast.channel.online' })).toBe('Live on Twitch');
+  });
   it('falls back to the actor, or nothing', () => {
     expect(eventSummary(ev({}, { platform: 'twitch', id: '1', login: 'fan' }))).toBe('fan');
     expect(eventSummary(ev({}))).toBe('');

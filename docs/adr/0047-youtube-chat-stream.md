@@ -1,7 +1,7 @@
 # ADR-0047: Reading YouTube chat
 
 - **Status:** Accepted
-- **Date:** 2026-11-14 (sending added the same day, D-098)
+- **Date:** 2026-11-14 (sending added the same day, D-098; events, D-099)
 - **Based on:** D-095 (M6, one combined chat); D-097 (slice 2); ADR-0046 (YouTube sign-in and quota); ADR-0004 (the event inbox).
 
 ## Context
@@ -66,6 +66,27 @@ Chat's state can be:
 - quota (until midnight Pacific).
 
 `GET /v1/connections/youtube` returns it as `chat`. `POST /v1/connections/youtube/chat/find` is Find my stream.
+
+### YouTube's events (slice 4, D-099)
+
+Message types other than text become events, by `snippet.type` and its details in `stream_list.proto` (field numbers checked 2026-11-14):
+
+| YouTube | Fields read | Event |
+|---|---|---|
+| `superChatEvent` (`super_chat_details` = 27) | amount_micros 1, currency 2, amount_display_string 3, user_comment 4, tier 5 | `monetization.super_chat.received` |
+| `superStickerEvent` (28) | amount_micros 1, currency 2, amount_display_string 3, tier 4, metadata 5 {sticker_id 1, alt_text 2} | `monetization.super_sticker.received` |
+| `giftEvent` (34) | gift_name 1, jewels_amount 3, alt_text 5, combo_count 8 | `monetization.jewels.gifted` |
+| `newSponsorEvent` (29) | member_level_name 1, is_upgrade 2 | `monetization.subscription.started` |
+| `giftMembershipReceivedEvent` (32) | member_level_name 1, gifter_channel_id 2, associated message 3 | `monetization.subscription.started`, `is_gift` |
+| `memberMilestoneChatEvent` (30) | member_level_name 1, member_month 2, user_comment 3 | `monetization.subscription.renewed` |
+| `membershipGiftingEvent` (31) | gift_memberships_count 1, level name 2 | `monetization.subscription.gifted` |
+| `sponsorOnlyModeStarted/EndedEvent` | | `chat.members_only.changed` |
+| `userBannedEvent` (22) | banned_user_details 1 {channel_id 101, channel_url 2, display_name 3}, ban_type 2, ban_duration_seconds 4 | `moderation.user.banned` or `.timed_out` |
+
+- Each event's source event ID is the message's ID, so a resumed stream never stores it twice. Events from the backlog are marked, and start nothing.
+- **Going live and offline** are `broadcast.channel.online` and `.offline` from `youtube`, recorded once per broadcast (`online:<id>`, `offline:<id>`).
+  - Online is recorded when the broadcast's chat first answers. Offline is recorded when the chat ends, and only after an online.
+  - The inbox's "latest real" and "stream start" queries leave YouTube out, so StreamGremlin's own idea of being live still follows Twitch and OBS.
 
 ### Sending (slice 3, D-098)
 

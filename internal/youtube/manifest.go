@@ -80,6 +80,16 @@ func YouTubeManifest() Manifest {
 				"exist: an answer to a message starts with @name. rateLimitExceeded, forbidden (banned or timed out) and " +
 				"liveChatEnded are said in words; nothing is retried. A workflow's message as you is recognised by its id (or " +
 				"text, before the answer) and stored as sent, so it starts nothing."},
+			{Name: "events", Support: "supported", Notes: "From the chat stream (no extra quota), by snippet.type and its " +
+				"details (stream_list.proto): superChatEvent (amount in micros, currency, amountDisplayString, tier, comment) and " +
+				"superStickerEvent as their own events; giftEvent (Jewels) as monetization.jewels.gifted; newSponsorEvent and " +
+				"giftMembershipReceivedEvent as monetization.subscription.started, memberMilestoneChatEvent as .renewed, " +
+				"membershipGiftingEvent as .gifted, all from source youtube with the level's name and tier 0 (D-099); " +
+				"sponsorOnlyModeStarted/Ended as chat.members_only.changed; userBannedEvent as moderation.user.banned or " +
+				".timed_out (banType, banDurationSeconds), about the banned channel. Amounts aren't converted. Your broadcast " +
+				"going live is recorded when its chat first answers, and offline when the chat ends (chatEndedEvent, offlineAt " +
+				"or FAILED_PRECONDITION): a broadcast ending while StreamGremlin is closed has no offline event. Deletions " +
+				"(tombstone) come in slice 5, polls in slice 7. Events from before StreamGremlin was reading are marked backlog."},
 			{Name: "roles", Support: "supported", Notes: "authorDetails: isChatOwner is the broadcaster, isChatModerator a " +
 				"moderator, isChatSponsor a channel member, counted as a subscriber for roles and command permissions (D-098). " +
 				"YouTube has no VIPs."},

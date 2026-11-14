@@ -1715,3 +1715,28 @@ Decided 2026-11-14. The user said "proceed" to this proposal: "Commands and the 
 - **First words and timers' chat-line count** include YouTube from now on.
 - **Still log-only for YouTube:** chat filters (slice 5); points, giveaways and viewers (slice 6); and the Discord stream summary.
 - **Add-ons' own chat messages** (plugins' `chat.send` permission) still go to Twitch only; a decision is needed before they reach YouTube.
+
+## D-099. M6 slice 4: YouTube's events as triggers and alerts
+
+Decided 2026-11-14. The user said "proceed" to both recommendations: memberships use the subscription triggers, and existing go-live and go-offline triggers are kept to Twitch once.
+
+- **Where the events come from:** YouTube's chat stream, which slice 2 already reads, so there's no extra quota.
+- **New event types**, from source `youtube`:
+  - `monetization.super_chat.received` and `monetization.super_sticker.received`: the amount as YouTube shows it (`amount_display`), as a number (`amount`), the currency, and the tier. No currency conversion.
+  - `monetization.jewels.gifted`: the gift's name, its Jewels and how many.
+  - `chat.members_only.changed`, with `enabled`.
+  - `moderation.user.banned` and `moderation.user.timed_out`, about the banned viewer, with who did it.
+- **Memberships use the subscription types**, as members count as subscribers (D-098): becoming a member or receiving a gifted membership is `monetization.subscription.started`, a milestone is `.renewed`, and gifting memberships is `.gifted`.
+  - Each has the level's name in `level`, and `tier` 0, since YouTube's levels have names, not numbers.
+  - Existing sub workflows and alerts now work for YouTube members, and answer on YouTube.
+  - The editor's triggers are renamed: "Someone subscribes or becomes a member", and so on.
+- **Your YouTube broadcast going live and offline** is `broadcast.channel.online` / `.offline` from `youtube`.
+  - Going live is recorded when its chat first answers, once per broadcast. Offline is recorded when its chat ends.
+  - A broadcast whose chat is turned off never goes live here.
+- **Existing workflows are kept to Twitch, once:** at the first start of this version, every go-live and go-offline trigger with no platform is set to Twitch only, as a new version of each workflow. YouTube is opt-in through the trigger's **Which platform**.
+  - Deleted workflows are left as they are.
+  - So are workflows imported later from older files.
+  - The Discord go-live and stream-summary templates now say Twitch only.
+- **StreamGremlin's own idea of "live"** keeps following Twitch and OBS, never YouTube, for now: points for watching, first-words resets, timers' "only while live", giveaways' stream window and the Discord summary.
+- **New templates** under "YouTube events": thank Super Chats, Super Stickers and Jewels, welcome new members, and thank gifted memberships. Most show an alert and answer in YouTube chat. There's also a Discord go-live post for YouTube.
+- **Events** describes each event in words. A trigger that can come from either platform has **Which platform**. Test events can come from YouTube.

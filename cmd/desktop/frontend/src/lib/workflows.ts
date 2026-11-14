@@ -64,7 +64,17 @@ export function testSource(t: Trigger, kind: EventKind | undefined): string | un
 }
 
 /** The chat triggers that can hear Twitch, YouTube or both (D-098). */
-export const PLATFORM_TRIGGERS = ['chat.message.received', 'chat.command.received', 'chat.first_words.received'];
+export const CHAT_TRIGGERS = ['chat.message.received', 'chat.command.received', 'chat.first_words.received'];
+
+/** Every trigger that can come from Twitch, YouTube or both (D-098, D-099). */
+export const PLATFORM_TRIGGERS = [
+  ...CHAT_TRIGGERS,
+  'monetization.subscription.started',
+  'monetization.subscription.renewed',
+  'monetization.subscription.gifted',
+  'broadcast.channel.online',
+  'broadcast.channel.offline',
+];
 
 const words: Record<string, string> = {
   pending: 'Waiting',

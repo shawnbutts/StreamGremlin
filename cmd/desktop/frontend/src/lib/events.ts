@@ -6,6 +6,9 @@ export function eventSummary(ev: EventRecord): string {
   const who = ev.actor?.display_name || ev.actor?.login || '';
   const from = typeof p.from === 'string' ? p.from : who;
   const num = (k: string) => (typeof p[k] === 'number' ? (p[k] as number) : 0);
+  const yt = ev.source === 'youtube';
+  const level = typeof p.level === 'string' && p.level ? p.level : '';
+  const said = (k: string) => (typeof p[k] === 'string' && p[k] ? `: ${p[k]}` : '');
   // Twitch channel events, in words (docs/adr/0015-twitch-channel-events.md).
   switch (ev.type) {
     case 'audience.follow.created':
@@ -17,11 +20,26 @@ export function eventSummary(ev: EventRecord): string {
       return `${who} is now ${t}`;
     }
     case 'monetization.subscription.started':
+      if (yt) return `${who} became a member${level ? ` (${level})` : ''}${p.is_gift ? ', a gift' : ''}`;
       return `${who} subscribed${p.is_gift ? ' (a gift)' : ''}, tier ${num('tier')}`;
     case 'monetization.subscription.renewed':
+      if (yt) return `${who}: ${num('months')} months a member${typeof p.text === 'string' && p.text ? `. “${p.text}”` : ''}`;
       return `${who} resubscribed: ${num('months')} months${typeof p.text === 'string' && p.text ? `. “${p.text}”` : ''}`;
     case 'monetization.subscription.gifted':
+      if (yt) return `${from} gifted ${num('total')} ${num('total') === 1 ? 'membership' : 'memberships'}`;
       return `${from} gifted ${num('total')} ${num('total') === 1 ? 'sub' : 'subs'}`;
+    case 'monetization.super_chat.received':
+      return `${from} sent a ${p.amount_display ?? ''} Super Chat${said('text')}`;
+    case 'monetization.super_sticker.received':
+      return `${from} sent a ${p.amount_display ?? ''} Super Sticker${said('sticker')}`;
+    case 'monetization.jewels.gifted':
+      return `${from} gifted ${num('count') > 1 ? `${num('count')} × ` : ''}${p.gift ?? 'a gift'} (${num('jewels')} Jewels)`;
+    case 'chat.members_only.changed':
+      return p.enabled ? 'YouTube chat is members-only' : 'YouTube chat is open to everyone';
+    case 'moderation.user.banned':
+      return `${who} was banned on YouTube`;
+    case 'moderation.user.timed_out':
+      return `${who} was timed out on YouTube for ${num('duration_seconds')} seconds`;
     case 'monetization.bits.cheered':
       return `${from} cheered ${num('bits')} bits${typeof p.text === 'string' && p.text ? `: ${p.text}` : ''}`;
     case 'audience.raid.received':
@@ -83,9 +101,9 @@ export function eventSummary(ev: EventRecord): string {
     case 'chat.first_words.received':
       return `${who}’s first words this stream${typeof p.text === 'string' && p.text ? `: ${p.text}` : ''}`;
     case 'broadcast.channel.online':
-      return 'Live on Twitch';
+      return yt ? `Live on YouTube${p.title ? `: “${p.title}”` : ''}` : 'Live on Twitch';
     case 'broadcast.channel.offline':
-      return 'Offline on Twitch';
+      return yt ? 'Offline on YouTube' : 'Offline on Twitch';
     case 'broadcast.channel.updated':
       return `“${p.title ?? ''}”, in ${p.category || 'no category'}`;
   }

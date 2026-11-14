@@ -113,6 +113,7 @@ type Service struct {
 	accounts   *events.Notifier // an account's state changed
 	endedChats map[string]bool
 	lastEnded  string
+	onlineFor  string // the broadcast whose going live was recorded
 	lookEvery  time.Duration
 	own        chat.OwnSends // workflows' messages sent as you, to skip their echo
 	retryAfter time.Duration // the first wait before reconnecting

@@ -100,3 +100,49 @@ func TestMalformed(t *testing.T) {
 		t.Fatal("names")
 	}
 }
+
+func TestDetailsRoundTrip(t *testing.T) {
+	for _, sn := range []Snippet{
+		{Type: TypeSuperChat, SuperChat: &SuperChat{AmountMicros: 5_000_000, Currency: "USD", AmountDisplayString: "$5.00", UserComment: "gg", Tier: 2}},
+		{Type: TypeSuperSticker, SuperSticker: &SuperSticker{AmountMicros: 2_000_000, Currency: "EUR", AmountDisplayString: "€2.00", Tier: 1, StickerID: "s1", AltText: "A happy cat"}},
+		{Type: TypeNewSponsor, NewSponsor: &NewSponsor{MemberLevelName: "Gold", IsUpgrade: true}},
+		{Type: TypeMemberMilestoneChat, MemberMilestone: &MemberMilestone{MemberLevelName: "Gold", MemberMonth: 12, UserComment: "a year!"}},
+		{Type: TypeMembershipGifting, MembershipGifting: &MembershipGifting{Count: 5, LevelName: "Gold"}},
+		{Type: TypeGiftMembershipReceived, GiftMembershipReceived: &GiftMembershipReceived{MemberLevelName: "Gold", GifterChannelID: "UCg", GiftingID: "m9"}},
+		{Type: TypeUserBanned, UserBanned: &UserBanned{ChannelID: "UCb", ChannelURL: "u", DisplayName: "Spammer", BanType: BanTemporary, DurationSeconds: 300}},
+		{Type: TypeGift, Gift: &Gift{Name: "Rose", JewelsCount: 10, AltText: "a rose", ComboCount: 3}},
+	} {
+		m := Message{ID: "x", Snippet: sn}
+		back, err := ParseResponse(Response{Items: []Message{m}}.Marshal())
+		if err != nil || len(back.Items) != 1 || !reflect.DeepEqual(back.Items[0].Snippet, sn) {
+			t.Fatalf("%s: %+v %v", sn.Type, back, err)
+		}
+	}
+}
+
+// Super Chat and a ban, built field by field from Google's numbers.
+func TestDetailFieldNumbers(t *testing.T) {
+	var sc []byte
+	sc = protowire.AppendTag(sc, 1, protowire.VarintType)
+	sc = protowire.AppendVarint(sc, 1_500_000)
+	sc = protowire.AppendTag(sc, 3, protowire.BytesType)
+	sc = protowire.AppendString(sc, "£1.50")
+	var ban []byte
+	var prof []byte
+	prof = protowire.AppendTag(prof, 101, protowire.BytesType)
+	prof = protowire.AppendString(prof, "UCb")
+	ban = protowire.AppendTag(ban, 1, protowire.BytesType)
+	ban = protowire.AppendBytes(ban, prof)
+	ban = protowire.AppendTag(ban, 2, protowire.VarintType)
+	ban = protowire.AppendVarint(ban, 1)
+	var sn []byte
+	sn = protowire.AppendTag(sn, 27, protowire.BytesType)
+	sn = protowire.AppendBytes(sn, sc)
+	sn = protowire.AppendTag(sn, 22, protowire.BytesType)
+	sn = protowire.AppendBytes(sn, ban)
+	s, err := parseSnippet(sn)
+	if err != nil || s.SuperChat == nil || s.SuperChat.AmountMicros != 1_500_000 || s.SuperChat.AmountDisplayString != "£1.50" ||
+		s.UserBanned == nil || s.UserBanned.ChannelID != "UCb" || s.UserBanned.BanType != BanPermanent {
+		t.Fatalf("%+v %v", s, err)
+	}
+}

@@ -3,7 +3,7 @@
     "id": "discord-live",
     "title": "Announce on Discord when you go live",
     "category": "Discord",
-    "description": "When you go live on Twitch, posts @everyone in a Discord channel with your title, category, a preview of the stream and its link. Add a Discord webhook on Connections first.",
+    "description": "When you go live on Twitch, posts @everyone in a Discord channel with your title, category, a preview of the stream and its link. Add a Discord webhook on Connections first. Twitch only: there's a template for YouTube too.",
     "starter": false,
     "blanks": [
       {
@@ -19,7 +19,10 @@
     "group": "Discord",
     "triggers": [
       {
-        "type": "broadcast.channel.online"
+        "type": "broadcast.channel.online",
+        "sources": [
+          "twitch"
+        ]
       }
     ],
     "queue": {

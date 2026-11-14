@@ -3,7 +3,7 @@
     "id": "discord-ended",
     "title": "Sum up the stream on Discord",
     "category": "Discord",
-    "description": "When you go offline on Twitch, posts how long you streamed, and the new followers, subs, bits, raids and chatters, in a Discord channel. Add a Discord webhook on Connections first.",
+    "description": "When you go offline on Twitch, posts how long you streamed, and the new followers, subs, bits, raids and chatters, in a Discord channel. Add a Discord webhook on Connections first. Twitch only.",
     "starter": false,
     "blanks": [
       {
@@ -19,7 +19,10 @@
     "group": "Discord",
     "triggers": [
       {
-        "type": "broadcast.channel.offline"
+        "type": "broadcast.channel.offline",
+        "sources": [
+          "twitch"
+        ]
       }
     ],
     "queue": {

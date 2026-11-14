@@ -5,7 +5,7 @@
   import type { Trigger } from '../lib/api';
   import { ownProblems } from '../lib/editor';
   import { editorEnv } from '../lib/editorEnv';
-  import { PLATFORM_TRIGGERS, takenBy, whoPreset, whoPresets } from '../lib/workflows';
+  import { CHAT_TRIGGERS, PLATFORM_TRIGGERS, takenBy, whoPreset, whoPresets } from '../lib/workflows';
 
   let {
     trigger = $bindable(),
@@ -75,7 +75,7 @@
     <p class="sg-muted field-hint">{entry.help}</p>
     {#if PLATFORM_TRIGGERS.includes(trigger.type) || trigger.sources?.length}
       <label class="field">
-        <span>Which chat</span>
+        <span>{CHAT_TRIGGERS.includes(trigger.type) ? 'Which chat' : 'Which platform'}</span>
         <select class="sg-input" value={platform} onchange={(e) => setPlatform(e.currentTarget.value)}>
           <option value="any">Twitch and YouTube</option>
           <option value="twitch">Twitch only</option>

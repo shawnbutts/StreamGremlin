@@ -65,7 +65,13 @@ var (
 	message = Value{Token: "message", Label: "The whole message", Expr: "event.payload.text"}
 	source  = MatchField{Path: "source_name", Label: "Only for source", Kind: "source", Help: "Leave empty for any source."}
 	srcVal  = Value{Token: "source", Label: "The source", Expr: "event.payload.source_name"}
-	tier    = Value{Token: "tier", Label: "The sub tier (1, 2 or 3)", Expr: "event.payload.tier"}
+	tier    = Value{Token: "tier", Label: "The sub tier (1, 2 or 3; 0 for a YouTube member)", Expr: "event.payload.tier"}
+	// level is a YouTube membership level's name (D-099); empty on Twitch.
+	level = Value{Token: "level", Label: "The YouTube membership level", Expr: `event.payload.?level.orValue("")`}
+	// money is a Super Chat or Super Sticker's amount as YouTube shows it.
+	money = []Value{{Token: "amount", Label: "The amount, as YouTube shows it ($5.00)", Expr: "event.payload.amount_display"},
+		{Token: "amount_number", Label: "The amount as a number (5)", Expr: "event.payload.amount"},
+		{Token: "currency", Label: "The currency (USD)", Expr: "event.payload.currency"}}
 	// from names a gifter or cheerer, or says Anonymous.
 	from = Value{Token: "viewer", Label: "Their name (or Anonymous)", Expr: "event.payload.from"}
 )
@@ -187,19 +193,41 @@ func Triggers() []TriggerEntry {
 				{Token: "treatment", Label: "How Twitch treats them now", Expr: "event.payload.low_trust_status"}}},
 		{Type: "audience.follow.created", Label: "Someone follows", Category: "Twitch",
 			Help: "A viewer follows your channel.", Match: []MatchField{}, Values: []Value{viewer, login}},
-		{Type: "monetization.subscription.started", Label: "Someone subscribes", Category: "Twitch",
-			Help:  "A new sub, including someone given a sub as a gift. Resubs are separate.",
-			Match: []MatchField{}, Values: []Value{viewer, login, tier,
+		{Type: "monetization.subscription.started", Label: "Someone subscribes or becomes a member", Category: "Subs and members",
+			Help: "A new Twitch sub or YouTube member, including someone given one as a gift. Resubs and milestones are separate. " +
+				"YouTube members count as subscribers.",
+			Match: []MatchField{}, Values: []Value{viewer, login, tier, level,
 				{Token: "gift", Label: "Whether it was a gift (true or false)", Expr: "event.payload.is_gift"}}},
-		{Type: "monetization.subscription.renewed", Label: "Someone resubscribes", Category: "Twitch",
-			Help:  "A viewer shares their resub in chat, with how many months.",
-			Match: []MatchField{}, Values: []Value{viewer, login, tier,
+		{Type: "monetization.subscription.renewed", Label: "Someone resubscribes or reaches a member milestone", Category: "Subs and members",
+			Help:  "A viewer shares their Twitch resub or YouTube member milestone in chat, with how many months.",
+			Match: []MatchField{}, Values: []Value{viewer, login, tier, level,
 				{Token: "months", Label: "Months subscribed in all", Expr: "event.payload.months"},
 				{Token: "sub_message", Label: "Their resub message", Expr: "event.payload.text"}}},
-		{Type: "monetization.subscription.gifted", Label: "Someone gifts subs", Category: "Twitch",
-			Help:  "A viewer, or someone anonymous, gives subs to the community. Each sub also arrives as \"Someone subscribes\".",
-			Match: []MatchField{}, Values: []Value{from, tier,
-				{Token: "count", Label: "How many subs", Expr: "event.payload.total"}}},
+		{Type: "monetization.subscription.gifted", Label: "Someone gifts subs or memberships", Category: "Subs and members",
+			Help: "A viewer, or someone anonymous, gives Twitch subs or YouTube memberships to the community. Each one also " +
+				"arrives as \"Someone subscribes or becomes a member\".",
+			Match: []MatchField{}, Values: []Value{from, tier, level,
+				{Token: "count", Label: "How many", Expr: "event.payload.total"}}},
+		{Type: "monetization.super_chat.received", Label: "Someone sends a Super Chat", Category: "YouTube",
+			Help:  "A Super Chat on YouTube, with the amount as YouTube shows it. Amounts aren't converted between currencies.",
+			Match: []MatchField{}, Values: append([]Value{from, {Token: "super_chat_message", Label: "Their message", Expr: "event.payload.text"}}, money...)},
+		{Type: "monetization.super_sticker.received", Label: "Someone sends a Super Sticker", Category: "YouTube",
+			Help:  "A Super Sticker on YouTube, with the amount as YouTube shows it.",
+			Match: []MatchField{}, Values: append([]Value{from, {Token: "sticker", Label: "The sticker, in words", Expr: "event.payload.sticker"}}, money...)},
+		{Type: "monetization.jewels.gifted", Label: "Someone gifts with Jewels", Category: "YouTube", More: true,
+			Help:  "A gift bought with YouTube Jewels, such as on a vertical stream.",
+			Match: []MatchField{}, Values: []Value{from, {Token: "gift", Label: "The gift", Expr: "event.payload.gift"},
+				{Token: "jewels", Label: "Jewels", Expr: "event.payload.jewels"}, {Token: "count", Label: "How many", Expr: "event.payload.count"}}},
+		{Type: "chat.members_only.changed", Label: "Members-only chat turns on or off", Category: "YouTube", More: true,
+			Help:  "Your YouTube chat becomes members-only, or open to everyone again.",
+			Match: []MatchField{{Path: "enabled", Label: "Only when it turns", Kind: "on_off"}}, Values: []Value{}},
+		{Type: "moderation.user.banned", Label: "Someone is banned on YouTube", Category: "YouTube", More: true,
+			Help:  "A viewer is banned from your YouTube chat, from anywhere.",
+			Match: []MatchField{}, Values: []Value{viewer, {Token: "moderator", Label: "Who banned them", Expr: "event.payload.moderator.display_name"}}},
+		{Type: "moderation.user.timed_out", Label: "Someone is timed out on YouTube", Category: "YouTube", More: true,
+			Help:  "A viewer is timed out in your YouTube chat, from anywhere.",
+			Match: []MatchField{}, Values: []Value{viewer, {Token: "seconds", Label: "For how many seconds", Expr: "event.payload.duration_seconds"},
+				{Token: "moderator", Label: "Who timed them out", Expr: "event.payload.moderator.display_name"}}},
 		{Type: "monetization.bits.cheered", Label: "Someone cheers bits", Category: "Twitch",
 			Help:  "A viewer, or someone anonymous, cheers bits.",
 			Match: []MatchField{}, Values: []Value{from,
@@ -216,9 +244,11 @@ func Triggers() []TriggerEntry {
 			Values: []Value{viewer, login, {Token: "reward", Label: "The reward's title", Expr: "event.payload.reward.title"},
 				{Token: "cost", Label: "What it cost", Expr: "event.payload.reward.cost"},
 				{Token: "input", Label: "What they typed", Expr: "event.payload.user_input"}}},
-		{Type: "broadcast.channel.online", Label: "You go live on Twitch", Category: "Stream",
-			Help:  "Twitch says your channel is live. (\"The stream starts\" is OBS starting to stream, a little earlier.)",
-			Match: []MatchField{}, Values: []Value{}},
+		{Type: "broadcast.channel.online", Label: "You go live on Twitch or YouTube", Category: "Stream",
+			Help: "Twitch says your channel is live, or StreamGremlin finds your live YouTube broadcast (within 2 minutes). " +
+				"Choose which in Which platform. (\"The stream starts\" is OBS starting to stream, a little earlier.)",
+			Match: []MatchField{}, Values: []Value{{Token: "stream_title", Label: "The YouTube broadcast's title", Expr: `event.payload.?title.orValue("")`},
+				{Token: "stream_link", Label: "The YouTube broadcast's link", Expr: `event.payload.?url.orValue("")`}}},
 		{Type: "broadcast.clip.created", Label: "A clip is made", Category: "Stream",
 			Help: "StreamGremlin made a clip: by !clip, a button, a Stream Deck key or any workflow. Clips made on Twitch's site " +
 				"aren't seen. Who asked is whoever started the workflow, when a viewer did.",
@@ -226,8 +256,9 @@ func Triggers() []TriggerEntry {
 			Values: []Value{{Token: "clip", Label: "The clip's link", Expr: "event.payload.url"},
 				{Token: "clip_title", Label: "The clip's title", Expr: "event.payload.title"},
 				{Token: "viewer", Label: "Who asked for it", Expr: `event.?actor.display_name.orValue("")`}}},
-		{Type: "broadcast.channel.offline", Label: "You go offline on Twitch", Category: "Stream",
-			Help: "Twitch says your channel is offline.", Match: []MatchField{}, Values: []Value{}},
+		{Type: "broadcast.channel.offline", Label: "You go offline on Twitch or YouTube", Category: "Stream",
+			Help:  "Twitch says your channel is offline, or your YouTube broadcast's chat ends. Choose which in Which platform.",
+			Match: []MatchField{}, Values: []Value{}},
 		{Type: "broadcast.channel.updated", Label: "Your title or category changes", Category: "Stream", More: true,
 			Help:  "Your Twitch title or category changes, from anywhere.",
 			Match: []MatchField{{Path: "category", Label: "Only for category", Kind: "text", Help: "Leave empty for any category."}},
