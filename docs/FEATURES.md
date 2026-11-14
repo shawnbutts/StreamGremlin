@@ -69,7 +69,7 @@ Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 | Built-in Client ID in release builds, registered under `StreamGremlinHQ` | D-131 | Spine (paste-your-own until registered) |
 | Chat read (EventSub) and send (Helix) | 0012, D-024 | Spine |
 | Separate bot account for chat (optional) | 0057, D-084 | Spine |
-| Follows, subs, bits, channel point redeems, chatters | 0018, D-030; events built in M2 (ADR-0015, D-026); chatters not yet | F2 |
+| Follows, subs, bits, channel point redeems, chatters | 0018, D-030; events built in M2 (ADR-0015, D-026); active chatters built in M6 (D-102) | F2 |
 | Raids, Hype Trains, polls, predictions (events, and starting them) | 0060, 0061, D-086, D-087; raids built in M2 (ADR-0015), Hype Trains (ADR-0022, D-040), polls and predictions (ADR-0023, D-041) | F2 |
 | First Words | 0059, D-085; built in M2 (ADR-0021, D-033) | F2 |
 | Profile pictures for overlays | 0074, D-118; built in M2 for alerts (ADR-0017, D-028) | F2 |
@@ -152,7 +152,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
 | YouTube: sign-in, live chat, Super Chats, memberships | 0036–0039 | YouTube |
-| YouTube: combined chat on Live, triggers matching Streamer.bot's, moderating, viewers and points, linked accounts sharing points | 0036–0039, D-095 | YouTube |
+| YouTube: combined chat on Live, triggers matching Streamer.bot's, moderating, viewers and points, linked accounts sharing points, viewer count, title, subscribers, polls; add-ons on every chat | 0036–0039, D-095 to D-103 | YouTube (built in M6) |
 | YouTube: several live broadcasts at once, scheduled broadcasts, new-upload posts, cuepoints | D-095 | Later |
 | YouTube: comments, community posts, clips, retention | 0036–0039, D-095 | Leave |
 | Chat router across platforms | 0035, D-059 | YouTube. The single chat interface and `source` on events exist from the Spine. |
