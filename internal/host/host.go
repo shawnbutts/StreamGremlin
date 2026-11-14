@@ -21,6 +21,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/api"
 	"code.streamgremlin.com/streamgremlin/internal/audience"
 	"code.streamgremlin.com/streamgremlin/internal/backup"
+	"code.streamgremlin.com/streamgremlin/internal/banlists"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
 	"code.streamgremlin.com/streamgremlin/internal/buttons"
@@ -105,6 +106,7 @@ type Host struct {
 	timers    *timers.Service
 	firsts    *firstwords.Service
 	audience  *audience.Service
+	banLists  *banlists.Service
 	filters   *filters.Service
 	ads       *ads.Service
 	giveaways *giveaways.Service
@@ -296,9 +298,13 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 			return st.Live, st.Viewers, err
 		},
 		YouTubeLive: func() bool { return h.youtube.ChatStatus().State == youtube.ChatConnected }})
+	h.banLists = banlists.New(banlists.Options{DB: h.db, Twitch: h.twitch, Holders: ledger.TwitchHolders, Live: h.audience.TwitchLive,
+		Logger: log})
 	if err := h.audience.Start(ctx); err != nil {
 		return nil, err
 	}
+	// Ban lists (D-106): after the audience, which says when you're live.
+	h.banLists.Start(ctx)
 	// After workflows: first words are stored as events, which they run on.
 	if err := h.firsts.Start(ctx); err != nil {
 		return nil, err
@@ -373,6 +379,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Buttons:       buttons.New(h.db, inbox, nil),
 		Clients:       paired,
 		Moderation:    mods,
+		BanLists:      h.banLists,
 		Filters:       h.filters,
 		Discord:       h.discord,
 		Songs:         h.songs,
@@ -548,6 +555,9 @@ func (h *Host) cleanup() {
 	}
 	if h.audience != nil {
 		h.audience.Close() // before workflows: no new counts while runs finish
+	}
+	if h.banLists != nil {
+		h.banLists.Close() // after the request in flight; the rest carries on at the next start
 	}
 	if h.timers != nil {
 		h.timers.Close() // before workflows: no new turns while runs finish

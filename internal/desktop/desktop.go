@@ -300,6 +300,8 @@ var Choosable = map[string]struct{ Title, Filter, Pattern string }{
 	// A Now playing overlay's files, as a music player writes them (D-091).
 	"song_text": {"Choose the song's text file", "Text files", "*.txt"},
 	"song_art":  {"Choose the album art", "Pictures", "*.jpg;*.jpeg;*.png"},
+	// A ban list to import (D-106).
+	"ban_list": {"Choose a ban list", "Text and CSV files", "*.txt;*.csv"},
 }
 
 func chooseFile(w http.ResponseWriter, r *http.Request, choose ChooseFunc) {

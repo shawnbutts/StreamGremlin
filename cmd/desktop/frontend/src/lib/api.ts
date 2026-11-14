@@ -12,7 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-type Method = 'GET' | 'PUT' | 'POST' | 'DELETE';
+type Method = 'GET' | 'PUT' | 'POST' | 'PATCH' | 'DELETE';
 
 export async function api<T>(method: Method, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let resp: Response;
@@ -397,7 +397,7 @@ export async function saveFile(name: string, text: string): Promise<string> {
  * the kind only; the dialog's title and filter come from it. Resolves to
  * the path, or '' when cancelled. Nothing is read.
  */
-export async function chooseFile(kind: 'song_text' | 'song_art'): Promise<string> {
+export async function chooseFile(kind: 'song_text' | 'song_art' | 'ban_list'): Promise<string> {
   const resp = await fetch('/desktop/choose-file', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2119,3 +2119,71 @@ export const forgetDiscordWebhook = (name: string) => api<void>('DELETE', `/v1/d
 export const testDiscordWebhook = (name: string) =>
   api<{ message_id: string }>('POST', `/v1/discord/webhooks/${encodeURIComponent(name)}/test`);
 
+
+// Ban lists (M8 slice 2, D-106).
+export type BanListPhase = 'reading' | 'checking' | 'ready' | 'banning' | 'undoing' | 'copying' | 'comparing' | 'done';
+
+export interface BanList {
+  id: string;
+  name: string;
+  reason: string;
+  phase: BanListPhase;
+  paused: boolean;
+  pause_live: boolean;
+  keep_points: boolean;
+  file_name?: string;
+  skipped: number;
+  problem?: string;
+  created_at: string;
+  updated_at: string;
+  /** The phase in words. */
+  words: string;
+  /** How many names are in each state. */
+  counts: Record<string, number>;
+  /** Bans and unbans still to send. */
+  left: number;
+  progress: { waiting_live: boolean; per_minute: number; finish?: string; wait_until?: string };
+}
+
+export interface BanListEntry {
+  name: string;
+  user_id?: string;
+  login?: string;
+  state: string;
+  detail?: string;
+}
+
+export const getBanLists = () => api<{ lists: BanList[] }>('GET', '/v1/ban-lists');
+export const importBanList = (name: string, path: string, reason?: string) =>
+  api<BanList>('POST', '/v1/ban-lists', { name, path, ...(reason ? { reason } : {}) });
+export const copyTwitchBans = (name: string) => api<BanList>('POST', '/v1/ban-lists', { name, copy: true });
+export const setBanList = (id: string, s: { reason?: string; pause_live?: boolean; keep_points?: boolean }) =>
+  api<BanList>('PATCH', `/v1/ban-lists/${encodeURIComponent(id)}`, s);
+export const deleteBanList = (id: string) => api<void>('DELETE', `/v1/ban-lists/${encodeURIComponent(id)}`);
+export const confirmBanList = (id: string, o: { unban_removed?: boolean; reban_by_hand?: boolean } = {}) =>
+  api<BanList>('POST', `/v1/ban-lists/${encodeURIComponent(id)}/confirm`, o);
+export function banListAction(id: string, what: 'pause' | 'resume' | 'undo' | 'compare') {
+  const b = encodeURIComponent(id);
+  const paths = {
+    pause: `/v1/ban-lists/${b}/pause`,
+    resume: `/v1/ban-lists/${b}/resume`,
+    undo: `/v1/ban-lists/${b}/undo`,
+    compare: `/v1/ban-lists/${b}/compare`,
+  };
+  return api<BanList>('POST', paths[what]);
+}
+export function getBanListEntries(id: string, states: string[], limit = 20) {
+  const path = `/v1/ban-lists/${encodeURIComponent(id)}/entries`;
+  return api<{ entries: BanListEntry[] }>('GET', `${path}?state=${states.join(',')}&limit=${limit}`);
+}
+
+/** A list's names as a file's text, one a line. */
+export async function banListFile(id: string, states: string[] = []): Promise<string> {
+  const path = `/v1/ban-lists/${encodeURIComponent(id)}/file`;
+  const resp = await fetch(`${path}?state=${states.join(',')}`);
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => undefined);
+    throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  }
+  return resp.text();
+}

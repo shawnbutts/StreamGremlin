@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/banlists"
 	"code.streamgremlin.com/streamgremlin/internal/mockyoutube"
 	"code.streamgremlin.com/streamgremlin/internal/youtube"
 
@@ -69,6 +70,8 @@ var (
 	testLedger  *points.Ledger
 	testEarning *earning.Service
 	testEvents  *events.Inbox
+	// testBanLists is the latest newTestServer's ban lists.
+	testBanLists *banlists.Service
 )
 
 // testOverlays serves the overlay pages of the latest newTestServer.
@@ -197,12 +200,16 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		t.Fatal(err)
 	}
 	t.Cleanup(filt.Close)
+	bl := banlists.New(banlists.Options{DB: db, Twitch: tw, Holders: ledger.TwitchHolders, Idle: 20 * time.Millisecond})
+	bl.Start(context.Background())
+	t.Cleanup(bl.Close)
+	testBanLists = bl
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	cl := clients.New(db, nil, nil)
 	return NewServer(Options{Token: testToken, Clients: cl}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, YouTube: yt, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, BanLists: bl, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

@@ -62,6 +62,8 @@ Commands:
   mod       Moderate your Twitch chat as you, each recorded (streamgremlin mod help).
             mod timeout @NAME 10m, mod ban @NAME -yes, mod unban|warn|vip|mod @NAME
             mod delete MESSAGE_ID, mod modes [slow=30 ...], mod history [@NAME]
+  bans      Your ban lists, from files, banned on Twitch at its pace (streamgremlin bans help).
+            bans import NAME FILE, bans confirm NAME, bans undo NAME -yes, bans save NAME FILE
   filters   The chat filters: settings and what they caught lately.
             filters check [-role vip] TEXT   which filter would catch it
   discord   Discord webhooks workflows post to (streamgremlin discord help).
@@ -193,6 +195,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return streamdeckCmd(dir, rest, stdout, stderr)
 	case "mod":
 		return modCmd(dir, rest, stdout, stderr)
+	case "bans":
+		return bansCmd(dir, rest, stdout, stderr)
 	case "filters":
 		return filtersCmd(dir, rest, stdout, stderr)
 	case "discord":

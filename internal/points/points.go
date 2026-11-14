@@ -586,3 +586,33 @@ func (l *Ledger) Summarize(ctx context.Context, currency string) (Summary, error
 		Scan(&s.Transactions, &s.Viewers, &s.Issued)
 	return s, err
 }
+
+// TwitchHolders says which of these Twitch user ids are viewers holding
+// points (more than 0 of the default currency): ban lists leave them alone
+// unless asked (D-106).
+func (l *Ledger) TwitchHolders(ctx context.Context, userIDs []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	if len(userIDs) == 0 {
+		return out, nil
+	}
+	args := []any{Default}
+	marks := make([]string, len(userIDs))
+	for i, id := range userIDs {
+		marks[i] = "?"
+		args = append(args, id)
+	}
+	rows, err := l.db.QueryContext(ctx, `SELECT v.user_id FROM viewers v JOIN ledger_accounts a ON a.owner = v.id AND a.currency = ?
+		WHERE v.platform = 'twitch' AND a.balance > 0 AND v.user_id IN (`+strings.Join(marks, ",")+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}

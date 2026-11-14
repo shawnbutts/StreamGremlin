@@ -290,3 +290,10 @@ func (s *Service) checkTwitch(ctx context.Context) {
 		s.log.Warn("couldn't store the viewer count", "err", err)
 	}
 }
+
+// TwitchLive reports whether the last check found you live on Twitch.
+func (s *Service) TwitchLive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.twitchLive
+}

@@ -1850,3 +1850,18 @@ Decided 2026-11-14, building M8 slice 1 after the user's "proceed".
   - Why 10 minutes: a follow bot can't follow and chat at once, and real followers of 10 minutes or more still can.
 - **Where:** the Chat modes panel on **Live**; `mod shield on|off`, `mod lock` and `mod unlock` on the CLI; the steps "Turn Shield Mode on or off" and "Lock or unlock chat"; the trigger "Shield Mode turns on or off"; the templates "Shield Mode on when I go offline", "Shield Mode off when I go live" and "!lock and !unlock chat" (mods and you) under Moderation.
 - **Twitch only:** YouTube's API has no equivalent (D-104).
+
+## D-106. M8 slice 2: ban lists from files
+
+Decided 2026-11-14, building M8 slice 2 after the user's "proceed". The design is [ADR-0049](adr/0049-ban-lists.md). In short:
+
+- **A new Ban lists screen** (after Chat filters), `streamgremlin bans`, and the routes under `/v1/ban-lists`. A list is imported from a file (one name or id a line, or a CSV with a login or id column, up to 5 million lines), or copied from Twitch's own ban list.
+- **Checked first, shown, then confirmed:** counts and a sample of what will be banned, what's already banned, what wasn't found, and who's left alone (you, your mods and VIPs, viewers with points; the last can be turned off). Nothing is banned until **Start banning**.
+- **At Twitch's pace, in the background:** one account a request, keeping 200 of Twitch's rate-limit points for everything else, waiting while you're live (on by default), pausing in words on a sign-in or permission problem. Progress, the pace and an estimated finish are on the screen.
+- **Picks up where it left off:** each name's state is saved before and after its request; a ban whose answer never came is settled from Twitch's ban list, never sent twice. Tested by killing the engine part way.
+- **Syncing:** a newer file under the same name checks and bans only its new names; names gone from it are offered for unbanning (only bans this list made). **Check against Twitch** finds bans lifted by hand, which are left alone unless the streamer chooses to ban them again. **Undo** lifts only the list's own bans; forgetting a list unbans nobody.
+- **Changed from what I described before building:**
+  - The bot doesn't share the work yet. It would need the bot to sign in again with ban permission, and a second runner. Left for later: ask if wanted.
+  - "Export" became **Copy Twitch's ban list** into a list, plus **Save to a file** for any list. A million-name export takes many requests, so it runs in the background like the rest.
+  - The app saves up to 16 MiB through its save dialog (about a million names). The CLI streams any size.
+- No new Twitch permission: `moderator:manage:banned_users`, `moderation:read` and `channel:read:vips` are already asked for.

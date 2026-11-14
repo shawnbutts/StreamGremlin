@@ -234,6 +234,15 @@ func TwitchManifest() Manifest {
 					"reference: checked in the live check.",
 			},
 			{
+				Name: "ban_lists", Support: PermissionRequired, Scopes: []string{BansScope, ModerationReadScope, VIPsReadScope},
+				Notes: "M8 slice 2 (D-106, ADR-0049): Get Users (up to 100 logins and ids together; deleted and suspended accounts " +
+					"aren't returned), Get Banned Users with user_id (up to 100; expires_at empty is a ban, not a timeout) and paged " +
+					"(first=100, after), Get Moderators and Get VIPs with user_id (up to 100), Ban User and Unban User one account a " +
+					"request. No bulk ban exists. Ratelimit-Limit, -Remaining and -Reset are read on each: ban lists wait at 200 points " +
+					"left, and on 429 until the reset. 400 \"already banned\" and \"not banned\" are read from Twitch's message (not a " +
+					"code: checked in the live check). Not documented: a cap on how many bans a channel holds.",
+			},
+			{
 				Name: "shield_mode", Support: PermissionRequired, Scopes: []string{ShieldScope},
 				Notes: "M8 slice 1 (D-105): Get Shield Mode Status (GET /moderation/shield_mode, broadcaster_id and moderator_id) and " +
 					"Update Shield Mode Status (PUT, body is_active), moderator:manage:shield_mode (it covers reading too); " +

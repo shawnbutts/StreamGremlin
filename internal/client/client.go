@@ -117,6 +117,11 @@ func (c *Client) DoRaw(ctx context.Context, method, path string, body []byte, ou
 		}
 		return &APIError{Status: resp.StatusCode, Code: "unknown", Message: resp.Status}
 	}
+	if w, ok := out.(io.Writer); ok {
+		// A text answer, such as a ban list's file, copied as it comes.
+		_, err := io.Copy(w, resp.Body)
+		return err
+	}
 	if out == nil {
 		return nil
 	}

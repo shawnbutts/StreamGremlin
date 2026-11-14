@@ -2,6 +2,7 @@ package mocktwitch
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -242,6 +243,10 @@ func (s *Server) cardListLocked(w http.ResponseWriter, r *http.Request, scopes .
 		return
 	}
 	channel := g.login
+	if len(ids) == 0 && r.URL.Path == "/helix/moderation/banned" {
+		s.bannedPageLocked(w, r, channel)
+		return
+	}
 	data := []map[string]string{}
 	for _, id := range ids {
 		v := s.loginOfLocked(id)
@@ -287,4 +292,81 @@ func (s *Server) SetSubGift(channel, viewer, gifter string) {
 		s.vw.subGifters[c] = map[string]string{}
 	}
 	s.vw.subGifters[c][strings.ToLower(viewer)] = strings.ToLower(gifter)
+}
+
+// bannedPageLocked answers Get Banned Users without user_id: every ban and
+// timeout, by login, first (default 20, up to 100) at a time.
+func (s *Server) bannedPageLocked(w http.ResponseWriter, r *http.Request, channel string) {
+	q := r.URL.Query()
+	first := 20
+	if n, err := strconv.Atoi(q.Get("first")); err == nil {
+		if n < 1 || n > 100 {
+			writeErr(w, 400, "first is 1 to 100")
+			return
+		}
+		first = n
+	}
+	var logins []string
+	for v := range s.cd.banned[channel] {
+		logins = append(logins, v)
+	}
+	sort.Strings(logins)
+	after := q.Get("after")
+	data := []map[string]string{}
+	cursor := ""
+	for _, v := range logins {
+		if after != "" && v <= after {
+			continue
+		}
+		if len(data) == first {
+			cursor = data[len(data)-1]["user_login"]
+			break
+		}
+		b := s.cd.banned[channel][v]
+		row := map[string]string{"user_id": s.userIDLocked(v), "user_login": v, "user_name": v, "created_at": b.at.Format(time.RFC3339),
+			"reason": b.reason, "expires_at": ""}
+		if !b.until.IsZero() {
+			row["expires_at"] = b.until.Format(time.RFC3339)
+		}
+		data = append(data, row)
+	}
+	page := map[string]any{}
+	if cursor != "" {
+		page["cursor"] = cursor
+	}
+	writeJSON(w, map[string]any{"data": data, "pagination": page})
+}
+
+// Bans lists who's banned (or timed out) in channel, by login.
+func (s *Server) Bans(channel string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	var out []string
+	for v := range s.cd.banned[strings.ToLower(channel)] {
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// BanViewer bans viewer in channel, as a moderator on Twitch's site would.
+func (s *Server) BanViewer(channel, viewer string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	c := strings.ToLower(channel)
+	if s.cd.banned[c] == nil {
+		s.cd.banned[c] = map[string]banned{}
+	}
+	s.userIDLocked(viewer)
+	s.cd.banned[c][strings.ToLower(viewer)] = banned{at: s.now().UTC(), by: c}
+}
+
+// UnbanViewer lifts a ban, as a moderator on Twitch's site would.
+func (s *Server) UnbanViewer(channel, viewer string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cardInit()
+	delete(s.cd.banned[strings.ToLower(channel)], strings.ToLower(viewer))
 }

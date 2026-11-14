@@ -29,6 +29,8 @@ type Server struct {
 	mu sync.Mutex
 	// shield is each channel's Shield Mode (shield.go).
 	shield map[string]*shieldState
+	// rate is Twitch's rate-limit bucket, when turned on (rate.go).
+	rate *rateState
 
 	// Settings; change them before or between calls.
 	ClientIDs      map[string]bool // accepted Client IDs; empty accepts any

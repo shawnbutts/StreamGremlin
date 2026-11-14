@@ -378,6 +378,9 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.chatInit()
+	if !s.rateLocked(w, r) {
+		return
+	}
 	switch {
 	case r.Method == "POST" && r.URL.Path == "/helix/eventsub/subscriptions":
 		s.subscribeLocked(w, r)

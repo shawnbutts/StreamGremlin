@@ -21,6 +21,7 @@
   import Points from './screens/Points.svelte';
   import Viewers from './screens/Viewers.svelte';
   import Filters from './screens/Filters.svelte';
+  import BanLists from './screens/BanLists.svelte';
   import Giveaways from './screens/Giveaways.svelte';
   import Timers from './screens/Timers.svelte';
   import Variables from './screens/Variables.svelte';
@@ -228,6 +229,8 @@
       {/key}
     {:else if screen === 'filters'}
       <Filters />
+    {:else if screen === 'banlists'}
+      <BanLists />
     {:else if screen === 'wheels'}
       <Wheels />
     {:else if screen === 'polls'}

@@ -62,6 +62,7 @@ func (h *helix) call(ctx context.Context, method, path, clientID, token string, 
 		return fmt.Errorf("%w: %s", errUnreachable, describeNetErr(err))
 	}
 	defer resp.Body.Close()
+	noteRate(ctx, resp)
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return fmt.Errorf("%w: %w", errUnreachable, err)

@@ -178,6 +178,21 @@
     <dd>For Affiliates and Partners, the Ads card on Home shows your next ad and your snoozes, and runs or snoozes one. A running break shows an estimate of the time left: Twitch doesn’t say when ads end.</dd>
     <dt>Backups</dt>
     <dd>Settings → Backups copies everything StreamGremlin keeps, every day and whenever you ask. Restoring one asks first and backs up what it replaces. Sign-ins aren’t in backups.</dd>
+    <dt>Ban lists</dt>
+    <dd>
+      Your own lists of accounts to ban on Twitch, from a file: one Twitch name or user id a line, or a CSV with a login or id
+      column (from another tool, say), up to 5 million lines. <strong>Import</strong> reads it and looks every name up on Twitch
+      first: how many it will ban, how many are banned already, which names don’t exist (or were deleted or suspended), and
+      who it leaves alone (you, your mods and VIPs, and viewers with points). Nothing is banned until you press
+      <strong>Start banning</strong>. Then it bans one account at a time at Twitch’s pace, always keeping room for chat and
+      moderating, and waits while you’re live (you can change that). A large list takes hours: Twitch allows about 800
+      requests a minute, one ban each. It carries on where it left off after StreamGremlin restarts, and a ban whose answer
+      never came is checked before it’s sent again. Import a newer file under the same name and only its new names are
+      checked and banned; the ones gone from it can be unbanned, but only bans the list made. If you or a mod unban someone
+      on Twitch, the list notices (<strong>Check against Twitch</strong>) and leaves them alone unless you ask.
+      <strong>Undo</strong> lifts only what the list banned. <strong>Copy Twitch’s ban list</strong> makes a list of everyone
+      banned now, and <strong>Save to a file</strong> saves any list.
+    </dd>
     <dt>The window</dt>
     <dd>Opens where you left it, at the same size. Live stretches with it: chat in the middle, your buttons on the right.</dd>
     <dt>Unknown</dt>
