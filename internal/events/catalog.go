@@ -280,10 +280,11 @@ func Catalog() []Kind {
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"low_trust_status": v["status"], "moderator": map[string]any{"id": "1", "login": "you", "name": "You"}}
 			}),
-		twitchKind("audience.follow.created", "Follow", "Someone followed your channel.", false, nil,
+		bothKind(twitchKind("audience.follow.created", "Follow", "Someone followed your Twitch channel, or subscribed to your YouTube "+
+			"channel (public subscriptions only, found within a minute or two while you're live).", false, nil,
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"followed_at": "2026-11-08T20:00:00Z"}
-			}),
+			})),
 		alsoYouTube(twitchKind("monetization.subscription.started", "New sub", "Someone subscribed, or was given a sub.", false,
 			[]Field{tierField, {Name: "is_gift", Label: "Given as a gift", Kind: "choice", Default: "false", Max: 5, Choices: []string{"false", "true"}}},
 			func(a *Actor, v map[string]string) map[string]any {
@@ -319,9 +320,35 @@ func Catalog() []Kind {
 				return map[string]any{"redemption_id": "test", "user_input": v["user_input"], "status": "unfulfilled",
 					"reward": map[string]any{"id": "test", "title": v["reward"], "cost": atoi(v["cost"]), "prompt": ""}}
 			}),
-		pollKind("chat.poll.started", "Poll starts", "A poll started in your chat.", ""),
+		pollKind("chat.poll.started", "Poll starts", "A poll started in your Twitch or YouTube chat.", ""),
 		pollKind("chat.poll.updated", "Poll votes", "Votes came in on your poll.", ""),
 		pollKind("chat.poll.ended", "Poll ends", "Your poll ended.", "completed"),
+		{Type: "broadcast.viewers.changed", Label: "Viewer count", Description: "Your Twitch or YouTube viewer count changed by a tenth " +
+			"or more since it was last announced (checked each minute while live).",
+			Sources: []string{"twitch", SourceYouTube},
+			Fields: []Field{{Name: "viewers", Label: "Viewers", Kind: "number", Default: "120", Max: 7},
+				{Name: "previous", Label: "Before", Kind: "number", Default: "100", Max: 7}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				n, p := atoi(v["viewers"]), atoi(v["previous"])
+				return map[string]any{"viewers": n, "previous": p, "change": n - p}, nil, nil
+			}},
+		{Type: "chat.chatters.active", Label: "Active chatters", Description: "Who spoke in your Twitch or YouTube chat in the last " +
+			"10 minutes, every 5 minutes while you're live. Never who's watching: neither platform says.",
+			Sources: []string{"streamgremlin"},
+			Fields:  []Field{{Name: "names", Label: "Names, with commas", Kind: "text", Default: "Ann, Bo", Max: 200}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				chatters := []any{}
+				names := []string{}
+				for _, n := range strings.Split(v["names"], ",") {
+					if n = strings.TrimSpace(n); n != "" {
+						names = append(names, n)
+						chatters = append(chatters, map[string]any{"platform": "twitch", "id": "test-" + strings.ToLower(n),
+							"login": strings.ToLower(n), "display_name": n, "minutes_ago": 1})
+					}
+				}
+				return map[string]any{"chatters": chatters, "count": len(names), "twitch_count": len(names), "youtube_count": 0,
+					"names": strings.Join(names, ", "), "minutes": 10}, nil, nil
+			}},
 		predictionKind("chat.prediction.started", "Prediction starts", "A prediction started in your chat.", "begin"),
 		predictionKind("chat.prediction.updated", "Prediction bets", "Viewers bet on your prediction.", "progress"),
 		predictionKind("chat.prediction.locked", "Prediction locks", "Your prediction stopped taking bets.", "lock"),
@@ -440,8 +467,9 @@ func Catalog() []Kind {
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"duration_seconds": atoi(v["seconds"]), "moderator": map[string]any{"id": "test-mod", "display_name": "TestMod"}}
 			}),
-		{Type: "broadcast.channel.updated", Label: "Title or category changed", Description: "Your channel's title or category changed on Twitch.",
-			Sources: []string{"twitch"},
+		{Type: "broadcast.channel.updated", Label: "Title or category changed", Description: "Your channel's title or category changed " +
+			"on Twitch, or your live broadcast's title or description on YouTube (checked each minute).",
+			Sources: []string{"twitch", SourceYouTube},
 			Fields: []Field{{Name: "title", Label: "Title", Kind: "text", Default: "Speedrun night", Max: 140},
 				{Name: "category", Label: "Category", Kind: "text", Default: "Celeste", Max: 140, Path: "category"}},
 			build: func(_ string, v map[string]string) (any, *Actor, error) {
@@ -767,8 +795,14 @@ func adKind(typ, label, desc string, sources []string, fields []Field, payload f
 }
 
 // pollKind is a poll event (docs/adr/0023-polls-and-predictions.md).
+// bothKind is a Twitch entry that YouTube sends too.
+func bothKind(k Kind) Kind {
+	k.Sources = []string{"twitch", SourceYouTube}
+	return k
+}
+
 func pollKind(typ, label, desc, status string) Kind {
-	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch"},
+	return Kind{Type: typ, Label: label, Description: desc, Sources: []string{"twitch", SourceYouTube},
 		Fields: []Field{{Name: "title", Label: "Question", Kind: "text", Default: "What should I play next?", Max: 60},
 			{Name: "first", Label: "First choice", Kind: "text", Default: "Celeste", Max: 25},
 			{Name: "second", Label: "Second choice", Kind: "text", Default: "Hades", Max: 25}},

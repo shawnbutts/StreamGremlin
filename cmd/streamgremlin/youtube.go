@@ -23,7 +23,11 @@ const youtubeUsage = `usage:
                                               -secret reads its client secret from standard input
   streamgremlin youtube sign-in [-bot]        sign in: open the link it prints in your browser
   streamgremlin youtube sign-out [-bot]       sign out
-  streamgremlin youtube find                  ask YouTube now whether you're live, and read that chat (1 unit)`
+  streamgremlin youtube find                  ask YouTube now whether you're live, and read that chat (1 unit)
+  streamgremlin youtube title TEXT            change your live broadcast's title (51 units)
+  streamgremlin youtube description TEXT      change its description (51 units)
+  streamgremlin youtube poll QUESTION A B [C D]  start a poll in your YouTube chat (20 units; runs until ended)
+  streamgremlin youtube poll end              end it, with its votes (20 units)`
 
 func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	sub := "status"
@@ -56,6 +60,17 @@ func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Wr
 	}
 	in := api.YouTubeClientRequest{}
 	switch sub {
+	case "title", "description":
+		if len(positional) == 0 {
+			fmt.Fprintln(stderr, youtubeUsage)
+			return 2
+		}
+	case "poll":
+		end := len(positional) == 1 && positional[0] == "end"
+		if !end && (len(positional) < 3 || len(positional) > 5) {
+			fmt.Fprintln(stderr, youtubeUsage)
+			return 2
+		}
 	case "status", "sign-in", "sign-out", "find":
 		if len(positional) != 0 {
 			fmt.Fprintln(stderr, youtubeUsage)
@@ -109,6 +124,33 @@ func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Wr
 		printYouTube(stdout, st)
 	case "find":
 		return youtubeFind(ctx, c, stdout, stderr)
+	case "title", "description":
+		text := strings.Join(positional, " ")
+		var ch youtube.StreamChange
+		if sub == "title" {
+			ch.Title = &text
+		} else {
+			ch.Description = &text
+		}
+		var info youtube.StreamInfo
+		if code := apiExit(c.Do(ctx, "PUT", "/v1/connections/youtube/stream", ch, &info), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Changed on YouTube. Title: “%s”\n", info.Title)
+	case "poll":
+		var p youtube.PollInfo
+		if positional[0] == "end" {
+			if code := apiExit(c.Do(ctx, "POST", "/v1/youtube/polls/end", nil, &p), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "Ended “%s”: %s\n", p.Question, pollVotes(p))
+			return 0
+		}
+		req := api.YouTubePollRequest{Question: positional[0], Options: positional[1:]}
+		if code := apiExit(c.Do(ctx, "POST", "/v1/youtube/polls", req, &p), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Started “%s” in your YouTube chat: %d choices. End it with `streamgremlin youtube poll end`.\n", p.Question, len(p.Choices))
 	case "sign-in":
 		return youtubeSignIn(ctx, c, role, stdout, stderr)
 	case "sign-out":
@@ -185,6 +227,24 @@ func printYouTube(w io.Writer, s youtube.Status) {
 		quota = "used up: YouTube said so"
 	}
 	fmt.Fprintf(w, "Chat:           %s\n", describeYouTubeChat(s.Chat))
+	if st := s.Chat.Stream; st != nil {
+		viewers := "unknown"
+		if st.Viewers != nil {
+			viewers = fmt.Sprint(*st.Viewers)
+		}
+		if st.Problem != "" {
+			viewers += " (" + st.Problem + ")"
+		}
+		fmt.Fprintf(w, "Viewers:        %s\n", viewers)
+		fmt.Fprintf(w, "Title:          %s\n", st.Title)
+	}
+	if p := s.Chat.Poll; p != nil {
+		state := "running"
+		if p.Status != "active" {
+			state = "ended"
+		}
+		fmt.Fprintf(w, "Poll:           “%s”, %s: %s\n", p.Question, state, pollVotes(*p))
+	}
 	fmt.Fprintf(w, "Quota:          %s; resets %s\n", quota, q.ResetsAt.Local().Format("Mon 15:04"))
 }
 
@@ -276,4 +336,13 @@ func describeYouTube(a youtube.AccountStatus) string {
 		out += ". " + a.Detail
 	}
 	return out
+}
+
+// pollVotes says a YouTube poll's votes in a line.
+func pollVotes(p youtube.PollInfo) string {
+	var parts []string
+	for _, c := range p.Choices {
+		parts = append(parts, fmt.Sprintf("%s %d", c.Title, c.Votes))
+	}
+	return strings.Join(parts, ", ")
 }

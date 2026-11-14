@@ -164,9 +164,15 @@ func TestChatReadsTheLiveBroadcast(t *testing.T) {
 	if recs[1].Source != events.SourceYouTube {
 		t.Fatal("YouTube chat isn't log-only")
 	}
-	// Quota: a lookup per FindNow or sign-in, and 5 for the stream.
+	// Quota: a lookup per FindNow or sign-in, 5 for the stream, and the
+	// minute check (D-102), once its first check is done.
+	for deadline := time.Now().Add(5 * time.Second); r.mock.Calls("subscriptions.list") == 0 && time.Now().Before(deadline); {
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(20 * time.Millisecond)
 	q := s.Status(context.Background()).Quota
-	want := CostChannelsList + r.mock.Calls("liveBroadcasts")*CostBroadcastsList + r.mock.Streams()*CostStreamList
+	want := CostChannelsList + r.mock.Calls("liveBroadcasts")*CostBroadcastsList + r.mock.Streams()*CostStreamList +
+		r.mock.Calls("videos.list")*CostVideosList + r.mock.Calls("subscriptions.list")*CostSubscriptionsList
 	if q.Used != want || r.mock.Streams() != 1 {
 		t.Fatalf("used %d, want %d (%d streams)", q.Used, want, r.mock.Streams())
 	}

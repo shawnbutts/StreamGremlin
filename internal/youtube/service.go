@@ -118,6 +118,13 @@ type Service struct {
 	mods       moderatorList // the chat's moderators, kept a while (moderate.go)
 	own        chat.OwnSends // workflows' messages sent as you, to skip their echo
 	retryAfter time.Duration // the first wait before reconnecting
+
+	// The minute check and polls (stream.go, polls.go, M6 slice 7), under
+	// chatMu; cleared when a broadcast's chat stops being read.
+	stream     *StreamInfo
+	poll       *PollInfo
+	pollSeen   string // the poll last shown running by the chat stream
+	checkEvery time.Duration
 }
 
 // New returns a Service. Call Start to load saved sign-ins.
@@ -135,7 +142,7 @@ func New(opts Options) *Service {
 		log: opts.Logger.With("component", "youtube"), now: time.Now, ctx: ctx, stop: stop,
 		notify: events.NewNotifier(), signInFor: 10 * time.Minute,
 		inbox: opts.Inbox, kick: make(chan struct{}, 1), accounts: events.NewNotifier(),
-		endedChats: map[string]bool{}, lookEvery: LookEvery, retryAfter: time.Second,
+		endedChats: map[string]bool{}, lookEvery: LookEvery, retryAfter: time.Second, checkEvery: CheckEvery,
 		chat: ChatStatus{State: ChatOff, Since: time.Now()},
 	}
 	s.chatConn = newChatConn(opts.TestServer)

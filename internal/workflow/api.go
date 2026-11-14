@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -330,6 +331,14 @@ func (e *Engine) Starting(ctx context.Context, r events.Record) ([]Summary, erro
 // workflows made before it were made for Twitch. The host runs it once.
 // Deleted workflows are left as they are.
 func (e *Engine) MarkLiveTriggersTwitchOnly(ctx context.Context) ([]string, error) {
+	return e.MarkTriggersTwitchOnly(ctx, "broadcast.channel.online", "broadcast.channel.offline")
+}
+
+// MarkTriggersTwitchOnly makes every trigger of these types that hears all
+// platforms hear Twitch only, as a new version of each workflow: for
+// triggers YouTube starts sending (D-099, D-102). Deleted workflows are
+// left as they are.
+func (e *Engine) MarkTriggersTwitchOnly(ctx context.Context, types ...string) ([]string, error) {
 	e.cmdMu.Lock()
 	defer e.cmdMu.Unlock()
 	list, err := e.st.list(ctx, false)
@@ -344,7 +353,7 @@ func (e *Engine) MarkLiveTriggersTwitchOnly(ctx context.Context) ([]string, erro
 		}
 		mark := false
 		for i, t := range d.Triggers {
-			if (t.Type == "broadcast.channel.online" || t.Type == "broadcast.channel.offline") && len(t.Sources) == 0 {
+			if slices.Contains(types, t.Type) && len(t.Sources) == 0 {
 				d.Triggers[i].Sources = []string{"twitch"}
 				mark = true
 			}
@@ -356,7 +365,7 @@ func (e *Engine) MarkLiveTriggersTwitchOnly(ctx context.Context) ([]string, erro
 			return changed, err
 		}
 		changed = append(changed, d.ID)
-		e.log.Info("workflow's go-live trigger kept to Twitch", "workflow", d.ID)
+		e.log.Info("workflow's triggers kept to Twitch", "workflow", d.ID)
 	}
 	if len(changed) > 0 {
 		return changed, e.reload(ctx)

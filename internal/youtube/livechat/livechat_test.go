@@ -111,6 +111,7 @@ func TestDetailsRoundTrip(t *testing.T) {
 		{Type: TypeGiftMembershipReceived, GiftMembershipReceived: &GiftMembershipReceived{MemberLevelName: "Gold", GifterChannelID: "UCg", GiftingID: "m9"}},
 		{Type: TypeUserBanned, UserBanned: &UserBanned{ChannelID: "UCb", ChannelURL: "u", DisplayName: "Spammer", BanType: BanTemporary, DurationSeconds: 300}},
 		{Type: TypeGift, Gift: &Gift{Name: "Rose", JewelsCount: 10, AltText: "a rose", ComboCount: 3}},
+		{Type: TypePoll, Poll: &Poll{Question: "Next game?", Options: []PollOption{{Text: "A", Tally: 3}, {Text: "B"}}, Status: PollActive}},
 	} {
 		m := Message{ID: "x", Snippet: sn}
 		back, err := ParseResponse(Response{Items: []Message{m}}.Marshal())
@@ -144,5 +145,55 @@ func TestDetailFieldNumbers(t *testing.T) {
 	if err != nil || s.SuperChat == nil || s.SuperChat.AmountMicros != 1_500_000 || s.SuperChat.AmountDisplayString != "£1.50" ||
 		s.UserBanned == nil || s.UserBanned.ChannelID != "UCb" || s.UserBanned.BanType != BanPermanent {
 		t.Fatalf("%+v %v", s, err)
+	}
+}
+
+// A poll and the response's active poll, built from Google's numbers:
+// poll_details 33 {metadata 1 {question_text 1, options 2 {option_text 1,
+// tally 2}}, status 2}; active_poll_item 1008.
+func TestPollFieldNumbers(t *testing.T) {
+	opt := func(text string, tally uint64) []byte {
+		var b []byte
+		b = protowire.AppendTag(b, 1, protowire.BytesType)
+		b = protowire.AppendString(b, text)
+		b = protowire.AppendTag(b, 2, protowire.VarintType)
+		return protowire.AppendVarint(b, tally)
+	}
+	var meta []byte
+	meta = protowire.AppendTag(meta, 1, protowire.BytesType)
+	meta = protowire.AppendString(meta, "Pizza?")
+	meta = protowire.AppendTag(meta, 2, protowire.BytesType)
+	meta = protowire.AppendBytes(meta, opt("Yes", 7))
+	meta = protowire.AppendTag(meta, 2, protowire.BytesType)
+	meta = protowire.AppendBytes(meta, opt("No", 2))
+	var poll []byte
+	poll = protowire.AppendTag(poll, 1, protowire.BytesType)
+	poll = protowire.AppendBytes(poll, meta)
+	poll = protowire.AppendTag(poll, 2, protowire.VarintType)
+	poll = protowire.AppendVarint(poll, 2)
+	var sn []byte
+	sn = protowire.AppendTag(sn, 1, protowire.VarintType)
+	sn = protowire.AppendVarint(sn, 20)
+	sn = protowire.AppendTag(sn, 33, protowire.BytesType)
+	sn = protowire.AppendBytes(sn, poll)
+	var msg []byte
+	msg = protowire.AppendTag(msg, 101, protowire.BytesType)
+	msg = protowire.AppendString(msg, "p1")
+	msg = protowire.AppendTag(msg, 2, protowire.BytesType)
+	msg = protowire.AppendBytes(msg, sn)
+	var resp []byte
+	resp = protowire.AppendTag(resp, 1008, protowire.BytesType)
+	resp = protowire.AppendBytes(resp, msg)
+	r, err := ParseResponse(resp)
+	if err != nil || r.ActivePoll == nil || r.ActivePoll.ID != "p1" || r.ActivePoll.Snippet.Type != TypePoll {
+		t.Fatalf("%+v %v", r, err)
+	}
+	p := r.ActivePoll.Snippet.Poll
+	if p == nil || p.Question != "Pizza?" || p.Status != PollClosed || len(p.Options) != 2 || p.Options[0] != (PollOption{"Yes", 7}) || p.Options[1].Tally != 2 {
+		t.Fatalf("%+v", p)
+	}
+	back, err := ParseResponse(r.Marshal())
+	if err != nil || !reflect.DeepEqual(back.ActivePoll, r.ActivePoll) {
+		t.Fatalf("round trip: %+v %v", back, err)
 	}
 }

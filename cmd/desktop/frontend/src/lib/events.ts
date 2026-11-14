@@ -12,7 +12,7 @@ export function eventSummary(ev: EventRecord): string {
   // Twitch channel events, in words (docs/adr/0015-twitch-channel-events.md).
   switch (ev.type) {
     case 'audience.follow.created':
-      return `${who} followed`;
+      return yt ? `${who} subscribed on YouTube` : `${who} followed`;
     case 'moderation.suspicious_user.message':
       return `Suspicious user ${who}: ${typeof p.text === 'string' ? p.text : ''}`;
     case 'moderation.suspicious_user.updated': {
@@ -107,7 +107,13 @@ export function eventSummary(ev: EventRecord): string {
     case 'broadcast.channel.offline':
       return yt ? 'Offline on YouTube' : 'Offline on Twitch';
     case 'broadcast.channel.updated':
-      return `“${p.title ?? ''}”, in ${p.category || 'no category'}`;
+      return yt ? `YouTube title: “${p.title ?? ''}”` : `“${p.title ?? ''}”, in ${p.category || 'no category'}`;
+    case 'broadcast.viewers.changed':
+      return `${num('viewers')} watching on ${yt ? 'YouTube' : 'Twitch'} (was ${num('previous')})`;
+    case 'chat.chatters.active': {
+      const n = num('count');
+      return `${n} ${n === 1 ? 'person' : 'people'} spoke in the last ${num('minutes')} minutes${typeof p.names === 'string' && p.names ? `: ${p.names}` : ''}`;
+    }
   }
   const text = typeof p.text === 'string' ? p.text : '';
   if (text) return who ? `${who}: ${text}` : text;

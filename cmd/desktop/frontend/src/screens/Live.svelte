@@ -23,6 +23,7 @@
     putUISettings,
     saveButton,
     sendChat,
+    setYouTubeStream,
     type ButtonColor,
     type ChatModes,
     type ChatModesChange,
@@ -399,6 +400,40 @@
     }
   }
 
+  // Your YouTube broadcast's title and description (D-102): changed here
+  // for 51 quota units, only while its chat is read.
+  let ytEdit = $state<{ title: string; description: string } | undefined>();
+  let ytEditError = $state('');
+  let ytEditNotice = $state('');
+  let ytSaving = $state(false);
+  const ytStream = $derived(youtube?.state === 'connected' ? youtube.stream : undefined);
+
+  async function saveYouTubeStream(e: SubmitEvent) {
+    e.preventDefault();
+    if (!ytEdit || !ytStream) return;
+    const change: { title?: string; description?: string } = {};
+    if (ytEdit.title.trim() !== ytStream.title) change.title = ytEdit.title.trim();
+    if (ytEdit.description !== ytStream.description) change.description = ytEdit.description;
+    ytEditError = '';
+    if (!change.title && change.description === undefined) {
+      ytEdit = undefined;
+      return;
+    }
+    if (change.title !== undefined && (change.title.length < 1 || change.title.length > 100))
+      return void (ytEditError = 'A YouTube title is 1 to 100 characters.');
+    ytSaving = true;
+    try {
+      const info = await setYouTubeStream(change);
+      if (youtube) youtube = { ...youtube, stream: info };
+      ytEdit = undefined;
+      ytEditNotice = 'Changed on YouTube.';
+    } catch (err) {
+      ytEditError = message(err);
+    } finally {
+      ytSaving = false;
+    }
+  }
+
   async function loadYouTube() {
     try {
       const st = await getYouTube();
@@ -643,7 +678,16 @@
       {#if youtube && listening !== 'lost'}
         <p class="live-status" aria-live="polite">
           {#if youtube.state === 'connected'}
-            <span class="state-ok"><span aria-hidden="true">●</span> YouTube: reading the chat of “{youtube.broadcast?.title}”</span>
+            <span class="state-ok"><span aria-hidden="true">●</span> YouTube: reading the chat of “{youtube.stream?.title || youtube.broadcast?.title}”</span>
+            {#if youtube.stream}
+              <span class="live-viewers">
+                {#if youtube.stream.viewers !== null}
+                  · {youtube.stream.viewers.toLocaleString()} watching
+                {:else}
+                  · <span class="state-unknown"><span aria-hidden="true">?</span> viewers unknown</span>
+                {/if}
+              </span>
+            {/if}
           {:else if youtube.state === 'connecting'}
             YouTube: connecting to chat…
           {:else if youtube.state === 'looking'}
@@ -955,6 +999,40 @@
         {/if}
       </details>
     </section>
+    {#if ytStream}
+      <section class="sg-panel live-yt-stream" aria-labelledby="live-yt-stream-heading">
+        <h2 id="live-yt-stream-heading">YouTube stream</h2>
+        <p>
+          {#if ytStream.viewers !== null}
+            <strong>{ytStream.viewers.toLocaleString()}</strong> watching now
+          {:else}
+            <span class="state-unknown"><span aria-hidden="true">?</span> Viewers unknown{ytStream.problem ? `: ${ytStream.problem}` : ': YouTube didn’t say (no one yet, or the count is hidden)'}</span>
+          {/if}
+          <span class="sg-muted">· checked each minute{ytStream.checked_at ? `, last at ${eventTime(ytStream.checked_at)}` : ''}</span>
+        </p>
+        {#if ytEdit}
+          <form onsubmit={saveYouTubeStream} aria-label="Change the YouTube title and description">
+            <label class="field"><span>Title</span><input class="sg-input" bind:value={ytEdit.title} maxlength="100" /></label>
+            <label class="field"><span>Description</span><textarea class="sg-input" rows="4" bind:value={ytEdit.description}></textarea></label>
+            <p class="sg-muted field-hint">Saving uses 51 of today’s YouTube quota units. Tags and category stay as they are.</p>
+            <div class="row-actions">
+              <button type="submit" class="sg-button" disabled={ytSaving}>Save on YouTube</button>
+              <button type="button" class="button" disabled={ytSaving} onclick={() => ((ytEdit = undefined), (ytEditError = ''))}>Cancel</button>
+            </div>
+          </form>
+        {:else}
+          <p><span class="sg-muted">Title:</span> {ytStream.title}</p>
+          {#if ytStream.description}<p class="live-yt-desc"><span class="sg-muted">Description:</span> {ytStream.description}</p>{/if}
+          <div class="row-actions">
+            <button type="button" class="button" onclick={() => ((ytEdit = { title: ytStream.title, description: ytStream.description }), (ytEditNotice = ''))}
+              >Change title or description…</button
+            >
+          </div>
+        {/if}
+        <p class="saved" role="status">{ytEditNotice}</p>
+        {#if ytEditError}<p class="error" role="alert">{ytEditError}</p>{/if}
+      </section>
+    {/if}
     </div>
   </div>
 {/if}
@@ -1043,6 +1121,10 @@
   }
   .live-platform[data-platform='twitch'] {
     color: var(--sg-twitch, #8f5cff);
+  }
+  .live-yt-desc {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
   }
   .live-platform[data-platform='youtube'] {
     color: var(--sg-youtube, #e53935);

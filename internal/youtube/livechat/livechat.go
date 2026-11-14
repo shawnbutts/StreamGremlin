@@ -78,6 +78,9 @@ type Response struct {
 	OfflineAt     string    // 2, set once the stream is offline
 	NextPageToken string    // 100602, to resume from
 	Items         []Message // 1007
+	// ActivePoll is set while the chat has a poll running (1008,
+	// active_poll_item): M6 slice 7, D-102.
+	ActivePoll *Message
 }
 
 // Message is LiveChatMessage.
@@ -106,6 +109,28 @@ type Snippet struct {
 	GiftMembershipReceived *GiftMembershipReceived // 32
 	UserBanned             *UserBanned             // 22
 	Gift                   *Gift                   // 34
+	Poll                   *Poll                   // 33 (M6 slice 7)
+}
+
+// Poll statuses (LiveChatPollDetails.PollStatusWrapper.PollStatus).
+const (
+	PollUnknown = 0
+	PollActive  = 1
+	PollClosed  = 2
+)
+
+// Poll is LiveChatPollDetails.
+type Poll struct {
+	Question string       // 1: metadata.question_text (1)
+	Options  []PollOption // 1: metadata.options (2)
+	Status   int32        // 2
+}
+
+// PollOption is PollMetadata.PollOption. Tally is only given to the
+// chat's owner.
+type PollOption struct {
+	Text  string // 1
+	Tally int64  // 2
 }
 
 // SuperChat is LiveChatSuperChatDetails.
@@ -199,6 +224,7 @@ const (
 	respOfflineAt     = 2
 	respNextPageToken = 100602
 	respItems         = 1007
+	respActivePoll    = 1008
 
 	msgID      = 101
 	msgSnippet = 2
@@ -221,6 +247,7 @@ const (
 	snGifting      = 31
 	snGiftReceived = 32
 	snGift         = 34
+	snPoll         = 33
 	profileChannel = 101
 	profileURL     = 2
 	profileName    = 3
@@ -284,6 +311,9 @@ func (r Response) Marshal() []byte {
 	b = appendString(b, respOfflineAt, r.OfflineAt)
 	for _, m := range r.Items {
 		b = appendMessage(b, respItems, m.Marshal())
+	}
+	if r.ActivePoll != nil {
+		b = appendMessage(b, respActivePoll, r.ActivePoll.Marshal())
 	}
 	b = appendString(b, respNextPageToken, r.NextPageToken)
 	return b
@@ -395,6 +425,17 @@ func appendDetails(sn []byte, s Snippet) []byte {
 		b = appendVarint(b, 8, signed(d.ComboCount))
 		sn = appendMessage(sn, snGift, b)
 	}
+	if d := s.Poll; d != nil {
+		meta := appendString(nil, 1, d.Question)
+		for _, o := range d.Options {
+			ob := appendString(nil, 1, o.Text)
+			ob = appendVarint(ob, 2, uint64(o.Tally)) //nolint:gosec // a proto int64's bits
+			meta = appendMessage(meta, 2, ob)
+		}
+		b := appendMessage(nil, 1, meta)
+		b = appendVarint(b, 2, signed(d.Status))
+		sn = appendMessage(sn, snPoll, b)
+	}
 	return sn
 }
 
@@ -467,6 +508,12 @@ func ParseResponse(b []byte) (Response, error) {
 				return err
 			}
 			r.Items = append(r.Items, m)
+		case respActivePoll:
+			m, err := parseMessage(bs)
+			if err != nil {
+				return err
+			}
+			r.ActivePoll = &m
 		}
 		return nil
 	})
@@ -553,6 +600,8 @@ func i32(v uint64) int32 { return int32(int64(v)) } //nolint:gosec // protobuf's
 func parseDetails(s *Snippet, n protowire.Number, b []byte) error {
 	switch n {
 	case snSuperChat, snSuperSticker, snNewSponsor, snMilestone, snGifting, snGiftReceived, snUserBanned, snGift:
+	case snPoll:
+		return parsePoll(s, b)
 	default:
 		return nil
 	}
@@ -588,6 +637,34 @@ func parseDetails(s *Snippet, n protowire.Number, b []byte) error {
 		s.Gift = &Gift{Name: st(1), JewelsCount: i32(v[3]), AltText: st(5), ComboCount: i32(v[8])}
 	}
 	return nil
+}
+
+// parsePoll reads LiveChatPollDetails: metadata (question and options in
+// the order YouTube shows them) and status.
+func parsePoll(s *Snippet, b []byte) error {
+	v, str, err := detail(b)
+	if err != nil {
+		return err
+	}
+	p := &Poll{Status: i32(v[2])}
+	err = fields(str[1], func(n protowire.Number, t protowire.Type, _ uint64, bs []byte) error {
+		if t != protowire.BytesType {
+			return nil
+		}
+		switch n {
+		case 1:
+			p.Question = string(bs)
+		case 2:
+			ov, os, err := detail(bs)
+			if err != nil {
+				return err
+			}
+			p.Options = append(p.Options, PollOption{Text: string(os[1]), Tally: int64(ov[2])}) //nolint:gosec // a proto int64's bits
+		}
+		return nil
+	})
+	s.Poll = p
+	return err
 }
 
 func parseAuthor(b []byte) (Author, error) {

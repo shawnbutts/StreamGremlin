@@ -18,8 +18,7 @@ type Manifest struct {
 	Capabilities []Capability `json:"capabilities"`
 }
 
-// YouTubeManifest is the adapter's manifest (D-095, D-096). Later M6
-// slices add chat, events, moderating and the rest.
+// YouTubeManifest is the adapter's manifest (D-095 to D-102).
 func YouTubeManifest() Manifest {
 	return Manifest{
 		Provider: "youtube", Protocol: "Google OAuth 2.0 for desktop apps; YouTube Data API v3; liveChatMessages.streamList over gRPC", VerifiedAt: "2026-11-14",
@@ -35,6 +34,12 @@ func YouTubeManifest() Manifest {
 			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list",
 			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages/insert",
 			"https://developers.google.com/youtube/v3/docs/subscriptions/list",
+			"https://developers.google.com/youtube/v3/docs/subscriptions",
+			"https://developers.google.com/youtube/v3/docs/videos/list",
+			"https://developers.google.com/youtube/v3/docs/videos/update",
+			"https://developers.google.com/youtube/v3/docs/videos",
+			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages/transition",
+			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/update",
 		},
 		Scopes: []string{Scope},
 		Capabilities: []Capability{
@@ -90,7 +95,7 @@ func YouTubeManifest() Manifest {
 				"going live is recorded when its chat first answers, and offline when the chat ends (chatEndedEvent, offlineAt " +
 				"or FAILED_PRECONDITION): a broadcast ending while StreamGremlin is closed has no offline event. A tombstone is " +
 				"stored as chat.message.deleted (source youtube, deleted:<message id>), shown struck through on Live; Google's wording " +
-				"leaves open whether a deletion sends one, so StreamGremlin's own deletes record it too. Polls in slice 7. Events " +
+				"leaves open whether a deletion sends one, so StreamGremlin's own deletes record it too. Polls: see polls. Events " +
 				"from before StreamGremlin was reading are marked backlog."},
 			{Name: "moderate", Support: "partial", Notes: "M6 slice 5 (D-100), always as your channel, the chat's owner, to the " +
 				"chat being read: liveChatMessages.delete (20 units); liveChatBans.insert, type permanent or temporary with " +
@@ -107,8 +112,29 @@ func YouTubeManifest() Manifest {
 			{Name: "roles", Support: "supported", Notes: "authorDetails: isChatOwner is the broadcaster, isChatModerator a " +
 				"moderator, isChatSponsor a channel member, counted as a subscriber for roles and command permissions (D-098). " +
 				"YouTube has no VIPs."},
-			{Name: "subscribers", Support: "partial", Notes: "M6 slice 7: no push exists; subscriptions.list " +
-				"myRecentSubscribers (1 unit), public subscriptions only, possibly limited."},
+			{Name: "subscribers", Support: "partial", Notes: "M6 slice 7 (D-102): no push exists. subscriptions.list " +
+				"part=snippet,subscriberSnippet&myRecentSubscribers=true&maxResults=50 (1 unit), each minute while chat is read: newest " +
+				"first, public subscriptions only, and Google says the list \"might be limited\". A subscription whose snippet.publishedAt " +
+				"is after the broadcast started is stored once per channel ever (subscribed:<channel id>) as audience.follow.created " +
+				"from source youtube: a free subscription is a follow. subscriberSnippet.title is the channel's name, not its handle."},
+			{Name: "stream", Support: "supported", Notes: "M6 slice 7 (D-102): videos.list part=snippet,liveStreamingDetails&id=<broadcast id> " +
+				"(1 unit) each minute while chat is read: a broadcast is one video with the same id (relied on; not stated in so many " +
+				"words). liveStreamingDetails.concurrentViewers (an unsigned long, a string in JSON) is present only while the broadcast " +
+				"has viewers and the count isn't hidden: otherwise the count is unknown, never 0. A change by a tenth or more is " +
+				"broadcast.viewers.changed; a title or description changed anywhere is broadcast.channel.updated."},
+			{Name: "title", Support: "supported", Notes: "M6 slice 7: videos.update part=snippet (50 units, youtube.force-ssl), after " +
+				"reading the snippet (1): Google deletes any snippet field an update leaves out, so title, description, categoryId " +
+				"(required), tags, defaultLanguage and defaultAudioLanguage are sent back. Title 1 to 100 characters, description up " +
+				"to 5000 bytes, neither with < or >. liveBroadcasts.update (1 unit) wasn't used: it needs " +
+				"contentDetails.monitorStream and resets the privacy status when it's left out."},
+			{Name: "polls", Support: "partial", Notes: "M6 slice 7: liveChatMessages.insert with snippet.type pollEvent and " +
+				"pollDetails.metadata {questionText, options[{optionText}]} (2 to 4 options, 20 units; preconditionCheckFailed when a " +
+				"poll is running), as your channel; liveChatMessages.transition id=...&status=closed (20 units, only from active). Google " +
+				"names the type pollEvent in insert's reference and pollDetails in the resource's list. The stream sends the poll when " +
+				"it's made (poll_details 33: metadata.question_text, options[option_text, tally], status) and the running poll in each " +
+				"answer (active_poll_item 1008); tallies only for the chat's owner. Not documented: a length for the question or an " +
+				"option (StreamGremlin: 100 and 35), a poll's longest run, and whether a vote alone sends an answer. A poll the stream " +
+				"stopped showing is ended. Twitch's chat.poll.* types and payload."},
 		},
 	}
 }

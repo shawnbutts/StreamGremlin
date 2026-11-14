@@ -743,3 +743,20 @@ func TestLiveTriggersKeptToTwitch(t *testing.T) {
 		t.Fatal("the Twitch-only workflow ran for YouTube")
 	}
 }
+
+// Workflows made before M6 slice 7 keep their follow, title and poll
+// triggers to Twitch, once (D-102).
+func TestSlice7TriggersKeptToTwitch(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.save(def("follow", `"triggers":[{"type":"audience.follow.created"},{"type":"chat.poll.ended"},{"type":"chat.message.received"}],"steps":[{"action":"test.local"}]`), true)
+	types := []string{"audience.follow.created", "broadcast.channel.updated", "chat.poll.started", "chat.poll.updated", "chat.poll.ended"}
+	ids, err := r.eng.MarkTriggersTwitchOnly(ctx, types...)
+	if err != nil || len(ids) != 1 {
+		t.Fatal(ids, err)
+	}
+	d, _, err := r.eng.Definition(ctx, "follow")
+	if err != nil || d.Triggers[0].Sources[0] != "twitch" || d.Triggers[1].Sources[0] != "twitch" || len(d.Triggers[2].Sources) != 0 {
+		t.Fatalf("%+v %v", d.Triggers, err)
+	}
+}

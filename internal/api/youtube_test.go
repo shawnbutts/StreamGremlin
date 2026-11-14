@@ -81,6 +81,37 @@ func TestYouTubeSignInThroughTheAPI(t *testing.T) {
 	if w := do(t, s, req{method: "POST", path: "/v1/connections/youtube/chat/find"}); w.Code != 401 {
 		t.Fatal("find without a token:", w.Code)
 	}
+	// The title and description (M6 slice 7, D-102).
+	if w := do(t, s, req{method: "PUT", path: "/v1/connections/youtube/stream", token: testToken, body: `{}`}); w.Code != 400 {
+		t.Fatal("nothing to change:", w.Code, w.Body)
+	}
+	w = do(t, s, req{method: "PUT", path: "/v1/connections/youtube/stream", token: testToken, body: `{"title":"Late night"}`})
+	var info youtube.StreamInfo
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &info) != nil || info.Title != "Late night" {
+		t.Fatal(w.Code, w.Body)
+	}
+	// Polls: one at a time, ended with its votes.
+	if w := do(t, s, req{method: "POST", path: "/v1/youtube/polls", token: testToken, body: `{"question":"Q?","options":["a"]}`}); w.Code != 400 {
+		t.Fatal("one option:", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/youtube/polls/end", token: testToken}); w.Code != 409 {
+		t.Fatal("nothing to end:", w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/youtube/polls", token: testToken, body: `{"question":"Q?","options":["a","b"]}`}); w.Code != 201 {
+		t.Fatal(w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/youtube/polls", token: testToken, body: `{"question":"Again?","options":["a","b"]}`}); w.Code != 409 {
+		t.Fatal("a second poll:", w.Code, w.Body)
+	}
+	testYouTube.Vote(b.ChatID, 1)
+	w = do(t, s, req{method: "POST", path: "/v1/youtube/polls/end", token: testToken})
+	var poll youtube.PollInfo
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &poll) != nil || poll.Status != "closed" {
+		t.Fatal(w.Code, w.Body)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/youtube/polls", body: `{"question":"Q?","options":["a","b"]}`}); w.Code != 401 {
+		t.Fatal("a poll without a token:", w.Code)
+	}
 	if w := do(t, s, req{method: "DELETE", path: "/v1/connections/youtube/bot/sign-in", token: testToken}); w.Code != 204 {
 		t.Fatal(w.Code)
 	}

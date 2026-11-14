@@ -484,7 +484,11 @@ func TestSimulateFromYouTube(t *testing.T) {
 	if err != nil || env.Source != SourceYouTube || env.Actor.Platform != SourceYouTube {
 		t.Fatalf("%+v %v", env, err)
 	}
-	if _, err := (Simulation{Type: "audience.follow.created", RequestID: "r2", Source: SourceYouTube}).Build(); err == nil {
-		t.Fatal("a YouTube follow test event")
+	if _, err := (Simulation{Type: "ads.break.started", RequestID: "r2", Source: SourceYouTube}).Build(); err == nil {
+		t.Fatal("a YouTube ad break test event")
+	}
+	// A YouTube subscriber is a follow (D-102).
+	if env, err := (Simulation{Type: "audience.follow.created", RequestID: "r3", Source: SourceYouTube}).Build(); err != nil || env.Actor.Platform != SourceYouTube {
+		t.Fatalf("%+v %v", env, err)
 	}
 }

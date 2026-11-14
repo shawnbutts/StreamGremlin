@@ -19,6 +19,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/actions"
 	"code.streamgremlin.com/streamgremlin/internal/ads"
 	"code.streamgremlin.com/streamgremlin/internal/api"
+	"code.streamgremlin.com/streamgremlin/internal/audience"
 	"code.streamgremlin.com/streamgremlin/internal/backup"
 	"code.streamgremlin.com/streamgremlin/internal/brand"
 	"code.streamgremlin.com/streamgremlin/internal/buildinfo"
@@ -103,6 +104,7 @@ type Host struct {
 	workflows *workflow.Engine
 	timers    *timers.Service
 	firsts    *firstwords.Service
+	audience  *audience.Service
 	filters   *filters.Service
 	ads       *ads.Service
 	giveaways *giveaways.Service
@@ -272,7 +274,31 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 			}
 		}
 	}
+	// Once (D-102): workflows made before YouTube sent follows (public
+	// subscribers), title changes and polls keep those triggers to Twitch.
+	var s7Marked bool
+	if ok, err := set.Load(ctx, "migrations.slice7_triggers_twitch_only", &s7Marked); err == nil && (!ok || !s7Marked) {
+		if ids, err := h.workflows.MarkTriggersTwitchOnly(ctx, "audience.follow.created", "broadcast.channel.updated",
+			"chat.poll.started", "chat.poll.updated", "chat.poll.ended"); err != nil {
+			log.Warn("couldn't keep follow, title and poll triggers to Twitch; trying again at the next start", "err", err)
+		} else {
+			_ = set.Save(ctx, "migrations.slice7_triggers_twitch_only", true)
+			if len(ids) > 0 {
+				log.Info("follow, title and poll triggers kept to Twitch", "workflows", len(ids))
+			}
+		}
+	}
 	h.timers.Start(context.Background())
+	// After workflows: active chatters and viewer counts are events they run on.
+	h.audience = audience.New(audience.Options{Inbox: inbox, Logger: log,
+		TwitchStream: func(ctx context.Context) (bool, int, error) {
+			st, err := h.twitch.Stream(ctx)
+			return st.Live, st.Viewers, err
+		},
+		YouTubeLive: func() bool { return h.youtube.ChatStatus().State == youtube.ChatConnected }})
+	if err := h.audience.Start(ctx); err != nil {
+		return nil, err
+	}
 	// After workflows: first words are stored as events, which they run on.
 	if err := h.firsts.Start(ctx); err != nil {
 		return nil, err
@@ -519,6 +545,9 @@ func (h *Host) cleanup() {
 	}
 	if h.firsts != nil {
 		h.firsts.Close() // before workflows: no new first words while runs finish
+	}
+	if h.audience != nil {
+		h.audience.Close() // before workflows: no new counts while runs finish
 	}
 	if h.timers != nil {
 		h.timers.Close() // before workflows: no new turns while runs finish

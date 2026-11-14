@@ -277,6 +277,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	registerOverlayTimers(reg, sv.OverlayTimers)
 	registerRewards(reg, sv.Twitch)
 	registerPolls(reg, sv.Twitch)
+	registerYouTube(reg, sv.YouTube)
 	registerAds(reg, sv.Ads)
 	registerGiveaways(reg, sv.Giveaways)
 	registerWheels(reg, sv.Wheels)

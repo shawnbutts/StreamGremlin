@@ -30,12 +30,20 @@ type Broadcast struct {
 	// ChatOff makes streamList refuse, as for a broadcast with chat turned off.
 	ChatOff bool
 	ended   bool
+	// The video's details (stream.go): videos.list and videos.update.
+	Description string
+	CategoryID  string
+	Tags        []string
+	Viewers     *int64 // nil: YouTube doesn't say
 }
 
 type chat struct {
 	msgs  []livechat.Message
 	ended bool
 	wake  chan struct{} // closed and replaced when something's added
+	// poll is the active poll (stream.go); pollVer counts its changes.
+	poll    *livechat.Message
+	pollVer int
 }
 
 // backlog is how many recent messages a stream without a page token gets
@@ -77,7 +85,8 @@ func (s *Server) GoLive(channel, title string) Broadcast {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.seq++
-	b := &Broadcast{ID: fmt.Sprintf("bc%d", s.seq), Title: title, ChatID: fmt.Sprintf("chat%d", s.seq), Channel: channel, Started: s.now()}
+	b := &Broadcast{ID: fmt.Sprintf("bc%d", s.seq), Title: title, ChatID: fmt.Sprintf("chat%d", s.seq), Channel: channel, Started: s.now(),
+		CategoryID: "20", Tags: []string{"stand-in"}}
 	s.broadcasts = append(s.broadcasts, b)
 	s.chats[b.ChatID] = &chat{wake: make(chan struct{})}
 	return *b
@@ -268,7 +277,7 @@ func (s *Server) streamList(st grpc.ServerStream) error {
 	s.mu.Unlock()
 	defer func() { s.mu.Lock(); s.open--; s.mu.Unlock() }()
 
-	first := true
+	first, pollVer := true, -1
 	for {
 		s.mu.Lock()
 		if s.drop != drop {
@@ -278,9 +287,18 @@ func (s *Server) streamList(st grpc.ServerStream) error {
 		items := append([]livechat.Message(nil), c.msgs[next:]...)
 		next = len(c.msgs)
 		wake := c.wake
+		var active *livechat.Message
+		if c.poll != nil {
+			p := clonePoll(*c.poll)
+			active = &p
+		}
+		pollChanged := c.pollVer != pollVer
+		pollVer = c.pollVer
 		s.mu.Unlock()
-		if len(items) > 0 || first {
-			resp := livechat.Response{Items: items, NextPageToken: "p" + strconv.Itoa(next)}
+		if len(items) > 0 || first || pollChanged {
+			// Each answer carries the active poll, as Google's
+			// active_poll_item does.
+			resp := livechat.Response{Items: items, NextPageToken: "p" + strconv.Itoa(next), ActivePoll: active}
 			if err := st.SendMsg(&livechat.Raw{B: resp.Marshal()}); err != nil {
 				return err
 			}
@@ -310,6 +328,12 @@ var controls = template.Must(template.New("c").Parse(`<!doctype html><meta chars
 <label>From <input name="name" value="Big Fan"></label> <label>Amount (USD) <input name="amount" value="5" size="4"></label> <label>Message <input name="text"></label> <button>Super Chat</button></form>
 <form method="post" action="/mock/member"><input type="hidden" name="chat" value="{{.ChatID}}">
 <label>Who <input name="name" value="New Member"></label> <label>Level <input name="level" value="Gold" size="8"></label> <button>Becomes a member</button></form>
+<form method="post" action="/mock/viewers"><input type="hidden" name="broadcast" value="{{.ID}}">
+<label>Viewers <input name="viewers" value="10" size="5"></label> <button>Set viewers</button></form>
+<form method="post" action="/mock/subscribe"><input type="hidden" name="broadcast" value="{{.ID}}">
+<label>Who <input name="name" value="New Subscriber"></label> <button>Subscribes</button></form>
+<form method="post" action="/mock/vote"><input type="hidden" name="chat" value="{{.ChatID}}">
+<label>Poll choice <input name="option" value="1" size="2"></label> <button>Vote</button></form>
 <form method="post" action="/mock/end"><input type="hidden" name="broadcast" value="{{.ID}}"><button>End broadcast</button></form>{{end}}{{end}}
 <form method="post" action="/mock/drop"><button>Drop chat streams</button></form>`))
 
@@ -340,6 +364,26 @@ func (s *Server) controlPage(w http.ResponseWriter, r *http.Request) {
 				Snippet: livechat.Snippet{Type: livechat.TypeNewSponsor, NewSponsor: &livechat.NewSponsor{MemberLevelName: f.Get("level")}}})
 		case "/mock/end":
 			s.EndBroadcast(f.Get("broadcast"))
+		case "/mock/viewers":
+			n, err := strconv.ParseInt(f.Get("viewers"), 10, 64)
+			if err != nil {
+				n = -1
+			}
+			s.SetViewers(f.Get("broadcast"), n)
+		case "/mock/subscribe":
+			name := f.Get("name")
+			owner := ""
+			s.mu.Lock()
+			for _, b := range s.broadcasts {
+				if b.ID == f.Get("broadcast") {
+					owner = b.Channel
+				}
+			}
+			s.mu.Unlock()
+			s.Subscribe(owner, "UC"+strings.ReplaceAll(strings.ToLower(name), " ", ""), name, s.now())
+		case "/mock/vote":
+			n, _ := strconv.Atoi(f.Get("option"))
+			s.Vote(f.Get("chat"), n-1)
 		case "/mock/drop":
 			s.DropStreams()
 		}
@@ -398,10 +442,15 @@ func (s *Server) insertMessage(w http.ResponseWriter, r *http.Request) {
 			TextMessageDetails struct {
 				MessageText string `json:"messageText"`
 			} `json:"textMessageDetails"`
+			PollDetails pollDetails `json:"pollDetails"`
 		} `json:"snippet"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		apiErr(w, http.StatusBadRequest, "parseError", "not JSON")
+		return
+	}
+	if in.Snippet.Type == "pollEvent" {
+		s.insertPoll(w, r, in.Snippet.LiveChatID, in.Snippet.PollDetails)
 		return
 	}
 	s.mu.Lock()

@@ -47,6 +47,10 @@ type ChatStatus struct {
 	// NextCheck when it will be next, while looking.
 	CheckedAt *time.Time `json:"checked_at,omitempty"`
 	NextCheck *time.Time `json:"next_check,omitempty"`
+	// Stream is the minute check's viewer count, title and description,
+	// and Poll the chat's poll, while a broadcast's chat is read (D-102).
+	Stream *StreamInfo `json:"stream,omitempty"`
+	Poll   *PollInfo   `json:"poll,omitempty"`
 }
 
 // LookEvery is how often StreamGremlin asks YouTube whether you're live,
@@ -87,6 +91,15 @@ func (s *Service) ChatStatus() ChatStatus {
 		b := *c.Broadcast
 		c.Broadcast = &b
 	}
+	if s.stream != nil {
+		st := *s.stream
+		if st.Viewers != nil {
+			v := *st.Viewers
+			st.Viewers = &v
+		}
+		c.Stream = &st
+	}
+	c.Poll = s.poll.clone()
 	return c
 }
 
@@ -287,6 +300,18 @@ func (s *Service) readChat(ctx context.Context, b Broadcast) {
 		}
 	}()
 
+	// The minute check runs while the chat is read (D-102).
+	watchDone := make(chan struct{})
+	go func() { defer close(watchDone); s.watch(sctx, b, channel) }()
+	defer func() {
+		cancel()
+		<-watchDone
+		s.chatMu.Lock()
+		s.stream, s.poll, s.pollSeen = nil, nil, ""
+		s.chatMu.Unlock()
+		s.changed()
+	}()
+
 	r := s.loadResume(ctx)
 	token := ""
 	if r.LiveChatID == b.LiveChatID {
@@ -399,6 +424,7 @@ func (s *Service) streamOnce(ctx context.Context, b Broadcast, channel string, t
 			s.onlineFor = b.ID
 		}
 		ended := s.storeChat(ctx, b, channel, resp.Items, backlog)
+		s.trackPoll(ctx, b, channel, resp.Items, resp.ActivePoll, backlog)
 		backlog = false
 		if resp.NextPageToken != "" {
 			*token = resp.NextPageToken
@@ -476,7 +502,10 @@ func (s *Service) storeChat(ctx context.Context, b Broadcast, channel string, it
 			continue
 		default:
 			// Super Chats, memberships, bans and the rest (D-099). Polls
-			// come in slice 7.
+			// are followed by trackPoll (D-102).
+			if m.Snippet.Type == livechat.TypePoll {
+				continue
+			}
 			if env := eventEnvelope(m, b, channel, backlog); env != nil && m.ID != "" {
 				s.storeEvent(ctx, *env)
 			} else {

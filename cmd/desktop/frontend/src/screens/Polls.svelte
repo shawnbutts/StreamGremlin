@@ -3,7 +3,19 @@
   // newest of each from Twitch, live, and forms to start them. Twitch runs
   // one of each at a time, on Affiliate and Partner channels.
   import { onMount } from 'svelte';
-  import { ApiError, endPoll, endPrediction, getPolls, startPoll, startPrediction, type PollsView } from '../lib/api';
+  import {
+    ApiError,
+    endPoll,
+    endPrediction,
+    endYouTubePoll,
+    getPolls,
+    getYouTube,
+    startPoll,
+    startPrediction,
+    startYouTubePoll,
+    type PollsView,
+    type YouTubeChat,
+  } from '../lib/api';
   import ConfirmDialog from '../lib/ConfirmDialog.svelte';
 
   let { refreshMs = 3000 }: { refreshMs?: number } = $props();
@@ -27,6 +39,17 @@
   const pollRunning = $derived(poll?.status === 'active');
   const predOpen = $derived(pred?.status === 'active' || pred?.status === 'locked');
 
+  // YouTube polls (M6 slice 7, D-102): hidden until YouTube is set up.
+  let yt = $state<YouTubeChat | undefined>();
+  let ytForm = $state({ question: '', options: ['', ''] });
+  let ytError = $state('');
+  let ytNotice = $state('');
+  const ytPoll = $derived(yt?.poll ?? null);
+  const ytRunning = $derived(ytPoll?.status === 'active');
+  const ytReading = $derived(yt?.state === 'connected');
+  const ytTotal = $derived(ytPoll ? ytPoll.choices.reduce((n, c) => n + c.votes, 0) : 0);
+  const ytShare = (votes: number) => (ytTotal ? Math.round((votes / ytTotal) * 100) : 0);
+
   async function load() {
     try {
       view = await getPolls();
@@ -34,6 +57,40 @@
     } catch (e) {
       loadError = message(e);
     }
+    try {
+      const st = await getYouTube();
+      yt = st.chat && st.chat.state !== 'off' ? st.chat : undefined;
+    } catch {
+      yt = undefined;
+    }
+  }
+
+  async function ytAct(f: () => Promise<unknown>, done: string) {
+    busy = true;
+    ytError = '';
+    ytNotice = '';
+    try {
+      await f();
+      ytNotice = done;
+      return true;
+    } catch (e) {
+      ytError = message(e);
+      return false;
+    } finally {
+      busy = false;
+      await load();
+    }
+  }
+
+  async function submitYouTubePoll(e: SubmitEvent) {
+    e.preventDefault();
+    ytError = '';
+    const options = filled(ytForm.options);
+    if (!ytForm.question.trim() || ytForm.question.length > 100) return void (ytError = 'A question is 1 to 100 characters.');
+    if (options.length < 2) return void (ytError = 'A YouTube poll needs at least 2 choices.');
+    if (options.some((c) => c.length > 35)) return void (ytError = 'Each choice is up to 35 characters.');
+    const ok = await ytAct(() => startYouTubePoll(ytForm.question.trim(), options), 'The poll started in your YouTube chat.');
+    if (ok) ytForm = { question: '', options: ['', ''] };
   }
 
   onMount(() => {
@@ -104,7 +161,7 @@
 <h1>Polls and predictions</h1>
 <p class="sg-muted screen-intro">
   Run Twitch polls and channel point predictions from here or from workflows (“Start a poll”, “Start a prediction”). Twitch runs
-  one of each at a time, on Affiliate and Partner channels.
+  one of each at a time, on Affiliate and Partner channels. YouTube polls (“Start a YouTube poll”) show once YouTube is set up.
 </p>
 
 <section class="sg-panel card" aria-labelledby="poll-heading" aria-busy={busy}>
@@ -167,6 +224,51 @@
     </form>
   {/if}
 </section>
+
+{#if yt}
+  <section class="sg-panel card" aria-labelledby="yt-poll-heading" aria-busy={busy}>
+    <h2 id="yt-poll-heading">YouTube poll</h2>
+    <p class="sg-muted">
+      As your channel, in the YouTube chat being read. 2 to 4 choices, one poll at a time; it runs until you end it. Starting and
+      ending each use 20 of today’s YouTube quota units. Votes show here because YouTube tells the channel’s owner.
+    </p>
+    {#if !ytReading && !ytPoll}
+      <p class="sg-muted">You’re not live on YouTube, or StreamGremlin isn’t reading its chat yet.</p>
+    {/if}
+    {#if ytPoll}
+      <p><strong>{ytPoll.question}</strong> <span class="tag">{ytRunning ? 'Running' : 'Ended'}</span></p>
+      <ul class="poll-results" aria-label="YouTube votes">
+        {#each ytPoll.choices as c, i (i)}
+          <li>
+            <span class="poll-choice">{c.title}</span>
+            <span class="poll-bar" aria-hidden="true"><span class="poll-fill" style:width={`${ytShare(c.votes)}%`}></span></span>
+            <span class="sg-muted">{c.votes} {c.votes === 1 ? 'vote' : 'votes'} ({ytShare(c.votes)}%)</span>
+          </li>
+        {/each}
+      </ul>
+      {#if ytRunning}
+        <div class="row-actions">
+          <button type="button" class="button" disabled={busy} onclick={() => ytAct(endYouTubePoll, 'The YouTube poll ended.')}>End the poll</button>
+        </div>
+      {/if}
+    {/if}
+    {#if ytReading && !ytRunning}
+      <form class="test-form" onsubmit={submitYouTubePoll} aria-label="Start a YouTube poll">
+        <h3>Start a YouTube poll</h3>
+        <label class="field"><span>Question</span><input class="sg-input" bind:value={ytForm.question} maxlength="100" placeholder="What should I play next?" /></label>
+        {#each ytForm.options as _, i (i)}
+          <label class="field"><span>Choice {i + 1}</span><input class="sg-input" bind:value={ytForm.options[i]} maxlength="35" /></label>
+        {/each}
+        {#if ytForm.options.length < 4}
+          <button type="button" class="button add-version" onclick={() => (ytForm.options = [...ytForm.options, ''])}>+ Another choice</button>
+        {/if}
+        <div class="row-actions"><button type="submit" class="sg-button" disabled={busy}>Start the YouTube poll</button></div>
+      </form>
+    {/if}
+    <p class="saved" role="status">{ytNotice}</p>
+    {#if ytError}<p class="error" role="alert">{ytError}</p>{/if}
+  </section>
+{/if}
 
 <section class="sg-panel card" aria-labelledby="pred-heading" aria-busy={busy}>
   <h2 id="pred-heading">Prediction</h2>

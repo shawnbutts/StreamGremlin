@@ -76,7 +76,10 @@ type Server struct {
 	bansByID   map[string]ban
 	mods       map[string]moderator
 	deleted    []string
-	grpc       interface {
+	// Subscribers and video updates (stream.go).
+	subscribers  []subscriber
+	videoUpdates []VideoUpdate
+	grpc         interface {
 		ServeHTTP(http.ResponseWriter, *http.Request)
 	}
 }
@@ -151,11 +154,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.insertMessage(w, r)
 		}
+	case "/youtube/v3/liveChat/messages/transition":
+		s.transition(w, r)
+	case "/youtube/v3/videos":
+		s.videos(w, r)
+	case "/youtube/v3/subscriptions":
+		s.subscriptions(w, r)
 	case "/youtube/v3/liveChat/bans":
 		s.bans(w, r)
 	case "/youtube/v3/liveChat/moderators":
 		s.moderators(w, r)
-	case "/mock", "/mock/live", "/mock/say", "/mock/superchat", "/mock/member", "/mock/end", "/mock/drop":
+	case "/mock", "/mock/live", "/mock/say", "/mock/superchat", "/mock/member", "/mock/end", "/mock/drop",
+		"/mock/viewers", "/mock/subscribe", "/mock/vote":
 		s.controlPage(w, r)
 	case "/o/oauth2/v2/auth":
 		s.authorize(w, r)

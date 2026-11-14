@@ -131,7 +131,7 @@ func describe(r events.Record) string {
 		}
 		fmt.Fprintf(&b, "  %s", who)
 	}
-	for _, k := range []string{"text", "scene_name"} {
+	for _, k := range []string{"text", "scene_name", "title", "names"} {
 		if v, ok := p[k].(string); ok && v != "" {
 			fmt.Fprintf(&b, ": %s", v)
 			break

@@ -524,3 +524,78 @@ func TestYouTubeViewersAndLinkThroughTheCLI(t *testing.T) {
 	}
 	ok("✓ Every change balances", "points", "audit")
 }
+
+// M6 slice 7 (D-102) through the real engine, CLI and mockyoutube: the
+// viewer count and title from the minute check, changing the title, a new
+// public subscriber as a follow, and a YouTube poll started, voted on and
+// ended. (Later checks, changes in the count and active chatters run on
+// minutes; their unit tests shorten them.)
+func TestYouTubeStreamAndPollsThroughTheCLI(t *testing.T) {
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	startEngine(t, dir, "-youtube-url", ytSrv.URL)
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	ok := func(want string, args ...string) string {
+		t.Helper()
+		out, errOut, code := cli(t, dir, args...)
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("%v: %d %s %s", args, code, out, errOut)
+		}
+		return out
+	}
+	b := yt.GoLive("UCstreamer", "Friday")
+	yt.SetViewers(b.ID, 37)
+	yt.Subscribe("UCstreamer", "UCold", "Old Fan", b.Started.Add(-time.Hour))
+	yt.Subscribe("UCstreamer", "UCnew", "New Fan", b.Started.Add(time.Second))
+	ok("reading chat", "youtube", "find")
+	eventually(t, "the viewer count", func() string {
+		out, _, _ := cli(t, dir, "youtube")
+		if !strings.Contains(out, "Viewers:        37") || !strings.Contains(out, "Title:          Friday") {
+			return out
+		}
+		return ""
+	})
+	// Only the subscriber since the broadcast started is a follow.
+	eventually(t, "a YouTube subscriber as a follow", func() string {
+		out, _, _ := cli(t, dir, "events", "-types", "audience.follow.created")
+		if !strings.Contains(out, "New Fan") || strings.Contains(out, "Old Fan") {
+			return out
+		}
+		return ""
+	})
+
+	if _, errOut, code := cli(t, dir, "youtube", "title", "a", "<b>"); code == 0 || !strings.Contains(errOut, "< or >") {
+		t.Fatal("a bad title:", code, errOut)
+	}
+	ok("Title: “Late night”", "youtube", "title", "Late", "night")
+	if ups := yt.VideoUpdates(); len(ups) != 1 || ups[0].Title != "Late night" || ups[0].CategoryID == "" || len(ups[0].Tags) == 0 {
+		t.Fatalf("%+v", ups)
+	}
+	ok("Late night", "events", "-types", "broadcast.channel.updated")
+
+	ok("Started “Snack?”", "youtube", "poll", "Snack?", "Chips", "Fruit")
+	if _, errOut, code := cli(t, dir, "youtube", "poll", "Again?", "a", "b"); code == 0 || !strings.Contains(errOut, "already running") {
+		t.Fatal("a second poll:", code, errOut)
+	}
+	yt.Vote(b.ChatID, 0)
+	yt.Vote(b.ChatID, 0)
+	eventually(t, "votes", func() string {
+		out, _, _ := cli(t, dir, "youtube")
+		if !strings.Contains(out, "Chips 2, Fruit 0") {
+			return out
+		}
+		return ""
+	})
+	ok("Ended “Snack?”: Chips 2, Fruit 0", "youtube", "poll", "end")
+	ok("Snack?", "events", "-types", "chat.poll.ended")
+	if _, _, ok := yt.ActivePoll(b.ChatID); ok {
+		t.Fatal("the poll is still running")
+	}
+}

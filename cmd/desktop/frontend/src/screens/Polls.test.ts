@@ -154,4 +154,53 @@ describe('Polls and predictions', () => {
     expect(calls.find((c) => c.path === '/v1/predictions/end')!.body).toEqual({ how: 'cancel', winner: '' });
     expect(el.textContent).toContain('Canceled and refunded');
   });
+
+  it('runs a YouTube poll in the chat being read, with its votes, and ends it', async () => {
+    let ytPoll: Record<string, unknown> | undefined;
+    const calls = mockFetch({
+      '/v1/polls': () => ({ status: 200, body: { state: 'ok', poll: null, prediction: null } }),
+      '/v1/connections/youtube': () => ({
+        status: 200,
+        body: { chat: { state: 'connected', since: new Date().toISOString(), broadcast: { id: 'b', title: 'Stream' }, poll: ytPoll } },
+      }),
+      '/v1/youtube/polls': (_m, body) => {
+        const b = body as { question: string; options: string[] };
+        ytPoll = { id: 'yp', question: b.question, status: 'active', choices: b.options.map((t, i) => ({ title: t, votes: i * 2 })) };
+        return { status: 201, body: ytPoll };
+      },
+      '/v1/youtube/polls/end': () => {
+        ytPoll = { ...ytPoll, status: 'closed' };
+        return { status: 200, body: ytPoll };
+      },
+    });
+    const el = start();
+    await settle();
+    const form = el.querySelector('form[aria-label="Start a YouTube poll"]')!;
+    expect(form).not.toBeNull();
+    expect(el.textContent).toContain('20 of today’s YouTube quota units');
+    form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    await settle();
+    expect(el.textContent).toContain('A question is 1 to 100 characters.');
+    typed(field(form, 'Question'), 'Snack?');
+    typed(field(form, 'Choice 1'), 'Chips');
+    typed(field(form, 'Choice 2'), 'Fruit');
+    form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    await settle();
+    expect(calls.find((c) => c.path === '/v1/youtube/polls')?.body).toEqual({ question: 'Snack?', options: ['Chips', 'Fruit'] });
+    expect(el.textContent).toContain('The poll started in your YouTube chat.');
+    expect(el.textContent).toContain('2 votes (100%)');
+    expect(el.querySelector('form[aria-label="Start a YouTube poll"]')).toBeNull(); // one at a time
+    await noViolations('youtube poll');
+    button(el, 'End the poll')!.click();
+    await settle();
+    expect(calls.some((c) => c.path === '/v1/youtube/polls/end' && c.method === 'POST')).toBe(true);
+    expect(el.textContent).toContain('Ended');
+  });
+
+  it('hides YouTube polls until YouTube is set up', async () => {
+    engine({ state: 'ok', poll: null, prediction: null });
+    const el = start();
+    await settle();
+    expect(el.querySelector('#yt-poll-heading')).toBeNull();
+  });
 });

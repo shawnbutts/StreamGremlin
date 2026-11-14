@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/youtube"
@@ -17,6 +18,35 @@ type YouTubeClientRequest struct {
 	ClientSecret string `json:"client_secret"`
 }
 
+// YouTubePollRequest is the body of POST /v1/youtube/polls.
+type YouTubePollRequest struct {
+	Question string   `json:"question"`
+	Options  []string `json:"options"`
+}
+
+// youtubeError answers a change YouTube was asked for (M6 slice 7): 400 for
+// what StreamGremlin refused, 409 when YouTube refused or it can't be
+// asked (nothing changed), and 502 when YouTube didn't answer (it may have
+// changed: it isn't sent again).
+func youtubeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, youtube.ErrInvalid):
+		writeError(w, http.StatusBadRequest, CodeInvalidRequest, strings.TrimPrefix(err.Error(), "youtube: invalid: "))
+	case errors.Is(err, youtube.ErrNotSignedIn):
+		writeError(w, http.StatusConflict, CodeNotConnected, "Sign in with your YouTube channel first.")
+	case errors.Is(err, youtube.ErrNotLive):
+		writeError(w, http.StatusConflict, CodeConflict, "You're not live on YouTube, or StreamGremlin isn't reading its chat yet.")
+	case errors.Is(err, youtube.ErrQuotaExhausted):
+		writeError(w, http.StatusConflict, CodeConflict, "Today's YouTube quota is used up; nothing was sent. It resets at midnight Pacific time.")
+	case errors.Is(err, youtube.ErrPollRunning), errors.Is(err, youtube.ErrNoPoll), errors.Is(err, youtube.ErrNotFound):
+		writeError(w, http.StatusConflict, CodeConflict, strings.TrimPrefix(err.Error(), "youtube: "))
+	case youtube.Refused(err):
+		writeError(w, http.StatusConflict, CodeConflict, strings.TrimPrefix(err.Error(), "youtube: "))
+	default:
+		writeError(w, http.StatusBadGateway, CodeUnknownOutcome, "YouTube didn't answer, so it may or may not have changed: check before trying again.")
+	}
+}
+
 func youtubeRoutes(d Deps) []Route {
 	account := func(w http.ResponseWriter, r *http.Request) (*youtube.Account, bool) {
 		a, ok := d.YouTube.Account(youtube.Role(r.PathValue("account")))
@@ -26,6 +56,56 @@ func youtubeRoutes(d Deps) []Route {
 		return a, ok
 	}
 	return []Route{
+		{
+			Method: "PUT", Path: "/v1/connections/youtube/stream",
+			Summary: "Change your live YouTube broadcast's title, description or both: {title?, description?}. Reads the video " +
+				"(1 unit) and sends its snippet back changed (videos.update, 50 units), so tags and category are kept. Only while " +
+				"its chat is read; never retried. Returns the title and description now.",
+			Permission: PermConnectionsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in youtube.StreamChange
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				info, err := d.YouTube.SetStream(r.Context(), in)
+				if err != nil {
+					youtubeError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, info)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/youtube/polls",
+			Summary: "Start a poll in your YouTube chat as your channel: {question, options (2 to 4)}. 20 units. One at a time " +
+				"(409); it runs until it's ended. Never retried: 502 means it may have started.",
+			Permission: PermPollsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in YouTubePollRequest
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				p, err := d.YouTube.StartPoll(r.Context(), youtube.NewPoll{Question: in.Question, Options: in.Options})
+				if err != nil {
+					youtubeError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusCreated, p)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/youtube/polls/end",
+			Summary:    "End the poll running in your YouTube chat (20 units), with its votes. 409 when none is running.",
+			Permission: PermPollsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				p, err := d.YouTube.EndPoll(r.Context())
+				if err != nil {
+					youtubeError(w, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, p)
+			},
+		},
 		{
 			Method: "POST", Path: "/v1/connections/youtube/chat/find",
 			Summary: "Ask YouTube now whether you're live (1 unit of quota), instead of at the next check, and read " +

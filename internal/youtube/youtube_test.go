@@ -42,6 +42,8 @@ type rig struct {
 	inbox *events.Inbox
 	// look replaces LookEvery, so tests needn't wait 2 minutes.
 	look time.Duration
+	// check replaces CheckEvery (an hour unless a test says).
+	check time.Duration
 }
 
 func newRig(t *testing.T) *rig {
@@ -75,6 +77,10 @@ func (r *rig) service() *Service {
 		s.lookEvery = r.look
 	}
 	s.retryAfter = 20 * time.Millisecond
+	s.checkEvery = time.Hour
+	if r.check > 0 {
+		s.checkEvery = r.check
+	}
 	s.Start(context.Background())
 	r.t.Cleanup(s.Close)
 	return s

@@ -188,3 +188,15 @@ func (d *data) activeBroadcasts(ctx context.Context, token string) ([]Broadcast,
 	}
 	return bs, nil
 }
+
+// Refused reports whether YouTube answered a request with a refusal (so
+// nothing changed), or the sign-in couldn't be used, rather than not
+// answering at all.
+func Refused(err error) bool {
+	var ae *apiError
+	return errors.As(err, &ae) || errors.Is(err, errAuth) || errors.Is(err, ErrNotSignedIn) || errors.Is(err, ErrNotChanged)
+}
+
+// ErrNotChanged wraps a failure before anything was sent to change, such
+// as reading the video first: nothing changed.
+var ErrNotChanged = errors.New("youtube: nothing was changed")

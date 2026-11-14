@@ -307,6 +307,25 @@ export interface YouTubeChat {
   broadcast?: { id: string; title: string; started_at?: string };
   checked_at?: string;
   next_check?: string;
+  /** The minute check (D-102): viewers is null when unknown. */
+  stream?: YouTubeStreamInfo;
+  poll?: YouTubePoll;
+}
+
+export interface YouTubeStreamInfo {
+  viewers: number | null;
+  title: string;
+  description: string;
+  checked_at?: string;
+  problem?: string;
+}
+
+export interface YouTubePoll {
+  id: string;
+  question: string;
+  choices: { title: string; votes: number }[];
+  status: 'active' | 'closed';
+  started_at?: string;
 }
 
 export interface YouTubeStatus {
@@ -335,6 +354,15 @@ export const youtubeSignOut = (role: YouTubeRole) => api<void>('POST', `/v1/conn
 
 /** Asks YouTube now whether you're live (1 unit), and reads that chat. */
 export const findYouTubeStream = () => api<YouTubeStatus>('POST', '/v1/connections/youtube/chat/find');
+
+/** Changes the live broadcast's title or description (51 quota units, D-102). */
+export const setYouTubeStream = (change: { title?: string; description?: string }) =>
+  api<YouTubeStreamInfo>('PUT', '/v1/connections/youtube/stream', change);
+
+export const startYouTubePoll = (question: string, options: string[]) =>
+  api<YouTubePoll>('POST', '/v1/youtube/polls', { question, options });
+
+export const endYouTubePoll = () => api<YouTubePoll>('POST', '/v1/youtube/polls/end');
 
 /** Open an allow-listed page (twitch.tv/activate, dev.twitch.tv, Google's sign-in and Cloud console) in the system browser. */
 export async function openInBrowser(url: string): Promise<void> {

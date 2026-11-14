@@ -74,6 +74,13 @@ export const PLATFORM_TRIGGERS = [
   'monetization.subscription.gifted',
   'broadcast.channel.online',
   'broadcast.channel.offline',
+  // M6 slice 7 (D-102).
+  'audience.follow.created',
+  'broadcast.channel.updated',
+  'broadcast.viewers.changed',
+  'chat.poll.started',
+  'chat.poll.updated',
+  'chat.poll.ended',
 ];
 
 const words: Record<string, string> = {

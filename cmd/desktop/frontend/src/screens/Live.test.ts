@@ -916,4 +916,57 @@ describe('Live moderating', () => {
       expect(posts(calls)[before]).toMatchObject({ action });
     }
   });
+
+  it('shows the YouTube viewer count, unknown when YouTube doesn’t say, and changes the title', async () => {
+    let stream: Record<string, unknown> = { viewers: 42, title: 'Friday stream', description: 'Chill', checked_at: now };
+    const puts: unknown[] = [];
+    engine({
+      events: [],
+      extra: {
+        '/v1/connections/youtube': () => ({
+          status: 200,
+          body: { chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'Friday stream' }, stream }, bot: { state: 'signed_out' } },
+        }),
+        '/v1/connections/youtube/stream': (_m, body) => {
+          puts.push(body);
+          stream = { ...stream, ...(body as object) };
+          return { status: 200, body: stream };
+        },
+      },
+    });
+    const el = start();
+    await settle(120);
+    expect(el.textContent).toContain('42 watching');
+    const panel = el.querySelector('[aria-labelledby="live-yt-stream-heading"]')!;
+    expect(panel.textContent).toContain('Title: Friday stream');
+    await noViolations('youtube stream');
+    button(panel, 'Change title or description…')!.click();
+    flushSync();
+    const form = panel.querySelector('form')!;
+    expect(form.textContent).toContain('51 of today’s YouTube quota units');
+    setValue(form.querySelector<HTMLInputElement>('input')!, 'Late night');
+    flushSync();
+    button(form, 'Save on YouTube')!.click();
+    await settle();
+    // Only what changed is sent.
+    expect(puts).toEqual([{ title: 'Late night' }]);
+    expect(panel.textContent).toContain('Changed on YouTube.');
+    expect(panel.textContent).toContain('Title: Late night');
+  });
+
+  it('says YouTube viewers are unknown rather than 0', async () => {
+    engine({
+      events: [],
+      extra: {
+        '/v1/connections/youtube': () => ({
+          status: 200,
+          body: { chat: { state: 'connected', since: now, broadcast: { id: 'b', title: 'T' }, stream: { viewers: null, title: 'T', description: '' } } },
+        }),
+      },
+    });
+    const el = start();
+    await settle(120);
+    expect(el.textContent).toContain('viewers unknown');
+    expect(el.textContent).not.toContain('0 watching');
+  });
 });
