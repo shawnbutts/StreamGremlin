@@ -92,12 +92,12 @@ func (s *Service) SendChat(ctx context.Context, req SendRequest) (SendResult, er
 		}
 	}
 	if req.Workflow != "" {
-		s.own.expect(text, s.now())
+		s.own.Expect(text, s.now())
 	}
 	out, err := s.sendAs(ctx, acct, streamer.UserID, text, req.ReplyTo)
 	if req.Workflow != "" {
 		// Settled after any fallback below.
-		defer func() { s.own.settle(text, out.MessageID, s.now()) }()
+		defer func() { s.own.Settle(text, out.MessageID, s.now()) }()
 	}
 	if acct == s.bot && isHelix(err, 401) {
 		// Twitch refused the bot's sign-in, so nothing was posted: send as

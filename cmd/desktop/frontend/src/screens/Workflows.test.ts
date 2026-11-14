@@ -849,6 +849,14 @@ describe('Workflows', () => {
     set(field<HTMLSelectElement>(el, 'Who can use it'), 'everyone');
     set(field(el, 'Command'), 'unique');
     expect(el.textContent).not.toContain('is already answered by');
+    // Which chat it hears (D-098): both by default; YouTube only still meets
+    // an answer for every chat.
+    const which = field<HTMLSelectElement>(el, 'Which chat');
+    expect(which.value).toBe('any');
+    set(field(el, 'Command'), 'Hello');
+    set(which, 'youtube');
+    expect(field<HTMLSelectElement>(el, 'Which chat').value).toBe('youtube');
+    expect(el.textContent).toContain('!hello is already answered by “Hello”');
   });
 
   it('says why runs did not run', async () => {

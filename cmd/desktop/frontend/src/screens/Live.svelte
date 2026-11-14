@@ -33,6 +33,7 @@
     type LivePlace,
     type TwitchStatus,
     type YouTubeChat,
+    type ChatTarget,
     type WorkflowSummary,
   } from '../lib/api';
   import { eventTime } from '../lib/events';
@@ -88,17 +89,23 @@
   // YouTube chat's state (M6 slice 2, D-097). Its messages are in the event
   // log; they join this chat in slice 3. Hidden until YouTube is set up.
   let youtube = $state<YouTubeChat | undefined>();
+  let youtubeBot = $state(false);
+  // Where the send box sends (D-098): both by default while YouTube chat is read.
+  let to = $state<ChatTarget>('both');
   let logEl = $state<HTMLDivElement | undefined>();
   let atBottom = $state(true);
   let unseen = $state(0);
 
   // Sending.
   let text = $state('');
+  let sendNote = $state('');
   let as = $state<'streamer' | 'bot'>('streamer');
   let sending = $state(false);
   let sendError = $state('');
   const youIn = $derived(twitch?.streamer.state === 'connected');
   const botIn = $derived(twitch?.bot.state === 'connected');
+  const ytLive = $derived(youtube?.state === 'connected' || ((youtube?.state === 'connecting' || youtube?.state === 'disconnected') && !!youtube.broadcast));
+  const sendTo = $derived<ChatTarget>(ytLive ? (youIn ? to : 'youtube') : 'twitch');
 
   // Buttons.
   let place = $state<LivePlace>('right');
@@ -175,7 +182,6 @@
     const next = [...lines];
     let fresh = 0;
     for (const ev of recs) {
-      if (ev.source === 'youtube') continue; // until the combined chat (M6 slice 3)
       const l = ev.type === SUSPICIOUS_MESSAGE ? suspiciousLine(ev) : chatLine(ev);
       const i = l.messageId ? next.findIndex((x) => x.messageId === l.messageId) : -1;
       if (i < 0) {
@@ -208,7 +214,9 @@
     if (words) asking = { line: l, action, extra, words };
     else moderateLine(l, action, extra);
   }
-  const canModerate = (l: ChatLine) => youIn && !l.test && !l.own && !!l.userId && l.userId !== twitch?.streamer.user_id;
+  // YouTube lines are moderated from here in M6 slice 5.
+  const canModerate = (l: ChatLine) =>
+    l.platform === 'twitch' && youIn && !l.test && !l.own && !!l.userId && l.userId !== twitch?.streamer.user_id;
 
   // The gear beside a name opens a small menu of quick actions, so they
   // stay next to the name however long the message is.
@@ -372,8 +380,9 @@
 
   async function loadYouTube() {
     try {
-      const c = (await getYouTube()).chat;
-      youtube = c && c.state !== 'off' ? c : undefined;
+      const st = await getYouTube();
+      youtube = st.chat && st.chat.state !== 'off' ? st.chat : undefined;
+      youtubeBot = st.bot?.state === 'connected';
     } catch {
       youtube = undefined; // the Twitch line already says when the engine is unknown
     }
@@ -445,9 +454,17 @@
     if (!text.trim()) return;
     sending = true;
     sendError = '';
+    sendNote = '';
     try {
-      await sendChat(text.trim(), botIn ? as : 'streamer');
+      const res = await sendChat(text.trim(), botIn || youtubeBot ? as : 'streamer', sendTo);
       text = '';
+      const words = (p: string) => (p === 'youtube' ? 'YouTube' : 'Twitch');
+      const notes = [
+        ...Object.entries(res.failed ?? {}).map(([p, why]) => `Not sent to ${words(p)}: ${why}`),
+        ...Object.entries(res.skipped ?? {}).map(([p, why]) => `Not sent to ${words(p)}: ${why}`),
+      ];
+      if (res.failed && Object.keys(res.failed).length) sendError = notes.join(' ');
+      else sendNote = [res.twitch?.note, res.youtube?.note, ...notes].filter(Boolean).join(' ');
     } catch (err) {
       // Not retried on purpose: Twitch can't tell a repeat from a new message.
       sendError = `Not sent: ${message(err)}`;
@@ -605,7 +622,6 @@
         <p class="live-status" aria-live="polite">
           {#if youtube.state === 'connected'}
             <span class="state-ok"><span aria-hidden="true">●</span> YouTube: reading the chat of “{youtube.broadcast?.title}”</span>
-            <span class="sg-muted">(in the event log; it joins this chat in the next update)</span>
           {:else if youtube.state === 'connecting'}
             YouTube: connecting to chat…
           {:else if youtube.state === 'looking'}
@@ -639,6 +655,11 @@
         {#each lines as l (l.seq)}
           <li class="live-line" class:live-deleted={l.deleted} class:live-flagged={!!l.suspicious}>
             <span class="sg-muted live-time">{eventTime(l.at)}</span>
+            {#if youtube}<span class="live-platform" data-platform={l.platform} title={l.platform === 'youtube' ? 'YouTube' : 'Twitch'}
+                ><span aria-hidden="true">{l.platform === 'youtube' ? 'YT' : 'TW'}</span><span class="visually-hidden"
+                  >{l.platform === 'youtube' ? 'YouTube' : 'Twitch'}</span
+                ></span
+              >{/if}
             {#if l.color}<span class="live-swatch" style:background={l.color} aria-hidden="true"></span>{/if}
             <button
               type="button"
@@ -669,23 +690,37 @@
       {#if unseen > 0}
         <button type="button" class="button live-more" onclick={toBottom}>{unseen} new {unseen === 1 ? 'message' : 'messages'} ↓</button>
       {/if}
-      {#if youIn}
+      {#if youIn || ytLive}
         <form class="live-send" onsubmit={send}>
           <label class="live-send-text">
             <span class="visually-hidden">Message</span>
             <input class="sg-input" bind:value={text} maxlength="500" autocomplete="off" placeholder="Send a message" />
           </label>
-          {#if botIn}
+          {#if ytLive && youIn}
+            <label>
+              <span class="visually-hidden">Send to</span>
+              <select class="sg-input" bind:value={to}>
+                <option value="both">Twitch + YouTube</option>
+                <option value="twitch">Twitch</option>
+                <option value="youtube">YouTube</option>
+              </select>
+            </label>
+          {/if}
+          {#if botIn || youtubeBot}
             <label>
               <span class="visually-hidden">Send as</span>
               <select class="sg-input" bind:value={as}>
-                <option value="streamer">As you ({twitch?.streamer.login})</option>
-                <option value="bot">As the bot ({twitch?.bot.login})</option>
+                <option value="streamer">As you{twitch?.streamer.login && sendTo !== 'youtube' ? ` (${twitch.streamer.login})` : ''}</option>
+                <option value="bot">As the bot{twitch?.bot.login && botIn && sendTo !== 'youtube' ? ` (${twitch.bot.login})` : ''}</option>
               </select>
             </label>
           {/if}
           <button type="submit" class="sg-button" disabled={sending || !text.trim()}>Send</button>
         </form>
+        {#if sendTo !== 'twitch'}
+          <p class="sg-muted live-send-note">Each message to YouTube uses 20 of today’s YouTube quota units.</p>
+        {/if}
+        <p class="saved" role="status">{sendNote}</p>
       {:else if twitch}
         <p class="sg-muted live-send-note">Sign in to Twitch on Connections to send messages from here.</p>
       {/if}
@@ -966,6 +1001,23 @@
   }
   .live-head h1 {
     margin-bottom: 0.5rem;
+  }
+  .live-platform {
+    display: inline-block;
+    min-width: 1.9em;
+    margin-right: 0.3rem;
+    padding: 0 0.2rem;
+    border-radius: 0.25rem;
+    font-size: 0.75em;
+    font-weight: 700;
+    text-align: center;
+    border: 1px solid currentColor;
+  }
+  .live-platform[data-platform='twitch'] {
+    color: var(--sg-twitch, #8f5cff);
+  }
+  .live-platform[data-platform='youtube'] {
+    color: var(--sg-youtube, #e53935);
   }
   .live-statuses {
     flex: 1;

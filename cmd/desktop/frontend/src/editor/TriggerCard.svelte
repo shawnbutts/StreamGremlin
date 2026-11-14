@@ -5,7 +5,7 @@
   import type { Trigger } from '../lib/api';
   import { ownProblems } from '../lib/editor';
   import { editorEnv } from '../lib/editorEnv';
-  import { takenBy, whoPreset, whoPresets } from '../lib/workflows';
+  import { PLATFORM_TRIGGERS, takenBy, whoPreset, whoPresets } from '../lib/workflows';
 
   let {
     trigger = $bindable(),
@@ -40,6 +40,15 @@
     trigger.where = keep;
   }
 
+  // Which chat it hears (D-098): any, Twitch or YouTube; kept as the trigger's sources.
+  const platform = $derived(
+    !trigger.sources?.length ? 'any' : trigger.sources.length === 1 && ['twitch', 'youtube'].includes(trigger.sources[0]) ? trigger.sources[0] : 'custom',
+  );
+  function setPlatform(v: string) {
+    if (v === 'custom') return;
+    trigger.sources = v === 'any' ? undefined : [v];
+  }
+
   const notForTests = $derived(!!trigger.delivery_quality?.length && !trigger.delivery_quality.includes('synthetic'));
 </script>
 
@@ -64,6 +73,17 @@
   </div>
   {#if entry}
     <p class="sg-muted field-hint">{entry.help}</p>
+    {#if PLATFORM_TRIGGERS.includes(trigger.type) || trigger.sources?.length}
+      <label class="field">
+        <span>Which chat</span>
+        <select class="sg-input" value={platform} onchange={(e) => setPlatform(e.currentTarget.value)}>
+          <option value="any">Twitch and YouTube</option>
+          <option value="twitch">Twitch only</option>
+          <option value="youtube">YouTube only</option>
+          {#if platform === 'custom'}<option value="custom">Only: {trigger.sources?.join(', ')}</option>{/if}
+        </select>
+      </label>
+    {/if}
     {#each entry.match as m (m.path)}
       {@const v = trigger.where?.[m.path]}
       {#if m.kind === 'command'}

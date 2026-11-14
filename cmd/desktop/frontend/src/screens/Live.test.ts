@@ -91,7 +91,7 @@ function engine(opts: { buttons?: LiveButton[]; events?: EventRecord[]; later?: 
             settings: (body as { action: string }).action === 'chat_modes' ? { ...modesOff, ...(body as { chat_modes: object }).chat_modes } : undefined },
             duplicate: false } }
         : { status: 200, body: { moderation: [{ id: 'mod0', request_id: 'r', action: 'timeout', platform: 'twitch', login: 'fan', seconds: 600, from: 'live', state: 'done', created_at: now }] } },
-    '/v1/chat/messages': (_m, body) => ({ status: 200, body: { message_id: 'x', sent_as: (body as { as: string }).as, login: 'gremlin' } }),
+    '/v1/chat/messages': (_m, body) => ({ status: 200, body: { twitch: { message_id: 'x', sent_as: (body as { as: string }).as, login: 'gremlin' } } }),
     '/v1/button-order': (_m, body) => {
       const order = (body as { order: string[] }).order;
       buttons.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -152,24 +152,75 @@ describe('Live', () => {
     await noViolations('a new button');
   });
 
-  it('says whether YouTube chat is read, and keeps its messages out until the combined chat', async () => {
-    const yt = { ...chat(4, 'YouTube Viewer', 'from YouTube'), source: 'youtube', actor: { platform: 'youtube', id: 'UCv', display_name: 'YouTube Viewer' } };
-    engine({
+  it('shows both chats in one list, and sends to both by default', async () => {
+    const yt = {
+      ...chat(4, 'YouTube Viewer', 'from YouTube', { chatter: { id: 'UCv', display_name: 'YouTube Viewer', is_member: true, channel_url: 'https://www.youtube.com/channel/UCv' } }),
+      source: 'youtube',
+      actor: { platform: 'youtube', id: 'UCv', display_name: 'YouTube Viewer' },
+    };
+    const sent: unknown[] = [];
+    const { calls } = engine({
       events: [chat(3, 'Fan', 'hello there'), yt],
       extra: {
         '/v1/connections/youtube': () => ({
           status: 200,
-          body: { chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'Friday stream' } } },
+          body: { chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'Friday stream' } }, bot: { state: 'signed_out' } },
         }),
+        '/v1/chat/messages': (_m, body) => {
+          sent.push(body);
+          return { status: 200, body: { twitch: { message_id: 't', sent_as: 'streamer', login: 'gremlin' }, youtube: { message_ids: ['y'], sent_as: 'streamer', channel: 'Gremlin' } } };
+        },
       },
     });
     const el = start();
     await settle(120);
     const log = el.querySelector('[role="log"]')!;
-    expect(log.textContent).toContain('hello there');
-    expect(log.textContent).not.toContain('from YouTube');
+    const lines = Array.from(log.querySelectorAll('li'));
+    expect(lines[0].textContent).toContain('Twitch');
+    expect(lines[1].textContent).toContain('YouTube');
+    expect(lines[1].textContent).toContain(': from YouTube');
+    expect(lines[1].querySelector('.live-badge[title="Member"]')).toBeTruthy();
+    // YouTube lines are moderated from Live in a later slice.
+    expect(lines[0].querySelector('.live-gear')).toBeTruthy();
+    expect(lines[1].querySelector('.live-gear')).toBeNull();
     expect(el.textContent).toContain('YouTube: reading the chat of “Friday stream”');
+
+    const to = Array.from(el.querySelectorAll<HTMLSelectElement>('.live-send select')).find((s) => s.querySelector('option[value="both"]'))!;
+    expect(to.value).toBe('both');
+    expect(el.textContent).toContain('Each message to YouTube uses 20');
+    const input = el.querySelector<HTMLInputElement>('input[placeholder="Send a message"]')!;
+    setValue(input, 'hi both');
+    flushSync();
+    button(el, 'Send')!.click();
+    await settle();
+    expect(sent).toEqual([{ text: 'hi both', as: 'streamer', to: 'both' }]);
+    setValue(to, 'youtube');
+    setValue(input, 'just YouTube');
+    flushSync();
+    button(el, 'Send')!.click();
+    await settle();
+    expect(sent[1]).toEqual({ text: 'just YouTube', as: 'streamer', to: 'youtube' });
+    expect(calls.length).toBeGreaterThan(0);
     await noViolations('with YouTube');
+  });
+
+  it('says when a message reached only one chat', async () => {
+    engine({
+      extra: {
+        '/v1/connections/youtube': () => ({ status: 200, body: { chat: { state: 'connected', since: now, broadcast: { id: 'b', title: 'T' } } } }),
+        '/v1/chat/messages': () => ({
+          status: 200,
+          body: { youtube: { message_ids: ['y'], sent_as: 'streamer', channel: 'G' }, failed: { twitch: 'too many chat messages; nothing was sent' } },
+        }),
+      },
+    });
+    const el = start();
+    await settle(120);
+    setValue(el.querySelector<HTMLInputElement>('input[placeholder="Send a message"]')!, 'x');
+    flushSync();
+    button(el, 'Send')!.click();
+    await settle();
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('Not sent to Twitch: too many chat messages');
   });
 
   it('hides YouTube until it’s set up', async () => {
@@ -206,14 +257,14 @@ describe('Live', () => {
     flushSync();
     button(el, 'Send')!.click();
     await settle();
-    expect(calls.find((c) => c.path === '/v1/chat/messages')?.body).toEqual({ text: 'hi chat', as: 'streamer' });
+    expect(calls.find((c) => c.path === '/v1/chat/messages')?.body).toEqual({ text: 'hi chat', as: 'streamer', to: 'twitch' });
     expect(input.value).toBe('');
     setValue(el.querySelector<HTMLSelectElement>('.live-send select')!, 'bot');
     setValue(input, 'from the bot');
     flushSync();
     button(el, 'Send')!.click();
     await settle();
-    expect(calls.filter((c) => c.path === '/v1/chat/messages')[1].body).toEqual({ text: 'from the bot', as: 'bot' });
+    expect(calls.filter((c) => c.path === '/v1/chat/messages')[1].body).toEqual({ text: 'from the bot', as: 'bot', to: 'twitch' });
   });
 
   it('says to sign in when nobody is, and never looks live without the engine', async () => {

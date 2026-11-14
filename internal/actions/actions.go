@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/ads"
+	"code.streamgremlin.com/streamgremlin/internal/chatsend"
 	"code.streamgremlin.com/streamgremlin/internal/discord"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
@@ -27,6 +28,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
 	"code.streamgremlin.com/streamgremlin/internal/workflow"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // rareOBS are behind "More steps…" in the editor.
@@ -39,11 +41,13 @@ var rareOBS = map[string]bool{
 // workflows never reach it.
 type Services struct {
 	Twitch *twitch.Service
-	OBS    *obs.Service
-	Timers *timers.Service
-	Quotes *quotes.Store
-	Sounds *sounds.Store
-	Player *sounds.Player
+	// YouTube sends to YouTube chat (D-098); nil sends nowhere there.
+	YouTube *youtube.Service
+	OBS     *obs.Service
+	Timers  *timers.Service
+	Quotes  *quotes.Store
+	Sounds  *sounds.Store
+	Player  *sounds.Player
 	// Overlays and the hub that shows alerts on them.
 	Overlays *overlays.Store
 	Hub      *overlays.Hub
@@ -99,10 +103,17 @@ func Register(reg *workflow.Registry, sv Services) {
 
 	sendAs := choice("as", "Send as", false, "bot", "streamer")
 	sendAs.DefaultHint = "The bot if one is signed in, otherwise you"
+	sendTo := choice("to", "Where", false, string(chatsend.Twitch), string(chatsend.YouTube), string(chatsend.Both))
+	sendTo.DefaultHint = "Where it came from: YouTube for a YouTube viewer's message, Twitch for everything else"
+	var ytSend chatsend.YouTubeSender
+	if sv.YouTube != nil {
+		ytSend = sv.YouTube
+	}
 	reg.Add(workflow.Action{
-		Name: "chat.send", Label: "Send a chat message", Group: "Twitch", External: true,
-		Description: "Posts in your Twitch chat, as the bot when one is signed in. Never retried: a repeat could post twice.",
-		Params: []workflow.Param{edited(text("message", "Message", true), "message"), sendAs,
+		Name: "chat.send", Label: "Send a chat message", Group: "Chat", External: true,
+		Description: "Posts in your chat: by default where the message being answered came from, Twitch or YouTube " +
+			"(20 YouTube quota units a message). As the bot when one is signed in. Never retried: a repeat could post twice.",
+		Params: []workflow.Param{edited(text("message", "Message", true), "message"), sendAs, sendTo,
 			text("reply_to", "Reply to message id", false)},
 		Run: func(ctx context.Context, c workflow.Call) (any, error) {
 			msg, err := c.String("message", "")
@@ -110,8 +121,23 @@ func Register(reg *workflow.Registry, sv Services) {
 				return nil, err
 			}
 			as, _ := c.String("as", "")
+			to, _ := c.String("to", "")
 			reply, _ := c.String("reply_to", "")
-			return tw.SendChat(ctx, twitch.SendRequest{Text: msg, As: twitch.Sender(as), ReplyTo: reply, Workflow: c.WorkflowID})
+			req := chatsend.Request{Text: msg, As: as, To: chatsend.Where(to), ReplyTo: reply, Workflow: c.WorkflowID}
+			if src, ok := c.Event["source"].(string); ok {
+				req.Origin = src
+			}
+			if c.Actor != nil {
+				req.ReplyName = c.Actor.DisplayName
+			}
+			res, err := chatsend.Send(ctx, tw, ytSend, req)
+			if err != nil {
+				return nil, err
+			}
+			if res.Twitch != nil && res.YouTube == nil && res.Skipped == nil && res.Failed == nil {
+				return *res.Twitch, nil // as before: what Twitch said
+			}
+			return res, nil
 		},
 	})
 

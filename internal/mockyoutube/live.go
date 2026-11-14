@@ -353,3 +353,97 @@ func (s *Server) controlPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = controls.Execute(w, data)
 }
+
+// SentMessage is a message posted through liveChatMessages.insert.
+type SentMessage struct {
+	ID, ChatID, Channel, Text string
+}
+
+// Sent lists messages posted through the API, oldest first.
+func (s *Server) Sent() []SentMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]SentMessage(nil), s.sent...)
+}
+
+// Ban makes a channel unable to post (403 forbidden), as a banned or
+// timed-out account is.
+func (s *Server) Ban(channel string) { s.mu.Lock(); s.banned[channel] = true; s.mu.Unlock() }
+
+// insertMessage is liveChatMessages.insert: the message joins the chat
+// (and every stream reading it) as the signed-in channel.
+func (s *Server) insertMessage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		apiErr(w, http.StatusMethodNotAllowed, "methodNotAllowed", "POST only")
+		return
+	}
+	var in struct {
+		Snippet struct {
+			LiveChatID         string `json:"liveChatId"`
+			Type               string `json:"type"`
+			TextMessageDetails struct {
+				MessageText string `json:"messageText"`
+			} `json:"textMessageDetails"`
+		} `json:"snippet"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		apiErr(w, http.StatusBadRequest, "parseError", "not JSON")
+		return
+	}
+	s.mu.Lock()
+	t, ok := s.authed(w, r, "liveChatMessages.insert")
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	text := in.Snippet.TextMessageDetails.MessageText
+	c := s.chats[in.Snippet.LiveChatID]
+	var name string
+	for _, ch := range s.channels {
+		if ch.ID == t.channel {
+			name = ch.Title
+		}
+	}
+	switch {
+	case r.URL.Query().Get("part") != "snippet":
+		s.mu.Unlock()
+		apiErr(w, http.StatusBadRequest, "invalidPart", "part must be snippet")
+		return
+	case in.Snippet.LiveChatID == "":
+		s.mu.Unlock()
+		apiErr(w, http.StatusBadRequest, "liveChatIdRequired", "The liveChatId is required.")
+		return
+	case in.Snippet.Type != "textMessageEvent":
+		s.mu.Unlock()
+		apiErr(w, http.StatusBadRequest, "typeRequired", "type must be textMessageEvent")
+		return
+	case strings.TrimSpace(text) == "" || len([]rune(text)) > 200:
+		s.mu.Unlock()
+		apiErr(w, http.StatusBadRequest, "messageTextInvalid", "The message text is not valid.")
+		return
+	case c == nil:
+		s.mu.Unlock()
+		apiErr(w, http.StatusNotFound, "liveChatNotFound", "The live chat could not be found.")
+		return
+	case c.ended:
+		s.mu.Unlock()
+		apiErr(w, http.StatusForbidden, "liveChatEnded", "The specified live chat is no longer live.")
+		return
+	case s.banned[t.channel]:
+		s.mu.Unlock()
+		apiErr(w, http.StatusForbidden, "forbidden", "You don't have the permissions required to create the specified message.")
+		return
+	}
+	s.mu.Unlock()
+	id := s.add(in.Snippet.LiveChatID, livechat.Message{
+		Snippet: livechat.Snippet{Type: livechat.TypeText, DisplayMessage: text, HasDisplayContent: true, Text: text, AuthorChannelID: t.channel},
+		Author:  livechat.Author{ChannelID: t.channel, DisplayName: name},
+	})
+	s.mu.Lock()
+	s.sent = append(s.sent, SentMessage{ID: id, ChatID: in.Snippet.LiveChatID, Channel: t.channel, Text: text})
+	s.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"kind": "youtube#liveChatMessage", "id": id,
+		"snippet": map[string]any{"liveChatId": in.Snippet.LiveChatID, "type": "textMessageEvent", "authorChannelId": t.channel,
+			"textMessageDetails": map[string]any{"messageText": text}}})
+}

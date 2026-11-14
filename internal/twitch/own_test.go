@@ -3,7 +3,6 @@ package twitch
 import (
 	"context"
 	"testing"
-	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/events"
 )
@@ -47,39 +46,5 @@ func TestAWorkflowsOwnMessagesAreNotStoredAsYouChatting(t *testing.T) {
 	if recs[4].Type != events.ChatSent || payload(t, recs[5])["text"] != "!hello from a workflow" ||
 		recs[5].Type != "chat.message.received" || recs[6].Type != "chat.command.received" {
 		t.Fatalf("%+v", recs[4:])
-	}
-}
-
-func TestOwnSends(t *testing.T) {
-	var o ownSends
-	now := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
-	// The echo before Twitch answers: matched by text.
-	o.expect("hi", now)
-	if !o.claim("m1", "hi", now) || o.claim("m1", "hi", now) {
-		t.Fatal("by text, once")
-	}
-	o.settle("hi", "m1", now) // late answer: nothing left to settle
-	if o.claim("m1", "hi", now) {
-		t.Fatal("claimed after settling")
-	}
-	// Twitch answers first: matched by id, not by text.
-	o.expect(" hey ", now)
-	o.settle("hey", "m2", now)
-	if o.claim("other", "hey", now) || !o.claim("m2", "hey", now) {
-		t.Fatal("by id")
-	}
-	// A failed send expects no echo.
-	o.expect("nope", now)
-	o.settle("nope", "", now)
-	if o.claim("m3", "nope", now) {
-		t.Fatal("failed send claimed")
-	}
-	// An echo that never came is forgotten.
-	o.expect("lost", now)
-	if o.claim("m4", "lost", now.Add(ownSendTTL)) {
-		t.Fatal("expired send claimed")
-	}
-	if len(o.sent) != 0 {
-		t.Fatalf("%+v", o.sent)
 	}
 }

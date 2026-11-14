@@ -180,7 +180,7 @@ func (s *Service) run(ctx context.Context) {
 func (s *Service) handle(ctx context.Context, r events.Record, emit bool) {
 	s.mu.Lock()
 	s.cursor = r.Seq
-	if events.LogOnly(r) {
+	if events.Backlog(r) {
 		s.mu.Unlock()
 		return
 	}

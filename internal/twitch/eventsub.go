@@ -422,7 +422,7 @@ func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 		}
 		return
 	}
-	if st := s.streamer.Status(); st.UserID != "" && ev.ChatterUserID == st.UserID && s.own.claim(ev.MessageID, ev.Message.Text, s.now()) {
+	if st := s.streamer.Status(); st.UserID != "" && ev.ChatterUserID == st.UserID && s.own.Claim(ev.MessageID, ev.Message.Text, s.now()) {
 		s.log.Debug("twitch chat: a workflow's own message, stored as sent")
 		s.storeSent(ctx, ev, occurred, "workflow")
 		return

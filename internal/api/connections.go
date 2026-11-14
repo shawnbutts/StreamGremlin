@@ -4,8 +4,10 @@ import (
 	"errors"
 	"net/http"
 
+	"code.streamgremlin.com/streamgremlin/internal/chatsend"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // Connections is the body of GET /v1/connections. Tokens never appear in it.
@@ -22,11 +24,17 @@ type ClientIDRequest struct {
 func chatError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 	var drop *twitch.DropError
 	switch {
-	case errors.Is(err, twitch.ErrInvalid):
+	case errors.Is(err, twitch.ErrInvalid), errors.Is(err, youtube.ErrInvalid), errors.Is(err, chatsend.ErrInvalid):
 		writeError(w, http.StatusBadRequest, CodeInvalidRequest, err.Error())
 	case errors.Is(err, twitch.ErrNotSignedIn):
 		writeError(w, http.StatusConflict, CodeConflict, "Sign in with your Twitch account to send chat.")
-	case errors.Is(err, twitch.ErrRateLimited):
+	case errors.Is(err, youtube.ErrNotSignedIn):
+		writeError(w, http.StatusConflict, CodeConflict, "Sign in with your YouTube channel to send YouTube chat.")
+	case errors.Is(err, youtube.ErrNotLive):
+		writeError(w, http.StatusConflict, CodeConflict, "You're not live on YouTube, so there's no YouTube chat to send to.")
+	case errors.Is(err, youtube.ErrQuotaExhausted):
+		writeError(w, http.StatusConflict, CodeConflict, "Today's YouTube quota is used up; nothing was sent to YouTube. It resets at midnight Pacific time.")
+	case errors.Is(err, twitch.ErrRateLimited), errors.Is(err, youtube.ErrRateLimited):
 		writeError(w, http.StatusTooManyRequests, CodeRateLimited, "Too many chat messages just now; nothing was sent.")
 	case errors.As(err, &drop):
 		writeError(w, http.StatusUnprocessableEntity, CodeNotSent, err.Error())
@@ -48,14 +56,20 @@ func connectionRoutes(d Deps) []Route {
 	return []Route{
 		{
 			Method: "POST", Path: "/v1/chat/messages",
-			Summary:    "Send a chat message to your channel, as the bot when one is signed in (as: bot or streamer). Never retried.",
+			Summary: "Send a chat message: {text, as (bot or streamer), to (twitch, youtube or both; empty is twitch), " +
+				"reply_to (a Twitch message id)}. As the bot on each platform when one is signed in. With both, YouTube is " +
+				"skipped while you're not live there. Returns what each platform did. Never retried.",
 			Permission: PermChatSend,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				var in twitch.SendRequest
+				var in chatsend.Request
 				if !decodeJSON(w, r, &in) {
 					return
 				}
-				res, err := d.Twitch.SendChat(r.Context(), in)
+				var yt chatsend.YouTubeSender
+				if d.YouTube != nil {
+					yt = d.YouTube
+				}
+				res, err := chatsend.Send(r.Context(), d.Twitch, yt, in)
 				if err != nil {
 					chatError(w, r, d, err)
 					return

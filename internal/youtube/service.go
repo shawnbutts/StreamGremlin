@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
+	"code.streamgremlin.com/streamgremlin/internal/chat"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -113,6 +114,7 @@ type Service struct {
 	endedChats map[string]bool
 	lastEnded  string
 	lookEvery  time.Duration
+	own        chat.OwnSends // workflows' messages sent as you, to skip their echo
 	retryAfter time.Duration // the first wait before reconnecting
 }
 

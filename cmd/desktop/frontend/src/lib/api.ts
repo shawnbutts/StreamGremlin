@@ -171,8 +171,9 @@ export interface SimulateResult {
 }
 
 /** Store a test event. The same requestId never makes a second one. */
-export const simulateEvent = (type: string, fields: Record<string, string>, requestId: string) =>
-  api<SimulateResult>('POST', '/v1/events/simulate', { type, fields, request_id: requestId });
+/** A test event; source is the platform it pretends to come from (a chat event can be YouTube's). */
+export const simulateEvent = (type: string, fields: Record<string, string>, requestId: string, source?: string) =>
+  api<SimulateResult>('POST', '/v1/events/simulate', { type, fields, request_id: requestId, ...(source ? { source } : {}) });
 
 export type TwitchRole = 'streamer' | 'bot';
 export type AccountState = 'not_configured' | 'signed_out' | 'signing_in' | 'connected' | 'needs_sign_in' | 'unknown';
@@ -231,9 +232,27 @@ export interface SendResult {
   note?: string;
 }
 
-/** Send to your Twitch chat. Never retried: a repeat could post twice. */
-export const sendChat = (text: string, as: '' | TwitchRole) =>
-  api<SendResult>('POST', '/v1/chat/messages', { text, as });
+/** Where a message goes (D-098). */
+export type ChatTarget = 'twitch' | 'youtube' | 'both';
+
+export interface YouTubeSendResult {
+  message_ids: string[];
+  sent_as: YouTubeRole;
+  channel: string;
+  note?: string;
+}
+
+/** What each platform did. Skipped: not sent there (not live on YouTube); failed: refused while the other sent. */
+export interface ChatSendResult {
+  twitch?: SendResult;
+  youtube?: YouTubeSendResult;
+  skipped?: Record<string, string>;
+  failed?: Record<string, string>;
+}
+
+/** Send to Twitch chat, YouTube chat or both. Never retried: a repeat could post twice. */
+export const sendChat = (text: string, as: '' | TwitchRole, to: ChatTarget = 'twitch') =>
+  api<ChatSendResult>('POST', '/v1/chat/messages', { text, as, to });
 
 export const getConnections = (signal?: AbortSignal) =>
   api<{ twitch: TwitchStatus; obs: OBSStatus }>('GET', '/v1/connections', undefined, signal);

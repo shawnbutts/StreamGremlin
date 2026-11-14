@@ -50,7 +50,7 @@ func TestChatReadAndSendThroughTheCLI(t *testing.T) {
 		return ""
 	})
 
-	if out, errOut, code := cli(t, dir, "chat", "send", "-as", "streamer", "hi", "chat"); code != 0 || !strings.Contains(out, "Sent as chatstreamer") {
+	if out, errOut, code := cli(t, dir, "chat", "send", "-as", "streamer", "hi", "chat"); code != 0 || !strings.Contains(out, "Sent to Twitch as chatstreamer") {
 		t.Fatalf("send: %d %s%s", code, out, errOut)
 	}
 	if log := m.ChatLog(); log[len(log)-1].Text != "hi chat" {

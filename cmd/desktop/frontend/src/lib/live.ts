@@ -9,8 +9,14 @@ export const CHAT_MESSAGE = 'chat.message.received';
 export const CHAT_SENT = 'chat.message.sent';
 export const SUSPICIOUS_MESSAGE = 'moderation.suspicious_user.message';
 
+export type Platform = 'twitch' | 'youtube';
+
 export interface ChatLine {
   seq: number;
+  /** Where it was said (D-098). Test events say Twitch unless made as YouTube. */
+  platform: Platform;
+  /** A YouTube chatter's channel page, when YouTube gave it. */
+  channelUrl?: string;
   messageId: string;
   userId: string;
   login: string;
@@ -57,6 +63,7 @@ const badgeLetters: Record<string, string> = {
   'Twitch staff': 'T',
   Verified: '✓',
   Artist: 'A',
+  Member: '★',
 };
 
 /** A badge's letter on a chat line; a badge without one stays a word. */
@@ -73,9 +80,21 @@ export function chatLine(ev: EventRecord): ChatLine {
     const w = badgeWords[b.set_id];
     if (w && !badges.includes(w)) badges.push(w);
   }
+  const platform: Platform = ev.source === 'youtube' || ev.actor?.platform === 'youtube' ? 'youtube' : 'twitch';
+  if (platform === 'youtube') {
+    // YouTube has no badge list: its roles, in the same words.
+    const c = (p.chatter ?? {}) as { is_broadcaster?: boolean; is_moderator?: boolean; is_member?: boolean; is_verified?: boolean };
+    if (c.is_broadcaster) badges.push('Broadcaster');
+    if (c.is_moderator) badges.push('Moderator');
+    if (c.is_member) badges.push('Member');
+    if (c.is_verified) badges.push('Verified');
+  }
+  const channelUrl = (p.chatter as { channel_url?: unknown } | undefined)?.channel_url;
   const color = typeof p.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(p.color) ? p.color : '';
   return {
     seq: ev.seq,
+    platform,
+    ...(typeof channelUrl === 'string' && /^https?:\/\/(www\.)?youtube\.com\//.test(channelUrl) ? { channelUrl } : {}),
     messageId: typeof p.message_id === 'string' ? p.message_id : '',
     userId: chatter.id ?? ev.actor?.id ?? '',
     login: chatter.login ?? ev.actor?.login ?? '',
@@ -369,6 +388,7 @@ export function suspiciousLine(ev: EventRecord): ChatLine {
   const p = ev.payload ?? {};
   return {
     seq: ev.seq,
+    platform: 'twitch', // Twitch's flag
     messageId: typeof p.message_id === 'string' ? p.message_id : '',
     userId: ev.actor?.id ?? '',
     login: ev.actor?.login ?? '',

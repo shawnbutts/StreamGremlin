@@ -5,6 +5,7 @@ package acceptance
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/mockyoutube"
 )
@@ -143,7 +145,7 @@ func TestYouTubeSignInThroughTheCLI(t *testing.T) {
 // YouTube chat through the real engine, CLI and mockyoutube (M6 slice 2,
 // D-097): not live, then Find my stream reads the broadcast's chat into
 // the event log; a dropped stream and a restart resume without missing or
-// repeating a message; YouTube chat makes no first words yet; the broadcast ending goes back to looking.
+// repeating a message; the broadcast ending goes back to looking.
 func TestYouTubeChatThroughTheCLI(t *testing.T) {
 	yt := mockyoutube.New()
 	ytSrv := mockyoutube.Serve(yt)
@@ -188,15 +190,12 @@ func TestYouTubeChatThroughTheCLI(t *testing.T) {
 	yt.Say(b.ChatID, "UCviewer", "YouTube Viewer", "while down")
 	startEngine(t, dir, "-youtube-url", ytSrv.URL)
 	eventually(t, "the message sent while down", has(1, "while down"))
-	if out := chat(); strings.Count(out, "hello from YouTube") != 1 || strings.Count(out, "after the drop") != 1 {
+	if out := chat(); strings.Count(out, "chat.message.received  (youtube)  YouTube Viewer: hello from YouTube") != 1 ||
+		strings.Count(out, "after the drop") != 1 {
 		t.Fatalf("a message twice:\n%s", out)
 	}
 	if yt.LastPageToken() == "" {
 		t.Fatal("the restart didn't resume from the saved page token")
-	}
-	// Log only: no first words for the YouTube viewer.
-	if out := chat(); strings.Contains(out, "chat.first_words.received  (youtube)") {
-		t.Fatalf("first words for YouTube chat:\n%s", out)
 	}
 
 	// The broadcast ends: back to looking.
@@ -208,4 +207,74 @@ func TestYouTubeChatThroughTheCLI(t *testing.T) {
 		}
 		return ""
 	})
+}
+
+// One combined chat through the real engine, CLI and mockyoutube (M6
+// slice 3, D-098): a YouTube viewer's command is answered on YouTube, as
+// a reply, and the answer's echo starts nothing; their first words are
+// found; the CLI sends to YouTube and to both (Twitch isn't signed in, so
+// it says so and YouTube still gets it).
+func TestYouTubeCombinedChatThroughTheCLI(t *testing.T) {
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	startEngine(t, dir, "-youtube-url", ytSrv.URL)
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	files := t.TempDir()
+	f := writeFile(t, files, "hello.json", `{"schema":"streamgremlin.workflow/v1","id":"hello","name":"Hello",
+		"triggers":[{"type":"chat.command.received","where":{"command":"hello"}}],
+		"steps":[{"action":"chat.send","with":{"message":"Hi ${event.actor.display_name}!","reply_to":"${event.payload.message_id}"}}]}`)
+	if out, errOut, code := cli(t, dir, "workflows", "save", f); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	if out, errOut, code := cli(t, dir, "workflows", "on", "hello"); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	b := yt.GoLive("UCstreamer", "Combined")
+	if out, _, code := cli(t, dir, "youtube", "find"); code != 0 || !strings.Contains(out, "reading chat") {
+		t.Fatal(code, out)
+	}
+	yt.Say(b.ChatID, "UCviewer", "YouTube Viewer", "!hello")
+	eventually(t, "the answer on YouTube", func() string {
+		for _, m := range yt.Sent() {
+			if m.Text == "@YouTube Viewer Hi YouTube Viewer!" && m.Channel == "UCstreamer" {
+				return ""
+			}
+		}
+		return fmt.Sprintf("%+v", yt.Sent())
+	})
+	chat := func() string {
+		out, _, _ := cli(t, dir, "events", "-types", "chat.*")
+		return out
+	}
+	eventually(t, "first words and the answer stored as sent", func() string {
+		out := chat()
+		if !strings.Contains(out, "chat.first_words.received  (youtube)  YouTube Viewer") ||
+			!strings.Contains(out, "chat.message.sent  (youtube)") {
+			return out
+		}
+		return ""
+	})
+	time.Sleep(300 * time.Millisecond)
+	if n := len(yt.Sent()); n != 1 {
+		t.Fatalf("the workflow answered %d times: %+v", n, yt.Sent())
+	}
+
+	if out, errOut, code := cli(t, dir, "chat", "send", "-to", "youtube", "from", "the", "cli"); code != 0 ||
+		!strings.Contains(out, "Sent to YouTube as Streamer.") {
+		t.Fatal(code, out, errOut)
+	}
+	out, errOut, code := cli(t, dir, "chat", "send", "-to", "both", "to", "both")
+	if code != 1 || !strings.Contains(out, "Sent to YouTube") || !strings.Contains(errOut, "Not sent to Twitch") {
+		t.Fatal(code, out, errOut)
+	}
+	if out, _, _ := cli(t, dir, "youtube"); !quotaUsed.MatchString(out) {
+		t.Fatal(out)
+	}
 }

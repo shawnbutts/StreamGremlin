@@ -15,7 +15,7 @@
   // Twitch didn't give is shown as unknown, with why. From slice 3 (D-079)
   // it also moderates: each request is sent once, as you, and recorded.
   import { onMount, tick } from 'svelte';
-  import { ApiError, getChatterCard, moderate, type ModAction, type ModRecord } from '../lib/api';
+  import { ApiError, getChatterCard, moderate, openInBrowser, type ModAction, type ModRecord } from '../lib/api';
   import { eventTime } from '../lib/events';
   import {
     TIMEOUTS,
@@ -116,7 +116,7 @@
     loading = true;
     error = '';
     try {
-      const c = await getChatterCard('twitch', line.userId, line.test);
+      const c = await getChatterCard(line.platform, line.userId, line.test);
       cache.set(key, { at: Date.now(), card: c });
       card = c;
     } catch (e) {
@@ -184,8 +184,15 @@
   {#if error}
     <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {error}</p>
   {:else if !card}
-    <p class="sg-muted" aria-live="polite">Asking Twitch…</p>
+    <p class="sg-muted" aria-live="polite">{line.platform === 'youtube' ? 'Loading…' : 'Asking Twitch…'}</p>
   {:else}
+    {#if line.platform === 'youtube'}
+      <h3>On YouTube</h3>
+      {#if line.channelUrl}
+        <p><button type="button" class="button" onclick={() => openInBrowser(line.channelUrl!)}>Open their YouTube channel</button></p>
+      {/if}
+      <p class="sg-muted">Points and moderating YouTube viewers come in a later update.</p>
+    {/if}
     {#if card.twitch}
       <h3>On Twitch</h3>
       <dl class="viewer-card-facts">

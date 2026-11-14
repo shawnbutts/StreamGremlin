@@ -111,6 +111,18 @@ func TestChatSendThroughTheAPI(t *testing.T) {
 	if code, _ := send(`{"text":""}`); code != 400 {
 		t.Fatalf("empty: %d", code)
 	}
+	// YouTube (D-098): not live there, so YouTube alone is refused, and
+	// both sends to Twitch and skips YouTube.
+	if code, body := send(`{"text":"yt","to":"youtube"}`); code != 409 || !strings.Contains(body, "YouTube") {
+		t.Fatalf("youtube: %d %s", code, body)
+	}
+	if code, body := send(`{"text":"to both","to":"both"}`); code != 200 || !strings.Contains(body, `"skipped":{"youtube"`) ||
+		!strings.Contains(body, `"twitch":{`) {
+		t.Fatalf("both: %d %s", code, body)
+	}
+	if code, _ := send(`{"text":"x","to":"kick"}`); code != 400 {
+		t.Fatalf("unknown platform: %d", code)
+	}
 	testMock.DropNext("automod_held")
 	if code, body := send(`{"text":"held"}`); code != 422 || !strings.Contains(body, "not_sent") {
 		t.Fatalf("dropped: %d %s", code, body)

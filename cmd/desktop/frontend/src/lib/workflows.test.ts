@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandEntry } from './api';
-import { describeTrigger, forWhom, onOffWords, overlaysIn, takenBy, testFields, whoPreset } from './workflows';
+import { describeTrigger, forWhom, onOffWords, overlaysIn, takenBy, testFields, testSource, whoPreset } from './workflows';
 
 const table: CommandEntry[] = [
   {
@@ -46,6 +46,15 @@ describe('commands', () => {
     };
     expect(testFields(t, kind)).toEqual({ command: '!hi', role: 'moderator' });
     expect(testFields({ type: t.type, where: { 'chatter.badges': 'x' } }, kind)).toBeUndefined();
+  });
+
+  it('makes a test event from the chat a trigger hears (D-098)', () => {
+    const kind = { type: 'chat.command.received', label: 'Chat command', description: '', sources: ['twitch', 'youtube'], sensitive: true, fields: [] };
+    expect(testSource({ type: kind.type }, kind)).toBeUndefined();
+    expect(testSource({ type: kind.type, sources: ['twitch'] }, kind)).toBeUndefined();
+    expect(testSource({ type: kind.type, sources: ['youtube'] }, kind)).toBe('youtube');
+    expect(testFields({ type: kind.type, sources: ['youtube'] }, kind)).toEqual({});
+    expect(testFields({ type: kind.type, sources: ['kick'] }, kind)).toBeUndefined();
   });
 });
 

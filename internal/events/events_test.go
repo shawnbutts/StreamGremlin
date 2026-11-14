@@ -451,25 +451,40 @@ func TestChatFrom(t *testing.T) {
 	}
 }
 
-// YouTube chat is log-only for now (D-097): stored and readable, but not
-// counted as viewer chat for timers.
-func TestYouTubeChatIsLogOnly(t *testing.T) {
+// YouTube chat counts for timers from slice 3 (D-098), but backlog (sent
+// before StreamGremlin was reading) doesn't, and it's still log-only for
+// the consumers that haven't learnt YouTube yet.
+func TestYouTubeChatCountsButBacklogDoesnt(t *testing.T) {
 	in, _, _ := newInbox(t)
 	ctx := context.Background()
 	tw := chatEvent("tw1", "hi")
 	yt := chatEvent("yt1", "hi")
 	yt.Source = SourceYouTube
 	yt.Actor = &Actor{Platform: "youtube", ID: "UCv"}
-	for _, e := range []Envelope{tw, yt} {
+	old := yt
+	old.SourceEventID = "yt0"
+	old.Payload = json.RawMessage(`{"text":"earlier","backlog":true}`)
+	for _, e := range []Envelope{tw, yt, old} {
 		if _, err := in.Accept(ctx, e); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if n, err := in.CountViewerChat(ctx, 0); err != nil || n != 1 {
+	if n, err := in.CountViewerChat(ctx, 0); err != nil || n != 2 {
 		t.Fatal(n, err)
 	}
 	recs, _ := in.After(ctx, 0, 10, nil)
-	if len(recs) != 2 || LogOnly(recs[0]) || !LogOnly(recs[1]) {
+	if len(recs) != 3 || LogOnly(recs[0]) || !LogOnly(recs[1]) || Backlog(recs[0]) || Backlog(recs[1]) || !Backlog(recs[2]) {
 		t.Fatalf("%+v", recs)
+	}
+}
+
+func TestSimulateFromYouTube(t *testing.T) {
+	env, err := Simulation{Type: "chat.command.received", RequestID: "r1", Source: SourceYouTube,
+		Fields: map[string]string{"command": "!hi"}}.Build()
+	if err != nil || env.Source != SourceYouTube || env.Actor.Platform != SourceYouTube {
+		t.Fatalf("%+v %v", env, err)
+	}
+	if _, err := (Simulation{Type: "audience.follow.created", RequestID: "r2", Source: SourceYouTube}).Build(); err == nil {
+		t.Fatal("a YouTube follow test event")
 	}
 }

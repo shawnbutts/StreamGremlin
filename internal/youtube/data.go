@@ -1,6 +1,7 @@
 package youtube
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,15 +35,31 @@ type data struct {
 
 // get asks for path with q, spending cost units, as token's account.
 func (d *data) get(ctx context.Context, token, path string, q url.Values, cost int, out any) error {
+	return d.call(ctx, "GET", token, path, q, nil, cost, out)
+}
+
+// call sends a request with an optional JSON body, spending cost units.
+func (d *data) call(ctx context.Context, method, token, path string, q url.Values, body any, cost int, out any) error {
 	if err := d.quota.spend(ctx, cost); err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", d.base+path+"?"+q.Encode(), nil)
+	var rd io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, d.base+path+"?"+q.Encode(), rd)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := d.http.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -51,7 +68,7 @@ func (d *data) get(ctx context.Context, token, path string, q url.Values, cost i
 		return fmt.Errorf("%w: %s", errUnreachable, describeNetErr(err))
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	answer, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return fmt.Errorf("%w: %w", errUnreachable, err)
 	}
@@ -69,7 +86,7 @@ func (d *data) get(ctx context.Context, token, path string, q url.Values, cost i
 				} `json:"errors"`
 			} `json:"error"`
 		}
-		_ = json.Unmarshal(body, &e)
+		_ = json.Unmarshal(answer, &e)
 		ae := &apiError{Status: resp.StatusCode, Message: e.Error.Message}
 		if len(e.Error.Errors) > 0 {
 			ae.Reason = e.Error.Errors[0].Reason
@@ -80,7 +97,10 @@ func (d *data) get(ctx context.Context, token, path string, q url.Values, cost i
 		}
 		return ae
 	}
-	if err := json.Unmarshal(body, out); err != nil {
+	if out == nil {
+		return nil
+	}
+	if err := json.Unmarshal(answer, out); err != nil {
 		return fmt.Errorf("%w: an answer that isn't JSON", errUnreachable)
 	}
 	return nil

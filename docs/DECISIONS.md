@@ -1690,3 +1690,28 @@ Decided 2026-11-14, building M6 slice 2 after the user's "proceed". They accepte
 - **Only the event log reads them in this slice.** Workflows, commands, filters, points, giveaways, first words, viewers, the Discord summary, timers and Live's chat list skip YouTube events (`events.LogOnly`) until the slice that brings each one: Live's combined chat, commands and workflows in slice 3, moderating in 5, viewers and points in 6. This way no part of the app treats a YouTube viewer as a Twitch one in the meantime.
 - **Connections and Live say whether YouTube chat is being read,** and why not: not live, quota used up, signed out, or lost and trying again.
 - **Other message types wait for their slices:** Super Chats and memberships for slice 4, deletions and bans for slice 5.
+
+## D-098. M6 slice 3: one combined chat
+
+Decided 2026-11-14. The user said "proceed" to this proposal: "Commands and the 'Someone chats' trigger work on both… Each trigger gets a platform filter (**Any**, **Twitch** or **YouTube**), defaulting to **Any**", and "The default is **Where it came from**… Workflows started by anything else (follows, timers, buttons) send to Twitch only."
+
+- **Live shows Twitch and YouTube chat in one list.** Each line is marked TW or YT, and both platforms' roles use the same words. YouTube lines have no moderating buttons until slice 5. Their viewer card shows the channel link and recent messages until slice 6.
+- **The send box goes to both chats by default** while YouTube chat is being read. You can switch it to just Twitch or just YouTube. It sends as the bot on each platform where one is signed in. A line under the box says each YouTube message costs 20 units.
+- **Sending to YouTube** uses `liveChatMessages.insert`, at 20 units a message. Google's reference gives no length limit; YouTube's chat box takes 200 characters. So longer messages are split at a space into up to 3. Nothing is retried. A workflow's own message sent as you is recognised and stored as sent, so it starts nothing. The tracker that does this for Twitch is now shared (`chat.OwnSends`).
+- **`internal/chatsend` decides where a message goes:**
+  - Workflows' "Send a chat message" step has a new **Where** option: Twitch, YouTube, or both.
+  - Left unset, the step answers where the message came from: YouTube for a YouTube viewer's message, Twitch for everything else (follows, timers, buttons). So existing workflows never spend YouTube quota without being told to.
+  - With both, YouTube is skipped while you're not live there.
+  - If only one platform refuses, the result says which; it's only an error when every platform refuses.
+  - The API's `POST /v1/chat/messages` takes `to` and returns what each platform did.
+- **Replies:** a reply goes back to the platform its message came from. On YouTube, which has no replies, the answer starts with `@name`.
+- **Triggers:** "Someone chats", "A viewer types a command" and "A viewer chats for the first time" hear both platforms unless the trigger's **Which chat** (its `sources`) says Twitch only or YouTube only. A test event for a YouTube-only trigger comes from YouTube (`events simulate -source youtube`).
+- **YouTube `!commands` become `chat.command.received`,** except those in the backlog: messages from before StreamGremlin was reading start nothing. Cooldowns are shared across both platforms.
+- **Roles:**
+  - your channel counts as the broadcaster;
+  - YouTube moderators count as moderators;
+  - channel members count as subscribers (`role` subscriber, `is_subscriber`, plus `is_member`);
+  - YouTube has no VIPs.
+- **First words and timers' chat-line count** include YouTube from now on.
+- **Still log-only for YouTube:** chat filters (slice 5); points, giveaways and viewers (slice 6); and the Discord stream summary.
+- **Add-ons' own chat messages** (plugins' `chat.send` permission) still go to Twitch only; a decision is needed before they reach YouTube.

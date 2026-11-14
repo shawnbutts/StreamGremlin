@@ -29,7 +29,7 @@
   import type { Def } from '../lib/editor';
   import TemplateGallery from '../editor/TemplateGallery.svelte';
   import { eventTime } from '../lib/events';
-  import { describeTrigger, forWhom, jobOk, jobWords, overlaysIn, testFields, onOffWords } from '../lib/workflows';
+  import { describeTrigger, forWhom, jobOk, jobWords, overlaysIn, testFields, testSource, onOffWords } from '../lib/workflows';
   import OverlayPreview from '../lib/OverlayPreview.svelte';
   import WorkflowEditor from '../editor/WorkflowEditor.svelte';
   import RunTrace from './RunTrace.svelte';
@@ -158,7 +158,7 @@
         ? `Sent a test event. “${w.name}” runs as a test: its alert shows in the preview below, never in OBS, and nothing reaches Twitch.`
         : `Sent a test event, but the preview below didn't connect in time, so the alert may not show there. Nothing reaches OBS or Twitch.`;
     }
-    act(() => simulateEvent(t.type, fields, crypto.randomUUID()), done);
+    act(() => simulateEvent(t.type, fields, crypto.randomUUID(), testSource(t, kinds.find((k) => k.type === t.type))), done);
   }
 
   const testable = (w: WorkflowSummary) => w.triggers.some((t) => testFields(t, kinds.find((k) => k.type === t.type)));

@@ -677,21 +677,31 @@ func TestOwnChatMessagesStartNothing(t *testing.T) {
 	}
 }
 
-// YouTube chat starts nothing until M6 slice 3 brings it to workflows
-// (D-097): only the event log reads it.
-func TestYouTubeChatStartsNothingYet(t *testing.T) {
+// YouTube chat starts workflows from M6 slice 3 (D-098): "Any" platform
+// (no sources) hears both, a Twitch-only trigger doesn't, and backlog
+// (sent before StreamGremlin was reading) starts nothing.
+func TestYouTubeChatStartsWorkflows(t *testing.T) {
 	r := newRig(t)
-	r.save(def("everything", `"triggers":[{"type":"chat.**"}],"steps":[{"action":"test.local"}]`), true)
-	p, _ := json.Marshal(map[string]any{"text": "hi from YouTube"})
-	if _, err := r.inbox.Accept(context.Background(), events.Envelope{Type: "chat.message.received", Source: events.SourceYouTube,
-		SourceEventID: "yt1", Payload: p, DeliveryQuality: events.Confirmed,
-		Actor: &events.Actor{Platform: "youtube", ID: "UCv", DisplayName: "V"}}); err != nil {
-		t.Fatal(err)
+	r.save(def("any", `"triggers":[{"type":"chat.message.received"}],"steps":[{"action":"test.local"}]`), true)
+	r.save(def("tw", `"triggers":[{"type":"chat.message.received","sources":["twitch"]}],"steps":[{"action":"test.local"}]`), true)
+	r.save(def("yt", `"triggers":[{"type":"chat.message.received","sources":["youtube"]}],"steps":[{"action":"test.local"}]`), true)
+	accept := func(source, id, body string) {
+		if _, err := r.inbox.Accept(context.Background(), events.Envelope{Type: "chat.message.received", Source: source,
+			SourceEventID: id, Payload: json.RawMessage(body), DeliveryQuality: events.Confirmed,
+			Actor: &events.Actor{Platform: source, ID: "v", DisplayName: "V"}}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	r.chat("after", "hi", events.Confirmed)
-	r.jobs("everything", 1)
+	accept(events.SourceYouTube, "yt0", `{"text":"earlier","backlog":true}`)
+	accept(events.SourceYouTube, "yt1", `{"text":"hi from YouTube"}`)
+	accept("twitch", "tw1", `{"text":"hi from Twitch"}`)
+	r.jobs("any", 2)
+	r.jobs("tw", 1)
+	r.jobs("yt", 1)
 	time.Sleep(100 * time.Millisecond)
-	if js, _ := r.eng.Jobs(context.Background(), "everything", 10); len(js) != 1 {
-		t.Fatalf("%d jobs: YouTube chat started one", len(js))
+	for id, n := range map[string]int{"any": 2, "tw": 1, "yt": 1} {
+		if js, _ := r.eng.Jobs(context.Background(), id, 10); len(js) != n {
+			t.Fatalf("%s: %d jobs, want %d", id, len(js), n)
+		}
 	}
 }

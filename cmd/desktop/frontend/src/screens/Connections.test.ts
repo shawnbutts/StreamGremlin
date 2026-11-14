@@ -59,7 +59,7 @@ function engine(initial: Parameters<typeof twitchStatus>[0] = {}) {
     '/v1/chat/messages': (_m, body) => {
       const b = body as { text: string; as: string };
       const asBot = b.as !== 'streamer' && state.bot.state === 'connected';
-      return { status: 200, body: { message_id: 'm1', sent_as: asBot ? 'bot' : 'streamer', login: asBot ? state.bot.login : state.streamer.login } };
+      return { status: 200, body: { twitch: { message_id: 'm1', sent_as: asBot ? 'bot' : 'streamer', login: asBot ? state.bot.login : state.streamer.login } } };
     },
   });
   return {
@@ -235,7 +235,7 @@ describe('Connections', () => {
     button(el, 'Send to chat')!.click();
     await settle(40);
     const sends = e.calls.filter((c) => c.path === '/v1/chat/messages').map((c) => c.body as { text: string; as: string });
-    expect(sends).toEqual([{ text: 'hello chat', as: '' }, { text: 'from me', as: 'streamer' }]);
+    expect(sends).toEqual([{ text: 'hello chat', as: '', to: 'twitch' }, { text: 'from me', as: 'streamer', to: 'twitch' }]);
     expect(el.textContent).toContain('Sent as gremlinstreamer.');
   });
 

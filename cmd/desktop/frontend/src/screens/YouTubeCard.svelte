@@ -317,7 +317,7 @@
           </div>
         {:else if c.state === 'connected'}
           <p class="sg-muted">
-            YouTube messages are in the event log. Live shows them alongside Twitch chat in the next update.
+            YouTube chat shows on Live with Twitch chat, and commands answer it there.
           </p>
         {/if}
       </section>

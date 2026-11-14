@@ -23,7 +23,8 @@
     error = '';
     try {
       const res = await sendChat(text.trim(), as);
-      sent = `Sent as ${res.login}.${res.note ? ' ' + res.note : ''}`;
+      const t = res.twitch;
+      sent = t ? `Sent as ${t.login}.${t.note ? ' ' + t.note : ''}` : 'Sent.';
       text = '';
     } catch (err) {
       // Not retried on purpose: Twitch can't tell a repeat from a new message.

@@ -1,7 +1,7 @@
 # ADR-0047: Reading YouTube chat
 
 - **Status:** Accepted
-- **Date:** 2026-11-14
+- **Date:** 2026-11-14 (sending added the same day, D-098)
 - **Based on:** D-095 (M6, one combined chat); D-097 (slice 2); ADR-0046 (YouTube sign-in and quota); ADR-0004 (the event inbox).
 
 ## Context
@@ -50,7 +50,10 @@ YouTube chat belongs to a live broadcast: each has its own `liveChatId`. Google 
 - Other message types aren't stored yet:
   - Super Chats, Super Stickers, memberships and gifts come in slice 4;
   - deletions and bans come in slice 5.
-- **Log only, for now.** `events.LogOnly` is true for source `youtube`. Workflows, commands, chat filters, points, giveaways, first words, viewers, the Discord summary, timers' chat count and Live's chat list all skip those events. Each of them takes YouTube on in the slice that brings it, so a YouTube viewer is never treated as a Twitch one. The event log shows them now.
+- **Log only, at first.** In slice 2, `events.LogOnly` (true for source `youtube`) kept everything but the event log away from YouTube chat.
+  - Since slice 3 (D-098), workflows, commands, first words, timers' chat count and Live's chat take it. `events.Backlog` keeps messages from before StreamGremlin was reading from starting anything.
+  - Chat filters, points, giveaways, viewers and the Discord summary still skip it until their slices.
+- **Commands:** from slice 3, a `!command` said while reading also becomes `chat.command.received`. Channel members get the role `subscriber`.
 
 ### State
 
@@ -63,6 +66,15 @@ Chat's state can be:
 - quota (until midnight Pacific).
 
 `GET /v1/connections/youtube` returns it as `chat`. `POST /v1/connections/youtube/chat/find` is Find my stream.
+
+### Sending (slice 3, D-098)
+
+- `POST /youtube/v3/liveChat/messages?part=snippet` with `{"snippet":{"liveChatId":…,"type":"textMessageEvent","textMessageDetails":{"messageText":…}}}`. It costs 20 units, counted before the call. It sends as the bot channel when one is signed in, otherwise yours. If YouTube refuses the bot's sign-in, the message goes as you, and the bot's sign-in is checked.
+- It always goes to the chat being read. It's refused, with a reason, when you're not live, not signed in, or out of quota.
+- **Length:** Google's reference states no limit, and YouTube's chat box takes 200 characters. Messages up to 500 characters are split at a space into at most 3 parts, each counted. If a part fails, the result says how many were sent.
+- **Not retried:** YouTube has no way to recognise a repeat.
+- **The echo:** a workflow's message sent as you comes back on the stream. Before the send, it's expected by its text; once YouTube answers, by its message ID. It's then stored as `chat.message.sent` with `sent_by: workflow`, so no workflow answers it. The tracker is `internal/chat.OwnSends`, shared with Twitch. The bot's messages are always stored as sent.
+- **Replies:** YouTube has none. An answer to a YouTube message starts with `@name`.
 
 ## Consequences
 

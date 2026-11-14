@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/chat"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -96,7 +97,7 @@ type Service struct {
 	eventSubURL string
 	inbox       *events.Inbox
 	limits      limiter
-	own         ownSends // workflows' messages sent as you, to skip their echo
+	own         chat.OwnSends // workflows' messages sent as you, to skip their echo
 	pictures    pictureCache
 
 	chatMu  sync.Mutex

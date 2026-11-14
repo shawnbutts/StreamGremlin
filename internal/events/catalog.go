@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -90,7 +91,7 @@ func Catalog() []Kind {
 		{
 			Type: "chat.message.received", Label: "Chat message",
 			Description: "A viewer sent a message in chat.",
-			Sources:     []string{"twitch"}, Sensitive: true,
+			Sources:     []string{"twitch", SourceYouTube}, Sensitive: true,
 			Fields: withPractice([]Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "text", Label: "Message", Kind: "text", Default: "Hello from a test event!", Max: 500},
@@ -159,7 +160,7 @@ func Catalog() []Kind {
 			// a test chat message makes a test one too.
 			Type: "chat.first_words.received", Label: "First words",
 			Description: "A viewer's first chat message this stream (since you went live, a reset, or 12 quiet hours).",
-			Sources:     []string{"twitch"}, Sensitive: true,
+			Sources:     []string{"twitch", SourceYouTube}, Sensitive: true,
 			Fields: []Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "NewViewer", Max: 25},
 				{Name: "text", Label: "Message", Kind: "text", Default: "Hi everyone!", Max: 500},
@@ -177,7 +178,7 @@ func Catalog() []Kind {
 		{
 			Type: "chat.command.received", Label: "Chat command",
 			Description: "A viewer typed a command, such as !hello, in chat.",
-			Sources:     []string{"twitch"}, Sensitive: true,
+			Sources:     []string{"twitch", SourceYouTube}, Sensitive: true,
 			Fields: withPractice([]Field{
 				{Name: "user", Label: "Viewer", Kind: "text", Default: "TestViewer", Max: 25},
 				{Name: "command", Label: "Command", Kind: "text", Default: "!hello", Max: 50},
@@ -563,6 +564,9 @@ type Simulation struct {
 	Fields map[string]string `json:"fields"`
 	// RequestID makes retries safe: the same id gives the same event.
 	RequestID string `json:"request_id"`
+	// Source is the platform it pretends to come from, one of the type's
+	// sources ("youtube"); empty is the first (D-098).
+	Source string `json:"source,omitempty"`
 }
 
 // Build turns a Simulation into a synthetic event. Missing fields take
@@ -604,9 +608,19 @@ func (s Simulation) Build() (Envelope, error) {
 	if err != nil {
 		return Envelope{}, fmt.Errorf("events: encode test payload: %w", err)
 	}
+	source := k.Sources[0]
+	if s.Source != "" {
+		if !slices.Contains(k.Sources, s.Source) {
+			return Envelope{}, invalid("a test %s comes from %s, not %q", k.Label, strings.Join(k.Sources, " or "), s.Source)
+		}
+		source = s.Source
+		if actor != nil {
+			actor.Platform = source
+		}
+	}
 	return Envelope{
 		Type:            k.Type,
-		Source:          k.Sources[0],
+		Source:          source,
 		SourceEventID:   "test:" + s.RequestID,
 		Actor:           actor,
 		Payload:         raw,
@@ -739,9 +753,23 @@ func predictionKind(typ, label, desc, phase string) Kind {
 // SourceYouTube is the source of YouTube's events (M6, D-095).
 const SourceYouTube = "youtube"
 
-// LogOnly reports whether r is a YouTube event that only the event log
-// reads for now. M6 brings YouTube in slice by slice (D-097): until
-// commands, workflows, filters, points, giveaways, first words and viewers
-// learn YouTube, each skips its events rather than treat a YouTube viewer
+// LogOnly reports whether r is a YouTube event that the caller doesn't
+// handle yet. M6 brings YouTube in slice by slice (D-097): workflows,
+// commands, first words and timers take it in slice 3 (D-098); chat
+// filters (slice 5), points, giveaways and viewers (slice 6) and the
+// Discord summary skip it until theirs, rather than treat a YouTube viewer
 // as a Twitch one.
 func LogOnly(r Record) bool { return r.Source == SourceYouTube }
+
+// Backlog reports whether r is chat from before StreamGremlin was reading,
+// as YouTube sends on connecting: shown, but it starts nothing.
+func Backlog(r Record) bool {
+	if r.Source != SourceYouTube || !strings.Contains(string(r.Payload), `"backlog"`) {
+		return false
+	}
+	var p struct {
+		Backlog bool `json:"backlog"`
+	}
+	_ = json.Unmarshal(r.Payload, &p)
+	return p.Backlog
+}

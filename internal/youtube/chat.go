@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"code.streamgremlin.com/streamgremlin/internal/chat"
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/youtube/livechat"
 )
@@ -466,26 +467,46 @@ func (s *Service) storeChat(ctx context.Context, b Broadcast, channel string, it
 		if s.inbox == nil || m.ID == "" {
 			continue
 		}
-		env := chatEnvelope(m, b, channel, backlog)
-		if botChannel != "" && m.Author.ChannelID == botChannel {
-			// The bot's own message: shown, never viewer chat (D-087).
+		env, cmd := chatEnvelopes(m, b, channel, backlog)
+		sentBy := ""
+		switch {
+		case botChannel != "" && m.Author.ChannelID == botChannel:
+			sentBy = "bot"
+		case m.Author.ChannelID == channel && s.own.Claim(m.ID, m.Snippet.Text, s.now()):
+			sentBy = "workflow"
+		}
+		if sentBy != "" {
+			// StreamGremlin's own message: shown, never viewer chat (D-087).
 			var p map[string]any
 			_ = json.Unmarshal(env.Payload, &p)
-			p["sent_by"] = "bot"
+			p["sent_by"] = sentBy
 			env.Payload, _ = json.Marshal(p)
 			env.Type, env.SourceEventID = events.ChatSent, "sent:"+m.ID
+			cmd = nil
 		}
-		if _, err := s.inbox.Accept(ctx, env); err != nil && !errors.Is(err, events.ErrConflict) {
-			s.log.Warn("youtube chat: couldn't store a message", "err", err)
+		res, err := s.inbox.Accept(ctx, env)
+		if err != nil {
+			if !errors.Is(err, events.ErrConflict) {
+				s.log.Warn("youtube chat: couldn't store a message", "err", err)
+			}
+			continue
+		}
+		if cmd != nil && !res.Duplicate {
+			cmd.CausationID, cmd.CorrelationID = res.Record.EventID, res.Record.EventID
+			if _, err := s.inbox.Accept(ctx, *cmd); err != nil && !errors.Is(err, events.ErrConflict) {
+				s.log.Warn("youtube chat: couldn't store a command", "err", err)
+			}
 		}
 	}
 	return ended
 }
 
-// chatEnvelope turns a YouTube text message into chat.message.received,
-// with the same chatter shape as Twitch's where YouTube has the same
-// thing. YouTube has no logins: a channel ID and a display name.
-func chatEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool) events.Envelope {
+// chatEnvelopes turns a YouTube text message into chat.message.received
+// and, for "!name args" sent while StreamGremlin was reading, a
+// chat.command.received, with the same chatter shape as Twitch's where
+// YouTube has the same thing. YouTube has no logins: a channel ID and a
+// display name. Channel members count as subscribers (D-098).
+func chatEnvelopes(m livechat.Message, b Broadcast, channel string, backlog bool) (events.Envelope, *events.Envelope) {
 	a := m.Author
 	isB := a.IsChatOwner || (a.ChannelID != "" && a.ChannelID == channel)
 	role := "viewer"
@@ -495,7 +516,7 @@ func chatEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool)
 	case a.IsChatModerator:
 		role = "moderator"
 	case a.IsChatSponsor:
-		role = "member"
+		role = "subscriber"
 	}
 	payload := map[string]any{
 		"message_id":   m.ID,
@@ -506,7 +527,7 @@ func chatEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool)
 		"broadcast_id": b.ID,
 		"chatter": map[string]any{
 			"id": a.ChannelID, "login": "", "display_name": a.DisplayName, "badges": []any{}, "role": role,
-			"is_broadcaster": isB, "is_moderator": a.IsChatModerator, "is_vip": false, "is_subscriber": false,
+			"is_broadcaster": isB, "is_moderator": a.IsChatModerator, "is_vip": false, "is_subscriber": a.IsChatSponsor,
 			"is_member": a.IsChatSponsor, "is_verified": a.IsVerified,
 			"channel_url": a.ChannelURL, "profile_image_url": a.ProfileImageURL,
 		},
@@ -527,7 +548,18 @@ func chatEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool)
 		Payload: raw, DeliveryQuality: events.Confirmed,
 	}
 	env.CorrelationID = env.EventID
-	return env
+	c, ok := chat.ParseCommand(m.Snippet.Text)
+	if !ok || backlog {
+		return env, nil // what was said before StreamGremlin was reading starts nothing
+	}
+	payload["command"], payload["args"], payload["arg_list"] = c.Name, c.Args, c.ArgList
+	raw, _ = json.Marshal(payload)
+	cmd := &events.Envelope{
+		Type: "chat.command.received", Source: events.SourceYouTube, SourceEventID: "cmd:" + m.ID,
+		OccurredAt: occurred, ChannelID: channel, Actor: env.Actor, Payload: raw,
+		CorrelationID: env.EventID, CausationID: env.EventID, DeliveryQuality: events.Confirmed,
+	}
+	return env, cmd
 }
 
 func (s *Service) loadResume(ctx context.Context) resume {

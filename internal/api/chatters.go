@@ -39,21 +39,25 @@ func chatterRoutes(d Deps) []Route {
 		Method: "GET", Path: "/v1/chatters/{platform}/{user_id}",
 		Summary: "A viewer card for a chatter: what Twitch says now (account, follow, subscription, VIP, moderator, banned; " +
 			"each fact it couldn't read is listed as unknown, with why), StreamGremlin's record and points, and their newest " +
-			"10 chat messages, what was done to them from StreamGremlin, and Twitch's newest suspicious-user flag on them. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed.",
+			"10 chat messages, what was done to them from StreamGremlin, and Twitch's newest suspicious-user flag on them. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed. " +
+			"For platform youtube: their newest messages only, for now.",
 		Permission: PermViewersRead,
 		Handler: func(w http.ResponseWriter, r *http.Request) {
 			platform, id := r.PathValue("platform"), r.PathValue("user_id")
-			if platform != "twitch" {
-				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "platform must be twitch")
+			if platform != "twitch" && platform != events.SourceYouTube {
+				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "platform must be twitch or youtube")
 				return
 			}
+			// A YouTube chatter's card has their newest messages; YouTube's
+			// facts, points and moderating come in M6 slices 5 and 6 (D-098).
+			yt := platform == events.SourceYouTube
 			if id == "" || len(id) > 64 {
 				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "user_id must be 1 to 64 characters")
 				return
 			}
 			test := r.URL.Query().Get("test") == "1"
 			out := ChatterCard{Platform: platform, UserID: id, Messages: []events.Record{}}
-			if !test {
+			if !test && !yt {
 				if d.Twitch == nil {
 					writeError(w, http.StatusServiceUnavailable, CodeUnavailable, "Twitch isn't set up")
 					return
@@ -68,7 +72,7 @@ func chatterRoutes(d Deps) []Route {
 				}
 				out.Twitch = &c
 			}
-			if !test && d.Viewers != nil {
+			if !test && !yt && d.Viewers != nil {
 				v, err := d.Viewers.ByAccount(r.Context(), platform, id)
 				switch {
 				case err == nil:
@@ -94,13 +98,13 @@ func chatterRoutes(d Deps) []Route {
 			}
 			out.Messages = msgs
 			out.Moderation = []moderation.Record{}
-			if !test && d.Moderation != nil {
+			if !test && !yt && d.Moderation != nil {
 				if out.Moderation, err = d.Moderation.List(r.Context(), platform, id, 10); err != nil {
 					internalError(w, r, d.Logger, err)
 					return
 				}
 			}
-			if !test {
+			if !test && !yt {
 				if out.Suspicious, err = suspicion(r.Context(), d.Events, platform, id); err != nil {
 					internalError(w, r, d.Logger, err)
 					return

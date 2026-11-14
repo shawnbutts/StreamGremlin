@@ -86,7 +86,11 @@ func TestChatterCardThroughTheAPI(t *testing.T) {
 	if _, c := card("/v1/chatters/twitch/" + testMock.UserID("stranger")); c.Viewer != nil || len(c.Messages) != 0 || c.Twitch == nil {
 		t.Fatalf("stranger: %+v", c)
 	}
-	for _, bad := range []string{"/v1/chatters/youtube/1", "/v1/chatters/twitch/abc"} {
+	// A YouTube chatter (D-098): their messages only; Twitch isn't asked.
+	if code, c := card("/v1/chatters/youtube/UCnobody"); code != 200 || c.Twitch != nil || c.Viewer != nil || len(c.Messages) != 0 {
+		t.Fatalf("youtube: %d %+v", code, c)
+	}
+	for _, bad := range []string{"/v1/chatters/kick/1", "/v1/chatters/twitch/abc"} {
 		if code, _ := card(bad); code != 400 {
 			t.Fatal(bad, code)
 		}

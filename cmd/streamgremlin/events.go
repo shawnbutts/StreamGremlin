@@ -144,8 +144,9 @@ func simulateEvent(dir string, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("events simulate", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	asJSON := fs.Bool("json", false, "print the stored event as JSON")
+	source := fs.String("source", "", "the platform it comes from, such as youtube (chat events)")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: streamgremlin events simulate [-json] TYPE [field=value ...]\n\nSee `streamgremlin events types` for types and fields.")
+		fmt.Fprintln(stderr, "usage: streamgremlin events simulate [-json] [-source youtube] TYPE [field=value ...]\n\nSee `streamgremlin events types` for types and fields.")
 	}
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -154,7 +155,7 @@ func simulateEvent(dir string, args []string, stdout, stderr io.Writer) int {
 		fs.Usage()
 		return 2
 	}
-	sim := events.Simulation{Type: fs.Arg(0), Fields: map[string]string{}, RequestID: requestID()}
+	sim := events.Simulation{Type: fs.Arg(0), Fields: map[string]string{}, RequestID: requestID(), Source: *source}
 	for _, kv := range fs.Args()[1:] {
 		k, v, ok := strings.Cut(kv, "=")
 		if !ok {

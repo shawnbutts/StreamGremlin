@@ -46,6 +46,7 @@ export function describeTrigger(t: Trigger, kinds: EventKind[]): string {
 export function testFields(t: Trigger, kind: EventKind | undefined): Record<string, string> | undefined {
   if (!kind) return undefined;
   if (t.delivery_quality?.length && !t.delivery_quality.includes('synthetic')) return undefined;
+  if (t.sources?.length && !t.sources.some((s) => kind.sources.includes(s))) return undefined;
   const fields: Record<string, string> = {};
   for (const [k, raw] of Object.entries(t.where ?? {})) {
     const f = kind.fields.find((f) => (f.path ?? f.name) === k);
@@ -55,6 +56,15 @@ export function testFields(t: Trigger, kind: EventKind | undefined): Record<stri
   }
   return fields;
 }
+
+/** The platform a trigger's test event comes from: the trigger's own when it names one, else the event's first. */
+export function testSource(t: Trigger, kind: EventKind | undefined): string | undefined {
+  const s = t.sources?.find((s) => kind?.sources.includes(s));
+  return s && s !== kind?.sources[0] ? s : undefined;
+}
+
+/** The chat triggers that can hear Twitch, YouTube or both (D-098). */
+export const PLATFORM_TRIGGERS = ['chat.message.received', 'chat.command.received', 'chat.first_words.received'];
 
 const words: Record<string, string> = {
   pending: 'Waiting',

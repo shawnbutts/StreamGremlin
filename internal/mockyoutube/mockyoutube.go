@@ -71,6 +71,8 @@ type Server struct {
 	chats      map[string]*chat
 	drop, open int
 	lastToken  string
+	sent       []SentMessage
+	banned     map[string]bool
 	grpc       interface {
 		ServeHTTP(http.ResponseWriter, *http.Request)
 	}
@@ -86,7 +88,7 @@ func New() *Server {
 			{ID: "nochannel", Title: "No channel", NoChannel: true},
 		},
 		codes: map[string]grant{}, access: map[string]token{}, refresh: map[string]token{},
-		ttl: time.Hour, calls: map[string]int{}, now: time.Now, chats: map[string]*chat{},
+		ttl: time.Hour, calls: map[string]int{}, now: time.Now, chats: map[string]*chat{}, banned: map[string]bool{},
 	}
 	s.grpc = s.grpcServer()
 	return s
@@ -139,6 +141,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/youtube/v3/liveBroadcasts":
 		s.liveBroadcasts(w, r)
+	case "/youtube/v3/liveChat/messages":
+		s.insertMessage(w, r)
 	case "/mock", "/mock/live", "/mock/say", "/mock/end", "/mock/drop":
 		s.controlPage(w, r)
 	case "/o/oauth2/v2/auth":

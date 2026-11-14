@@ -33,6 +33,7 @@ func YouTubeManifest() Manifest {
 			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages",
 			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts",
 			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list",
+			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages/insert",
 			"https://developers.google.com/youtube/v3/docs/subscriptions/list",
 		},
 		Scopes: []string{Scope},
@@ -69,9 +70,19 @@ func YouTubeManifest() Manifest {
 				"no generated code. A connection without a page token first gets recent history (marked backlog); a dropped " +
 				"one resumes from nextPageToken, also after a restart (saved). FAILED_PRECONDITION means the chat ended or is " +
 				"off (Google can't say which); chatEndedEvent and offlineAt end it too; RESOURCE_EXHAUSTED is too fast, unless " +
-				"it says quota. Slice 2 stores text messages (chat.message.received, source youtube) for the event log only; " +
-				"commands, workflows and Live's chat in slice 3, Super Chats and the other types in slice 4, deletions and bans " +
-				"in slice 5."},
+				"it says quota. Text messages are stored as chat.message.received (source youtube) and, for !commands said while " +
+				"reading, chat.command.received; Live shows them with Twitch's (D-098). Super Chats and the other types in slice 4, " +
+				"deletions and bans in slice 5."},
+			{Name: "send", Support: "supported", Notes: "liveChatMessages.insert (POST /liveChat/messages?part=snippet, " +
+				"textMessageEvent), 20 units a message, as the bot channel when signed in, otherwise yours, to the chat being " +
+				"read. Google's reference states no length limit; YouTube's chat box takes 200 characters, so longer messages " +
+				"(up to 500) are split at a space into up to 3 (unverified against the API's own limit). No threaded replies " +
+				"exist: an answer to a message starts with @name. rateLimitExceeded, forbidden (banned or timed out) and " +
+				"liveChatEnded are said in words; nothing is retried. A workflow's message as you is recognised by its id (or " +
+				"text, before the answer) and stored as sent, so it starts nothing."},
+			{Name: "roles", Support: "supported", Notes: "authorDetails: isChatOwner is the broadcaster, isChatModerator a " +
+				"moderator, isChatSponsor a channel member, counted as a subscriber for roles and command permissions (D-098). " +
+				"YouTube has no VIPs."},
 			{Name: "subscribers", Support: "partial", Notes: "M6 slice 7: no push exists; subscriptions.list " +
 				"myRecentSubscribers (1 unit), public subscriptions only, possibly limited."},
 		},

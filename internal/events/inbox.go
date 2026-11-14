@@ -221,7 +221,7 @@ func (in *Inbox) Head(ctx context.Context) (int64, error) {
 func (in *Inbox) CountViewerChat(ctx context.Context, after int64) (int, error) {
 	var n int
 	err := in.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE type = 'chat.message.received' AND seq > ?
-		AND delivery_quality != 'synthetic' AND source != 'youtube'
+		AND delivery_quality != 'synthetic' AND COALESCE(json_extract(payload, '$.backlog'), 0) = 0
 		AND COALESCE(json_extract(payload, '$.chatter.role'), '') != 'broadcaster'`, after).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("events: count: %w", err)
