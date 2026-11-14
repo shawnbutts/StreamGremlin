@@ -1654,3 +1654,15 @@ Decided 2026-11-13. The user asked to fix a test that failed once under `make ve
 
 - **OBS: "connected" with no connection.** Turning OBS on just before StreamGremlin first read its settings left the change's signal waiting. The session that followed ended at once and reconnected, and in between the status said connected while a scene switch failed with "not connected". Now a signal from before the settings are read is dropped. A session's end, dropping the connection and leaving "connected", is one step. A test forces the case: one save, one session.
 - **Ads: a break not linked to its request.** Twitch's "ad break began" can arrive before Twitch answers the request: EventSub and the API are separate. The request was still pending, so the break was recorded without it, for good. Now a break links to a pending request too. Twitch's answer keeps the link, and no answer, with the break begun, is accepted rather than unknown. A test holds the answer back until the event is in.
+
+## D-095. M6, YouTube: one combined chat, matching Streamer.bot, each streamer's own quota
+
+Decided 2026-11-13, after M7 closed. The user: "draft the M6 proposal with a combined chat. we should try to match streamer.bot features here." Then: "yes, linked account share points. yes, send box if for both by default." And: "no vertical, not monetised, option 4 is fine". The plan is in [docs/milestones/M6.md](milestones/M6.md).
+
+- **One combined chat on Live,** each message marked with its platform. Replies, command answers and moderation go to the platform a message came from. **The send box sends to both by default.**
+- **Streamer.bot's YouTube triggers, matched** where YouTube's documented API allows: about 20 of its 26. Present Viewers becomes "active chatters": YouTube says nothing about who is watching. Jewels and polls are built only if their message types are documented when slice 4 is built.
+- **Chat and its events are pushed** (`liveChatMessages.streamList`, gRPC, 5 units per connection). **Subscribers can't be:** Google has no push for them. They're asked for each minute while live, public subscriptions only, and the alert says so.
+- **Quota is shown and budgeted.** Timeouts and bans cost 200 units, so YouTube's chat filters delete by default.
+- **Quota: each streamer's own Google project first,** with a guide in the app; StreamGremlin's own project once Google's verification and quota increase are approved. Quota is per project, so a shared one would run out. Client IDs and secrets are given at build time, never committed.
+- **Linked viewers share one points balance** (`!link`, D-045). Unlinked, a YouTube viewer is their own viewer.
+- **Later:** several broadcasts at once, scheduled broadcasts, new-upload posts, cuepoints. **Leave:** comments, community posts, clips, retention.

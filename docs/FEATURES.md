@@ -152,7 +152,9 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Feature | Old ADR / decision | Lands in |
 |---|---|---|
 | YouTube: sign-in, live chat, Super Chats, memberships | 0036–0039 | YouTube |
-| YouTube: cuepoints and retention | 0036–0039 | Decided at the YouTube milestone |
+| YouTube: combined chat on Live, triggers matching Streamer.bot's, moderating, viewers and points, linked accounts sharing points | 0036–0039, D-095 | YouTube |
+| YouTube: several live broadcasts at once, scheduled broadcasts, new-upload posts, cuepoints | D-095 | Later |
+| YouTube: comments, community posts, clips, retention | 0036–0039, D-095 | Leave |
 | Chat router across platforms | 0035, D-059 | YouTube. The single chat interface and `source` on events exist from the Spine. |
 | Kick | 0043, D-054, D-055, D-067 | Leave |
 | Discord Tier 1: webhooks; post from workflows; go-live, clip and stream-summary templates | new (D-089, ADR-0044) | Built after M7 |
