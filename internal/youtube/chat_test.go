@@ -161,7 +161,7 @@ func TestChatReadsTheLiveBroadcast(t *testing.T) {
 		t.Fatalf("%+v", p)
 	}
 	// Only the event log reads YouTube chat in this slice.
-	if !events.LogOnly(recs[1]) {
+	if recs[1].Source != events.SourceYouTube {
 		t.Fatal("YouTube chat isn't log-only")
 	}
 	// Quota: a lookup per FindNow or sign-in, and 5 for the stream.

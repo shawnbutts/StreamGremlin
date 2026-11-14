@@ -473,7 +473,7 @@ func TestYouTubeChatCountsButBacklogDoesnt(t *testing.T) {
 		t.Fatal(n, err)
 	}
 	recs, _ := in.After(ctx, 0, 10, nil)
-	if len(recs) != 3 || LogOnly(recs[0]) || !LogOnly(recs[1]) || Backlog(recs[0]) || Backlog(recs[1]) || !Backlog(recs[2]) {
+	if len(recs) != 3 || recs[0].Source == SourceYouTube || recs[1].Source != SourceYouTube || Backlog(recs[0]) || Backlog(recs[1]) || !Backlog(recs[2]) {
 		t.Fatalf("%+v", recs)
 	}
 }

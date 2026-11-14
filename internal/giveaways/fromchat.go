@@ -103,7 +103,7 @@ func (s *Service) recentChatters(ctx context.Context, g *Giveaway) ([]candidate,
 			if r.Seq > g.afterSeq {
 				break
 			}
-			if events.LogOnly(r) || r.ReceivedAt.Before(since) || (r.DeliveryQuality == events.Synthetic) != g.Practice {
+			if events.Backlog(r) || r.ReceivedAt.Before(since) || (r.DeliveryQuality == events.Synthetic) != g.Practice {
 				continue
 			}
 			p, platform, ok := chatOf(r)
@@ -111,6 +111,15 @@ func (s *Service) recentChatters(ctx context.Context, g *Giveaway) ([]candidate,
 				continue
 			}
 			seen[platform+":"+p.Chatter.ID] = true
+			// One person linked on both platforms enters once (D-101).
+			if s.partner != nil {
+				if pa, ok, err := s.partner(ctx, platform, p.Chatter.ID); err == nil && ok {
+					if seen[pa.Platform+":"+pa.ID] {
+						continue
+					}
+					seen[pa.Platform+":"+pa.ID] = true
+				}
+			}
 			out = append(out, candidate{g: *g, r: r, platform: platform, c: p.Chatter, quiet: true})
 		}
 	}

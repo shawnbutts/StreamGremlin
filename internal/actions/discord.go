@@ -59,7 +59,8 @@ func registerDiscord(reg *workflow.Registry, dc *discord.Service, inbox *events.
 	reg.Add(workflow.Action{
 		Name: "stream.summary", Label: "Sum up the stream", Group: "Twitch",
 		Description: "Counts what happened since you last went live on Twitch: how long, new followers, subs, gifted subs, " +
-			"bits, raids and chatters. Test events aren't counted. Changes nothing, so it runs for test events too. Its " +
+			"bits, raids and chatters, and on YouTube new members, gifted memberships and Super Chats (chatters count both). " +
+			"Test events aren't counted. Changes nothing, so it runs for test events too. Its " +
 			"state is unknown when StreamGremlin didn't see you go live.",
 		Run: func(ctx context.Context, c workflow.Call) (any, error) {
 			if inbox == nil {
@@ -88,12 +89,13 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 	} else if ok && off.Seq > on.Seq {
 		end, state = off.OccurredAt, "ended"
 	}
-	var follows, subs, gifted, bits, raids, raiders, messages int64
+	var follows, subs, gifted, bits, raids, raiders, messages, members, giftedMembers, superChats int64
 	chatters := map[string]bool{}
+	ytChatters := 0
 	after := on.Seq
 	types := events.Filter{"audience.follow.created", "monetization.subscription.started", "monetization.subscription.renewed",
 		"monetization.subscription.gifted", "monetization.bits.cheered", "audience.raid.received", "chat.message.received",
-		"chat.command.received", "broadcast.channel.offline"}
+		"chat.command.received", "broadcast.channel.offline", "monetization.super_chat.received", "monetization.super_sticker.received"}
 	for read := 0; read < summaryCap; {
 		recs, err := inbox.After(ctx, after, 1000, types)
 		if err != nil {
@@ -106,10 +108,14 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 		done := false
 		for _, r := range recs {
 			after = r.Seq
-			if r.DeliveryQuality == events.Synthetic || events.LogOnly(r) {
+			if r.DeliveryQuality == events.Synthetic || events.Backlog(r) {
 				continue
 			}
+			yt := r.Source == events.SourceYouTube
 			if r.Type == "broadcast.channel.offline" {
+				if yt {
+					continue // the summary is of the Twitch stream
+				}
 				done = true
 				break
 			}
@@ -126,9 +132,19 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 			case "audience.follow.created":
 				follows++
 			case "monetization.subscription.started", "monetization.subscription.renewed":
-				subs++
+				if yt {
+					members++
+				} else {
+					subs++
+				}
 			case "monetization.subscription.gifted":
-				gifted += max(p.Total, 1)
+				if yt {
+					giftedMembers += max(p.Total, 1)
+				} else {
+					gifted += max(p.Total, 1)
+				}
+			case "monetization.super_chat.received", "monetization.super_sticker.received":
+				superChats++
 			case "monetization.bits.cheered":
 				bits += p.Bits
 			case "audience.raid.received":
@@ -139,7 +155,11 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 					continue
 				}
 				messages++
-				chatters[r.Actor.ID] = true
+				key := r.Actor.Platform + ":" + r.Actor.ID
+				if yt && !chatters[key] {
+					ytChatters++
+				}
+				chatters[key] = true
 			}
 		}
 		if done {
@@ -150,5 +170,6 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 	return map[string]any{"state": state, "started_at": on.OccurredAt.UTC().Format(time.RFC3339),
 		"duration": twitch.DurationWords(d), "duration_seconds": int(d.Seconds()),
 		"follows": follows, "subs": subs, "gifted_subs": gifted, "bits": bits, "raids": raids, "raiders": raiders,
-		"chatters": len(chatters), "messages": messages}, nil
+		"chatters": len(chatters), "messages": messages,
+		"youtube_chatters": ytChatters, "members": members, "gifted_memberships": giftedMembers, "super_chats": superChats}, nil
 }

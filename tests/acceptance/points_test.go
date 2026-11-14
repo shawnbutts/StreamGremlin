@@ -232,10 +232,10 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 		var chatty, lurker bool
 		for _, line := range strings.Split(out, "\n") {
 			f := strings.Fields(line)
-			if len(f) < 2 {
+			if len(f) < 3 {
 				continue
 			}
-			n, err := strconv.Atoi(f[1])
+			n, err := strconv.Atoi(f[2]) // name, platform, points
 			if err != nil || n == 0 {
 				continue
 			}

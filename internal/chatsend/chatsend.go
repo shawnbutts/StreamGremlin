@@ -145,6 +145,9 @@ func Send(ctx context.Context, tw TwitchSender, yt YouTubeSender, req Request) (
 			if req.ReplyTo != "" && req.ReplyName != "" && req.Origin == events.SourceYouTube {
 				text = "@" + strings.TrimPrefix(req.ReplyName, "@") + " " + strings.TrimSpace(text)
 			}
+			// YouTube's names are often handles already: "@${name}" in a
+			// message written for Twitch would say "@@name" (D-101).
+			text = strings.ReplaceAll(text, "@@", "@")
 			var out youtube.SendResult
 			if out, err = yt.SendChat(ctx, youtube.SendRequest{Text: text, As: youtube.Sender(req.As), Workflow: req.Workflow}); err == nil {
 				res.YouTube = &out

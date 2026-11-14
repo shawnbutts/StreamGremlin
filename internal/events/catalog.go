@@ -812,14 +812,6 @@ func predictionKind(typ, label, desc, phase string) Kind {
 // SourceYouTube is the source of YouTube's events (M6, D-095).
 const SourceYouTube = "youtube"
 
-// LogOnly reports whether r is a YouTube event that the caller doesn't
-// handle yet. M6 brings YouTube in slice by slice (D-097): workflows,
-// commands, first words and timers take it in slice 3 (D-098), chat
-// filters in slice 5 (D-100); points, giveaways and viewers (slice 6) and the
-// Discord summary skip it until theirs, rather than treat a YouTube viewer
-// as a Twitch one.
-func LogOnly(r Record) bool { return r.Source == SourceYouTube }
-
 // Backlog reports whether r is chat from before StreamGremlin was reading,
 // as YouTube sends on connecting: shown, but it starts nothing.
 func Backlog(r Record) bool {

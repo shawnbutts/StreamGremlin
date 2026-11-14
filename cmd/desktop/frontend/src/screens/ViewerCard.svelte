@@ -197,7 +197,7 @@
       {#if line.channelUrl}
         <p><button type="button" class="button" onclick={() => openInBrowser(line.channelUrl!)}>Open their YouTube channel</button></p>
       {/if}
-      <p class="sg-muted">YouTube’s API tells apps nothing more about one viewer. Points for YouTube viewers come in a later update.</p>
+      <p class="sg-muted">YouTube’s API tells apps nothing more about one viewer.</p>
     {/if}
     {#if card.twitch}
       <h3>On Twitch</h3>

@@ -105,16 +105,28 @@
       Viewers enter by typing a command in chat, once each; you can limit who may enter (followers, account age, subscribers)
       and give subscribers more chances, which chat is told. StreamGremlin draws winners with a secure random source and records
       every draw, so <strong>Check the draws</strong> can confirm them. A practice giveaway uses test chat from Events and
-      sends nothing. You can also draw at once from everyone who chatted recently.
+      sends nothing. You can also draw at once from everyone who chatted recently. YouTube viewers enter the same way while
+      YouTube chat is read; what’s said to everyone goes to both chats, and each entrant hears in their own. Rules that need
+      Twitch to check (followers, account age, months subscribed) turn YouTube viewers away. Linked accounts enter once.
     </dd>
     <dt>Points</dt>
     <dd>
       Your channel’s own points (name them what you like): how viewers earn them (chatting, time in chat, follows, subs,
       cheers), giving to everyone, and who holds how many. Workflows give and take points with “Give points” and “Take
-      points”. Nothing is ever changed or deleted: a mistake is undone, and nobody goes below zero.
+      points”. Nothing is ever changed or deleted: a mistake is undone, and nobody goes below zero. YouTube viewers earn too:
+      members as tier 1 subs, gifted memberships as gifted subs, and each Super Chat or Super Sticker a set amount, whatever
+      its currency. Time in chat pays while you’re live on Twitch.
     </dd>
     <dt>Viewers</dt>
-    <dd>Everyone who has chatted, followed, subscribed or cheered, from your real chat and events. Find a viewer to see their record and points, give or take points, export their record, or forget them if they ask.</dd>
+    <dd>
+      Everyone who has chatted, followed, subscribed or cheered, on Twitch or YouTube, from your real chat and events. Find a
+      viewer to see their record and points, give or take points, export their record, or forget them if they ask. One
+      person’s Twitch and YouTube accounts can be <strong>linked</strong> to share one balance: by you on their page, or by
+      them with <code>!link</code> (Templates → Chat commands): they type <code>!link</code> and their name on the other
+      platform, then type the code they’re given there, as that account. Unlinking leaves the points on Twitch. A YouTube
+      viewer’s <code>@name</code> is their handle; when a name is someone on Twitch and someone else on YouTube, commands
+      like <code>!give</code> say so instead of guessing.
+    </dd>
     <dt>Channel commands</dt>
     <dd>
       Templates for !title and !game (anyone sees them; mods and you change them), !uptime, !followage, !clip (mods, VIPs and

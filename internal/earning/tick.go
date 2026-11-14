@@ -142,7 +142,12 @@ func (s *Service) pay(ctx context.Context, a events.Actor, op func(string) strin
 	if err != nil {
 		return false, err
 	}
-	res, err := s.o.Points.Credit(ctx, points.Op{ID: op(v.ID), Viewer: v.ID, Amount: amount, Memo: memo, By: By})
+	// One person linked on two platforms is paid once an interval.
+	holder, err := s.o.Points.Owner(ctx, v.ID)
+	if err != nil {
+		return false, err
+	}
+	res, err := s.o.Points.Credit(ctx, points.Op{ID: op(holder), Viewer: v.ID, Amount: amount, Memo: memo, By: By})
 	switch {
 	case errors.Is(err, points.ErrConflict), errors.Is(err, points.ErrInvalid):
 		s.log.Debug("not paid", "viewer", v.ID, "err", err)

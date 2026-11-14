@@ -115,3 +115,43 @@ func TestForgetAndEnsure(t *testing.T) {
 		t.Fatal(e1, e2, err)
 	}
 }
+
+// YouTube viewers are recorded like Twitch's, except chat from before
+// StreamGremlin was reading; a name that's a Twitch login and a different
+// YouTube handle is ambiguous until the two are linked (D-101).
+func TestYouTubeViewersAndNames(t *testing.T) {
+	s, in, db := newService(t)
+	ctx := context.Background()
+	now := time.Now()
+	add := func(source, id, login, name, payload string) {
+		t.Helper()
+		if _, err := in.Accept(ctx, events.Envelope{Type: "chat.message.received", Source: source, Payload: []byte(payload),
+			DeliveryQuality: events.Confirmed, ReceivedAt: now, Actor: &events.Actor{Platform: source, ID: id, Login: login, DisplayName: name}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("twitch", "1", "ann", "Ann", `{}`)
+	add("youtube", "UCann", "ann", "@Ann", `{}`)
+	add("youtube", "UCold", "old", "@Old", `{"backlog":true}`)
+	if err := s.CatchUp(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ByAccount(ctx, "youtube", "UCold"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("backlog made a viewer")
+	}
+	yt, err := s.ByAccount(ctx, "youtube", "UCann")
+	if err != nil || yt.Messages != 1 || yt.Login != "ann" {
+		t.Fatalf("%+v %v", yt, err)
+	}
+	if _, err := s.ByLogin(ctx, "@ann"); !errors.Is(err, ErrAmbiguous) {
+		t.Fatal(err)
+	}
+	tw, _ := s.ByAccount(ctx, "twitch", "1")
+	if _, err := db.ExecContext(ctx, `INSERT INTO viewer_links (id, twitch_viewer, youtube_viewer, linked_at, linked_by) VALUES ('l1', ?, ?, 'x', 'test')`,
+		tw.ID, yt.ID); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.ByLogin(ctx, "ann"); err != nil || v.ID != tw.ID {
+		t.Fatalf("%+v %v", v, err)
+	}
+}

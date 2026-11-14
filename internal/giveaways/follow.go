@@ -15,6 +15,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 var followChat = events.Filter{"chat.command.received", "chat.message.received"}
@@ -125,8 +126,8 @@ type chatter struct {
 // handleLocked takes a winner's claim, or returns someone asking to enter,
 // to be checked against the rules.
 func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate {
-	if events.LogOnly(r) {
-		return nil
+	if events.Backlog(r) {
+		return nil // said before StreamGremlin was reading YouTube chat
 	}
 	g := s.current
 	if g == nil || r.Seq <= g.afterSeq || r.ReceivedAt.Before(g.OpenedAt) {
@@ -170,7 +171,7 @@ func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate 
 	// Someone turned away is checked again when they type the command, so
 	// a busy chat doesn't ask Twitch about every line; messages counted
 	// are only in the database, so those are checked again as they chat.
-	if in > 0 || (byChat && refused != "" && refused != ReasonMessages) {
+	if in > 0 || (byChat && refused != "" && refused != ReasonMessages) || s.partnerInLocked(ctx, g.ID, platform, p.Chatter.ID) {
 		return nil
 	}
 	return &candidate{g: *g, r: r, platform: platform, c: p.Chatter}
@@ -195,7 +196,27 @@ func chatOf(r events.Record) (p chatPayload, platform string, ok bool) {
 	if p.Chatter.DisplayName == "" {
 		p.Chatter.DisplayName = p.Chatter.Login
 	}
+	if p.Chatter.Login == "" {
+		// A YouTube name that isn't a @handle: mentioned by name.
+		p.Chatter.Login = strings.TrimPrefix(p.Chatter.DisplayName, "@")
+	}
 	return p, platform, true
+}
+
+// partnerInLocked reports whether the account linked to this one has
+// entered already: one person linked on both platforms enters once (D-101).
+func (s *Service) partnerInLocked(ctx context.Context, giveaway, platform, userID string) bool {
+	if s.partner == nil {
+		return false
+	}
+	pa, ok, err := s.partner(ctx, platform, userID)
+	if err != nil || !ok {
+		return false
+	}
+	var n int
+	_ = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM giveaway_entries WHERE giveaway_id = ? AND platform = ? AND user_id = ?",
+		giveaway, pa.Platform, pa.ID).Scan(&n)
+	return n > 0
 }
 
 // admitLocked records the checked candidate: in, or turned away with the
@@ -205,6 +226,9 @@ func (s *Service) admitLocked(ctx context.Context, cd candidate, q Qualified, re
 	// Entries may have closed, or the giveaway ended, while Twitch answered.
 	if g == nil || g.ID != cd.g.ID || g.State != Open {
 		return nil
+	}
+	if reason == "" && s.partnerInLocked(ctx, g.ID, cd.platform, c.ID) {
+		return nil // entered on their other platform while this was checked
 	}
 	defer s.publishLocked(ctx, g)
 	return s.tx(ctx, func(tx *sql.Tx) error {
@@ -332,53 +356,58 @@ func (s *Service) ackLocked(ctx context.Context, force bool) {
 		return
 	}
 	err := s.tx(ctx, func(tx *sql.Tx) error {
-		var names []string
-		rows, err := tx.QueryContext(ctx, "SELECT login, chances FROM giveaway_entries WHERE giveaway_id = ? AND announced = 0 ORDER BY seq",
+		// Each platform's entrants hear in their own chat.
+		names := map[string][]string{}
+		rows, err := tx.QueryContext(ctx, "SELECT platform, login, chances FROM giveaway_entries WHERE giveaway_id = ? AND announced = 0 ORDER BY seq",
 			g.ID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			var n string
+			var platform, n string
 			var chances int
-			_ = rows.Scan(&n, &chances)
+			_ = rows.Scan(&platform, &n, &chances)
 			if chances > 1 {
 				n = fmt.Sprintf("%s (%d chances)", n, chances)
 			}
-			names = append(names, "@"+n)
+			names[platform] = append(names[platform], "@"+n)
 		}
 		_ = rows.Close()
 		var total int
 		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM giveaway_entries WHERE giveaway_id = ?", g.ID).Scan(&total); err != nil {
 			return err
 		}
-		for _, batch := range batches(names, fmt.Sprintf(": you're in %s! (%s so far)", g.Title, plural(total, "entry", "entries"))) {
-			if err := s.say(ctx, tx, g, batch); err != nil {
-				return err
+		for _, platform := range []string{"twitch", "youtube"} {
+			for _, batch := range batchesFor(platform, names[platform], fmt.Sprintf(": you're in %s! (%s so far)", g.Title, plural(total, "entry", "entries"))) {
+				if err := s.sayTo(ctx, tx, g, platform, batch); err != nil {
+					return err
+				}
 			}
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE giveaway_entries SET announced = 1 WHERE giveaway_id = ? AND announced = 0", g.ID); err != nil {
 			return err
 		}
-		refused := map[string][]string{}
+		refused := map[string][]string{} // platform + reason
 		var reasons []string
-		rows, err = tx.QueryContext(ctx, `SELECT login, reason FROM giveaway_refusals WHERE giveaway_id = ? AND announced = 0
+		rows, err = tx.QueryContext(ctx, `SELECT platform, login, reason FROM giveaway_refusals WHERE giveaway_id = ? AND announced = 0
 			ORDER BY refused_at, login`, g.ID)
 		if err != nil {
 			return err
 		}
 		for rows.Next() {
-			var n, reason string
-			_ = rows.Scan(&n, &reason)
-			if refused[reason] == nil {
-				reasons = append(reasons, reason)
+			var platform, n, reason string
+			_ = rows.Scan(&platform, &n, &reason)
+			key := platform + "\x00" + reason
+			if refused[key] == nil {
+				reasons = append(reasons, key)
 			}
-			refused[reason] = append(refused[reason], "@"+n)
+			refused[key] = append(refused[key], "@"+n)
 		}
 		_ = rows.Close()
-		for _, reason := range reasons {
-			for _, batch := range batches(refused[reason], refusalWords(g, reason)) {
-				if err := s.say(ctx, tx, g, batch); err != nil {
+		for _, key := range reasons {
+			platform, reason, _ := strings.Cut(key, "\x00")
+			for _, batch := range batchesFor(platform, refused[key], refusalWords(g, reason)) {
+				if err := s.sayTo(ctx, tx, g, platform, batch); err != nil {
 					return err
 				}
 			}
@@ -391,8 +420,21 @@ func (s *Service) ackLocked(ctx context.Context, force bool) {
 	}
 }
 
+// batchesFor joins names into messages that fit one platform's chat:
+// YouTube's box takes 200 characters.
+func batchesFor(platform string, names []string, tail string) []string {
+	if platform == "youtube" {
+		return batchesOf(names, tail, youtube.MaxPartRunes)
+	}
+	return batches(names, tail)
+}
+
 // batches joins names into messages that fit chat, each ending in tail.
 func batches(names []string, tail string) []string {
+	return batchesOf(names, tail, twitch.MaxChatRunes)
+}
+
+func batchesOf(names []string, tail string, limit int) []string {
 	var out []string
 	cur := ""
 	for _, n := range names {
@@ -400,7 +442,7 @@ func batches(names []string, tail string) []string {
 		if cur != "" {
 			next = cur + ", " + n
 		}
-		if len([]rune(next+tail)) > twitch.MaxChatRunes-10 && cur != "" {
+		if len([]rune(next+tail)) > limit-10 && cur != "" {
 			out = append(out, cur+tail)
 			next = n
 		}
@@ -433,10 +475,10 @@ func (s *Service) send(ctx context.Context) {
 // sendOne sends the oldest queued message. It reports whether to go on.
 func (s *Service) sendOne(ctx context.Context) bool {
 	var id int64
-	var gid, text, created string
+	var gid, text, created, platform string
 	var after sql.NullString
-	err := s.db.QueryRowContext(ctx, `SELECT id, giveaway_id, text, created_at, send_after FROM giveaway_messages WHERE state = 'queued'
-		ORDER BY id LIMIT 1`).Scan(&id, &gid, &text, &created, &after)
+	err := s.db.QueryRowContext(ctx, `SELECT id, giveaway_id, text, created_at, send_after, platform FROM giveaway_messages WHERE state = 'queued'
+		ORDER BY id LIMIT 1`).Scan(&id, &gid, &text, &created, &after, &platform)
 	if err != nil {
 		return false
 	}
@@ -471,6 +513,28 @@ func (s *Service) sendOne(ctx context.Context) bool {
 		return true
 	}
 	sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+	if platform == "youtube" {
+		err = errors.New("YouTube isn't set up")
+		if s.yt != nil {
+			_, err = s.yt.SendChat(sctx, youtube.SendRequest{Text: text, Workflow: "giveaway:" + gid})
+		}
+		cancel()
+		switch {
+		case err == nil:
+			set("sent", "")
+			return true
+		case errors.Is(err, youtube.ErrRateLimited):
+			set("queued", "")
+			return false
+		case errors.Is(err, youtube.ErrNotLive), errors.Is(err, youtube.ErrNotSignedIn), errors.Is(err, youtube.ErrInvalid),
+			errors.Is(err, youtube.ErrQuotaExhausted), s.yt == nil:
+			set("failed", err.Error())
+		default:
+			set("unknown", "YouTube didn't answer clearly, so it may or may not be in chat: "+err.Error())
+		}
+		s.log.Warn("a giveaway message wasn't sent to YouTube", "err", err)
+		return true
+	}
 	_, err = s.tw.SendChat(sctx, twitch.SendRequest{Text: text, Workflow: "giveaway:" + gid})
 	cancel()
 	var drop *twitch.DropError

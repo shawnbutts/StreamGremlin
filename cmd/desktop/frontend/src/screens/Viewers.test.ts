@@ -60,11 +60,56 @@ function engine(opts: { short?: boolean } = {}) {
 }
 
 describe('Viewers', () => {
+  it('links a Twitch viewer to their YouTube account after asking, and unlinks (D-101)', async () => {
+    const tube: Viewer = { id: 'v_yt', platform: 'youtube', user_id: 'UCann', login: 'ann.yt', display_name: '@Ann.YT', first_seen: now, last_seen: now, messages: 3, balance: 7 };
+    let linked = false;
+    const calls = mockFetch({
+      '/v1/points': () => ({ status: 200, body: view }),
+      '/v1/viewers': () => ({ status: 200, body: { viewers: [ann, tube] } }),
+      '/v1/viewers/v_ann': () => ({
+        status: 200,
+        body: detail(linked ? { balance: 57, link: { id: 'l1', with: tube, linked_at: now, linked_by: 'the app' } } : {}),
+      }),
+      '/v1/viewers/v_ann/link': (method) => {
+        linked = method === 'POST';
+        return { status: 200, body: ann };
+      },
+    });
+    const el = start();
+    await settle(30);
+    expect(el.textContent).toContain('YouTube · 7 points');
+    button(el, 'Ann')!.click();
+    await settle(30);
+    expect(el.textContent).toContain('Not linked.');
+    typed(field(el, 'Their name on YouTube'), 'ann');
+    await settle(30);
+    const list = el.querySelector('[aria-label="Accounts to link"]')!;
+    expect(list.textContent).toContain('@Ann.YT');
+    expect(list.textContent).not.toContain('Ann 50'); // only the other platform
+    button(list, 'Link…')!.click();
+    flushSync();
+    expect(document.body.textContent).toContain('@Ann.YT’s 7 points join Ann’s 50');
+    expect(calls.some((c) => c.path === '/v1/viewers/v_ann/link')).toBe(false);
+    button(document.body, 'Link')!.click();
+    await settle(30);
+    expect(calls.find((c) => c.path === '/v1/viewers/v_ann/link')).toMatchObject({ method: 'POST', body: { with: 'v_yt' } });
+    expect(el.textContent).toContain('57 points, shared with @Ann.YT on YouTube');
+    expect(el.textContent!.replace(/\s+/g, ' ')).toContain('Linked to @Ann.YT on YouTube by the app');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+    button(el, 'Unlink…')!.click();
+    flushSync();
+    expect(document.body.textContent).toContain('stay with the Twitch account');
+    button(document.body, 'Unlink')!.click();
+    await settle(30);
+    expect(calls.some((c) => c.path === '/v1/viewers/v_ann/link' && c.method === 'DELETE')).toBe(true);
+  });
+
   it('shows who holds how many, a viewer’s history, and gives points with a request id and a reason', async () => {
     const calls = engine();
     const el = start();
     await settle(30);
-    expect(el.textContent).toContain('50 points · last seen');
+    expect(el.textContent!.replace(/\s+/g, ' ')).toContain('Twitch · 50 points · last seen');
     button(el, 'Ann')!.click();
     await settle(30);
     expect(el.textContent).toContain('First seen');

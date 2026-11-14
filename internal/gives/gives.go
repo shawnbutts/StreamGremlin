@@ -299,9 +299,14 @@ func (s *Service) Give(ctx context.Context, r Request) (Give, error) {
 		if err != nil {
 			return Give{}, err
 		}
-		if !seen[v.ID] {
-			seen[v.ID] = true
-			ids = append(ids, v.ID)
+		// One person linked on two platforms is given to once (D-101).
+		holder, err := s.o.Points.Owner(ctx, v.ID)
+		if err != nil {
+			return Give{}, err
+		}
+		if !seen[holder] {
+			seen[holder] = true
+			ids = append(ids, holder)
 		}
 	}
 	g := Give{ID: newID(), Audience: r.Audience, Minutes: r.Minutes, Words: r.Words(), Amount: r.Amount, Memo: r.Reason, By: r.By,

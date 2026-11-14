@@ -28,6 +28,9 @@ func registerPoints(reg *workflow.Registry, vs *viewers.Service, ledger *points.
 			if errors.Is(err, viewers.ErrNotFound) {
 				return v, fmt.Errorf("StreamGremlin hasn't seen %s in chat yet", name)
 			}
+			if errors.Is(err, viewers.ErrAmbiguous) {
+				return v, fmt.Errorf("%s is someone on Twitch and someone else on YouTube: they can !link, or you can link them on the Viewers screen", name)
+			}
 			return v, err
 		}
 		a := c.Viewer()

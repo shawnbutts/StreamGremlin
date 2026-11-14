@@ -24,8 +24,13 @@ const viewersUsage = `usage:
   streamgremlin viewers export ID|@NAME   everything kept about them, as JSON
   streamgremlin viewers forget ID|@NAME   blank their account and names; their points history stays, unnamed
   streamgremlin viewers export-all        everything kept about every viewer, as JSON (forgotten viewers unnamed)
+  streamgremlin viewers link ID|@NAME ID|@NAME
+                                          one person's Twitch and YouTube accounts: they share one points balance
+  streamgremlin viewers unlink ID|@NAME   undo a link; the shared points stay on Twitch, YouTube starts from 0
 
-Viewers are recorded from your real chat and events, never test events.`
+Viewers are recorded from your real Twitch and YouTube chat and events, never test events.
+A YouTube viewer's @NAME is their @handle. When a name is someone on Twitch and someone else
+on YouTube, use the ID (from streamgremlin viewers NAME).`
 
 const pointsUsage = `usage:
   streamgremlin points                    how many viewers hold how many, and the top 25
@@ -42,7 +47,7 @@ const pointsUsage = `usage:
   streamgremlin points earning            how viewers earn points
   streamgremlin points earning on|off
   streamgremlin points earning set NAME=N ...
-        chat=N every=SECONDS live-only=yes|no follow=N tier1=N tier2=N tier3=N gift=N bits=N
+        chat=N every=SECONDS live-only=yes|no follow=N tier1=N tier2=N tier3=N gift=N bits=N superchat=N
         time=yes|no time-every=MINUTES time-active=N time-window=MINUTES time-quiet=N
         (gift is per sub gifted, bits per 100 bits; 0 turns a rule off. Time in chat pays, every
         time-every minutes while you're live, time-active to viewers who chatted in the last
@@ -68,12 +73,24 @@ func findViewer(ctx context.Context, c interface {
 	if code := apiExit(c.Do(ctx, "GET", "/v1/viewers?q="+url.QueryEscape(name), nil, &out), stderr); code != 0 {
 		return api.ViewerView{}, code
 	}
+	var found []api.ViewerView
 	for _, v := range out.Viewers {
-		if v.Login == name {
-			return v, 0
+		if v.Login == name && (len(found) == 0 || found[0].Platform != v.Platform) {
+			found = append(found, v)
 		}
 	}
-	fmt.Fprintf(stderr, "StreamGremlin hasn't seen %s in chat.\n", who)
+	switch {
+	case len(found) == 0:
+		fmt.Fprintf(stderr, "StreamGremlin hasn't seen %s in chat.\n", who)
+		return api.ViewerView{}, 1
+	case len(found) == 1, found[0].Link != nil && found[0].Link.With.ID == found[1].ID:
+		if found[0].Platform != "twitch" && len(found) > 1 {
+			return found[1], 0 // linked: the Twitch viewer holds the points
+		}
+		return found[0], 0
+	}
+	fmt.Fprintf(stderr, "%s is someone on Twitch and someone else on YouTube: use the ID (%s on %s, %s on %s).\n", who,
+		found[0].ID, platformName(found[0].Platform), found[1].ID, platformName(found[1].Platform))
 	return api.ViewerView{}, 1
 }
 
@@ -111,6 +128,29 @@ func viewersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		printCard(stdout, v, card)
 		return 0
 	}
+	if (len(args) == 3 && args[0] == "link") || (len(args) == 2 && args[0] == "unlink") {
+		v, code := findViewer(ctx, c, args[1], stderr)
+		if code != 0 {
+			return code
+		}
+		var res api.ViewerView
+		if args[0] == "unlink" {
+			if code := apiExit(c.Do(ctx, "DELETE", "/v1/viewers/"+url.PathEscape(v.ID)+"/link", nil, &res), stderr); code != 0 {
+				return code
+			}
+			fmt.Fprintf(stdout, "Unlinked %s. The shared points stay on Twitch; on YouTube they start from 0.\n", v.DisplayName)
+			return 0
+		}
+		other, code := findViewer(ctx, c, args[2], stderr)
+		if code != 0 {
+			return code
+		}
+		if code := apiExit(c.Do(ctx, "POST", "/v1/viewers/"+url.PathEscape(v.ID)+"/link", map[string]string{"with": other.ID}, &res), stderr); code != 0 {
+			return code
+		}
+		fmt.Fprintf(stdout, "Linked %s and %s: they share %d points.\n", v.DisplayName, other.DisplayName, res.Balance)
+		return 0
+	}
 	if len(args) == 2 && (args[0] == "show" || args[0] == "export" || args[0] == "forget") {
 		v, code := findViewer(ctx, c, args[1], stderr)
 		if code != 0 {
@@ -139,8 +179,11 @@ func viewersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		if code := apiExit(c.Do(ctx, "GET", path, nil, &d), stderr); code != 0 {
 			return code
 		}
-		fmt.Fprintf(stdout, "%s (@%s, %s): %d points, %d chat messages; first seen %s, last seen %s\n", d.DisplayName, d.Login, d.ID, d.Balance,
-			d.Messages, d.FirstSeen.Local().Format("Jan 2 2006"), d.LastSeen.Local().Format("Jan 2 15:04"))
+		fmt.Fprintf(stdout, "%s (@%s on %s, %s): %d points, %d chat messages; first seen %s, last seen %s\n", d.DisplayName, d.Login,
+			platformName(d.Platform), d.ID, d.Balance, d.Messages, d.FirstSeen.Local().Format("Jan 2 2006"), d.LastSeen.Local().Format("Jan 2 15:04"))
+		if d.Link != nil {
+			fmt.Fprintf(stdout, "Linked to %s on %s (%s): they share these points.\n", d.Link.With.DisplayName, platformName(d.Link.With.Platform), d.Link.With.ID)
+		}
 		for _, t := range d.History {
 			undone := ""
 			if t.ReversedBy != "" {
@@ -168,7 +211,12 @@ func viewersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "No viewers yet.")
 	}
 	for _, v := range out.Viewers {
-		fmt.Fprintf(stdout, "%-24s %8d points  last seen %s  %s\n", v.DisplayName, v.Balance, v.LastSeen.Local().Format("Jan 2 15:04"), v.ID)
+		linked := ""
+		if v.Link != nil {
+			linked = "  linked to " + v.Link.With.DisplayName
+		}
+		fmt.Fprintf(stdout, "%-24s %-7s %8d points  last seen %s  %s%s\n", v.DisplayName, platformName(v.Platform), v.Balance,
+			v.LastSeen.Local().Format("Jan 2 15:04"), v.ID, linked)
 	}
 	return 0
 }
@@ -359,7 +407,7 @@ func earningCmd(ctx context.Context, c interface {
 					return 2
 				}
 				dst := map[string]*int64{"chat": &r.Chat.Amount, "follow": &r.Follow, "tier1": &r.Sub.Tier1, "tier2": &r.Sub.Tier2,
-					"tier3": &r.Sub.Tier3, "gift": &r.Gift, "bits": &r.Bits, "time-active": &r.Time.Active, "time-quiet": &r.Time.Quiet}[k]
+					"tier3": &r.Sub.Tier3, "gift": &r.Gift, "bits": &r.Bits, "superchat": &r.SuperChat, "time-active": &r.Time.Active, "time-quiet": &r.Time.Quiet}[k]
 				switch {
 				case k == "every":
 					r.Chat.EverySeconds = int(n)
@@ -409,6 +457,7 @@ func earningCmd(ctx context.Context, c interface {
 	fmt.Fprintf(stdout, "  a sub          %d tier 1, %d tier 2, %d tier 3 (resubs too; gifted subs earn for the gifter)\n", r.Sub.Tier1, r.Sub.Tier2, r.Sub.Tier3)
 	fmt.Fprintf(stdout, "  a gifted sub   %d each, to the gifter\n", r.Gift)
 	fmt.Fprintf(stdout, "  100 bits       %d\n", r.Bits)
+	fmt.Fprintf(stdout, "  Super Chat     %d (YouTube; any amount)\n", r.SuperChat)
 	return 0
 }
 

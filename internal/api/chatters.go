@@ -44,8 +44,8 @@ func chatterRoutes(d Deps) []Route {
 		Summary: "A viewer card for a chatter: what Twitch says now (account, follow, subscription, VIP, moderator, banned; " +
 			"each fact it couldn't read is listed as unknown, with why), StreamGremlin's record and points, and their newest " +
 			"10 chat messages, what was done to them from StreamGremlin, and Twitch's newest suspicious-user flag on them. ?test=1 is for a test chatter: Twitch isn't asked and test messages are listed. " +
-			"For platform youtube: their newest messages, what was done to them from StreamGremlin, and youtube_ban, the ban or " +
-			"timeout made from StreamGremlin that can be undone (YouTube lists no bans).",
+			"For platform youtube: their record and points (shared when linked to a Twitch viewer), newest messages, what was done " +
+			"to them from StreamGremlin, and youtube_ban, the ban or timeout made from StreamGremlin that can be undone (YouTube lists no bans).",
 		Permission: PermViewersRead,
 		Handler: func(w http.ResponseWriter, r *http.Request) {
 			platform, id := r.PathValue("platform"), r.PathValue("user_id")
@@ -53,9 +53,9 @@ func chatterRoutes(d Deps) []Route {
 				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "platform must be twitch or youtube")
 				return
 			}
-			// A YouTube chatter's card has their newest messages and what was
-			// done from StreamGremlin (D-100); YouTube has no facts to ask
-			// about one viewer. Points come in M6 slice 6.
+			// A YouTube chatter's card has their record and points (D-101), newest
+			// messages and what was done from StreamGremlin (D-100); YouTube has
+			// no facts to ask about one viewer.
 			yt := platform == events.SourceYouTube
 			if id == "" || len(id) > 64 {
 				writeError(w, http.StatusBadRequest, CodeInvalidRequest, "user_id must be 1 to 64 characters")
@@ -78,7 +78,7 @@ func chatterRoutes(d Deps) []Route {
 				}
 				out.Twitch = &c
 			}
-			if !test && !yt && d.Viewers != nil {
+			if !test && d.Viewers != nil {
 				v, err := d.Viewers.ByAccount(r.Context(), platform, id)
 				switch {
 				case err == nil:
@@ -87,7 +87,7 @@ func chatterRoutes(d Deps) []Route {
 						internalError(w, r, d.Logger, err)
 						return
 					}
-					out.Viewer = &ViewerView{Viewer: v, Balance: b}
+					out.Viewer = &ViewerView{Viewer: v, Balance: b, Link: linkOf(r, d, v)}
 				case !errors.Is(err, viewers.ErrNotFound):
 					internalError(w, r, d.Logger, err)
 					return

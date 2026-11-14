@@ -121,6 +121,7 @@
     r.follow = whole(r.follow);
     r.gift = whole(r.gift);
     r.bits = whole(r.bits);
+    r.super_chat = whole(r.super_chat ?? 0);
     let saved: EarningRules | undefined;
     if (await act(async () => (saved = (await setEarning(r)).rules), r.on ? 'Saved. Viewers earn from now on.' : 'Saved. Earning is off.')) rules = saved;
   }
@@ -334,8 +335,14 @@
           <label class="field inline-field"><span>Tier 3 sub</span><input class="sg-input" type="number" min="0" bind:value={rules.sub.tier3} /></label>
           <label class="field inline-field"><span>Each sub gifted (to the gifter)</span><input class="sg-input" type="number" min="0" bind:value={rules.gift} /></label>
           <label class="field inline-field"><span>Each 100 bits</span><input class="sg-input" type="number" min="0" bind:value={rules.bits} /></label>
+          <label class="field inline-field"
+            ><span>Each YouTube Super Chat or Super Sticker</span><input class="sg-input" type="number" min="0" bind:value={rules.super_chat} /></label
+          >
         </div>
-        <p class="sg-muted">Resubs earn the same as subs. A gifted sub earns for the gifter, not the viewer who gets it.</p>
+        <p class="sg-muted">
+          Resubs earn the same as subs. A gifted sub earns for the gifter, not the viewer who gets it. YouTube members earn as tier 1 subs, and
+          gifted memberships as gifted subs. A Super Chat earns the same whatever its amount, since amounts come in many currencies.
+        </p>
       </fieldset>
       <button type="submit" class="sg-button" disabled={busy}>Save</button>
     </form>

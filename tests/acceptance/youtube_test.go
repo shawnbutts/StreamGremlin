@@ -416,3 +416,111 @@ func TestYouTubeModerationThroughTheCLI(t *testing.T) {
 	})
 	ok("Linker", "filters")
 }
+
+// YouTube viewers and points through the real engine, CLI, mocktwitch and
+// mockyoutube (M6 slice 6, D-101): YouTube chat earns, !link proves one
+// person's two accounts in chat, the balances join, @name finds them once
+// linked (and refuses to guess before), and unlinking leaves the points on
+// Twitch.
+func TestYouTubeViewersAndLinkThroughTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	yt := mockyoutube.New()
+	ytSrv := mockyoutube.Serve(yt)
+	t.Cleanup(ytSrv.Close)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL, "-youtube-url", ytSrv.URL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	if _, errOut, code := cli(t, dir, "youtube", "client", ytClientID); code != 0 {
+		t.Fatal(errOut)
+	}
+	if out, code := youtubeSignIn(t, dir, "UCstreamer"); code != 0 {
+		t.Fatal(code, out)
+	}
+	ok := func(want string, args ...string) string {
+		t.Helper()
+		out, errOut, code := cli(t, dir, args...)
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("%v: %d %s %s", args, code, out, errOut)
+		}
+		return out
+	}
+	ok("on", "points", "earning", "on")
+	ok("", "points", "earning", "set", "chat=5", "every=0", "live-only=no")
+	tmpl, _, _ := cli(t, dir, "templates", "show", "link")
+	if out, errOut, code := cli(t, dir, "workflows", "save", writeFile(t, t.TempDir(), "link.json", tmpl)); code != 0 {
+		t.Fatal(out, errOut)
+	}
+	ok("", "workflows", "on", "chat.link")
+	b := yt.GoLive("UCstreamer", "Both")
+	ok("reading chat", "youtube", "find")
+	eventually(t, "Twitch chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not yet"
+		}
+		return ""
+	})
+	tw.Say("streamer", "ann", "hello from Twitch")
+	yt.Say(b.ChatID, "UCann", "@Ann", "hello from YouTube")
+	eventually(t, "both viewers with points", func() string {
+		out, _, _ := cli(t, dir, "viewers", "ann")
+		if !regexp.MustCompile(`Twitch\s+5 points`).MatchString(out) || !regexp.MustCompile(`YouTube\s+5 points`).MatchString(out) {
+			return out
+		}
+		return ""
+	})
+	// Before linking, @ann is two people: nobody is guessed.
+	if _, errOut, code := cli(t, dir, "points", "give", "@ann", "1"); code == 0 || !strings.Contains(errOut, "someone else on YouTube") {
+		t.Fatal("guessed:", code, errOut)
+	}
+
+	tw.Say("streamer", "ann", "!link @ann")
+	var code string
+	eventually(t, "a code on Twitch", func() string {
+		for _, m := range tw.ChatLog() {
+			if m := regexp.MustCompile(`type !link (\d{6}) in YouTube chat as @ann`).FindStringSubmatch(m.Text); m != nil {
+				code = m[1]
+				return ""
+			}
+		}
+		return fmt.Sprintf("%+v", tw.ChatLog())
+	})
+	yt.Say(b.ChatID, "UCimpostor", "@Someone", "!link "+code) // someone else who read it: nothing
+	yt.Say(b.ChatID, "UCann", "@Ann", "!link "+code)
+	eventually(t, "linked, said on YouTube", func() string {
+		for _, m := range yt.Sent() {
+			if strings.Contains(m.Text, "Linked! ann on Twitch and @Ann on YouTube now share one points balance.") {
+				return ""
+			}
+		}
+		return fmt.Sprintf("%+v", yt.Sent())
+	})
+	for _, m := range yt.Sent() {
+		if strings.Contains(m.Text, "@Someone") && strings.Contains(m.Text, "Linked") {
+			t.Fatal("the impostor linked")
+		}
+	}
+	// One shared balance, found by @ann now.
+	ok("Linked to @Ann on YouTube", "viewers", "show", "@ann")
+	ok("ann now has 120.", "points", "give", "@ann", "100")
+	// Each account shows the one shared balance: 5 + 5 for hello, 5 + 5 for
+	// !link, and the 100.
+	shared := regexp.MustCompile(`(?m)^(ann|@Ann)\s+(Twitch|YouTube)\s+(\d+) points.*linked to`)
+	eventually(t, "the shared balance", func() string {
+		out, _, _ := cli(t, dir, "viewers", "ann")
+		m := shared.FindAllStringSubmatch(out, -1)
+		if len(m) != 2 || m[0][3] != m[1][3] || m[0][3] != "120" {
+			return out
+		}
+		return ""
+	})
+	ok("Unlinked", "viewers", "unlink", "@ann")
+	out := ok("", "viewers", "ann")
+	if !regexp.MustCompile(`Twitch\s+120 points`).MatchString(out) || !regexp.MustCompile(`YouTube\s+0 points`).MatchString(out) ||
+		strings.Contains(out, "linked to") {
+		t.Fatal("after unlinking, the points stay on Twitch and YouTube starts again:", out)
+	}
+	ok("✓ Every change balances", "points", "audit")
+}

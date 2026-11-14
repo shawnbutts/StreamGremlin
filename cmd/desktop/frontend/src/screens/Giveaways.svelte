@@ -258,7 +258,7 @@
       <ol class="live-list" aria-label="Entries">
         {#each g.entries as e (e.seq)}
           <li>
-            {e.display_name}{#if (e.chances ?? 1) > 1}<span class="tag">{e.chances} chances</span>{/if} <span class="sg-muted">{eventTime(e.entered_at)}{qualifiedWords(e) ? ` · ${qualifiedWords(e)}` : ''}</span>
+            {e.display_name}{#if e.platform === 'youtube'}<span class="tag">YouTube</span>{/if}{#if (e.chances ?? 1) > 1}<span class="tag">{e.chances} chances</span>{/if} <span class="sg-muted">{eventTime(e.entered_at)}{qualifiedWords(e) ? ` · ${qualifiedWords(e)}` : ''}</span>
           </li>
         {/each}
       </ol>
@@ -281,6 +281,7 @@
         <li>
           <span aria-hidden="true">{messageIcon[m.state]}</span>
           <span class="visually-hidden">{messageWords[m.state]}:</span>
+          {#if m.platform === 'youtube'}<span class="tag">YouTube</span>{/if}
           {m.text}
           {#if m.state !== 'sent' && m.state !== 'practice'}<span class="sg-muted">({messageWords[m.state]}{m.detail ? `: ${m.detail}` : ''})</span>{/if}
         </li>
@@ -337,7 +338,11 @@
       </label>
       <fieldset class="field">
         <legend>Who can enter</legend>
-        <p class="sg-muted field-hint">These decide who may enter, never anyone’s chance.</p>
+        <p class="sg-muted field-hint">
+          These decide who may enter, never anyone’s chance. YouTube viewers can enter too, unless a rule needs Twitch to check them (followers,
+          account age, months subscribed). Someone with linked Twitch and YouTube accounts enters once; unlinked, their two accounts can’t
+          be told apart and could enter twice.
+        </p>
         <label class="choice-inline"><input type="checkbox" bind:checked={form.subs} /> Subscribers only</label>
         <label class="choice-inline"><input type="checkbox" bind:checked={rules.followers} /> Followers only</label>
         {#each RULE_FIELDS as f (f.key)}
@@ -349,7 +354,7 @@
         {/each}
       </fieldset>
       <label class="choice-inline">
-        <input type="checkbox" bind:checked={form.practice} /> Practice: only test chat from Events enters, and nothing is sent to Twitch
+        <input type="checkbox" bind:checked={form.practice} /> Practice: only test chat from Events enters, and nothing is sent to chat
       </label>
       <div class="row-actions"><button type="submit" class="sg-button" disabled={busy || !form.title.trim()}
           >{form.mode === 'chat' ? 'Draw now' : 'Open the giveaway'}</button

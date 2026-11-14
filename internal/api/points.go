@@ -7,6 +7,7 @@ import (
 
 	"code.streamgremlin.com/streamgremlin/internal/earning"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/links"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 )
@@ -22,21 +23,48 @@ func pointsError(w http.ResponseWriter, r *http.Request, d Deps, err error) {
 		writeError(w, http.StatusBadGateway, CodeUnavailable, err.Error())
 	case errors.Is(err, gives.ErrEmpty):
 		writeError(w, http.StatusConflict, CodeConflict, err.Error())
-	case errors.Is(err, points.ErrInvalid), errors.Is(err, viewers.ErrInvalid), errors.Is(err, gives.ErrInvalid):
+	case errors.Is(err, points.ErrInvalid), errors.Is(err, viewers.ErrInvalid), errors.Is(err, gives.ErrInvalid), errors.Is(err, links.ErrInvalid):
 		writeError(w, http.StatusBadRequest, CodeInvalidRequest, err.Error())
-	case errors.Is(err, points.ErrNotFound), errors.Is(err, viewers.ErrNotFound), errors.Is(err, gives.ErrNotFound):
+	case errors.Is(err, points.ErrNotFound), errors.Is(err, viewers.ErrNotFound), errors.Is(err, gives.ErrNotFound), errors.Is(err, links.ErrNotFound):
 		writeError(w, http.StatusNotFound, CodeNotFound, err.Error())
-	case errors.Is(err, points.ErrConflict), errors.Is(err, points.ErrReversed), errors.Is(err, gives.ErrConflict):
+	case errors.Is(err, points.ErrConflict), errors.Is(err, points.ErrReversed), errors.Is(err, gives.ErrConflict), errors.Is(err, links.ErrLinked),
+		errors.Is(err, viewers.ErrAmbiguous):
 		writeError(w, http.StatusConflict, CodeConflict, err.Error())
 	default:
 		internalError(w, r, d.Logger, err)
 	}
 }
 
-// ViewerView is a viewer with their balance.
+// ViewerView is a viewer with their balance: shared with the viewer
+// they're linked to, if any (D-101).
 type ViewerView struct {
 	viewers.Viewer
 	Balance int64 `json:"balance"`
+	// Link is their account on the other platform, when linked.
+	Link *ViewerLink `json:"link,omitempty"`
+}
+
+// ViewerLink is the other account of a linked viewer.
+type ViewerLink struct {
+	ID       string         `json:"id"`
+	With     viewers.Viewer `json:"with"`
+	LinkedAt time.Time      `json:"linked_at"`
+	LinkedBy string         `json:"linked_by"`
+}
+
+func linkOf(r *http.Request, d Deps, v viewers.Viewer) *ViewerLink {
+	if d.Links == nil {
+		return nil
+	}
+	l, err := d.Links.Of(r.Context(), v.ID)
+	if err != nil {
+		return nil
+	}
+	with := l.YouTube
+	if v.ID == l.YouTube.ID {
+		with = l.Twitch
+	}
+	return &ViewerLink{ID: l.ID, With: with, LinkedAt: l.LinkedAt, LinkedBy: l.LinkedBy}
 }
 
 // ViewerDetail is a viewer with their balance and points history.
@@ -93,7 +121,7 @@ type EarningView struct {
 func pointsRoutes(d Deps) []Route {
 	view := func(r *http.Request, v viewers.Viewer) ViewerView {
 		b, _ := d.Points.Balance(r.Context(), v.ID, "")
-		return ViewerView{Viewer: v, Balance: b}
+		return ViewerView{Viewer: v, Balance: b, Link: linkOf(r, d, v)}
 	}
 	return []Route{
 		{
@@ -189,12 +217,70 @@ func pointsRoutes(d Deps) []Route {
 				"ledger still adds up. If the account takes part again, it's a new viewer.",
 			Permission: PermViewersWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
+				// A forgotten viewer is unlinked first; the shared points stay on Twitch.
+				if d.Links != nil {
+					if _, err := d.Links.Unlink(r.Context(), r.PathValue("id"), "forgetting the viewer"); err != nil && !errors.Is(err, links.ErrNotFound) {
+						pointsError(w, r, d, err)
+						return
+					}
+				}
 				v, err := d.Viewers.Forget(r.Context(), r.PathValue("id"))
 				if err != nil {
 					pointsError(w, r, d, err)
 					return
 				}
 				writeJSON(w, http.StatusOK, v)
+			},
+		},
+		{
+			Method: "POST", Path: "/v1/viewers/{id}/link",
+			Summary: "Link a viewer to their account on the other platform {with: viewer id}: one Twitch viewer and one YouTube " +
+				"viewer, neither linked already. They share one points balance from now on: the YouTube viewer's points join the " +
+				"Twitch viewer's (D-101). 409 when either is linked already.",
+			Permission: PermViewersWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				var in struct {
+					With string `json:"with"`
+				}
+				if !decodeJSON(w, r, &in) {
+					return
+				}
+				if d.Links == nil {
+					writeError(w, http.StatusServiceUnavailable, CodeUnavailable, "linking isn't available")
+					return
+				}
+				if _, err := d.Links.Link(r.Context(), r.PathValue("id"), in.With, "the app"); err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				v, err := d.Viewers.Get(r.Context(), r.PathValue("id"))
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, view(r, v))
+			},
+		},
+		{
+			Method: "DELETE", Path: "/v1/viewers/{id}/link",
+			Summary: "Unlink a viewer from their account on the other platform. The shared points stay with the Twitch viewer; " +
+				"the YouTube viewer starts again from 0.",
+			Permission: PermViewersWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				if d.Links == nil {
+					writeError(w, http.StatusServiceUnavailable, CodeUnavailable, "linking isn't available")
+					return
+				}
+				if _, err := d.Links.Unlink(r.Context(), r.PathValue("id"), "the app"); err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				v, err := d.Viewers.Get(r.Context(), r.PathValue("id"))
+				if err != nil {
+					pointsError(w, r, d, err)
+					return
+				}
+				writeJSON(w, http.StatusOK, view(r, v))
 			},
 		},
 		{

@@ -29,17 +29,18 @@ func TestStreamSummary(t *testing.T) {
 	inbox := events.NewInbox(db, nil)
 	start := time.Date(2026, 11, 13, 18, 0, 0, 0, time.UTC)
 	n := 0
+	source := "twitch"
 	add := func(typ string, at time.Duration, who string, payload map[string]any, test bool) {
 		t.Helper()
 		n++
 		raw, _ := json.Marshal(payload)
-		e := events.Envelope{Type: typ, Source: "twitch", SourceEventID: "e" + strconv.Itoa(n), OccurredAt: start.Add(at), Payload: raw,
+		e := events.Envelope{Type: typ, Source: source, SourceEventID: "e" + strconv.Itoa(n), OccurredAt: start.Add(at), Payload: raw,
 			DeliveryQuality: events.Confirmed}
 		if test {
 			e.DeliveryQuality = events.Synthetic
 		}
 		if who != "" {
-			e.Actor = &events.Actor{Platform: "twitch", ID: who, Login: who, DisplayName: who}
+			e.Actor = &events.Actor{Platform: source, ID: who, Login: who, DisplayName: who}
 		}
 		if _, err := inbox.Accept(ctx, e); err != nil {
 			t.Fatal(err)
@@ -67,13 +68,24 @@ func TestStreamSummary(t *testing.T) {
 	add("chat.message.received", 7*time.Minute, "a", map[string]any{"chatter": map[string]any{"role": "viewer"}}, false)
 	add("chat.command.received", 7*time.Minute, "b", map[string]any{"chatter": map[string]any{"role": "vip"}}, false)
 	add("chat.message.received", 8*time.Minute, "me", map[string]any{"chatter": map[string]any{"role": "broadcaster"}}, false)
+	// YouTube, alongside (D-101): its own counts, its chatters with Twitch's;
+	// its going offline doesn't end the summary.
+	source = "youtube"
+	add("chat.message.received", 9*time.Minute, "a", map[string]any{"chatter": map[string]any{"role": "viewer"}}, false)
+	add("chat.message.received", 9*time.Minute, "y", map[string]any{"chatter": map[string]any{"role": "viewer"}, "backlog": true}, false)
+	add("monetization.subscription.started", 9*time.Minute, "m", map[string]any{"tier": 0}, false)
+	add("monetization.subscription.gifted", 9*time.Minute, "m", map[string]any{"total": 3}, false)
+	add("monetization.super_chat.received", 9*time.Minute, "s", map[string]any{"amount": 5}, false)
+	add("broadcast.channel.offline", 10*time.Minute, "", map[string]any{}, false)
+	source = "twitch"
 
 	out, err := summarize(ctx, inbox, start.Add(90*time.Minute))
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{"state": "live", "duration": "1 hour 30 minutes", "follows": int64(2), "subs": int64(2), "gifted_subs": int64(5),
-		"bits": int64(350), "raids": int64(1), "raiders": int64(42), "chatters": 2, "messages": int64(3)}
+		"bits": int64(350), "raids": int64(1), "raiders": int64(42), "chatters": 3, "messages": int64(4),
+		"youtube_chatters": 1, "members": int64(1), "gifted_memberships": int64(3), "super_chats": int64(1)}
 	for k, v := range want {
 		if out[k] != v {
 			t.Errorf("%s: %v, want %v", k, out[k], v)

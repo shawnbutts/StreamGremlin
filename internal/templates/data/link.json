@@ -1,0 +1,43 @@
+{
+  "template": {
+    "id": "link",
+    "title": "Link Twitch and YouTube",
+    "category": "Chat commands",
+    "description": "!link lets a viewer share one points balance between their Twitch and YouTube accounts. On one platform they type !link with their name on the other (a Twitch name, or a YouTube @handle) and get a code; that account types !link and the code within 10 minutes.",
+    "starter": false,
+    "blanks": []
+  },
+  "workflow": {
+    "schema": "streamgremlin.workflow/v1",
+    "id": "chat.link",
+    "name": "Link Twitch and YouTube",
+    "group": "Points",
+    "triggers": [
+      {
+        "type": "chat.command.received",
+        "where": {
+          "command": "link"
+        }
+      }
+    ],
+    "queue": {
+      "policy": "serial",
+      "max_pending": 10
+    },
+    "steps": [
+      {
+        "id": "link",
+        "action": "viewers.link",
+        "with": {
+          "text": "${event.payload.args}"
+        }
+      },
+      {
+        "action": "chat.send",
+        "with": {
+          "message": "@${event.actor.display_name}, ${steps.link.output.message}"
+        }
+      }
+    ]
+  }
+}

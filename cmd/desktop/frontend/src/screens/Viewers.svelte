@@ -3,7 +3,9 @@
   // your real chat and events, never test events. Find one, see their
   // record and points history, give or take points, undo a change once,
   // export their record or everyone's, and forget them. Its own screen
-  // because viewers are about more than points (D-060).
+  // because viewers are about more than points (D-060). Twitch and YouTube
+  // viewers are listed alike; one person's two accounts can be linked to
+  // share one balance (D-101).
   import { onMount } from 'svelte';
   import {
     ApiError,
@@ -14,7 +16,9 @@
     getPoints,
     getViewer,
     getViewers,
+    linkViewer,
     saveFile,
+    unlinkViewer,
     undoPoints,
     type PointsTransaction,
     type Viewer,
@@ -43,6 +47,38 @@
   let changeKey = key();
   let undoing = $state<PointsTransaction | undefined>();
   let forgetting = $state<ViewerDetail | undefined>();
+  // Linking (D-101): find their account on the other platform, then ask.
+  let linkQuery = $state('');
+  let linkFound = $state<Viewer[]>([]);
+  let linking = $state<{ a: ViewerDetail; b: Viewer } | undefined>();
+  let unlinking = $state<ViewerDetail | undefined>();
+  const where = (p: string) => (p === 'youtube' ? 'YouTube' : 'Twitch');
+
+  async function findOther() {
+    const v = chosen;
+    if (!v || !linkQuery.trim()) {
+      linkFound = [];
+      return;
+    }
+    try {
+      linkFound = (await getViewers(linkQuery.trim())).viewers.filter((x) => x.platform !== v.platform && !x.link).slice(0, 8);
+    } catch (e) {
+      error = message(e);
+    }
+  }
+
+  async function link(a: ViewerDetail, b: Viewer) {
+    linking = undefined;
+    if (await act(() => linkViewer(a.id, b.id), `Linked ${a.display_name} and ${b.display_name}: they share one ${name} balance.`)) {
+      linkQuery = '';
+      linkFound = [];
+    }
+  }
+
+  async function unlink(v: ViewerDetail) {
+    unlinking = undefined;
+    await act(() => unlinkViewer(v.id), `Unlinked. The shared ${name} stay on Twitch; on YouTube they start from 0.`);
+  }
 
   const kindWords: Record<string, string> = { credit: 'earned', debit: 'spent', adjust: 'by hand', reverse: 'undo' };
   const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -138,8 +174,9 @@
 
 <h1>Viewers</h1>
 <p class="sg-muted screen-intro">
-  Everyone who has chatted, followed, subscribed or cheered, recorded from your real chat and events, never from test events. Chat text
-  isn’t kept. Export a viewer’s record, or everyone’s, and forget a viewer who asks.
+  Everyone who has chatted, followed, subscribed or cheered, on Twitch or YouTube, recorded from your real chat and events, never from
+  test events. Chat text isn’t kept. Export a viewer’s record, or everyone’s, and forget a viewer who asks. One person’s Twitch and
+  YouTube accounts can be linked to share one {name} balance: by you here, or by them with <code>!link</code> (from Templates).
 </p>
 
 {#if loadError}
@@ -162,7 +199,10 @@
     {#each found as v (v.id)}
       <li>
         <button type="button" class="link-button" onclick={() => open(v)}>{v.display_name}</button>
-        <span class="sg-muted">{v.balance} {name} · last seen {eventTime(v.last_seen)}</span>
+        <span class="sg-muted"
+          >{where(v.platform)} · {v.balance} {name}{v.link ? ` (shared with ${v.link.with.display_name} on ${where(v.link.with.platform)})` : ''} · last
+          seen {eventTime(v.last_seen)}</span
+        >
       </li>
     {/each}
   </ul>
@@ -171,12 +211,12 @@
 {#if chosen}
   {@const v = chosen}
   <section class="sg-panel card" aria-labelledby="viewer-heading" aria-busy={busy}>
-    <h2 id="viewer-heading">{v.display_name} <span class="sg-muted">{v.login ? `@${v.login}` : ''}</span></h2>
+    <h2 id="viewer-heading">{v.display_name} <span class="sg-muted">{v.login ? `@${v.login} ` : ''}on {where(v.platform)}</span></h2>
     <p class="sg-muted">
       First seen {eventTime(v.first_seen)}, last seen {eventTime(v.last_seen)}; {v.messages} chat {v.messages === 1 ? 'message' : 'messages'}.
     </p>
     <h3>{name[0].toUpperCase() + name.slice(1)}</h3>
-    <p><strong>{v.balance} {name}</strong></p>
+    <p><strong>{v.balance} {name}</strong>{v.link ? `, shared with ${v.link.with.display_name} on ${where(v.link.with.platform)}` : ''}</p>
     <form class="row-actions" onsubmit={(e) => e.preventDefault()} aria-label={`Give or take ${name}`}>
       <label class="field inline-field"><span>How many</span><input class="sg-input" type="number" min="1" bind:value={amount} /></label>
       <label class="field inline-field"><span>Reason</span><input class="sg-input" bind:value={reason} maxlength="200" placeholder="optional" /></label>
@@ -206,6 +246,37 @@
         {/each}
       </tbody>
     </table>
+    <h3>Linked account</h3>
+    {#if v.link}
+      {@const l = v.link}
+      <p>
+        Linked to <button type="button" class="link-button" onclick={() => open(l.with)}>{l.with.display_name}</button> on {where(l.with.platform)}
+        {l.linked_by === 'chat' ? 'by !link in chat' : `by ${l.linked_by}`} at {eventTime(l.linked_at)}. They share one {name} balance.
+      </p>
+      <div class="row-actions">
+        <button type="button" class="button" disabled={busy} onclick={() => (unlinking = v)}>Unlink…</button>
+      </div>
+    {:else if v.forgotten_at}
+      <p class="sg-muted">A forgotten viewer can’t be linked.</p>
+    {:else}
+      <p class="sg-muted">
+        Not linked. If they’re also on {where(v.platform === 'youtube' ? 'twitch' : 'youtube')}, find that account to share one {name} balance,
+        or they can type <code>!link</code> in chat.
+      </p>
+      <label class="field">
+        <span>Their name on {where(v.platform === 'youtube' ? 'twitch' : 'youtube')}</span>
+        <input class="sg-input" type="search" bind:value={linkQuery} oninput={findOther} placeholder="Name" />
+      </label>
+      {#if linkQuery.trim() && linkFound.length === 0}<p class="sg-muted">No one unlinked by that name on {where(v.platform === 'youtube' ? 'twitch' : 'youtube')}.</p>{/if}
+      <ul class="live-list" aria-label="Accounts to link">
+        {#each linkFound as o (o.id)}
+          <li>
+            {o.display_name} <span class="sg-muted">{o.balance} {name}</span>
+            <button type="button" class="button" disabled={busy} onclick={() => (linking = { a: v, b: o })}>Link…</button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     <div class="row-actions">
       <button type="button" class="button" disabled={busy} onclick={() => exportOne(v)}>Export their record</button>
       <button type="button" class="button button-danger" disabled={busy} onclick={() => (forgetting = v)}>Forget them</button>
@@ -226,11 +297,33 @@
     oncancel={() => (undoing = undefined)}
   />
 {/if}
+{#if linking}
+  {@const q = linking}
+  {@const yt = q.a.platform === 'youtube' ? q.a : q.b}
+  {@const tw = q.a.platform === 'youtube' ? q.b : q.a}
+  <ConfirmDialog
+    title={`Link ${q.a.display_name} and ${q.b.display_name}?`}
+    message={`Only link two accounts you know are one person. ${yt.display_name}’s ${yt.balance} ${name} join ${tw.display_name}’s ${tw.balance}: they share one balance from now on. Unlinking later leaves it all on Twitch.`}
+    confirmLabel="Link"
+    onconfirm={() => link(q.a, q.b)}
+    oncancel={() => (linking = undefined)}
+  />
+{/if}
+{#if unlinking}
+  {@const v = unlinking}
+  <ConfirmDialog
+    title={`Unlink ${v.display_name} and ${v.link?.with.display_name}?`}
+    message={`The shared ${v.balance} ${name} stay with the Twitch account; the YouTube account starts again from 0. You or they can link them again later.`}
+    confirmLabel="Unlink"
+    onconfirm={() => unlink(v)}
+    oncancel={() => (unlinking = undefined)}
+  />
+{/if}
 {#if forgetting}
   {@const v = forgetting}
   <ConfirmDialog
     title={`Forget ${v.display_name}?`}
-    message={`Their account, names and activity are blanked. Their ${name} history stays, unnamed, so the ledger still adds up. If they chat again, they start afresh.`}
+    message={`Their account, names and activity are blanked. Their ${name} history stays, unnamed, so the ledger still adds up. If they chat again, they start afresh.${v.link ? ' They’re unlinked first: the shared points stay on Twitch.' : ''}`}
     confirmLabel="Forget"
     onconfirm={() => forget(v)}
     oncancel={() => (forgetting = undefined)}

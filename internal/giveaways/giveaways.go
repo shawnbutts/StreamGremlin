@@ -31,6 +31,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/overlays"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
 
 // Limits.
@@ -195,6 +196,8 @@ type Message struct {
 	Detail    string     `json:"detail,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
 	SentAt    *time.Time `json:"sent_at,omitempty"`
+	// Platform is the chat it goes to: twitch or youtube (D-101).
+	Platform string `json:"platform"`
 }
 
 // Detail is a giveaway with everything recorded about it.
@@ -219,6 +222,19 @@ type Options struct {
 	AckEvery time.Duration
 	// Display shows giveaways on giveaway overlays (nil: none).
 	Display Display
+	// YouTube is YouTube chat (D-101): while it's being read, what's said
+	// to everyone goes there too, and YouTube entrants hear there. nil:
+	// Twitch only.
+	YouTube YouTubeChat
+	// Partner is the account linked to a viewer's (D-101): one person
+	// linked on both platforms enters once. nil: no links.
+	Partner func(ctx context.Context, platform, userID string) (events.Actor, bool, error)
+}
+
+// YouTubeChat is what giveaways need from YouTube.
+type YouTubeChat interface {
+	SendChat(ctx context.Context, req youtube.SendRequest) (youtube.SendResult, error)
+	ChatStatus() youtube.ChatStatus
 }
 
 // Service runs giveaways.
@@ -226,6 +242,8 @@ type Service struct {
 	db       *storage.DB
 	inbox    *events.Inbox
 	tw       Twitch
+	yt       YouTubeChat
+	partner  func(ctx context.Context, platform, userID string) (events.Actor, bool, error)
 	commands func([]commands.Claim) error
 	log      *slog.Logger
 	now      func() time.Time
@@ -260,7 +278,7 @@ func New(o Options) *Service {
 	if o.Commands == nil {
 		o.Commands = func([]commands.Claim) error { return nil }
 	}
-	return &Service{db: o.DB, inbox: o.Inbox, tw: o.Twitch, commands: o.Commands, log: o.Logger.With("component", "giveaways"),
+	return &Service{db: o.DB, inbox: o.Inbox, tw: o.Twitch, yt: o.YouTube, partner: o.Partner, commands: o.Commands, log: o.Logger.With("component", "giveaways"),
 		now: o.Now, ackEvery: o.AckEvery, display: o.Display, wake: make(chan struct{}, 1)}
 }
 
@@ -488,9 +506,34 @@ func (s *Service) say(ctx context.Context, tx *sql.Tx, g *Giveaway, text string)
 	return s.sayAfter(ctx, tx, g, text, nil)
 }
 
+// youtubeLive reports whether YouTube chat is being read, so it hears too.
+func (s *Service) youtubeLive() bool {
+	if s.yt == nil {
+		return false
+	}
+	c := s.yt.ChatStatus()
+	return c.Broadcast != nil && c.Broadcast.LiveChatID != ""
+}
+
+// sayTo queues a message for one platform's chat only: telling YouTube
+// entrants they're in, say.
+func (s *Service) sayTo(ctx context.Context, tx *sql.Tx, g *Giveaway, platform, text string) error {
+	return s.queue(ctx, tx, g, platform, text, nil)
+}
+
 // sayAfter queues a chat message not to be sent before after (nil: at
 // once). Later messages wait behind it, so chat keeps its order.
 func (s *Service) sayAfter(ctx context.Context, tx *sql.Tx, g *Giveaway, text string, after *time.Time) error {
+	if err := s.queue(ctx, tx, g, "twitch", text, after); err != nil {
+		return err
+	}
+	if s.youtubeLive() {
+		return s.queue(ctx, tx, g, "youtube", text, after)
+	}
+	return nil
+}
+
+func (s *Service) queue(ctx context.Context, tx *sql.Tx, g *Giveaway, platform, text string, after *time.Time) error {
 	state := "queued"
 	if g.Practice {
 		state = "practice"
@@ -498,8 +541,8 @@ func (s *Service) sayAfter(ctx context.Context, tx *sql.Tx, g *Giveaway, text st
 	if utf8.RuneCountInString(text) > twitch.MaxChatRunes {
 		text = string([]rune(text)[:twitch.MaxChatRunes-1]) + "…"
 	}
-	_, err := tx.ExecContext(ctx, "INSERT INTO giveaway_messages (giveaway_id, text, state, created_at, send_after) VALUES (?, ?, ?, ?, ?)",
-		g.ID, text, state, ts(s.now()), tsPtr(after))
+	_, err := tx.ExecContext(ctx, `INSERT INTO giveaway_messages (giveaway_id, text, state, created_at, send_after, platform)
+		VALUES (?, ?, ?, ?, ?, ?)`, g.ID, text, state, ts(s.now()), tsPtr(after), platform)
 	if err == nil && !g.Practice {
 		select {
 		case s.wake <- struct{}{}:
@@ -930,7 +973,7 @@ func (s *Service) Get(ctx context.Context, id string) (Detail, error) {
 		d.Refusals = append(d.Refusals, r)
 	}
 	_ = rows.Close()
-	mrows, err := s.db.QueryContext(ctx, `SELECT id, text, state, detail, created_at, sent_at FROM giveaway_messages
+	mrows, err := s.db.QueryContext(ctx, `SELECT id, text, state, detail, created_at, sent_at, platform FROM giveaway_messages
 		WHERE giveaway_id = ? ORDER BY id`, id)
 	if err != nil {
 		return d, err
@@ -941,7 +984,7 @@ func (s *Service) Get(ctx context.Context, id string) (Detail, error) {
 		var m Message
 		var at string
 		var sent sql.NullString
-		if err := mrows.Scan(&m.ID, &m.Text, &m.State, &m.Detail, &at, &sent); err != nil {
+		if err := mrows.Scan(&m.ID, &m.Text, &m.State, &m.Detail, &at, &sent, &m.Platform); err != nil {
 			return d, err
 		}
 		m.CreatedAt, _ = storage.ParseTimestamp(at)

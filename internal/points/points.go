@@ -168,6 +168,78 @@ func (l *Ledger) Rename(ctx context.Context, id, name string) (Currency, error) 
 	return l.Currency(ctx, c.ID)
 }
 
+// ownerSQL is who holds a viewer's points: a YouTube viewer linked to a
+// Twitch viewer shares the Twitch viewer's account (D-101); everyone else
+// holds their own. Its one argument is the viewer's id.
+const ownerSQL = `COALESCE((SELECT twitch_viewer FROM viewer_links WHERE youtube_viewer = ?1 AND unlinked_at IS NULL), ?1)`
+
+type querier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func owner(ctx context.Context, q querier, viewer string) (string, error) {
+	var o string
+	err := q.QueryRowContext(ctx, "SELECT "+ownerSQL, viewer).Scan(&o)
+	return o, err
+}
+
+// Owner is whose balance a viewer's points are in: theirs, or the Twitch
+// viewer's they're linked to. One person linked on two platforms is paid
+// once by anything that pays "each viewer".
+func (l *Ledger) Owner(ctx context.Context, viewer string) (string, error) {
+	return owner(ctx, l.db, viewer)
+}
+
+// Share joins two viewers' points, from into to, in one database
+// transaction with record (which stores the link the ledger reads): from's
+// balance in each currency moves to to, as an adjustment taking it from
+// from and one giving it to to, under operation ids opPrefix+":from:"+
+// currency and ":to:". Nothing is lost or made: the ledger still adds up.
+func (l *Ledger) Share(ctx context.Context, opPrefix, from, to, memo, by string, record func(*sql.Tx) error) error {
+	tx, err := l.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := record(tx); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, "SELECT currency, balance FROM ledger_accounts WHERE owner = ? AND balance != 0 ORDER BY currency", from)
+	if err != nil {
+		return err
+	}
+	type held struct {
+		currency string
+		balance  int64
+	}
+	var all []held
+	for rows.Next() {
+		var h held
+		if err := rows.Scan(&h.currency, &h.balance); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		all = append(all, h)
+	}
+	_ = rows.Close()
+	for _, h := range all {
+		for _, side := range []struct {
+			viewer, op string
+			amount     int64
+		}{{from, ":from:", -h.balance}, {to, ":to:", h.balance}} {
+			if _, err := l.insert(ctx, tx, Adjust, Op{ID: opPrefix + side.op + h.currency, Currency: h.currency, Viewer: side.viewer,
+				Amount: side.amount, Memo: memo, By: by}, side.viewer, ""); err != nil {
+				return err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	l.log.Info("points shared", "from", from, "to", to, "currencies", len(all))
+	return nil
+}
+
 // account returns the id of an account, made if new.
 func account(ctx context.Context, tx *sql.Tx, currency, owner string) (int64, error) {
 	if _, err := tx.ExecContext(ctx, "INSERT INTO ledger_accounts (currency, owner) VALUES (?, ?) ON CONFLICT DO NOTHING", currency, owner); err != nil {
@@ -265,17 +337,51 @@ func (l *Ledger) apply(ctx context.Context, kind string, op Op, reverses string)
 		return Result{}, err
 	}
 	defer func() { _ = tx.Rollback() }()
+	holder, err := owner(ctx, tx, op.Viewer)
+	if err != nil {
+		return Result{}, err
+	}
+	t, err := l.insert(ctx, tx, kind, op, holder, reverses)
+	if err != nil {
+		if errors.Is(err, errRaced) {
+			_ = tx.Rollback()
+			return l.apply(ctx, kind, op, reverses) // raced with the same op: answered as a repeat
+		}
+		var ie *InsufficientError
+		if errors.As(err, &ie) {
+			_ = tx.Rollback()
+			has, _ := l.Balance(ctx, op.Viewer, op.Currency)
+			ie.Has, ie.Name = has, cur.Name
+		}
+		return Result{}, err
+	}
+	var bal int64
+	if err := tx.QueryRowContext(ctx, "SELECT balance FROM ledger_accounts WHERE currency = ? AND owner = ?", op.Currency, holder).Scan(&bal); err != nil {
+		return Result{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Result{}, err
+	}
+	l.log.Info("points moved", "kind", kind, "viewer", op.Viewer, "holder", holder, "amount", op.Amount, "currency", op.Currency, "by", op.By)
+	return Result{Transaction: t, Balance: bal, Applied: true}, nil
+}
+
+var errRaced = errors.New("points: the same operation was recorded at once")
+
+// insert records one transaction in tx: the entry on holder's account (the
+// viewer's, or whoever's they share) and the system's opposite one.
+func (l *Ledger) insert(ctx context.Context, tx *sql.Tx, kind string, op Op, holder, reverses string) (Transaction, error) {
 	system := issuer
 	if op.Amount < 0 {
 		system = sink
 	}
-	viewerAcct, err := account(ctx, tx, op.Currency, op.Viewer)
+	viewerAcct, err := account(ctx, tx, op.Currency, holder)
 	if err != nil {
-		return Result{}, err
+		return Transaction{}, err
 	}
 	systemAcct, err := account(ctx, tx, op.Currency, system)
 	if err != nil {
-		return Result{}, err
+		return Transaction{}, err
 	}
 	t := Transaction{ID: newID(), Kind: kind, Currency: op.Currency, Viewer: op.Viewer, Amount: op.Amount, Memo: op.Memo, By: op.By,
 		Reverses: reverses, CreatedAt: l.now()}
@@ -287,12 +393,11 @@ func (l *Ledger) apply(ctx context.Context, kind string, op Op, reverses string)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, t.ID, op.ID, kind, t.Currency, t.Viewer, t.Amount, t.Memo, t.By, rev, ts(t.CreatedAt)); err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") {
 			if strings.Contains(err.Error(), "reverses") {
-				return Result{}, ErrReversed
+				return Transaction{}, ErrReversed
 			}
-			_ = tx.Rollback()
-			return l.apply(ctx, kind, op, reverses) // raced with the same op: answered as a repeat
+			return Transaction{}, errRaced
 		}
-		return Result{}, err
+		return Transaction{}, err
 	}
 	for _, e := range []struct {
 		acct   int64
@@ -300,22 +405,12 @@ func (l *Ledger) apply(ctx context.Context, kind string, op Op, reverses string)
 	}{{viewerAcct, op.Amount}, {systemAcct, -op.Amount}} {
 		if _, err := tx.ExecContext(ctx, "INSERT INTO ledger_entries (tx, account, amount) VALUES (?, ?, ?)", t.ID, e.acct, e.amount); err != nil {
 			if strings.Contains(err.Error(), "not enough points") {
-				_ = tx.Rollback()
-				has, _ := l.Balance(ctx, op.Viewer, op.Currency)
-				return Result{}, &InsufficientError{Has: has, Needs: -op.Amount, Name: cur.Name}
+				return Transaction{}, &InsufficientError{Needs: -op.Amount} // apply fills in the rest
 			}
-			return Result{}, err
+			return Transaction{}, err
 		}
 	}
-	var bal int64
-	if err := tx.QueryRowContext(ctx, "SELECT balance FROM ledger_accounts WHERE id = ?", viewerAcct).Scan(&bal); err != nil {
-		return Result{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return Result{}, err
-	}
-	l.log.Info("points moved", "kind", kind, "viewer", op.Viewer, "amount", op.Amount, "currency", op.Currency, "by", op.By)
-	return Result{Transaction: t, Balance: bal, Applied: true}, nil
+	return t, nil
 }
 
 const txColumns = `t.id, t.kind, t.currency, t.viewer, t.amount, t.memo, t.by, COALESCE(t.reverses, ''),
@@ -378,15 +473,18 @@ func (l *Ledger) Balance(ctx context.Context, viewer, currency string) (int64, e
 		currency = Default
 	}
 	var b int64
-	err := l.db.QueryRowContext(ctx, "SELECT COALESCE((SELECT balance FROM ledger_accounts WHERE currency = ? AND owner = ?), 0)",
-		currency, viewer).Scan(&b)
+	err := l.db.QueryRowContext(ctx, "SELECT COALESCE((SELECT balance FROM ledger_accounts WHERE currency = ?2 AND owner = "+ownerSQL+"), 0)",
+		viewer, currency).Scan(&b)
 	return b, err
 }
 
-// History lists a viewer's transactions, newest first.
+// History lists a viewer's transactions, newest first: with those of the
+// viewer they're linked to, since they share the balance.
 func (l *Ledger) History(ctx context.Context, viewer string, limit int) ([]Transaction, error) {
-	rows, err := l.db.QueryContext(ctx, "SELECT "+txColumns+" FROM ledger_transactions t WHERE t.viewer = ? ORDER BY t.created_at DESC, t.rowid DESC LIMIT ?",
-		viewer, limit)
+	rows, err := l.db.QueryContext(ctx, "SELECT "+txColumns+` FROM ledger_transactions t WHERE t.viewer IN (?1,
+		COALESCE((SELECT youtube_viewer FROM viewer_links WHERE twitch_viewer = ?1 AND unlinked_at IS NULL), ''),
+		COALESCE((SELECT twitch_viewer FROM viewer_links WHERE youtube_viewer = ?1 AND unlinked_at IS NULL), ''))
+		ORDER BY t.created_at DESC, t.rowid DESC LIMIT ?2`, viewer, limit)
 	if err != nil {
 		return nil, err
 	}

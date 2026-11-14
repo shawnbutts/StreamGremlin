@@ -26,6 +26,9 @@ import (
 var (
 	ErrNotFound = errors.New("viewers: no such viewer")
 	ErrInvalid  = errors.New("viewers: invalid")
+	// ErrAmbiguous: a name is a Twitch viewer's and a different, unlinked
+	// YouTube viewer's (D-101).
+	ErrAmbiguous = errors.New("viewers: that name is two different viewers")
 )
 
 // Viewer is one platform account.
@@ -142,7 +145,7 @@ func (s *Service) CatchUp(ctx context.Context) error {
 // event; first and last seen never move the wrong way, even out of order.
 func (s *Service) record(ctx context.Context, tx *sql.Tx, r events.Record) error {
 	a := r.Actor
-	if r.DeliveryQuality == events.Synthetic || events.LogOnly(r) || a == nil || a.ID == "" || a.Platform == "" || r.Source == "core" {
+	if r.DeliveryQuality == events.Synthetic || events.Backlog(r) || a == nil || a.ID == "" || a.Platform == "" || r.Source == "core" {
 		return nil
 	}
 	login := strings.ToLower(strings.TrimSpace(a.Login))
@@ -241,13 +244,50 @@ func (s *Service) ByAccount(ctx context.Context, platform, userID string) (Viewe
 	return s.one(ctx, "platform = ? AND user_id = ?", platform, userID)
 }
 
-// ByLogin returns the viewer most recently seen with a login ("@" allowed).
+// ByLogin returns the viewer with a login ("@" allowed): a Twitch login, or
+// a YouTube handle. When it's both a Twitch viewer's and a YouTube
+// viewer's, they must be linked (the Twitch viewer is returned, holding
+// the shared points); otherwise it's ErrAmbiguous, rather than a guess.
 func (s *Service) ByLogin(ctx context.Context, login string) (Viewer, error) {
 	login = strings.ToLower(strings.TrimPrefix(strings.TrimSpace(login), "@"))
 	if login == "" {
 		return Viewer{}, ErrNotFound
 	}
-	return s.one(ctx, "lower(login) = ? AND forgotten_at IS NULL ORDER BY last_seen DESC LIMIT 1", login)
+	rows, err := s.db.QueryContext(ctx, "SELECT "+columns+` FROM viewers v WHERE lower(login) = ? AND forgotten_at IS NULL
+		AND last_seen = (SELECT max(last_seen) FROM viewers w WHERE w.platform = v.platform AND lower(w.login) = lower(v.login)
+			AND w.forgotten_at IS NULL)
+		ORDER BY platform = 'twitch' DESC, last_seen DESC`, login)
+	if err != nil {
+		return Viewer{}, err
+	}
+	var found []Viewer
+	for rows.Next() {
+		v, err := scan(rows)
+		if err != nil {
+			_ = rows.Close()
+			return Viewer{}, err
+		}
+		found = append(found, v)
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return Viewer{}, err
+	}
+	switch {
+	case len(found) == 0:
+		return Viewer{}, ErrNotFound
+	case len(found) == 1 || found[0].Platform == found[1].Platform:
+		return found[0], nil
+	}
+	var linked int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM viewer_links WHERE twitch_viewer = ? AND youtube_viewer = ? AND unlinked_at IS NULL`,
+		found[0].ID, found[1].ID).Scan(&linked); err != nil {
+		return Viewer{}, err
+	}
+	if linked > 0 {
+		return found[0], nil
+	}
+	return Viewer{}, fmt.Errorf("%w: %s is someone on Twitch and someone else on YouTube", ErrAmbiguous, login)
 }
 
 // Search lists viewers whose login or name starts with q (any case; all

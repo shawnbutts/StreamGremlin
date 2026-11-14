@@ -40,7 +40,7 @@ func amount(micros uint64) float64 { return float64(micros) / 1e6 }
 // nil for a type StreamGremlin doesn't store (deletions, polls: later).
 func eventEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool) *events.Envelope {
 	sn, a := m.Snippet, m.Author
-	actor := &events.Actor{Platform: events.SourceYouTube, ID: a.ChannelID, DisplayName: a.DisplayName}
+	actor := &events.Actor{Platform: events.SourceYouTube, ID: a.ChannelID, Login: Login(a.DisplayName), DisplayName: a.DisplayName}
 	from := a.DisplayName
 	var typ string
 	var p map[string]any
@@ -85,7 +85,7 @@ func eventEnvelope(m livechat.Message, b Broadcast, channel string, backlog bool
 		// Who it's about is the viewer banned; the author is who did it.
 		p["moderator"] = map[string]any{"id": a.ChannelID, "display_name": a.DisplayName}
 		p["channel_url"] = d.ChannelURL
-		actor = &events.Actor{Platform: events.SourceYouTube, ID: d.ChannelID, DisplayName: d.DisplayName}
+		actor = &events.Actor{Platform: events.SourceYouTube, ID: d.ChannelID, Login: Login(d.DisplayName), DisplayName: d.DisplayName}
 	default:
 		return nil
 	}

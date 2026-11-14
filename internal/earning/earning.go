@@ -74,6 +74,9 @@ type Rules struct {
 	Sub    Subs  `json:"sub"`    // gifted subs earn for the gifter, not the recipient
 	Gift   int64 `json:"gift"`   // per sub gifted
 	Bits   int64 `json:"bits"`   // per 100 bits
+	// SuperChat is per YouTube Super Chat or Super Sticker, whatever its
+	// amount: amounts come in many currencies (D-101). Off by default.
+	SuperChat int64 `json:"super_chat"`
 }
 
 // Defaults are the rules before the streamer changes them: off.
@@ -87,7 +90,7 @@ func (r Rules) Check() error {
 		name string
 		n    int64
 	}{{"chatting", r.Chat.Amount}, {"time in chat, chatting,", r.Time.Active}, {"time in chat, quiet,", r.Time.Quiet}, {"a follow", r.Follow}, {"a tier 1 sub", r.Sub.Tier1}, {"a tier 2 sub", r.Sub.Tier2},
-		{"a tier 3 sub", r.Sub.Tier3}, {"a gifted sub", r.Gift}, {"100 bits", r.Bits}} {
+		{"a tier 3 sub", r.Sub.Tier3}, {"a gifted sub", r.Gift}, {"100 bits", r.Bits}, {"a Super Chat", r.SuperChat}} {
 		if a.n < 0 || a.n > MaxAward {
 			return fmt.Errorf("%w: %s earns 0 to %d", ErrInvalid, a.name, MaxAward)
 		}
@@ -116,6 +119,7 @@ var liveTypes = map[string]bool{"broadcast.stream.started": true, "broadcast.cha
 
 var follow = events.Filter{"chat.message.received", "audience.follow.created", "monetization.subscription.started",
 	"monetization.subscription.renewed", "monetization.subscription.gifted", "monetization.bits.cheered",
+	"monetization.super_chat.received", "monetization.super_sticker.received",
 	"broadcast.stream.started", "broadcast.channel.online", "broadcast.stream.stopped", "broadcast.channel.offline"}
 
 // Options are what a Service needs.
@@ -312,11 +316,12 @@ type award struct {
 }
 
 func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) error {
-	if events.LogOnly(r) {
-		return nil
+	if events.Backlog(r) {
+		return nil // from before StreamGremlin was reading YouTube chat
 	}
 	if on, ok := liveTypes[r.Type]; ok {
-		if r.DeliveryQuality != events.Synthetic {
+		// "Live" follows Twitch and OBS, never YouTube (D-099).
+		if r.DeliveryQuality != events.Synthetic && r.Source != events.SourceYouTube {
 			s.live = map[bool]string{true: Live, false: Offline}[on]
 		}
 		return nil
@@ -365,6 +370,7 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 		return rules.Sub.Tier1
 	}
 	tierNo := max(p.Tier, 1)
+	yt := r.Source == events.SourceYouTube
 	var aw award
 	switch r.Type {
 	case "chat.message.received":
@@ -379,11 +385,25 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 			return nil // the gifter earns
 		}
 		aw = award{"earn:sub:" + r.EventID, tier(), fmt.Sprintf("subscribing (tier %d)", tierNo)}
+		if yt {
+			aw.memo = "becoming a member" // as a tier 1 sub: YouTube's levels have names, not tiers
+		}
 	case "monetization.subscription.renewed":
 		aw = award{"earn:sub:" + r.EventID, tier(), fmt.Sprintf("resubscribing (tier %d)", tierNo)}
+		if yt {
+			aw.memo = "a membership milestone"
+		}
 	case "monetization.subscription.gifted":
 		n := int64(max(p.Total, 1))
 		aw = award{"earn:gift:" + r.EventID, rules.Gift * n, fmt.Sprintf("gifting %d %s", n, plural(n, "sub", "subs"))}
+		if yt {
+			aw.memo = fmt.Sprintf("gifting %d %s", n, plural(n, "membership", "memberships"))
+		}
+	case "monetization.super_chat.received", "monetization.super_sticker.received":
+		aw = award{"earn:superchat:" + r.EventID, rules.SuperChat, "a Super Chat"}
+		if r.Type == "monetization.super_sticker.received" {
+			aw.memo = "a Super Sticker"
+		}
 	case "monetization.bits.cheered":
 		aw = award{"earn:bits:" + r.EventID, rules.Bits * int64(p.Bits/100), fmt.Sprintf("cheering %d bits", p.Bits)}
 	default:
@@ -400,8 +420,13 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 	if aw.op == "" {
 		aw.op = "earn:follow:" + v.ID
 	}
+	// One person linked on two platforms waits once between chat awards.
+	holder, err := s.o.Points.Owner(ctx, v.ID)
+	if err != nil {
+		return err
+	}
 	if r.Type == "chat.message.received" {
-		ok, err := s.chatDue(ctx, v.ID, r.ReceivedAt, rules.Chat.EverySeconds)
+		ok, err := s.chatDue(ctx, holder, r.ReceivedAt, rules.Chat.EverySeconds)
 		if err != nil || !ok {
 			return err
 		}
@@ -420,7 +445,7 @@ func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) erro
 	}
 	if r.Type == "chat.message.received" {
 		_, err := s.o.DB.ExecContext(ctx, `INSERT INTO earning_chat (viewer, last_at) VALUES (?, ?)
-			ON CONFLICT (viewer) DO UPDATE SET last_at = max(last_at, excluded.last_at)`, v.ID, storage.Timestamp(r.ReceivedAt))
+			ON CONFLICT (viewer) DO UPDATE SET last_at = max(last_at, excluded.last_at)`, holder, storage.Timestamp(r.ReceivedAt))
 		return err
 	}
 	return nil

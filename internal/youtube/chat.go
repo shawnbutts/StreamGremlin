@@ -525,7 +525,9 @@ func (s *Service) storeChat(ctx context.Context, b Broadcast, channel string, it
 // and, for "!name args" sent while StreamGremlin was reading, a
 // chat.command.received, with the same chatter shape as Twitch's where
 // YouTube has the same thing. YouTube has no logins: a channel ID and a
-// display name. Channel members count as subscribers (D-098).
+// display name. Channel members count as subscribers (D-098). A display
+// name that's a handle ("@Name") gives the login, "name", so @name finds
+// YouTube viewers as it does Twitch's (D-101).
 func chatEnvelopes(m livechat.Message, b Broadcast, channel string, backlog bool) (events.Envelope, *events.Envelope) {
 	a := m.Author
 	isB := a.IsChatOwner || (a.ChannelID != "" && a.ChannelID == channel)
@@ -546,7 +548,7 @@ func chatEnvelopes(m livechat.Message, b Broadcast, channel string, backlog bool
 		"live_chat_id": b.LiveChatID,
 		"broadcast_id": b.ID,
 		"chatter": map[string]any{
-			"id": a.ChannelID, "login": "", "display_name": a.DisplayName, "badges": []any{}, "role": role,
+			"id": a.ChannelID, "login": Login(a.DisplayName), "display_name": a.DisplayName, "badges": []any{}, "role": role,
 			"is_broadcaster": isB, "is_moderator": a.IsChatModerator, "is_vip": false, "is_subscriber": a.IsChatSponsor,
 			"is_member": a.IsChatSponsor, "is_verified": a.IsVerified,
 			"channel_url": a.ChannelURL, "profile_image_url": a.ProfileImageURL,
@@ -564,7 +566,7 @@ func chatEnvelopes(m livechat.Message, b Broadcast, channel string, backlog bool
 	env := events.Envelope{
 		EventID: events.NewID(), Type: "chat.message.received", Source: events.SourceYouTube, SourceEventID: m.ID,
 		OccurredAt: occurred, ChannelID: channel,
-		Actor:   &events.Actor{Platform: events.SourceYouTube, ID: a.ChannelID, DisplayName: a.DisplayName},
+		Actor:   &events.Actor{Platform: events.SourceYouTube, ID: a.ChannelID, Login: Login(a.DisplayName), DisplayName: a.DisplayName},
 		Payload: raw, DeliveryQuality: events.Confirmed,
 	}
 	env.CorrelationID = env.EventID
@@ -580,6 +582,16 @@ func chatEnvelopes(m livechat.Message, b Broadcast, channel string, backlog bool
 		CorrelationID: env.EventID, CausationID: env.EventID, DeliveryQuality: events.Confirmed,
 	}
 	return env, cmd
+}
+
+// Login is a YouTube viewer's handle as a login: "@Big.Fan" is
+// "big.fan". A display name that isn't a handle gives none.
+func Login(displayName string) string {
+	h, ok := strings.CutPrefix(strings.TrimSpace(displayName), "@")
+	if !ok || h == "" || strings.ContainsAny(h, " \t@") || len(h) > 64 {
+		return ""
+	}
+	return strings.ToLower(h)
 }
 
 func (s *Service) loadResume(ctx context.Context) resume {

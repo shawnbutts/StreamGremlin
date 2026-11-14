@@ -249,7 +249,7 @@ const eventTimeOf = (iso: string) => new Date(iso).toLocaleTimeString(undefined,
 /** What StreamGremlin knows about a chatter, in words. */
 export function recordWords(card: ChatterCard, now = new Date()): string[] {
   if (card.platform === 'youtube') {
-    return card.viewer ? recordOf(card, now) : ['StreamGremlin keeps a record and points for YouTube viewers from a later update.'];
+    return card.viewer ? recordOf(card, now) : ['StreamGremlin has no record of them yet.'];
   }
   if (card.twitch === null) return ['A test chatter: Twitch never saw them, and StreamGremlin keeps no record of test events.'];
   if (!card.viewer) return ['StreamGremlin has no record of them yet.'];
@@ -259,7 +259,8 @@ export function recordWords(card: ChatterCard, now = new Date()): string[] {
 function recordOf(card: ChatterCard, now: Date): string[] {
   const v = card.viewer!;
   const out = [`First seen ${day(v.first_seen)} (${since(v.first_seen, now)} ago); ${v.messages} ${v.messages === 1 ? 'message' : 'messages'} in all.`];
-  out.push(`${v.balance.toLocaleString()} ${card.currency || 'points'}.`);
+  const shared = v.link ? `, shared with ${v.link.with.display_name} on ${v.link.with.platform === 'youtube' ? 'YouTube' : 'Twitch'}` : '';
+  out.push(`${v.balance.toLocaleString()} ${card.currency || 'points'}${shared}.`);
   return out;
 }
 

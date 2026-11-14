@@ -1346,6 +1346,8 @@ export interface GiveawayMessage {
   state: 'queued' | 'sending' | 'sent' | 'failed' | 'unknown' | 'practice';
   detail?: string;
   created_at: string;
+  /** The chat it goes to (D-101). */
+  platform?: 'twitch' | 'youtube';
 }
 
 export interface GiveawayDetail extends Giveaway {
@@ -1436,7 +1438,19 @@ export interface Viewer {
   last_chat_at?: string;
   messages: number;
   forgotten_at?: string;
+  /** Shared with the account they're linked to, if any (D-101). */
   balance: number;
+  /** Their account on the other platform, when linked. */
+  link?: ViewerLink;
+}
+
+/** The other account of a linked viewer (D-101). */
+export interface ViewerLink {
+  id: string;
+  with: Omit<Viewer, 'balance' | 'link'>;
+  linked_at: string;
+  /** "chat" (by !link), or who linked them in the app. */
+  linked_by: string;
 }
 
 export interface PointsTransaction {
@@ -1590,6 +1604,10 @@ export const getViewers = (q = '') => api<{ viewers: Viewer[] }>('GET', `/v1/vie
 export const getViewer = (id: string) => api<ViewerDetail>('GET', `/v1/viewers/${vid(id)}`);
 export const exportViewer = (id: string) => api<unknown>('GET', `/v1/viewers/${vid(id)}/export`);
 export const forgetViewer = (id: string) => api<Viewer>('POST', `/v1/viewers/${vid(id)}/forget`);
+/** Link one Twitch and one YouTube viewer: they share one balance from now on. */
+export const linkViewer = (id: string, withId: string) => api<Viewer>('POST', `/v1/viewers/${vid(id)}/link`, { with: withId });
+/** Unlink: the shared points stay with the Twitch viewer. */
+export const unlinkViewer = (id: string) => api<Viewer>('DELETE', `/v1/viewers/${vid(id)}/link`);
 export const adjustPoints = (id: string, amount: number, reason: string, requestId: string) =>
   api<{ balance: number }>('POST', `/v1/viewers/${vid(id)}/points`, { amount, reason, request_id: requestId });
 export const undoPoints = (txId: string, requestId: string) =>
@@ -1606,6 +1624,8 @@ export interface EarningRules {
   sub: { tier1: number; tier2: number; tier3: number };
   gift: number;
   bits: number;
+  /** Per YouTube Super Chat or Super Sticker, any amount (D-101). */
+  super_chat?: number;
 }
 /** One time-in-chat payment: how many were paid, and why not, if not. */
 export interface EarningTick {

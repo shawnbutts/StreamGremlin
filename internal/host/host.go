@@ -32,6 +32,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/links"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/moderation"
@@ -107,6 +108,7 @@ type Host struct {
 	giveaways *giveaways.Service
 	wheels    *wheels.Service
 	viewers   *viewers.Service
+	links     *links.Service
 	earning   *earning.Service
 	gives     *gives.Service
 	lua       *lua.Runner
@@ -216,10 +218,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	h.timers = timers.New(timers.Options{DB: h.db, Inbox: inbox, Logger: log})
 	h.firsts = firstwords.New(firstwords.Options{Inbox: inbox, Settings: set, Logger: log})
 	h.ads = ads.New(ads.Options{DB: h.db, Twitch: h.twitch, Inbox: inbox, Logger: log})
-	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log, Display: h.hub})
-	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
 	h.viewers = viewers.New(h.db, inbox, log)
 	ledger := points.New(h.db, log)
+	h.links = links.New(h.db, h.viewers, ledger, log)
+	h.giveaways = giveaways.New(giveaways.Options{DB: h.db, Inbox: inbox, Twitch: h.twitch, Logger: log, Display: h.hub,
+		YouTube: h.youtube, Partner: h.links.Partner})
+	h.wheels = wheels.New(wheels.Options{DB: h.db, Inbox: inbox, Display: h.hub, Logger: log})
 	h.earning = earning.New(earning.Options{DB: h.db, Inbox: inbox, Settings: set, Viewers: h.viewers, Points: ledger, Chatters: h.twitch, Logger: log})
 	h.gives = gives.New(gives.Options{DB: h.db, Viewers: h.viewers, Points: ledger, Twitch: h.twitch, Recent: h.earning, Logger: log})
 	if opts.TestMinute > 0 && opts.TwitchAuthURL != "" {
@@ -240,7 +244,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	h.discord = discord.New(discord.Options{Settings: set, Secrets: sec, Logger: log.With("component", "discord"), Base: discordBase})
 	reg := workflow.NewRegistry()
-	actions.Register(reg, actions.Services{Filters: h.filters, Moderation: mods, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, YouTube: h.youtube, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
+	actions.Register(reg, actions.Services{Filters: h.filters, Moderation: mods, Links: h.links, Lua: h.lua, Giveaways: h.giveaways, Wheels: h.wheels, Viewers: h.viewers, Points: ledger, Gives: h.gives, Ads: h.ads, FirstWords: h.firsts, Twitch: h.twitch, YouTube: h.youtube, OBS: h.obs, Timers: h.timers, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: h.hub, Discord: h.discord, Inbox: inbox, OverlayTimers: h.clocks})
 	// Plugins' steps are registered before workflows load
 	// (docs/adr/0038-lua-plugins.md).
@@ -333,6 +337,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Giveaways:     h.giveaways,
 		Wheels:        h.wheels,
 		Viewers:       h.viewers,
+		Links:         h.links,
 		Points:        ledger,
 		Earning:       h.earning,
 		Gives:         h.gives,

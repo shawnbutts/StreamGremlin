@@ -17,6 +17,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/links"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/moderation"
 	"code.streamgremlin.com/streamgremlin/internal/obs"
@@ -74,6 +75,8 @@ type Services struct {
 	Filters *filters.Service
 	// Moderation moderates on Twitch and YouTube, once, and records it.
 	Moderation *moderation.Service
+	// Links joins a viewer's Twitch and YouTube accounts (D-101).
+	Links *links.Service
 	// Discord posts through webhooks (D-089); Inbox is read to sum up a stream.
 	Discord *discord.Service
 	Inbox   *events.Inbox
@@ -283,6 +286,7 @@ func Register(reg *workflow.Registry, sv Services) {
 	if sv.Moderation != nil {
 		registerModeration(reg, sv.Moderation)
 	}
+	registerLinks(reg, sv.Links)
 	registerChannel(reg, sv.Twitch, sv.Inbox)
 	registerDiscord(reg, sv.Discord, sv.Inbox)
 	reg.Add(workflow.Action{

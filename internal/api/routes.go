@@ -18,6 +18,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
+	"code.streamgremlin.com/streamgremlin/internal/links"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/maintenance"
 	"code.streamgremlin.com/streamgremlin/internal/moderation"
@@ -79,9 +80,11 @@ type Deps struct {
 	Giveaways     *giveaways.Service
 	Wheels        *wheels.Service
 	Viewers       *viewers.Service
-	Points        *points.Ledger
-	Earning       *earning.Service
-	Gives         *gives.Service
+	// Links joins viewers' Twitch and YouTube accounts (D-101).
+	Links   *links.Service
+	Points  *points.Ledger
+	Earning *earning.Service
+	Gives   *gives.Service
 	// Lua runs scripts tried from the step editor.
 	Lua *lua.Runner
 	// Plugins runs installed Lua plugins.

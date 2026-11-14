@@ -1769,3 +1769,32 @@ Decided 2026-11-14. Before building, I checked Google's current docs and found t
   - Twitch had no moderating step before, and none was asked for. Removing the Twitch half is easy if it isn't wanted.
 - **Every quota cost is said where it's spent:** in the confirmation before an action, on the card, in the filter settings, in the step's description and in Help.
 - **The CLI** has `streamgremlin mod -youtube …`, naming viewers by channel id until YouTube viewers have records (slice 6).
+
+## D-101. M6 slice 6: YouTube viewers, points and `!link`
+
+Decided 2026-11-14. I proposed this slice with five recommendations and the user said "proceed". The design is [ADR-0048](adr/0048-viewer-links.md).
+
+- **YouTube chatters are viewers**, recorded like Twitch's from real chat and events (never backlog or test events), with points, a card and a place on the Viewers screen.
+  - A YouTube viewer's login is their @handle, lower case, so `@name` works on both platforms.
+  - Every part that skipped YouTube until now takes it: viewers, earning, giveaways and the Discord stream summary. `events.LogOnly` is gone.
+- **`!link` (recommendation 1, changed to be safe):**
+  - The proposal was "`!link` gives a code; type it on the other platform". A code said in public chat could be typed first by anyone reading it, joining their account to someone else's balance.
+  - So the first `!link` names the other account (`!link @handle` on Twitch, `!link twitchname` on YouTube), and only that account's `!link CODE` works.
+  - Codes are 6 digits from `crypto/rand`, last 10 minutes and work once. Five wrong tries in 10 minutes stop an account.
+  - There's a "Link Twitch and YouTube" template under Chat commands, and the streamer can link and unlink from the Viewers screen or the CLI.
+- **Balances add up when linked (recommendation 2).**
+  - The YouTube viewer's balance moves into the Twitch viewer's, with ledger adjustments that say why. From then on, both accounts' points go to one balance.
+  - Unlinking leaves the shared points with Twitch; YouTube starts from 0. Only the streamer unlinks.
+- **Giveaways (recommendation 3):**
+  - YouTube viewers enter while YouTube chat is read.
+  - What's said to everyone goes to both chats (20 quota units a message on YouTube), and entrants hear in their own chat, batched to fit YouTube's 200 characters.
+  - Rules that need Twitch (followers, account age, months subscribed) turn YouTube viewers away, saying so.
+  - Linked accounts enter once. Unlinked, they can't be told apart, and the form says so.
+- **Earning (recommendation 4):**
+  - Members earn as tier 1 subs, milestones as resubs, and gifted memberships as gifted subs, for the gifter.
+  - A new rule, "Each YouTube Super Chat or Super Sticker", is a flat amount, off by default: no currency conversion.
+- **"Live" still follows Twitch and OBS (recommendation 5).** Time in chat pays YouTube chatters while you're live on Twitch. YouTube going live or offline doesn't change it.
+- **One person is paid once:** time in chat, gives to groups and the wait between chat awards count the shared balance's holder.
+- **Names that are two people:** when `@name` is a Twitch viewer and a different, unlinked YouTube viewer, `!give` and similar steps say so instead of guessing; the CLI asks for the ID.
+- **The Discord stream summary** counts YouTube chatters with Twitch's, and adds `members`, `gifted_memberships`, `super_chats` and `youtube_chatters`. YouTube going offline doesn't end it.
+- **Also:** a message to YouTube that would say "@@name" (a template's `@${event.actor.display_name}` with a handle) says "@name".
