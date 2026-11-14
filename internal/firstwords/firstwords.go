@@ -180,6 +180,10 @@ func (s *Service) run(ctx context.Context) {
 func (s *Service) handle(ctx context.Context, r events.Record, emit bool) {
 	s.mu.Lock()
 	s.cursor = r.Seq
+	if events.LogOnly(r) {
+		s.mu.Unlock()
+		return
+	}
 	test := r.DeliveryQuality == events.Synthetic
 	if starts[r.Type] {
 		// A real start starts both over; a test start only test chat. It's

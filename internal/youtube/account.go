@@ -131,7 +131,7 @@ func (a *Account) setStatus(st State, detail string) {
 	if st != StateSigningIn {
 		a.status.SignIn = nil
 	}
-	a.svc.changed()
+	a.svc.accountChanged()
 }
 
 // setTokens is called with mu held.

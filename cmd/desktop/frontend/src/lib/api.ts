@@ -278,6 +278,18 @@ export interface YouTubeQuota {
   exhausted: boolean;
 }
 
+// YouTube chat (M6 slice 2, D-097): the live broadcast being read.
+export type YouTubeChatState = 'off' | 'looking' | 'connecting' | 'connected' | 'disconnected' | 'quota';
+
+export interface YouTubeChat {
+  state: YouTubeChatState;
+  detail?: string;
+  since: string;
+  broadcast?: { id: string; title: string; started_at?: string };
+  checked_at?: string;
+  next_check?: string;
+}
+
 export interface YouTubeStatus {
   client_id: string;
   client_source: 'none' | 'built_in' | 'own';
@@ -287,6 +299,7 @@ export interface YouTubeStatus {
   streamer: YouTubeAccount;
   bot: YouTubeAccount;
   quota: YouTubeQuota;
+  chat: YouTubeChat;
 }
 
 export const getYouTube = (signal?: AbortSignal) => api<YouTubeStatus>('GET', '/v1/connections/youtube', undefined, signal);
@@ -300,6 +313,9 @@ export const startYouTubeSignIn = (role: YouTubeRole) =>
 export const cancelYouTubeSignIn = (role: YouTubeRole) => api<void>('DELETE', `/v1/connections/youtube/${role}/sign-in`);
 
 export const youtubeSignOut = (role: YouTubeRole) => api<void>('POST', `/v1/connections/youtube/${role}/sign-out`);
+
+/** Asks YouTube now whether you're live (1 unit), and reads that chat. */
+export const findYouTubeStream = () => api<YouTubeStatus>('POST', '/v1/connections/youtube/chat/find');
 
 /** Open an allow-listed page (twitch.tv/activate, dev.twitch.tv, Google's sign-in and Cloud console) in the system browser. */
 export async function openInBrowser(url: string): Promise<void> {

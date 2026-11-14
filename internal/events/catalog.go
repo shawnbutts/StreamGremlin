@@ -735,3 +735,13 @@ func predictionKind(typ, label, desc, phase string) Kind {
 			return p, nil, nil
 		}}
 }
+
+// SourceYouTube is the source of YouTube's events (M6, D-095).
+const SourceYouTube = "youtube"
+
+// LogOnly reports whether r is a YouTube event that only the event log
+// reads for now. M6 brings YouTube in slice by slice (D-097): until
+// commands, workflows, filters, points, giveaways, first words and viewers
+// learn YouTube, each skips its events rather than treat a YouTube viewer
+// as a Twitch one.
+func LogOnly(r Record) bool { return r.Source == SourceYouTube }

@@ -1,13 +1,15 @@
 <script lang="ts">
   // YouTube on Connections (M6 slice 1, D-096): whose Google project signs
   // in, with a step-by-step guide to making your own; your and the bot's
-  // sign-ins; and today's quota as StreamGremlin counts it. Polls faster
+  // sign-ins; chat (M6 slice 2, D-097): the live broadcast being read,
+  // and Find my stream; and today's quota as StreamGremlin counts it. Polls faster
   // while a sign-in is pending; when the engine stops answering it shows
   // Unknown, never the last answer as if it were current.
   import { onMount } from 'svelte';
   import {
     ApiError,
     cancelYouTubeSignIn,
+    findYouTubeStream,
     getYouTube,
     openInBrowser,
     setYouTubeClient,
@@ -112,6 +114,8 @@
 
   const open = (url: string) => openInBrowser(url).catch((e) => (formError = message(e)));
   const until = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  const at = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const findStream = () => run(async () => (yt = await findYouTubeStream()));
   const channelName = (a: YouTubeAccount) => (a.channel ? a.channel.title + (a.channel.handle ? ` (${a.channel.handle})` : '') : '');
 </script>
 
@@ -281,6 +285,44 @@
       <p class="error" role="alert">{error}</p>
     {/if}
 
+    {#if yt.chat}
+      {@const c = yt.chat}
+      <section class="account" aria-labelledby="youtube-chat-heading">
+        <h3 id="youtube-chat-heading">Chat</h3>
+        <p class="state" aria-live="polite">
+          {#if c.state === 'connected'}
+            <span class="state-ok"><span aria-hidden="true">●</span></span> Reading the chat of <strong>{c.broadcast?.title}</strong>
+          {:else if c.state === 'connecting'}
+            Connecting to the chat of {c.broadcast?.title ?? 'your broadcast'}…
+          {:else if c.state === 'looking'}
+            Not live on YouTube.{c.next_check ? ` Checking again at ${at(c.next_check)}.` : ''}
+          {:else if c.state === 'disconnected'}
+            <span class="state-unknown"><span aria-hidden="true">?</span></span> Unknown: not reading YouTube chat right now. Trying again.
+          {:else if c.state === 'quota'}
+            <span class="state-unknown"><span aria-hidden="true">!</span></span> Paused: today’s quota is used up.
+          {:else}
+            Off.
+          {/if}
+        </p>
+        {#if c.detail}
+          <p>{c.detail}</p>
+        {/if}
+        {#if c.state === 'looking' || c.state === 'disconnected'}
+          <p class="sg-muted">
+            StreamGremlin checks every 2 minutes while you’re not live, and at once when your Twitch stream starts. Each
+            check costs 1 unit.
+          </p>
+          <div class="row-actions">
+            <button type="button" class="sg-button" disabled={busy} onclick={findStream}>Find my stream</button>
+          </div>
+        {:else if c.state === 'connected'}
+          <p class="sg-muted">
+            YouTube messages are in the event log. Live shows them alongside Twitch chat in the next update.
+          </p>
+        {/if}
+      </section>
+    {/if}
+
     <h3>Today’s quota</h3>
     {#if yt.quota.exhausted}
       <p class="state" role="alert">
@@ -295,8 +337,8 @@
       </p>
     {/if}
     <p class="sg-muted">
-      StreamGremlin counts its own calls; YouTube doesn’t say. Sending a chat message costs 20 units; timing someone out
-      costs 200.
+      StreamGremlin counts its own calls; YouTube doesn’t say. Reading chat costs 5 units each time it connects;
+      sending a chat message costs 20; timing someone out costs 200.
     </p>
   {/if}
 </section>

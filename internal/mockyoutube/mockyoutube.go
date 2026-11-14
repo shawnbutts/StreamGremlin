@@ -3,7 +3,9 @@
 // without Google (M6, D-096). It follows Google's documented shapes: the
 // authorization page redirects to the app's loopback address with a code;
 // /token swaps codes (checking PKCE) and refresh tokens; /revoke ends a
-// sign-in; /youtube/v3/channels answers mine=true.
+// sign-in; /youtube/v3/channels answers mine=true; /youtube/v3/liveBroadcasts
+// lists the live broadcasts; and liveChatMessages.streamList streams chat
+// over gRPC (live.go). Use Serve, which turns on HTTP/2 for gRPC.
 //
 // The authorization page lists the channels to sign in as. A test, acting
 // as the browser, can add mock_channel=ID (or mock_deny=1) to the link to
@@ -62,20 +64,32 @@ type Server struct {
 	calls    map[string]int
 	revoked  []string
 	now      func() time.Time
+
+	// Live broadcasts and chat (live.go).
+	seq        int
+	broadcasts []*Broadcast
+	chats      map[string]*chat
+	drop, open int
+	lastToken  string
+	grpc       interface {
+		ServeHTTP(http.ResponseWriter, *http.Request)
+	}
 }
 
 // New returns a server with two channels: "Streamer" (UCstreamer) and
 // "Bot" (UCbot), plus a Google account with no channel (nochannel).
 func New() *Server {
-	return &Server{
+	s := &Server{
 		channels: []Channel{
 			{ID: "UCstreamer", Title: "Streamer", Handle: "@streamer"},
 			{ID: "UCbot", Title: "Bot", Handle: "@streamerbot"},
 			{ID: "nochannel", Title: "No channel", NoChannel: true},
 		},
 		codes: map[string]grant{}, access: map[string]token{}, refresh: map[string]token{},
-		ttl: time.Hour, calls: map[string]int{}, now: time.Now,
+		ttl: time.Hour, calls: map[string]int{}, now: time.Now, chats: map[string]*chat{},
 	}
+	s.grpc = s.grpcServer()
+	return s
 }
 
 // RequireSecret makes /token refuse requests without this client secret.
@@ -118,7 +132,15 @@ func random() string {
 
 // ServeHTTP serves the stand-in.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+		s.grpc.ServeHTTP(w, r) // the chat stream (live.go)
+		return
+	}
 	switch r.URL.Path {
+	case "/youtube/v3/liveBroadcasts":
+		s.liveBroadcasts(w, r)
+	case "/mock", "/mock/live", "/mock/say", "/mock/end", "/mock/drop":
+		s.controlPage(w, r)
 	case "/o/oauth2/v2/auth":
 		s.authorize(w, r)
 	case "/token":

@@ -450,3 +450,26 @@ func TestChatFrom(t *testing.T) {
 		t.Fatalf("nobody: %+v", recs)
 	}
 }
+
+// YouTube chat is log-only for now (D-097): stored and readable, but not
+// counted as viewer chat for timers.
+func TestYouTubeChatIsLogOnly(t *testing.T) {
+	in, _, _ := newInbox(t)
+	ctx := context.Background()
+	tw := chatEvent("tw1", "hi")
+	yt := chatEvent("yt1", "hi")
+	yt.Source = SourceYouTube
+	yt.Actor = &Actor{Platform: "youtube", ID: "UCv"}
+	for _, e := range []Envelope{tw, yt} {
+		if _, err := in.Accept(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n, err := in.CountViewerChat(ctx, 0); err != nil || n != 1 {
+		t.Fatal(n, err)
+	}
+	recs, _ := in.After(ctx, 0, 10, nil)
+	if len(recs) != 2 || LogOnly(recs[0]) || !LogOnly(recs[1]) {
+		t.Fatalf("%+v", recs)
+	}
+}

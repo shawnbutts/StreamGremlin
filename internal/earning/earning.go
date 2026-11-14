@@ -312,6 +312,9 @@ type award struct {
 }
 
 func (s *Service) handle(ctx context.Context, rules Rules, r events.Record) error {
+	if events.LogOnly(r) {
+		return nil
+	}
 	if on, ok := liveTypes[r.Type]; ok {
 		if r.DeliveryQuality != events.Synthetic {
 			s.live = map[bool]string{true: Live, false: Offline}[on]

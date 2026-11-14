@@ -22,13 +22,17 @@ type Manifest struct {
 // slices add chat, events, moderating and the rest.
 func YouTubeManifest() Manifest {
 	return Manifest{
-		Provider: "youtube", Protocol: "Google OAuth 2.0 for desktop apps; YouTube Data API v3", VerifiedAt: "2026-11-13",
+		Provider: "youtube", Protocol: "Google OAuth 2.0 for desktop apps; YouTube Data API v3; liveChatMessages.streamList over gRPC", VerifiedAt: "2026-11-14",
 		Docs: []string{
 			"https://developers.google.com/identity/protocols/oauth2/native-app",
 			"https://developers.google.com/identity/protocols/oauth2/limited-input-device",
 			"https://developers.google.com/youtube/v3/docs/channels/list",
 			"https://developers.google.com/youtube/v3/determine_quota_cost",
 			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages/streamList",
+			"https://developers.google.com/youtube/v3/live/streaming-live-chat",
+			"https://developers.google.com/youtube/v3/live/docs/liveChatMessages",
+			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts",
+			"https://developers.google.com/youtube/v3/live/docs/liveBroadcasts/list",
 			"https://developers.google.com/youtube/v3/docs/subscriptions/list",
 		},
 		Scopes: []string{Scope},
@@ -53,8 +57,21 @@ func YouTubeManifest() Manifest {
 			{Name: "quota", Support: "partial", Notes: "10,000 units a day per Google project, reset at midnight Pacific " +
 				"time. Google doesn't tell an app what's used, so StreamGremlin counts its own calls (an estimate) and " +
 				"stops calling after Google answers quotaExceeded, until the reset."},
-			{Name: "chat", Support: "unsupported", Notes: "M6 slice 2: liveChatMessages.streamList (gRPC, 5 units a " +
-				"connection)."},
+			{Name: "broadcast", Support: "supported", Notes: "liveBroadcasts.list?part=snippet,status&broadcastStatus=active&" +
+				"broadcastType=all (1 unit) finds your live broadcast and its snippet.liveChatId; lifeCycleStatus live or " +
+				"liveStarting, never testing. Google allows only one of mine, id and broadcastStatus; it doesn't say in so " +
+				"many words that broadcastStatus lists only the signed-in channel's broadcasts (checked on a real stream). " +
+				"No push exists for going live: asked every 2 minutes while not live (at most 720 units a day), at once when " +
+				"Twitch goes live or on Find my stream, and not at all while chat is being read."},
+			{Name: "chat", Support: "partial", Notes: "liveChatMessages.streamList over gRPC (youtube.googleapis.com:443, " +
+				"youtube.api.v3.V3DataLiveChatMessageService/StreamList, bearer token in metadata), 5 units a connection: " +
+				"Google doesn't say whether a long connection costs more. Read with Google's stream_list.proto field numbers, " +
+				"no generated code. A connection without a page token first gets recent history (marked backlog); a dropped " +
+				"one resumes from nextPageToken, also after a restart (saved). FAILED_PRECONDITION means the chat ended or is " +
+				"off (Google can't say which); chatEndedEvent and offlineAt end it too; RESOURCE_EXHAUSTED is too fast, unless " +
+				"it says quota. Slice 2 stores text messages (chat.message.received, source youtube) for the event log only; " +
+				"commands, workflows and Live's chat in slice 3, Super Chats and the other types in slice 4, deletions and bans " +
+				"in slice 5."},
 			{Name: "subscribers", Support: "partial", Notes: "M6 slice 7: no push exists; subscriptions.list " +
 				"myRecentSubscribers (1 unit), public subscriptions only, possibly limited."},
 		},

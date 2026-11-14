@@ -125,6 +125,9 @@ type chatter struct {
 // handleLocked takes a winner's claim, or returns someone asking to enter,
 // to be checked against the rules.
 func (s *Service) handleLocked(ctx context.Context, r events.Record) *candidate {
+	if events.LogOnly(r) {
+		return nil
+	}
 	g := s.current
 	if g == nil || r.Seq <= g.afterSeq || r.ReceivedAt.Before(g.OpenedAt) {
 		return nil

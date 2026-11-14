@@ -142,7 +142,7 @@ func (s *Service) CatchUp(ctx context.Context) error {
 // event; first and last seen never move the wrong way, even out of order.
 func (s *Service) record(ctx context.Context, tx *sql.Tx, r events.Record) error {
 	a := r.Actor
-	if r.DeliveryQuality == events.Synthetic || a == nil || a.ID == "" || a.Platform == "" || r.Source == "core" {
+	if r.DeliveryQuality == events.Synthetic || events.LogOnly(r) || a == nil || a.ID == "" || a.Platform == "" || r.Source == "core" {
 		return nil
 	}
 	login := strings.ToLower(strings.TrimSpace(a.Login))

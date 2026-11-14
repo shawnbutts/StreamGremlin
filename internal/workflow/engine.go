@@ -500,7 +500,7 @@ func eventMap(r events.Record) map[string]any {
 func (d *Definition) matches(r events.Record, payload map[string]any) bool {
 	// StreamGremlin's own chat messages never start a workflow, whatever the
 	// pattern: one answering them would answer itself (D-087).
-	if r.Type == events.ChatSent {
+	if r.Type == events.ChatSent || events.LogOnly(r) {
 		return false
 	}
 	for _, t := range d.Triggers {

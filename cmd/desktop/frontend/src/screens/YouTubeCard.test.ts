@@ -43,6 +43,7 @@ function engine() {
     streamer: account('streamer', 'not_configured'),
     bot: account('bot', 'not_configured'),
     quota: { used: 0, limit: 10000, day: '2026-11-13', resets_at: new Date().toISOString(), exhausted: false },
+    chat: { state: 'off', detail: 'Add your Google project and sign in to read YouTube chat.', since: new Date().toISOString() },
   };
   const opened: string[] = [];
   const calls = mockFetch({
@@ -68,6 +69,14 @@ function engine() {
     '/v1/connections/youtube/streamer/sign-out': () => {
       st.streamer = account('streamer', 'signed_out');
       return { status: 204, body: null };
+    },
+    '/v1/connections/youtube/chat/find': () => {
+      st.chat = {
+        state: 'connected',
+        since: new Date().toISOString(),
+        broadcast: { id: 'bc1', title: 'Friday stream' },
+      };
+      return { status: 200, body: st };
     },
     '/desktop/open-url': (_m, body) => {
       opened.push((body as { url: string }).url);
@@ -132,6 +141,34 @@ describe('YouTube on Connections', () => {
     await settle(60);
     expect(calls.some((c) => c.path === '/v1/connections/youtube/streamer/sign-out')).toBe(true);
     expect(el.textContent).toContain('Not signed in.');
+
+    const results = await axe.run(el, { rules: { 'color-contrast': { enabled: false } } });
+    expect(results.violations).toEqual([]);
+  });
+
+  it('shows chat: looking, Find my stream, then reading the broadcast', async () => {
+    const { st, calls } = engine();
+    st.streamer = { ...account('streamer', 'connected'), channel: { id: 'UC1', title: 'Streamer' } };
+    st.chat = { state: 'looking', since: new Date().toISOString(), next_check: new Date(Date.now() + 120_000).toISOString() };
+    const el = start();
+    await settle(40);
+    const chat = el.querySelector('[aria-labelledby="youtube-chat-heading"]')!;
+    expect(chat.textContent).toContain('Not live on YouTube. Checking again at');
+    expect(chat.textContent).toMatch(/Each\s+check costs 1 unit/);
+    button(chat, 'Find my stream')!.click();
+    await settle(40);
+    expect(calls.some((c) => c.path === '/v1/connections/youtube/chat/find' && c.method === 'POST')).toBe(true);
+    expect(chat.textContent).toContain('Reading the chat of Friday stream');
+    expect(button(chat, 'Find my stream')).toBeUndefined();
+
+    st.chat = { state: 'disconnected', detail: 'Lost YouTube chat; trying again.', since: new Date().toISOString(), broadcast: { id: 'bc1', title: 'Friday stream' } };
+    await settle(60);
+    expect(chat.textContent).toContain('Unknown: not reading YouTube chat right now');
+    expect(chat.textContent).toContain('Lost YouTube chat');
+
+    st.chat = { state: 'quota', since: new Date().toISOString() };
+    await settle(60);
+    expect(chat.textContent).toContain('Paused: today’s quota is used up');
 
     const results = await axe.run(el, { rules: { 'color-contrast': { enabled: false } } });
     expect(results.violations).toEqual([]);

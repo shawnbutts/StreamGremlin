@@ -12,6 +12,7 @@
     getButtons,
     getChatModes,
     getConnections,
+    getYouTube,
     getModeration,
     getEvents,
     getUISettings,
@@ -31,6 +32,7 @@
     type LiveButton,
     type LivePlace,
     type TwitchStatus,
+    type YouTubeChat,
     type WorkflowSummary,
   } from '../lib/api';
   import { eventTime } from '../lib/events';
@@ -83,6 +85,9 @@
   let lostReason = $state('');
   let twitch = $state<TwitchStatus | undefined>();
   let twitchError = $state('');
+  // YouTube chat's state (M6 slice 2, D-097). Its messages are in the event
+  // log; they join this chat in slice 3. Hidden until YouTube is set up.
+  let youtube = $state<YouTubeChat | undefined>();
   let logEl = $state<HTMLDivElement | undefined>();
   let atBottom = $state(true);
   let unseen = $state(0);
@@ -170,6 +175,7 @@
     const next = [...lines];
     let fresh = 0;
     for (const ev of recs) {
+      if (ev.source === 'youtube') continue; // until the combined chat (M6 slice 3)
       const l = ev.type === SUSPICIOUS_MESSAGE ? suspiciousLine(ev) : chatLine(ev);
       const i = l.messageId ? next.findIndex((x) => x.messageId === l.messageId) : -1;
       if (i < 0) {
@@ -364,6 +370,15 @@
     }
   }
 
+  async function loadYouTube() {
+    try {
+      const c = (await getYouTube()).chat;
+      youtube = c && c.state !== 'off' ? c : undefined;
+    } catch {
+      youtube = undefined; // the Twitch line already says when the engine is unknown
+    }
+  }
+
   async function loadButtons() {
     try {
       const [b, w] = await Promise.all([getButtons(), getWorkflows()]);
@@ -384,10 +399,12 @@
       .then((ui) => (place = ui.live_buttons ?? 'right'))
       .catch(() => undefined);
     loadTwitch();
+    loadYouTube();
     loadButtons();
     loadModes();
     const timer = setInterval(() => {
       loadTwitch();
+      loadYouTube();
       loadModes();
       if (!editing && !form) loadButtons();
     }, refreshMs);
@@ -566,23 +583,41 @@
 {:else}
   <div class="live-head">
     <h1>Live</h1>
-    <p class="live-status" aria-live="polite">
-      {#if listening === 'lost'}
-        <span class="state-unknown"><span aria-hidden="true">?</span> Unknown: not hearing the engine ({lostReason}). Trying again…</span>
-      {:else if twitchError}
-        <span class="state-unknown"><span aria-hidden="true">?</span> Chat’s state is unknown: {twitchError}</span>
-      {:else if !twitch}
-        Checking chat…
-      {:else if twitch.chat.state === 'connected'}
-        <span class="state-ok"><span aria-hidden="true">●</span> Reading chat</span>
-      {:else if twitch.chat.state === 'connecting'}
-        Connecting to chat…
-      {:else if twitch.chat.state === 'disconnected'}
-        <span class="state-unknown"><span aria-hidden="true">?</span> Not reading chat right now{twitch.chat.detail ? `: ${twitch.chat.detail}` : ''}</span>
-      {:else}
-        Not reading chat: sign in to Twitch on Connections.
+    <div class="live-statuses">
+      <p class="live-status" aria-live="polite">
+        {#if listening === 'lost'}
+          <span class="state-unknown"><span aria-hidden="true">?</span> Unknown: not hearing the engine ({lostReason}). Trying again…</span>
+        {:else if twitchError}
+          <span class="state-unknown"><span aria-hidden="true">?</span> Chat’s state is unknown: {twitchError}</span>
+        {:else if !twitch}
+          Checking chat…
+        {:else if twitch.chat.state === 'connected'}
+          <span class="state-ok"><span aria-hidden="true">●</span> Reading chat</span>
+        {:else if twitch.chat.state === 'connecting'}
+          Connecting to chat…
+        {:else if twitch.chat.state === 'disconnected'}
+          <span class="state-unknown"><span aria-hidden="true">?</span> Not reading chat right now{twitch.chat.detail ? `: ${twitch.chat.detail}` : ''}</span>
+        {:else}
+          Not reading chat: sign in to Twitch on Connections.
+        {/if}
+      </p>
+      {#if youtube && listening !== 'lost'}
+        <p class="live-status" aria-live="polite">
+          {#if youtube.state === 'connected'}
+            <span class="state-ok"><span aria-hidden="true">●</span> YouTube: reading the chat of “{youtube.broadcast?.title}”</span>
+            <span class="sg-muted">(in the event log; it joins this chat in the next update)</span>
+          {:else if youtube.state === 'connecting'}
+            YouTube: connecting to chat…
+          {:else if youtube.state === 'looking'}
+            YouTube: not live.
+          {:else if youtube.state === 'quota'}
+            <span class="state-unknown"><span aria-hidden="true">!</span> YouTube: paused, today’s quota is used up</span>
+          {:else}
+            <span class="state-unknown"><span aria-hidden="true">?</span> YouTube: not reading chat right now{youtube.detail ? `: ${youtube.detail}` : ''}</span>
+          {/if}
+        </p>
       {/if}
-    </p>
+    </div>
     <div class="live-place" role="group" aria-label="Where the buttons go">
       <span class="sg-muted">Buttons:</span>
       <button type="button" class="button" aria-pressed={place === 'right'} onclick={() => setPlace('right')}>Right</button>
@@ -932,9 +967,14 @@
   .live-head h1 {
     margin-bottom: 0.5rem;
   }
+  .live-statuses {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
   .live-status {
     margin: 0;
-    flex: 1;
   }
   .live-place {
     display: flex;

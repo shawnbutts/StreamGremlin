@@ -55,6 +55,9 @@ const testToken = "test-token-not-secret"
 // it don't run in parallel.
 var testMock *mocktwitch.Server
 
+// testYouTube is the mock YouTube behind the latest newTestServer.
+var testYouTube *mockyoutube.Server
+
 // testPlayer is the sound player behind the latest newTestServer.
 var testPlayer *sounds.Player
 
@@ -109,9 +112,10 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	t.Cleanup(tw.Close)
 	testMock = mock
 	ytMock := mockyoutube.New()
-	ytSrv := httptest.NewServer(ytMock)
+	ytSrv := mockyoutube.Serve(ytMock)
 	t.Cleanup(ytSrv.Close)
-	yt := youtube.New(youtube.Options{Secrets: sec, Settings: set, TestServer: ytSrv.URL})
+	testYouTube = ytMock
+	yt := youtube.New(youtube.Options{Secrets: sec, Settings: set, Inbox: inbox, TestServer: ytSrv.URL})
 	yt.Start(context.Background())
 	t.Cleanup(yt.Close)
 	obsMock := mockobs.New()

@@ -18,11 +18,12 @@ import (
 )
 
 const youtubeUsage = `usage:
-  streamgremlin youtube [status] [-json]      your and the bot's YouTube sign-in, and today's quota
+  streamgremlin youtube [status] [-json]      your and the bot's YouTube sign-in, chat, and today's quota
   streamgremlin youtube client ID [-secret]   use your own Google project's client ID ("" for the built-in one);
                                               -secret reads its client secret from standard input
   streamgremlin youtube sign-in [-bot]        sign in: open the link it prints in your browser
-  streamgremlin youtube sign-out [-bot]       sign out`
+  streamgremlin youtube sign-out [-bot]       sign out
+  streamgremlin youtube find                  ask YouTube now whether you're live, and read that chat (1 unit)`
 
 func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	sub := "status"
@@ -55,7 +56,7 @@ func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Wr
 	}
 	in := api.YouTubeClientRequest{}
 	switch sub {
-	case "status", "sign-in", "sign-out":
+	case "status", "sign-in", "sign-out", "find":
 		if len(positional) != 0 {
 			fmt.Fprintln(stderr, youtubeUsage)
 			return 2
@@ -106,6 +107,8 @@ func youtubeCmd(dir string, args []string, stdin io.Reader, stdout, stderr io.Wr
 			return code
 		}
 		printYouTube(stdout, st)
+	case "find":
+		return youtubeFind(ctx, c, stdout, stderr)
 	case "sign-in":
 		return youtubeSignIn(ctx, c, role, stdout, stderr)
 	case "sign-out":
@@ -181,7 +184,70 @@ func printYouTube(w io.Writer, s youtube.Status) {
 	if q.Exhausted {
 		quota = "used up: YouTube said so"
 	}
+	fmt.Fprintf(w, "Chat:           %s\n", describeYouTubeChat(s.Chat))
 	fmt.Fprintf(w, "Quota:          %s; resets %s\n", quota, q.ResetsAt.Local().Format("Mon 15:04"))
+}
+
+func describeYouTubeChat(c youtube.ChatStatus) string {
+	var out string
+	switch c.State {
+	case youtube.ChatOff:
+		out = "off"
+	case youtube.ChatLooking:
+		out = "not live on YouTube"
+		if c.NextCheck != nil {
+			out += "; checking again at " + c.NextCheck.Local().Format("15:04:05")
+		}
+	case youtube.ChatConnecting:
+		out = "connecting"
+	case youtube.ChatConnected:
+		out = "reading chat"
+	case youtube.ChatDisconnected:
+		out = "unknown: not reading chat right now"
+	case youtube.ChatQuota:
+		out = "paused: today's quota is used up"
+	}
+	if c.Broadcast != nil {
+		out += " of “" + c.Broadcast.Title + "”"
+	}
+	if c.Detail != "" {
+		out += ". " + c.Detail
+	}
+	return out
+}
+
+// youtubeFind asks YouTube now, and waits a few seconds for the answer.
+func youtubeFind(ctx context.Context, c *client.Client, stdout, stderr io.Writer) int {
+	var st youtube.Status
+	if code := apiExit(c.Do(ctx, "POST", "/v1/connections/youtube/chat/find", nil, &st), stderr); code != 0 {
+		return code
+	}
+	asked := st.Chat.CheckedAt
+	answered := func() bool {
+		switch st.Chat.State {
+		case youtube.ChatConnected, youtube.ChatOff, youtube.ChatQuota:
+			return true
+		case youtube.ChatConnecting:
+			return false
+		}
+		return st.Chat.CheckedAt != nil && (asked == nil || st.Chat.CheckedAt.After(*asked))
+	}
+	for range 40 {
+		if answered() {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return 1
+		case <-time.After(250 * time.Millisecond):
+		}
+		if err := c.Do(ctx, "GET", "/v1/connections/youtube", nil, &st); err != nil {
+			reportErr(err, stderr)
+			return 1
+		}
+	}
+	fmt.Fprintf(stdout, "Chat: %s\n", describeYouTubeChat(st.Chat))
+	return 0
 }
 
 func describeYouTube(a youtube.AccountStatus) string {

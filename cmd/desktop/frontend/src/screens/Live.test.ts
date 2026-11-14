@@ -152,6 +152,33 @@ describe('Live', () => {
     await noViolations('a new button');
   });
 
+  it('says whether YouTube chat is read, and keeps its messages out until the combined chat', async () => {
+    const yt = { ...chat(4, 'YouTube Viewer', 'from YouTube'), source: 'youtube', actor: { platform: 'youtube', id: 'UCv', display_name: 'YouTube Viewer' } };
+    engine({
+      events: [chat(3, 'Fan', 'hello there'), yt],
+      extra: {
+        '/v1/connections/youtube': () => ({
+          status: 200,
+          body: { chat: { state: 'connected', since: now, broadcast: { id: 'bc1', title: 'Friday stream' } } },
+        }),
+      },
+    });
+    const el = start();
+    await settle(120);
+    const log = el.querySelector('[role="log"]')!;
+    expect(log.textContent).toContain('hello there');
+    expect(log.textContent).not.toContain('from YouTube');
+    expect(el.textContent).toContain('YouTube: reading the chat of “Friday stream”');
+    await noViolations('with YouTube');
+  });
+
+  it('hides YouTube until it’s set up', async () => {
+    engine({ extra: { '/v1/connections/youtube': () => ({ status: 200, body: { chat: { state: 'off', since: now } } }) } });
+    const el = start();
+    await settle(120);
+    expect(el.textContent).not.toContain('YouTube');
+  });
+
   it('presses a button, saying what it started', async () => {
     const { calls } = engine();
     const el = start();

@@ -27,8 +27,18 @@ func youtubeRoutes(d Deps) []Route {
 	}
 	return []Route{
 		{
+			Method: "POST", Path: "/v1/connections/youtube/chat/find",
+			Summary: "Ask YouTube now whether you're live (1 unit of quota), instead of at the next check, and read " +
+				"that broadcast's chat. Does nothing while chat is being read. Returns YouTube's status.",
+			Permission: PermConnectionsWrite,
+			Handler: func(w http.ResponseWriter, r *http.Request) {
+				d.YouTube.FindNow()
+				writeJSON(w, http.StatusOK, d.YouTube.Status(r.Context()))
+			},
+		},
+		{
 			Method: "GET", Path: "/v1/connections/youtube",
-			Summary: "YouTube: whose Google project signs in, both sign-ins and their channels, today's quota as " +
+			Summary: "YouTube: whose Google project signs in, both sign-ins and their channels, chat (the live broadcast being read), today's quota as " +
 				"StreamGremlin counts it, and the adapter's capability manifest. Never returns tokens or the client secret.",
 			Permission: PermConnectionsRead,
 			Handler: func(w http.ResponseWriter, r *http.Request) {

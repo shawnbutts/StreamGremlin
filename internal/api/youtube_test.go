@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/youtube"
 )
@@ -57,8 +58,28 @@ func TestYouTubeSignInThroughTheAPI(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 	if st := get(); st.Streamer.State != youtube.StateConnected || st.Streamer.Channel == nil || st.Streamer.Channel.Title != "Streamer" ||
-		st.Quota.Used != 1 {
+		st.Quota.Used < 1 {
 		t.Fatalf("%+v", st)
+	}
+	// Chat: Find my stream reads the live broadcast's chat.
+	b := testYouTube.GoLive("UCstreamer", "API stream")
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		w := do(t, s, req{method: "POST", path: "/v1/connections/youtube/chat/find", token: testToken})
+		var st youtube.Status
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &st) != nil {
+			t.Fatal(w.Code, w.Body)
+		}
+		if st.Chat.State == youtube.ChatConnected && st.Chat.Broadcast != nil && st.Chat.Broadcast.ID == b.ID {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%+v", st.Chat)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if w := do(t, s, req{method: "POST", path: "/v1/connections/youtube/chat/find"}); w.Code != 401 {
+		t.Fatal("find without a token:", w.Code)
 	}
 	if w := do(t, s, req{method: "DELETE", path: "/v1/connections/youtube/bot/sign-in", token: testToken}); w.Code != 204 {
 		t.Fatal(w.Code)

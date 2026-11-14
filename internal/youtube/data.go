@@ -121,3 +121,50 @@ func (d *data) myChannel(ctx context.Context, token string) (Channel, error) {
 func newData(base string, q *quota) *data {
 	return &data{base: base, http: &http.Client{Timeout: 15 * time.Second}, quota: q}
 }
+
+// Broadcast is the streamer's live broadcast, whose chat StreamGremlin reads.
+type Broadcast struct {
+	ID         string    `json:"id"`
+	Title      string    `json:"title"`
+	LiveChatID string    `json:"-"`
+	StartedAt  time.Time `json:"started_at,omitzero"`
+}
+
+// activeBroadcasts is liveBroadcasts.list with broadcastStatus=active and
+// broadcastType=all: the signed-in channel's live broadcasts, its default
+// (persistent) one included. Google allows only one of mine, id and
+// broadcastStatus; broadcastStatus asks about the signed-in channel.
+func (d *data) activeBroadcasts(ctx context.Context, token string) ([]Broadcast, error) {
+	var out struct {
+		Items []struct {
+			ID      string `json:"id"`
+			Snippet struct {
+				Title           string `json:"title"`
+				LiveChatID      string `json:"liveChatId"`
+				ActualStartTime string `json:"actualStartTime"`
+				ActualEndTime   string `json:"actualEndTime"`
+			} `json:"snippet"`
+			Status struct {
+				LifeCycleStatus string `json:"lifeCycleStatus"`
+			} `json:"status"`
+		} `json:"items"`
+	}
+	q := url.Values{"part": {"snippet,status"}, "broadcastStatus": {"active"}, "broadcastType": {"all"}, "maxResults": {"10"}}
+	if err := d.get(ctx, token, "/liveBroadcasts", q, CostBroadcastsList, &out); err != nil {
+		return nil, err
+	}
+	var bs []Broadcast
+	for _, it := range out.Items {
+		// live, or liveStarting; never testing (a preview nobody sees) or ended.
+		live := it.Status.LifeCycleStatus == "live" || it.Status.LifeCycleStatus == "liveStarting"
+		if !live || it.Snippet.LiveChatID == "" || it.Snippet.ActualEndTime != "" {
+			continue
+		}
+		b := Broadcast{ID: it.ID, Title: it.Snippet.Title, LiveChatID: it.Snippet.LiveChatID}
+		if t, err := time.Parse(time.RFC3339, it.Snippet.ActualStartTime); err == nil {
+			b.StartedAt = t
+		}
+		bs = append(bs, b)
+	}
+	return bs, nil
+}

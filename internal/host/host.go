@@ -184,7 +184,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	if err != nil {
 		return nil, err
 	}
-	h.youtube = youtube.New(youtube.Options{Secrets: sec, Settings: set, TestServer: ytBase, Logger: log})
+	h.youtube = youtube.New(youtube.Options{Secrets: sec, Settings: set, Inbox: inbox, TestServer: ytBase, Logger: log})
 	h.youtube.Start(ctx)
 	h.obs = obs.New(obs.Options{DB: h.db, Settings: set, Secrets: sec, Inbox: inbox, Logger: log})
 	if err := h.obs.Start(ctx); err != nil {

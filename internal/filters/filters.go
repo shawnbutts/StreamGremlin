@@ -224,6 +224,9 @@ var requestSafe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,50}$`)
 
 // handle judges one chat message and acts on a catch.
 func (s *Service) handle(ctx context.Context, r events.Record) {
+	if events.LogOnly(r) {
+		return
+	}
 	a := r.Actor
 	if a == nil || a.ID == "" || r.Source == "core" {
 		return

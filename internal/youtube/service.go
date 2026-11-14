@@ -2,16 +2,24 @@ package youtube
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"regexp"
 	"sync"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
+
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
+	"code.streamgremlin.com/streamgremlin/internal/youtube/livechat"
 )
 
 // BuiltInClientID and BuiltInClientSecret are StreamGremlin's own Google
@@ -67,6 +75,8 @@ const (
 type Options struct {
 	Secrets  *secrets.Store
 	Settings *settings.Store
+	// Inbox receives YouTube chat; nil reads none.
+	Inbox *events.Inbox
 	// TestServer replaces Google with a stand-in serving every endpoint
 	// under one loopback base, such as mockyoutube. The app says so.
 	TestServer string
@@ -92,6 +102,18 @@ type Service struct {
 	streamer, bot *Account
 	// signInFor is how long a sign-in waits for the browser.
 	signInFor time.Duration
+
+	// Chat (chat.go). endedChats and lastEnded belong to runChat.
+	inbox      *events.Inbox
+	chatConn   *grpc.ClientConn
+	chatMu     sync.Mutex
+	chat       ChatStatus
+	kick       chan struct{}
+	accounts   *events.Notifier // an account's state changed
+	endedChats map[string]bool
+	lastEnded  string
+	lookEvery  time.Duration
+	retryAfter time.Duration // the first wait before reconnecting
 }
 
 // New returns a Service. Call Start to load saved sign-ins.
@@ -108,7 +130,11 @@ func New(opts Options) *Service {
 		secrets: opts.Secrets, settings: opts.Settings, oauth: newOAuth(ep), test: opts.TestServer,
 		log: opts.Logger.With("component", "youtube"), now: time.Now, ctx: ctx, stop: stop,
 		notify: events.NewNotifier(), signInFor: 10 * time.Minute,
+		inbox: opts.Inbox, kick: make(chan struct{}, 1), accounts: events.NewNotifier(),
+		endedChats: map[string]bool{}, lookEvery: LookEvery, retryAfter: time.Second,
+		chat: ChatStatus{State: ChatOff, Since: time.Now()},
 	}
+	s.chatConn = newChatConn(opts.TestServer)
 	s.quota = &quota{settings: opts.Settings, now: func() time.Time { return s.now() }}
 	s.data = newData(ep.api, s.quota)
 	s.streamer = newAccount(s, RoleStreamer, StreamerScopes)
@@ -119,11 +145,11 @@ func New(opts Options) *Service {
 // Start loads saved sign-ins and checks them with Google in the
 // background, then regularly. It never blocks the engine on the network.
 func (s *Service) Start(ctx context.Context) {
-	for _, a := range s.accounts() {
+	for _, a := range s.all() {
 		a.load(ctx)
 	}
 	if c, _ := s.client(ctx); c.ID == "" {
-		for _, a := range s.accounts() {
+		for _, a := range s.all() {
 			a.mu.Lock()
 			if a.status.State == StateSignedOut {
 				a.setStatus(StateNotConfigured, "")
@@ -135,7 +161,7 @@ func (s *Service) Start(ctx context.Context) {
 	go func() {
 		defer s.wg.Done()
 		for {
-			for _, a := range s.accounts() {
+			for _, a := range s.all() {
 				a.Validate(s.ctx)
 			}
 			select {
@@ -145,15 +171,39 @@ func (s *Service) Start(ctx context.Context) {
 			}
 		}
 	}()
+	s.wg.Add(2)
+	go func() { defer s.wg.Done(); s.runChat(s.ctx) }()
+	go func() { defer s.wg.Done(); s.followTwitch(s.ctx) }()
 }
 
 // Close stops background work and pending sign-ins.
 func (s *Service) Close() {
 	s.stop()
 	s.wg.Wait()
+	_ = s.chatConn.Close()
 }
 
-func (s *Service) accounts() []*Account { return []*Account{s.streamer, s.bot} }
+func (s *Service) all() []*Account { return []*Account{s.streamer, s.bot} }
+
+// newChatConn makes the gRPC connection for chat streams: Google's, over
+// TLS, or a loopback test server's without it. It connects when first used.
+func newChatConn(test string) *grpc.ClientConn {
+	target := "dns:///" + livechat.Host
+	creds := credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12})
+	if test != "" {
+		if u, err := url.Parse(test); err == nil {
+			target = "passthrough:///" + u.Host
+		}
+		creds = insecure.NewCredentials()
+	}
+	conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithUserAgent("StreamGremlin"),
+		// A ping every 2 minutes finds a connection that silently died.
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 2 * time.Minute, Timeout: 20 * time.Second}))
+	if err != nil {
+		panic(fmt.Sprintf("youtube: chat connection: %v", err)) // only a malformed target, which this never makes
+	}
+	return conn
+}
 
 // Account returns the account for role.
 func (s *Service) Account(role Role) (*Account, bool) {
@@ -177,6 +227,12 @@ func (s *Service) other(role Role) *Account {
 func (s *Service) Changes() <-chan struct{} { return s.notify.C() }
 
 func (s *Service) changed() { s.notify.Notify() }
+
+// accountChanged is called when an account's state changes.
+func (s *Service) accountChanged() {
+	s.accounts.Notify()
+	s.changed()
+}
 
 // client returns the Google project in use: the streamer's own wins over
 // the built-in one.
@@ -223,7 +279,7 @@ func (s *Service) SetClient(ctx context.Context, id string, secret secrets.Value
 		return err
 	}
 	current, _ := s.client(ctx)
-	for _, a := range s.accounts() {
+	for _, a := range s.all() {
 		a.CancelSignIn()
 		a.mu.Lock()
 		switch {
@@ -257,6 +313,7 @@ type Status struct {
 	Streamer   AccountStatus `json:"streamer"`
 	Bot        AccountStatus `json:"bot"`
 	Quota      QuotaStatus   `json:"quota"`
+	Chat       ChatStatus    `json:"chat"`
 	Manifest   Manifest      `json:"manifest"`
 }
 
@@ -265,7 +322,7 @@ func (s *Service) Status(ctx context.Context) Status {
 	c, src := s.client(ctx)
 	return Status{
 		ClientID: c.ID, ClientSource: src, HasSecret: c.Secret != "", HasBuiltIn: BuiltInClientID != "",
-		TestServer: s.test, Streamer: s.streamer.Status(), Bot: s.bot.Status(), Quota: s.quota.status(ctx),
+		TestServer: s.test, Streamer: s.streamer.Status(), Bot: s.bot.Status(), Quota: s.quota.status(ctx), Chat: s.ChatStatus(),
 		Manifest: YouTubeManifest(),
 	}
 }

@@ -63,11 +63,13 @@ The app and the command line are written in Go (BSD 3-clause licence, copyright 
 | `cel.dev/cel-go` | Apache 2.0 | (c) Google LLC | Workflow conditions | Both |
 | `cel.dev/expr` | Apache 2.0 | (c) Google LLC | Workflow conditions | Both |
 | `github.com/antlr4-go/antlr/v4` | BSD 3-clause | (c) 2012-2023 The ANTLR Project | Workflow conditions (CEL's parser) | Both |
-| `google.golang.org/protobuf` | BSD 3-clause | (c) 2018 The Go Authors | Workflow conditions (CEL) | Both |
+| `google.golang.org/protobuf` | BSD 3-clause | (c) 2018 The Go Authors | Workflow conditions (CEL); YouTube chat | Both |
+| `google.golang.org/grpc` | Apache 2.0 | (c) 2014 gRPC authors | YouTube chat | Both |
 | `google.golang.org/genproto/googleapis/api` | Apache 2.0 | Google LLC | Workflow conditions (CEL) | Both |
-| `google.golang.org/genproto/googleapis/rpc` | Apache 2.0 | Google LLC | Workflow conditions (CEL) | Both |
+| `google.golang.org/genproto/googleapis/rpc` | Apache 2.0 | Google LLC | Workflow conditions (CEL); YouTube chat (gRPC) | Both |
 | `golang.org/x/exp` | BSD 3-clause | (c) 2009 The Go Authors | Workflow conditions (CEL) | Both |
 | `golang.org/x/text` | BSD 3-clause | (c) 2009 The Go Authors | Workflow conditions (CEL); Wails | Both |
+| `golang.org/x/net` | BSD 3-clause | (c) 2009 The Go Authors | YouTube chat (gRPC's HTTP/2) | Both |
 | `github.com/yuin/gopher-lua` | MIT | (c) 2015 Yusuke Inuzuka | Lua scripts | Both |
 | `github.com/coder/websocket` | ISC | (c) 2025 Coder | Twitch EventSub and OBS | Both |
 | `github.com/zalando/go-keyring` | MIT | (c) 2016 Zalando SE | Passwords and sign-ins in the system keyring | Both |

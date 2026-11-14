@@ -106,7 +106,7 @@ func summarize(ctx context.Context, inbox *events.Inbox, now time.Time) (map[str
 		done := false
 		for _, r := range recs {
 			after = r.Seq
-			if r.DeliveryQuality == events.Synthetic {
+			if r.DeliveryQuality == events.Synthetic || events.LogOnly(r) {
 				continue
 			}
 			if r.Type == "broadcast.channel.offline" {

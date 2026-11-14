@@ -21,7 +21,11 @@ var ErrQuotaExhausted = errors.New("youtube: today's YouTube quota is used up; i
 // Quota costs of the calls StreamGremlin makes, from Google's table
 // (https://developers.google.com/youtube/v3/determine_quota_cost).
 const (
-	CostChannelsList = 1
+	CostChannelsList   = 1
+	CostBroadcastsList = 1
+	// CostStreamList is a chat stream's cost, counted once a connection:
+	// Google's table doesn't say whether a long connection costs more.
+	CostStreamList = 5
 )
 
 var pacific = func() *time.Location {

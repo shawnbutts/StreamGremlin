@@ -103,7 +103,7 @@ func (s *Service) recentChatters(ctx context.Context, g *Giveaway) ([]candidate,
 			if r.Seq > g.afterSeq {
 				break
 			}
-			if r.ReceivedAt.Before(since) || (r.DeliveryQuality == events.Synthetic) != g.Practice {
+			if events.LogOnly(r) || r.ReceivedAt.Before(since) || (r.DeliveryQuality == events.Synthetic) != g.Practice {
 				continue
 			}
 			p, platform, ok := chatOf(r)

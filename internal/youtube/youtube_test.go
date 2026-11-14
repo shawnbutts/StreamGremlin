@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/mockyoutube"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -33,18 +33,21 @@ func (s *syncBuf) Write(p []byte) (int, error) { s.mu.Lock(); defer s.mu.Unlock(
 func (s *syncBuf) String() string              { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
 
 type rig struct {
-	t    *testing.T
-	mock *mockyoutube.Server
-	url  string
-	sec  *secrets.Store
-	set  *settings.Store
-	logs *syncBuf
+	t     *testing.T
+	mock  *mockyoutube.Server
+	url   string
+	sec   *secrets.Store
+	set   *settings.Store
+	logs  *syncBuf
+	inbox *events.Inbox
+	// look replaces LookEvery, so tests needn't wait 2 minutes.
+	look time.Duration
 }
 
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	m := mockyoutube.New()
-	srv := httptest.NewServer(m)
+	srv := mockyoutube.Serve(m)
 	t.Cleanup(srv.Close)
 	dir := t.TempDir()
 	ctx := context.Background()
@@ -60,13 +63,18 @@ func newRig(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &rig{t: t, mock: m, url: srv.URL, sec: sec, set: settings.NewStore(db), logs: &syncBuf{}}
+	return &rig{t: t, mock: m, url: srv.URL, sec: sec, set: settings.NewStore(db), logs: &syncBuf{},
+		inbox: events.NewInbox(db, slog.New(slog.DiscardHandler))}
 }
 
 func (r *rig) service() *Service {
 	r.t.Helper()
-	s := New(Options{Secrets: r.sec, Settings: r.set, TestServer: r.url,
+	s := New(Options{Secrets: r.sec, Settings: r.set, TestServer: r.url, Inbox: r.inbox,
 		Logger: slog.New(slog.NewTextHandler(r.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))})
+	if r.look > 0 {
+		s.lookEvery = r.look
+	}
+	s.retryAfter = 20 * time.Millisecond
 	s.Start(context.Background())
 	r.t.Cleanup(s.Close)
 	return s
@@ -214,7 +222,9 @@ func TestSignInThroughTheBrowser(t *testing.T) {
 	if st.Channel == nil || st.Channel.ID != "UCstreamer" || st.Channel.Handle != "@streamer" || len(st.MissingScopes) != 0 || st.Detail != "" {
 		t.Fatalf("%+v", st)
 	}
-	if q := s.Status(ctx).Quota; q.Used != CostChannelsList || q.Limit != DailyQuota || q.Exhausted {
+	// Signing in also looks for a live broadcast at once (1 unit).
+	time.Sleep(50 * time.Millisecond)
+	if q := s.Status(ctx).Quota; q.Used != CostChannelsList+r.mock.Calls("liveBroadcasts")*CostBroadcastsList || q.Limit != DailyQuota || q.Exhausted {
 		t.Fatalf("%+v", q)
 	}
 	// The address is gone once the sign-in is done.

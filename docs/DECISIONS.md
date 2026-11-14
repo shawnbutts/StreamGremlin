@@ -1679,3 +1679,14 @@ Decided 2026-11-13, building M6 slice 1 after the user's "proceed". The design i
 - **Quota is counted by StreamGremlin,** since Google doesn't report it: each call's documented cost, per Pacific day. When Google says it's used up, nothing more is asked until midnight Pacific.
 - **`mockyoutube`** stands in for Google's sign-in and the Data API, in tests and to try it (`-youtube-url`).
 
+
+## D-097. M6 slice 2: reading YouTube chat, log only until the combined chat
+
+Decided 2026-11-14, building M6 slice 2 after the user's "proceed". They accepted the proposal of checking every 2 minutes while not live. The design is [ADR-0047](adr/0047-youtube-chat-stream.md). In short:
+
+- **Finding the broadcast:** `liveBroadcasts.list` (1 unit). It runs every 2 minutes while you're not live, and at once when your channel signs in, when your Twitch stream starts, and on **Find my stream**. It never runs while chat is being read.
+- **Reading chat:** Google's gRPC stream (`liveChatMessages.streamList`, 5 units a connection), with Google's gRPC library and no generated code. A dropped connection or a restart resumes from the last page token, so nothing is missed or repeated. Messages from before StreamGremlin was reading are marked as backlog.
+- **YouTube text messages are stored** as `chat.message.received` with source `youtube`; the bot's own are stored as `chat.message.sent`.
+- **Only the event log reads them in this slice.** Workflows, commands, filters, points, giveaways, first words, viewers, the Discord summary, timers and Live's chat list skip YouTube events (`events.LogOnly`) until the slice that brings each one: Live's combined chat, commands and workflows in slice 3, moderating in 5, viewers and points in 6. This way no part of the app treats a YouTube viewer as a Twitch one in the meantime.
+- **Connections and Live say whether YouTube chat is being read,** and why not: not live, quota used up, signed out, or lost and trying again.
+- **Other message types wait for their slices:** Super Chats and memberships for slice 4, deletions and bans for slice 5.
