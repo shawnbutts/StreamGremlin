@@ -1850,6 +1850,7 @@ Decided 2026-11-14, building M8 slice 1 after the user's "proceed".
   - Why 10 minutes: a follow bot can't follow and chat at once, and real followers of 10 minutes or more still can.
 - **Where:** the Chat modes panel on **Live**; `mod shield on|off`, `mod lock` and `mod unlock` on the CLI; the steps "Turn Shield Mode on or off" and "Lock or unlock chat"; the trigger "Shield Mode turns on or off"; the templates "Shield Mode on when I go offline", "Shield Mode off when I go live" and "!lock and !unlock chat" (mods and you) under Moderation.
 - **Twitch only:** YouTube's API has no equivalent (D-104).
+- **Decluttered (2026-11-14, after slice 2).** The user: "i think the chat modes section on live is a little cluttered. and the "uses the settings you chose in twitch's mode view" but doesn't link to it or anything. can we maybe move that and the description to "lock chat" to an on-hover for the button?" Lock (or Unlock), Shield Mode and a small **Mod View ↗** button now share one row. **Mod View** opens `https://www.twitch.tv/moderator/<your login>` in the browser, where Shield Mode's settings are; the app's list of pages it may open allows exactly that path. The explanations moved into each button's hover text, and are still read out by screen readers. "Locked" is one short line above the row.
 
 ## D-106. M8 slice 2: ban lists from files
 

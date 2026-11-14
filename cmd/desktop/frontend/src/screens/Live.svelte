@@ -14,6 +14,7 @@
     getConnections,
     getYouTube,
     getModeration,
+    openInBrowser,
     getEvents,
     getUISettings,
     getWorkflows,
@@ -962,24 +963,38 @@
     <section class="sg-panel live-modes" aria-labelledby="live-modes-heading">
       <h2 id="live-modes-heading">Chat modes</h2>
       {#if youIn}
-        <div class="live-lock">
+        {#if lock}
+          <p class="state state-unknown live-locked" role="status"><span aria-hidden="true">!</span> Chat locked since {eventTime(lock.created_at)}</p>
+        {/if}
+        <div class="live-mode-list live-lock">
           {#if lock}
-            <p class="state state-unknown" role="status"><span aria-hidden="true">!</span> Chat is locked, since {eventTime(lock.created_at)}.</p>
-            <button type="button" class="button" disabled={modesBusy} onclick={() => shieldOrLock({ action: 'unlock' })}>Unlock chat</button>
-            <p class="sg-muted field-hint">Puts back only what the lock changed.</p>
+            <button type="button" class="button" disabled={modesBusy} aria-describedby="live-unlock-what" title="Puts back only what the lock changed."
+              onclick={() => shieldOrLock({ action: 'unlock' })}>Unlock chat</button
+            >
+            <span id="live-unlock-what" class="visually-hidden">Puts back only what the lock changed.</span>
           {:else}
-            <button type="button" class="button button-danger" disabled={modesBusy} onclick={() => shieldOrLock({ action: 'lock' })}>Lock chat</button>
-            <p class="sg-muted field-hint">At once: Shield Mode, emote-only and followers-only (followed at least 10 minutes) on. Unlock puts it back.</p>
+            <button type="button" class="button button-danger" disabled={modesBusy} aria-describedby="live-lock-what"
+              title="At once: Shield Mode, emote-only and followers-only (followed at least 10 minutes) on. Unlock puts it back."
+              onclick={() => shieldOrLock({ action: 'lock' })}>Lock chat</button
+            >
+            <span id="live-lock-what" class="visually-hidden">At once: Shield Mode, emote-only and followers-only (followed at least 10 minutes) on. Unlock puts it back.</span>
+          {/if}
+          {#if shield}
+            <button type="button" class="button" aria-pressed={shield.active} disabled={modesBusy} aria-describedby="live-shield-what"
+              title="Uses the settings you chose in Twitch’s Mod View." onclick={() => shieldOrLock({ action: 'shield_mode', on: !shield!.active })}
+              >Shield Mode</button
+            >
+            <span id="live-shield-what" class="visually-hidden">Uses the settings you chose in Twitch’s Mod View.</span>
+          {:else if shieldProblem}
+            <span class="state-unknown" title={shieldProblem}><span aria-hidden="true">?</span> Shield Mode: unknown<span class="visually-hidden">: {shieldProblem}</span></span>
+          {/if}
+          {#if twitch?.streamer.login}
+            <button type="button" class="button live-modview" title="Shield Mode’s settings are in Twitch’s Mod View"
+              onclick={() => openInBrowser(`https://www.twitch.tv/moderator/${twitch!.streamer.login}`).catch((e) => (modesProblem = message(e)))}
+              >Mod View <span aria-hidden="true">↗</span><span class="visually-hidden">: Shield Mode’s settings, in your browser</span></button
+            >
           {/if}
         </div>
-        {#if shield}
-          <button type="button" class="button" aria-pressed={shield.active} disabled={modesBusy}
-            onclick={() => shieldOrLock({ action: 'shield_mode', on: !shield!.active })}>Shield Mode</button
-          >
-          <p class="sg-muted field-hint">Uses the settings you chose in Twitch’s Mod View.</p>
-        {:else if shieldProblem}
-          <p class="state state-unknown"><span aria-hidden="true">?</span> Shield Mode: unknown: {shieldProblem}</p>
-        {/if}
       {/if}
       {#if modes}
         <div class="live-mode-list">
@@ -1173,6 +1188,12 @@
   }
   .live-lock {
     margin-bottom: 0.75rem;
+  }
+  .live-locked {
+    margin: 0 0 0.4rem;
+  }
+  .live-modview {
+    font-size: 0.85em;
   }
   .live-yt-desc {
     white-space: pre-line;

@@ -169,10 +169,14 @@ func bridge(w http.ResponseWriter, r *http.Request, state *State) {
 }
 
 // AllowedURL reports whether the app may open u in the system browser:
-// Twitch's activation page and developer console; Google's sign-in page
+// Twitch's activation page, developer console, and a channel's Mod View
+// (where Shield Mode is set up, D-105); Google's sign-in page
 // and the Google Cloud console's pages the YouTube guide uses; or a
 // loopback test server's sign-in page (mocktwitch, mockyoutube). Nothing
 // else, so a compromised page can't send the streamer anywhere.
+// modViewPath is a channel's Mod View: /moderator/ and a Twitch login.
+var modViewPath = regexp.MustCompile(`^/moderator/[a-z0-9_]{1,25}$`)
+
 func AllowedURL(u string) bool {
 	p, err := url.Parse(u)
 	if err != nil || p.User != nil || p.Fragment != "" {
@@ -180,6 +184,8 @@ func AllowedURL(u string) bool {
 	}
 	switch {
 	case p.Scheme == "https" && p.Host == "www.twitch.tv" && p.Path == "/activate":
+		return true
+	case p.Scheme == "https" && p.Host == "www.twitch.tv" && modViewPath.MatchString(p.Path) && p.RawQuery == "":
 		return true
 	case p.Scheme == "https" && p.Host == "dev.twitch.tv" && (p.Path == "/console" || strings.HasPrefix(p.Path, "/console/") ||
 		strings.HasPrefix(p.Path, "/docs/")):

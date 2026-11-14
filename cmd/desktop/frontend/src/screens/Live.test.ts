@@ -827,7 +827,7 @@ describe('Live moderating', () => {
     await settle(30);
     expect(posts(calls).at(-1)).toMatchObject({ action: 'lock', platform: 'twitch', from: 'live' });
     expect(modes.textContent).toContain('Locked: Shield Mode, emote-only and followers-only');
-    expect(modes.textContent).toContain('Chat is locked');
+    expect(modes.textContent).toContain('Chat locked since');
     expect(button(el, 'Shield Mode')!.getAttribute('aria-pressed')).toBe('true');
     expect(button(el, 'Lock chat')).toBeUndefined();
     await noViolations('locked');
@@ -839,6 +839,13 @@ describe('Live moderating', () => {
     await settle(30);
     expect(posts(calls).at(-1)).toMatchObject({ action: 'shield_mode', on: true });
     expect(modes.textContent).toContain('Shield Mode is on.');
+    // The explanations are on hover (and read out), not on the panel.
+    expect(button(el, 'Shield Mode')!.title).toBe('Uses the settings you chose in Twitch’s Mod View.');
+    expect(button(el, 'Lock chat')!.title).toContain('Shield Mode, emote-only and followers-only');
+    // Mod View opens in the browser, where Shield Mode is set up.
+    Array.from(modes.querySelectorAll('button')).find((b) => b.textContent?.startsWith('Mod View'))!.click();
+    await settle(20);
+    expect(calls.find((c) => c.path === '/desktop/open-url')?.body).toEqual({ url: 'https://www.twitch.tv/moderator/gremlin' });
   });
 
   it('says Shield Mode is unknown when Twitch can’t say', async () => {

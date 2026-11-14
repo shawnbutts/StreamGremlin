@@ -107,6 +107,7 @@ func TestAllowedURL(t *testing.T) {
 	for _, ok := range []string{
 		"https://www.twitch.tv/activate?public=true&device-code=ABCDEFGH",
 		"https://dev.twitch.tv/console",
+		"https://www.twitch.tv/moderator/streamer_1",
 		"https://dev.twitch.tv/console/apps/create",
 		"https://dev.twitch.tv/docs/authentication/register-app/",
 		"http://127.0.0.1:7441/activate?device-code=ABC",
@@ -126,7 +127,8 @@ func TestAllowedURL(t *testing.T) {
 		"http://localhost:7441/activate", "http://127.0.0.1/activate", "https://dev.twitch.tv/consolex", "https://www.twitch.tv/activate#x",
 		"https://accounts.google.com/signin", "https://accounts.google.com.evil.example/o/oauth2/v2/auth",
 		"http://accounts.google.com/o/oauth2/v2/auth", "https://console.cloud.google.com/billing",
-		"http://10.0.0.2:7700/o/oauth2/v2/auth",
+		"http://10.0.0.2:7700/o/oauth2/v2/auth", "https://www.twitch.tv/moderator/a/b", "https://www.twitch.tv/moderator/BAD!",
+		"https://www.twitch.tv/moderator/x?redirect=y", "http://www.twitch.tv/moderator/x", "https://www.twitch.tv/moderator/",
 	} {
 		if AllowedURL(bad) {
 			t.Errorf("%s should be refused", bad)
