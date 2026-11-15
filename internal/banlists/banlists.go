@@ -83,6 +83,8 @@ type Twitch interface {
 	BansPage(ctx context.Context, after string) ([]twitch.BannedUser, string, twitch.RateInfo, error)
 	ListBan(ctx context.Context, userID, reason string) (twitch.ListOutcome, string, twitch.RateInfo)
 	ListUnban(ctx context.Context, userID string) (twitch.ListOutcome, string, twitch.RateInfo)
+	ListBlock(ctx context.Context, userID string) (twitch.ListOutcome, string, twitch.RateInfo)
+	ListUnblock(ctx context.Context, userID string) (twitch.ListOutcome, string, twitch.RateInfo)
 	StreamerID() string
 }
 
@@ -145,9 +147,16 @@ func (s *Service) poke() {
 	}
 }
 
+// Kinds of list.
+const (
+	KindBan   = "ban"
+	KindBlock = "block" // blocks as you instead: the follow-bot review (D-109)
+)
+
 // List is a ban list as stored.
 type List struct {
 	ID         string    `json:"id"`
+	Kind       string    `json:"kind"`
 	Name       string    `json:"name"`
 	Reason     string    `json:"reason"`
 	Phase      string    `json:"phase"`
@@ -165,14 +174,14 @@ type List struct {
 	cursor     string
 }
 
-const listColumns = `id, name, reason, phase, paused, pause_live, keep_points, file_path, file_name, generation, skipped, cursor, problem,
+const listColumns = `id, kind, name, reason, phase, paused, pause_live, keep_points, file_path, file_name, generation, skipped, cursor, problem,
 	created_at, updated_at`
 
 func scanList(sc interface{ Scan(...any) error }) (List, error) {
 	var l List
 	var paused, live, keep int
 	var created, updated string
-	if err := sc.Scan(&l.ID, &l.Name, &l.Reason, &l.Phase, &paused, &live, &keep, &l.filePath, &l.FileName, &l.generation, &l.Skipped,
+	if err := sc.Scan(&l.ID, &l.Kind, &l.Name, &l.Reason, &l.Phase, &paused, &live, &keep, &l.filePath, &l.FileName, &l.generation, &l.Skipped,
 		&l.cursor, &l.Problem, &created, &updated); err != nil {
 		return List{}, err
 	}
@@ -370,6 +379,17 @@ const MaxNames = 1000
 // like a file's. With start, it bans as soon as it's checked, without
 // waiting while you're live: the streamer confirmed already.
 func (s *Service) FromNames(ctx context.Context, name string, names []string, reason string, start bool) (List, error) {
+	return s.fromNames(ctx, KindBan, name, names, reason, start)
+}
+
+// BlockNames makes a list that blocks the names as you instead of banning
+// them (the follow-bot review, D-109): checked the same way, then blocked
+// at Twitch's pace once confirmed (at once with start). Undo unblocks.
+func (s *Service) BlockNames(ctx context.Context, name string, names []string, start bool) (List, error) {
+	return s.fromNames(ctx, KindBlock, name, names, "", start)
+}
+
+func (s *Service) fromNames(ctx context.Context, kind, name string, names []string, reason string, start bool) (List, error) {
 	name, err := checkName(name)
 	if err != nil {
 		return List{}, err
@@ -392,8 +412,8 @@ func (s *Service) FromNames(ctx context.Context, name string, names []string, re
 		live = 0
 	}
 	err = s.tx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO ban_lists (id, name, reason, phase, pause_live, generation, cursor, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`, id, name, reason, Checking, live, map[bool]string{true: "start", false: ""}[start], now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO ban_lists (id, kind, name, reason, phase, pause_live, generation, cursor, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`, id, kind, name, reason, Checking, live, map[bool]string{true: "start", false: ""}[start], now, now); err != nil {
 			return err
 		}
 		for _, raw := range names {
@@ -517,6 +537,9 @@ func (s *Service) Compare(ctx context.Context, id string) (List, error) {
 	}
 	if l.Phase != Done {
 		return List{}, fmt.Errorf("%w: it's %s", ErrBusy, l.Phase)
+	}
+	if l.Kind == KindBlock {
+		return List{}, invalid("Twitch's blocks can't be compared: StreamGremlin doesn't read your block list")
 	}
 	if _, err := s.o.DB.ExecContext(ctx, "UPDATE ban_lists SET phase = ?, cursor = '', paused = 0, problem = '', updated_at = ? WHERE id = ?",
 		Comparing, storage.Timestamp(s.o.Now()), id); err != nil {

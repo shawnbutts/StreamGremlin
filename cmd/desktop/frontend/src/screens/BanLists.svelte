@@ -15,6 +15,10 @@
     deleteBanList,
     getBanListEntries,
     getBanLists,
+    getFollowBots,
+    actOnNames,
+    type FollowBotOptions,
+    type FollowBotReview,
     importBanList,
     saveFile,
     setBanList,
@@ -42,6 +46,45 @@
   let rebanByHand = $state<Record<string, boolean>>({});
   let samples = $state<Record<string, BanListEntry[]>>({});
   let confirmUndo = $state<BanList | undefined>();
+
+  // The follow-bot review (D-109).
+  let fbOptions = $state<FollowBotOptions>({ hours: 24, days: 7, burst: 5, minutes: 10 });
+  let review = $state<FollowBotReview | undefined>();
+  let picked = $state<Record<string, boolean>>({});
+  let fbBusy = $state(false);
+  let fbError = $state('');
+  let fbNotice = $state('');
+  let fbConfirm = $state<'block' | 'ban' | undefined>();
+  const pickedNames = $derived(review ? review.suspects.filter((s) => picked[s.user_id]).map((s) => s.login) : []);
+
+  async function findBots(e: SubmitEvent) {
+    e.preventDefault();
+    fbBusy = true;
+    fbError = '';
+    fbNotice = '';
+    try {
+      review = await getFollowBots({ hours: Number(fbOptions.hours), days: Number(fbOptions.days), burst: Number(fbOptions.burst), minutes: Number(fbOptions.minutes) });
+      picked = Object.fromEntries(review.suspects.map((s) => [s.user_id, s.in_burst]));
+    } catch (err) {
+      fbError = message(err);
+    } finally {
+      fbBusy = false;
+    }
+  }
+
+  async function actOnBots(how: 'block' | 'ban') {
+    const names = pickedNames;
+    fbConfirm = undefined;
+    const name = `Follow bots ${new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    try {
+      await actOnNames(name, names, how);
+      fbNotice = `${how === 'block' ? 'Blocking' : 'Banning'} ${names.length} as the list “${name}” below; Undo there lifts them.`;
+      review = undefined;
+      await load();
+    } catch (err) {
+      fbError = message(err);
+    }
+  }
   let confirmForget = $state<BanList | undefined>();
 
   async function load() {
@@ -176,13 +219,53 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
+<section class="sg-panel card" aria-labelledby="fb-heading" aria-busy={fbBusy}>
+  <h2 id="fb-heading">Follow-bot review</h2>
+  <p class="sg-muted">
+    Finds Twitch follows from accounts made only days before they followed that never chatted, marking those that came in a
+    burst. You pick which to block or ban. A block stops an account following, whispering or chatting with you; Twitch doesn’t
+    say whether it removes a follow already made, so check your follower list after.
+  </p>
+  <form class="test-form" aria-label="Find follow bots" onsubmit={findBots}>
+    <label class="field inline-field"><span>Follows from the last (hours)</span><input class="sg-input" type="number" min="1" max="720" bind:value={fbOptions.hours} /></label>
+    <label class="field inline-field"><span>Accounts younger than (days)</span><input class="sg-input" type="number" min="1" max="365" bind:value={fbOptions.days} /></label>
+    <label class="field inline-field"><span>A burst is (follows)</span><input class="sg-input" type="number" min="2" max="100" bind:value={fbOptions.burst} /></label>
+    <label class="field inline-field"><span>Within (minutes)</span><input class="sg-input" type="number" min="1" max="120" bind:value={fbOptions.minutes} /></label>
+    <div class="row-actions"><button type="submit" class="button" disabled={fbBusy}>Find follow bots</button></div>
+  </form>
+  {#if review}
+    <p>
+      {review.suspects.length} of {n(review.follows)} follows look like bots{review.unknown ? ` (${review.unknown} couldn’t be checked)` : ''}.
+      Those in a burst are ticked.
+    </p>
+    {#if review.suspects.length}
+      <ul class="bl-suspects" aria-label="Suspected follow bots">
+        {#each review.suspects as s (s.user_id)}
+          <li>
+            <label class="field-check">
+              <input type="checkbox" bind:checked={picked[s.user_id]} />
+              {s.display_name} <span class="sg-muted">({s.age_days === 0 ? 'made the same day' : `${s.age_days} ${s.age_days === 1 ? 'day' : 'days'} old`} when they followed{s.in_burst ? ', in a burst' : ''})</span>
+            </label>
+          </li>
+        {/each}
+      </ul>
+      <div class="row-actions">
+        <button type="button" class="button button-danger" disabled={!pickedNames.length} onclick={() => (fbConfirm = 'block')}>Block {pickedNames.length}…</button>
+        <button type="button" class="button" disabled={!pickedNames.length} onclick={() => (fbConfirm = 'ban')}>Ban {pickedNames.length}…</button>
+      </div>
+    {/if}
+  {/if}
+  <p class="saved" role="status">{fbNotice}</p>
+  {#if fbError}<p class="error" role="alert">{fbError}</p>{/if}
+</section>
+
 {#if loadError}
   <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
 {/if}
 
 {#each lists as l (l.id)}
   <section class="sg-panel card" aria-labelledby={`bl-${l.id}`}>
-    <h2 id={`bl-${l.id}`}>{l.name}</h2>
+    <h2 id={`bl-${l.id}`}>{l.name}{l.kind === 'block' ? ' (blocks)' : ''}</h2>
     <p class={l.problem ? 'state state-unknown' : ''} role="status">
       {#if l.problem}<span aria-hidden="true">!</span>{/if}
       {l.words}
@@ -227,7 +310,7 @@
       {@const done = banningDone(l)}
       {@const all = done + l.left}
       <p>
-        {l.phase === 'undoing' ? 'Unbanned' : 'Done'}: {n(done)} of {n(all)}.
+        {l.phase === 'undoing' ? (l.kind === 'block' ? 'Unblocked' : 'Unbanned') : 'Done'}: {n(done)} of {n(all)}.
         {#if l.progress.per_minute > 0}{Math.round(l.progress.per_minute)} a minute{l.progress.finish ? `, finished in ${hours(l.progress.finish)}` : ''}.{/if}
       </p>
       <progress max={all || 1} value={done} aria-label="Progress"></progress>
@@ -235,12 +318,12 @@
 
     {#if l.phase === 'done'}
       <ul class="bl-counts">
-        <li><strong>{n(l.counts.banned)}</strong> banned by this list</li>
+        <li><strong>{n(l.counts.banned)}</strong> {l.kind === 'block' ? 'blocked' : 'banned'} by this list</li>
         {#if l.counts.already}<li>{n(l.counts.already)} banned already, not by this list</li>{/if}
         {#if l.counts.refused}<li>{n(l.counts.refused)} Twitch refused</li>{/if}
         {#if l.counts.by_hand}<li>{n(l.counts.by_hand)} unbanned on Twitch by hand: left alone</li>{/if}
         {#if l.counts.removed}<li>{n(l.counts.removed)} not in the newer file, still banned</li>{/if}
-        {#if l.counts.unbanned}<li>{n(l.counts.unbanned)} unbanned by this list</li>{/if}
+        {#if l.counts.unbanned}<li>{n(l.counts.unbanned)} {l.kind === 'block' ? 'unblocked' : 'unbanned'} by this list</li>{/if}
       </ul>
     {/if}
 
@@ -253,9 +336,11 @@
         {/if}
       {/if}
       {#if l.phase === 'done'}
-        <button type="button" class="button" disabled={busy} onclick={() => act(() => banListAction(l.id, 'compare'), 'Checking its bans against Twitch.')}
-          >Check against Twitch</button
-        >
+        {#if l.kind !== 'block'}
+          <button type="button" class="button" disabled={busy} onclick={() => act(() => banListAction(l.id, 'compare'), 'Checking its bans against Twitch.')}
+            >Check against Twitch</button
+          >
+        {/if}
         <button type="button" class="button" disabled={busy} onclick={() => save(l, [], 'all')}>Save to a file…</button>
         {#if l.counts.banned || l.counts.removed}
           <button type="button" class="button button-danger" disabled={busy} onclick={() => (confirmUndo = l)}>Undo…</button>
@@ -285,7 +370,9 @@
   {@const l = confirmUndo}
   <ConfirmDialog
     title={`Undo “${l.name}”?`}
-    message={`This unbans the ${n((l.counts.banned ?? 0) + (l.counts.removed ?? 0))} accounts this list banned, one at a time at Twitch’s pace, and bans nothing more. Bans made elsewhere are never lifted.`}
+    message={l.kind === 'block'
+      ? `This unblocks the ${n(l.counts.banned ?? 0)} accounts this list blocked, one at a time at Twitch’s pace.`
+      : `This unbans the ${n((l.counts.banned ?? 0) + (l.counts.removed ?? 0))} accounts this list banned, one at a time at Twitch’s pace, and bans nothing more. Bans made elsewhere are never lifted.`}
     confirmLabel="Undo the list"
     onconfirm={() => {
       const id = l.id;
@@ -293,6 +380,18 @@
       act(() => banListAction(id, 'undo'), 'Unbanning what this list banned.');
     }}
     oncancel={() => (confirmUndo = undefined)}
+  />
+{/if}
+{#if fbConfirm}
+  {@const how = fbConfirm}
+  <ConfirmDialog
+    title={`${how === 'block' ? 'Block' : 'Ban'} ${pickedNames.length} accounts?`}
+    message={how === 'block'
+      ? 'They’re blocked as you, one at a time at Twitch’s pace, as a list you can undo below. Your mods, VIPs and viewers with points are left alone.'
+      : 'They’re banned from your chat, one at a time at Twitch’s pace, as a list you can undo below. Your mods, VIPs and viewers with points are left alone.'}
+    confirmLabel={how === 'block' ? 'Block them' : 'Ban them'}
+    onconfirm={() => actOnBots(how)}
+    oncancel={() => (fbConfirm = undefined)}
   />
 {/if}
 {#if confirmForget}
@@ -317,5 +416,11 @@
   }
   progress {
     width: 100%;
+  }
+  .bl-suspects {
+    list-style: none;
+    padding: 0;
+    max-height: 18rem;
+    overflow-y: auto;
   }
 </style>

@@ -32,6 +32,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
+	"code.streamgremlin.com/streamgremlin/internal/followbots"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/links"
@@ -396,6 +397,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Moderation:    mods,
 		BanLists:      h.banLists,
 		RaidGuard:     h.raidGuard,
+		FollowBots:    &followbots.Deps{Inbox: inbox, Users: h.twitch.LookUpUsers, Chatted: followbots.ChattedFrom(h.viewers)},
 		Filters:       h.filters,
 		Discord:       h.discord,
 		Songs:         h.songs,

@@ -278,10 +278,14 @@ func (s *Service) check(ctx context.Context, l List) error {
 		byLogin[strings.ToLower(u.Login)], byID[u.ID] = u, u
 		found = append(found, u.ID)
 	}
-	banned, ri, err := s.o.Twitch.BannedAmong(ctx, found)
-	s.pace(ri, false)
-	if err != nil {
-		return lookupErr(err)
+	banned := map[string]bool{}
+	if l.Kind != KindBlock { // a block list blocks banned accounts too
+		var ri twitch.RateInfo
+		banned, ri, err = s.o.Twitch.BannedAmong(ctx, found)
+		s.pace(ri, false)
+		if err != nil {
+			return lookupErr(err)
+		}
 	}
 	mods, vips, ri, err := s.o.Twitch.RolesAmong(ctx, found)
 	s.pace(ri, false)
@@ -340,6 +344,24 @@ func (s *Service) apply(ctx context.Context, l List) error {
 	pending, err := s.Entries(ctx, l.ID, []string{StateSent, StateUnbanSent}, "", twitch.MaxLookup)
 	if err != nil {
 		return err
+	}
+	if len(pending) > 0 && l.Kind == KindBlock {
+		// Twitch's block list isn't read: blocking and unblocking again
+		// are harmless, so an unanswered one is sent again.
+		return s.tx(ctx, func(tx *sql.Tx) error {
+			now := storage.Timestamp(s.o.Now())
+			for _, e := range pending {
+				state := map[string]string{StateSent: StateWaiting, StateUnbanSent: StateUnban}[e.State]
+				if l.Phase == Undoing && e.State == StateSent {
+					state = StateUnban
+				}
+				if _, err := tx.ExecContext(ctx, "UPDATE ban_list_entries SET state = ?, updated_at = ? WHERE list_id = ? AND name = ?",
+					state, now, l.ID, e.Name); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 	}
 	if len(pending) > 0 {
 		var ids []string
@@ -407,9 +429,14 @@ func (s *Service) send(ctx context.Context, l List, e Entry) error {
 	var out twitch.ListOutcome
 	var detail string
 	var ri twitch.RateInfo
-	if unban {
+	switch {
+	case unban && l.Kind == KindBlock:
+		out, detail, ri = s.o.Twitch.ListUnblock(sctx, e.UserID)
+	case l.Kind == KindBlock:
+		out, detail, ri = s.o.Twitch.ListBlock(sctx, e.UserID)
+	case unban:
 		out, detail, ri = s.o.Twitch.ListUnban(sctx, e.UserID)
-	} else {
+	default:
 		out, detail, ri = s.o.Twitch.ListBan(sctx, e.UserID, l.Reason)
 	}
 	s.pace(ri, out == twitch.ListWait)
@@ -527,6 +554,14 @@ func Describe(l List) string {
 	}
 	if l.Paused {
 		return "Paused."
+	}
+	if l.Kind == KindBlock {
+		switch l.Phase {
+		case Banning:
+			return "Blocking…"
+		case Undoing:
+			return "Unblocking what this list blocked…"
+		}
 	}
 	return map[string]string{Reading: "Reading the file…", Checking: "Looking the names up on Twitch…",
 		Ready: "Checked: confirm to start.", Banning: "Banning…", Undoing: "Unbanning what this list banned…",

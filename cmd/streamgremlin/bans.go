@@ -176,11 +176,15 @@ func bansCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			return post("/v1/ban-lists/"+l.ID+"/compare", nil, "Checking its bans against Twitch.")
 		case "undo":
 			n := l.Counts["banned"] + l.Counts["removed"]
+			un, did, doing := "unbans", "banned", "Unbanning"
+			if l.Kind == "block" {
+				un, did, doing = "unblocks", "blocked", "Unblocking"
+			}
 			if !*yes {
-				fmt.Fprintf(stdout, "This unbans the %d accounts %s banned, at Twitch's pace. Add -yes to undo it.\n", n, l.Name)
+				fmt.Fprintf(stdout, "This %s the %d accounts %s %s, at Twitch's pace. Add -yes to undo it.\n", un, n, l.Name, did)
 				return 0
 			}
-			return post("/v1/ban-lists/"+l.ID+"/undo", nil, fmt.Sprintf("Unbanning %d.", n))
+			return post("/v1/ban-lists/"+l.ID+"/undo", nil, fmt.Sprintf("%s %d.", doing, n))
 		default:
 			if !*yes {
 				fmt.Fprintf(stdout, "This forgets %s. Nobody is unbanned. Add -yes to forget it.\n", l.Name)

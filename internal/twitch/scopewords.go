@@ -32,6 +32,7 @@ var scopeWords = map[string]string{
 	ClipsScope:                     "make clips",
 	BlockedTermsScope:              "manage Twitch's blocked terms",
 	ShieldScope:                    "turn Shield Mode on and off",
+	BlockScope:                     "block follow bots",
 	"user:read:moderated_channels": "check it's a moderator",
 }
 

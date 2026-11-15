@@ -375,3 +375,88 @@ func TestNewAccountAndArtFiltersThroughTheCLI(t *testing.T) {
 		t.Fatal("an old account's message was caught:", out)
 	}
 }
+
+// The follow-bot review (M8 slice 5, D-109) through the real engine, CLI
+// and mocktwitch: a burst of day-old accounts that never chatted found and
+// marked; an old follower and a young one who chatted not; blocked as a
+// list, you and your mods left alone; undone.
+func TestFollowBotReviewThroughTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "follows", func() string {
+		if tw.SubscribedTo("streamer", "channel.follow") == 0 {
+			return "not yet"
+		}
+		return ""
+	})
+	ok := func(want string, args ...string) string {
+		t.Helper()
+		out, errOut, code := cli(t, dir, args...)
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("%v: %d %s %s", args, code, out, errOut)
+		}
+		return out
+	}
+	tw.SetAccountCreated("oldfan", time.Now().Add(-4*365*24*time.Hour))
+	tw.Follow("streamer", "oldfan")
+	tw.SetAccountCreated("chattynew", time.Now().Add(-24*time.Hour))
+	tw.Say("streamer", "chattynew", "hi, new here!")
+	tw.Follow("streamer", "chattynew")
+	for i := range 5 {
+		name := fmt.Sprintf("followbot%d", i)
+		tw.SetAccountCreated(name, time.Now().Add(-20*time.Hour))
+		tw.Follow("streamer", name)
+	}
+	tw.SetModerator("streamer", "followbot4", true)
+	eventually(t, "the follows recorded", func() string {
+		out, _, _ := cli(t, dir, "events", "-types", "audience.follow.created")
+		if strings.Count(out, "#") < 7 {
+			return out
+		}
+		return ""
+	})
+	eventually(t, "chattynew recorded as chatting", func() string {
+		out, _, _ := cli(t, dir, "viewers", "chattynew")
+		if !strings.Contains(out, "chattynew") {
+			return out
+		}
+		return ""
+	})
+	out := ok("5 of 7 follows look like bots", "followbots")
+	if strings.Contains(out, "oldfan") || strings.Contains(out, "chattynew") || strings.Count(out, "in a burst") != 5 {
+		t.Fatal(out)
+	}
+	ok("Add -yes", "followbots", "block")
+	ok("Blocking 5", "followbots", "block", "-yes")
+	eventually(t, "blocked", func() string {
+		if got := tw.Blocked("streamer"); len(got) != 4 {
+			return fmt.Sprint(got)
+		}
+		return ""
+	})
+	out = ok("Done.", "bans")
+	if !strings.Contains(out, "kept 1") {
+		t.Fatal("the mod wasn't left alone:", out)
+	}
+	if len(tw.Bans("streamer")) != 0 {
+		t.Fatal("banned instead of blocked")
+	}
+	var list string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "Follow bots") {
+			list = l[:strings.Index(l, ": ")]
+		}
+	}
+	ok("Unblocking", "bans", "undo", list, "-yes")
+	eventually(t, "unblocked", func() string {
+		if got := tw.Blocked("streamer"); len(got) != 0 {
+			return fmt.Sprint(got)
+		}
+		return ""
+	})
+}

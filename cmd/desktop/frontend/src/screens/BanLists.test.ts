@@ -36,7 +36,7 @@ async function noViolations(label: string) {
 
 const now = new Date().toISOString();
 const list = (over: Partial<BanList> = {}): BanList => ({
-  id: 'bl_1', name: 'Bots', reason: 'Ban list: Bots', phase: 'ready', paused: false, pause_live: true, keep_points: true,
+  id: 'bl_1', kind: 'ban', name: 'Bots', reason: 'Ban list: Bots', phase: 'ready', paused: false, pause_live: true, keep_points: true,
   file_name: 'bots.txt', skipped: 2, created_at: now, updated_at: now, words: 'Checked: confirm to start.',
   counts: { waiting: 1200, already: 30, not_found: 400, kept: 3, removed: 5 }, left: 0, progress: { waiting_live: false, per_minute: 0 },
   ...over,
@@ -127,5 +127,44 @@ describe('Ban lists', () => {
     const el = start();
     await settle();
     expect(el.textContent).toContain('Waiting until you’re offline on Twitch');
+  });
+
+  it('finds follow bots, ticks the ones in a burst, and blocks only after asking (D-109)', async () => {
+    const calls = mockFetch({
+      '/v1/ban-lists': (m, body) => (m === 'POST' ? { status: 200, body: { id: 'bl_2', ...(body as object) } } : { status: 200, body: { lists: [] } }),
+      '/v1/follow-bots': () => ({
+        status: 200,
+        body: {
+          options: { hours: 24, days: 7, burst: 5, minutes: 10 }, follows: 40, unknown: 1,
+          suspects: [
+            { user_id: '1', login: 'bot_a', display_name: 'Bot_A', followed_at: now, age_days: 0, in_burst: true },
+            { user_id: '2', login: 'bot_b', display_name: 'Bot_B', followed_at: now, age_days: 1, in_burst: true },
+            { user_id: '3', login: 'maybe', display_name: 'Maybe', followed_at: now, age_days: 3, in_burst: false },
+          ],
+        },
+      }),
+    });
+    const el = start();
+    await settle();
+    const form = el.querySelector<HTMLFormElement>('form[aria-label="Find follow bots"]')!;
+    typed(Array.from(form.querySelectorAll('input'))[0] as HTMLInputElement, '48');
+    form.requestSubmit();
+    await settle();
+    expect(calls.find((c) => c.path.startsWith('/v1/follow-bots'))!.path).toBe('/v1/follow-bots?hours=48&days=7&burst=5&minutes=10');
+    expect(el.textContent).toContain('3 of 40 follows look like bots (1 couldn’t be checked)');
+    expect(el.textContent).toContain('Bot_A (made the same day when they followed, in a burst)');
+    const boxes = Array.from(el.querySelectorAll<HTMLInputElement>('ul[aria-label="Suspected follow bots"] input'));
+    expect(boxes.map((b) => b.checked)).toEqual([true, true, false]);
+    await noViolations('review');
+    button(el, 'Block 2…')!.click();
+    flushSync();
+    expect(calls.some((c) => c.method === 'POST' && c.path === '/v1/ban-lists')).toBe(false);
+    button(document.body, 'Block them')!.click();
+    await settle();
+    const body = calls.find((c) => c.method === 'POST' && c.path === '/v1/ban-lists')!.body as { names: string[]; block: boolean; start: boolean };
+    expect(body.names).toEqual(['bot_a', 'bot_b']);
+    expect(body.block).toBe(true);
+    expect(body.start).toBe(true);
+    expect(el.textContent).toContain('Blocking 2');
   });
 });

@@ -1894,3 +1894,13 @@ Decided 2026-11-14, building M8 slice 4 after the user's "proceed". Two more cha
 - **Text art:** a message with at least a number (20 by default) of the characters text pictures are drawn with is caught: Braille patterns, block elements, box drawing, geometric shapes.
 - **Order:** words, new accounts, links, emotes, capitals, symbols, text art, repeats. The first that matches acts.
 - **Saving the filters** (`PUT /v1/filters`) now starts from the saved settings, so a client that doesn't know a newer rule leaves it as it was, rather than being refused.
+
+## D-109. M8 slice 5: the follow-bot review
+
+Decided 2026-11-14, building M8 slice 5 after the user's "proceed". As D-104 set, nothing is blocked or banned without asking.
+
+- **What looks like a follow bot:** a Twitch follow from an account younger than a number of days when it followed (7 by default) that StreamGremlin has never seen chat, within the last hours (24 by default). Ages come from Get Users, 100 at a time. **In a burst** marks those with 5 or more such follows within 10 minutes; they're ticked to begin with, the rest aren't. Test follows, YouTube subscribers and follows Twitch can't age are left out (the last counted as "couldn't be checked").
+- **Where:** a **Follow-bot review** section on Ban lists (find, tick, **Block N…** or **Ban N…**, asking first), `streamgremlin followbots [block|ban -yes]`, `GET /v1/follow-bots`.
+- **Blocking is a ban list that blocks** (`kind` block, migration `0036_block_lists.sql`; [ADR-0049](adr/0049-ban-lists.md) applies): the same checks (you, your mods and VIPs, viewers with points left alone), pace, resume and undo (unblock). It blocks banned accounts too. Twitch replaces an existing block, so an unanswered block is sent again rather than checked. A block list can't be compared with Twitch, since StreamGremlin doesn't read your block list.
+- **What a block does, honestly:** Twitch documents that it stops an account interacting with you. It doesn't document that it removes a follow already made, nor any way to remove a follower. The screen says so, and the live check will tell.
+- **A new permission:** `user:manage:blocked_users`, so the streamer signs in to Twitch again once.

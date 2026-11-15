@@ -30,6 +30,8 @@ type fakeTwitch struct {
 	noAnswer map[string]bool // ids whose ban gets no answer (but happens)
 	stop     bool            // every ban answers "sign in again"
 	reasons  []string
+	blocked  map[string]bool
+	blocks   []string
 }
 
 func newFake(n int) *fakeTwitch {
@@ -171,6 +173,28 @@ func (f *fakeTwitch) ListUnban(_ context.Context, id string) (twitch.ListOutcome
 }
 
 func (f *fakeTwitch) StreamerID() string { return "1" }
+
+func (f *fakeTwitch) ListBlock(_ context.Context, id string) (twitch.ListOutcome, string, twitch.RateInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.blocked == nil {
+		f.blocked = map[string]bool{}
+	}
+	f.blocked[id] = true
+	f.blocks = append(f.blocks, id)
+	if f.noAnswer[id] {
+		delete(f.noAnswer, id)
+		return twitch.ListUnknown, "no answer", twitch.RateInfo{}
+	}
+	return twitch.ListDone, "", twitch.RateInfo{}
+}
+
+func (f *fakeTwitch) ListUnblock(_ context.Context, id string) (twitch.ListOutcome, string, twitch.RateInfo) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.blocked, id)
+	return twitch.ListDone, "", twitch.RateInfo{}
+}
 
 type rig struct {
 	t    *testing.T
@@ -507,4 +531,37 @@ func TestFromNames(t *testing.T) {
 	r.live = false
 	r.mu.Unlock()
 	r.phase(l2.ID, Ready)
+}
+
+// A block list (D-109): blocks instead of banning, banned accounts too,
+// you and your mods still left alone; an unanswered block is sent again
+// (harmless); undo unblocks; it can't be compared.
+func TestBlockList(t *testing.T) {
+	tw := newFake(5)
+	tw.banned["1002"] = true
+	tw.mods["1003"] = true
+	tw.noAnswer["1001"] = true
+	r := newRig(t, tw)
+	ctx := context.Background()
+	l, err := r.s.BlockNames(ctx, "Follow bots", []string{"bot0000", "bot0001", "bot0002", "bot0003", "streamer"}, true)
+	if err != nil || l.Kind != KindBlock {
+		t.Fatalf("%+v %v", l, err)
+	}
+	r.phase(l.ID, Done)
+	if len(tw.bans) != 0 || !tw.blocked["1000"] || !tw.blocked["1001"] || !tw.blocked["1002"] || tw.blocked["1003"] || tw.blocked["1"] {
+		t.Fatalf("bans %v blocked %v", tw.bans, tw.blocked)
+	}
+	if c := r.counts(l.ID); c[StateBanned] != 3 || c[StateKept] != 2 {
+		t.Fatalf("%v", c)
+	}
+	if _, err := r.s.Compare(ctx, l.ID); !errors.Is(err, ErrInvalid) {
+		t.Fatal("compared a block list")
+	}
+	if _, err := r.s.Undo(ctx, l.ID); err != nil {
+		t.Fatal(err)
+	}
+	r.phase(l.ID, Done)
+	if len(tw.blocked) != 0 {
+		t.Fatalf("still blocked %v", tw.blocked)
+	}
 }

@@ -54,7 +54,9 @@ var (
 		// Twitch's Blocked Terms, from Chat filters (D-088).
 		BlockedTermsScope,
 		// Shield Mode and locking chat (D-105).
-		ShieldScope}
+		ShieldScope,
+		// Blocking follow bots (D-109).
+		BlockScope}
 	BotScopes = []string{"user:write:chat", "user:read:moderated_channels"}
 )
 

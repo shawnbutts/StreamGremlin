@@ -31,6 +31,8 @@ type Server struct {
 	shield map[string]*shieldState
 	// rate is Twitch's rate-limit bucket, when turned on (rate.go).
 	rate *rateState
+	// blocked is each user's block list, by login (blocks.go).
+	blocked map[string]map[string]bool
 
 	// Settings; change them before or between calls.
 	ClientIDs      map[string]bool // accepted Client IDs; empty accepts any

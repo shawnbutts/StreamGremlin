@@ -66,6 +66,7 @@ Commands:
             bans import NAME FILE, bans confirm NAME, bans undo NAME -yes, bans save NAME FILE
   raidguard The raid guard: warns (or locks chat) on a burst of new accounts (streamgremlin raidguard help).
             raidguard set mode=lock first=8 new=5 days=7 window=30, raidguard test
+  followbots Follows that look like follow bots, to block or ban (streamgremlin followbots help).
   filters   The chat filters: settings and what they caught lately.
             filters check [-role vip] TEXT   which filter would catch it
   discord   Discord webhooks workflows post to (streamgremlin discord help).
@@ -201,6 +202,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return bansCmd(dir, rest, stdout, stderr)
 	case "raidguard":
 		return raidGuardCmd(dir, rest, stdout, stderr)
+	case "followbots":
+		return followBotsCmd(dir, rest, stdout, stderr)
 	case "filters":
 		return filtersCmd(dir, rest, stdout, stderr)
 	case "discord":

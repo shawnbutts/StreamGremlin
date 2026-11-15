@@ -2128,6 +2128,8 @@ export type BanListPhase = 'reading' | 'checking' | 'ready' | 'banning' | 'undoi
 
 export interface BanList {
   id: string;
+  /** ban, or block (blocks as you: the follow-bot review, D-109). */
+  kind: 'ban' | 'block';
   name: string;
   reason: string;
   phase: BanListPhase;
@@ -2234,3 +2236,33 @@ export const dismissRaidGuard = () => api<RaidGuardView>('POST', '/v1/raid-guard
 /** A ban list from names (a raid's accounts); with start, banned once checked. */
 export const banListFromNames = (name: string, names: string[], start: boolean) =>
   api<BanList>('POST', '/v1/ban-lists', { name, names, start });
+
+// The follow-bot review (M8 slice 5, D-109).
+export interface FollowBotOptions {
+  hours: number;
+  days: number;
+  burst: number;
+  minutes: number;
+}
+
+export interface FollowBotSuspect {
+  user_id: string;
+  login: string;
+  display_name: string;
+  followed_at: string;
+  age_days: number;
+  in_burst: boolean;
+}
+
+export interface FollowBotReview {
+  options: FollowBotOptions;
+  follows: number;
+  suspects: FollowBotSuspect[];
+  unknown: number;
+}
+
+export const getFollowBots = (o: FollowBotOptions) =>
+  api<FollowBotReview>('GET', `/v1/follow-bots?hours=${o.hours}&days=${o.days}&burst=${o.burst}&minutes=${o.minutes}`);
+/** A list that blocks (or bans) the names, as soon as they're checked. */
+export const actOnNames = (name: string, names: string[], how: 'block' | 'ban') =>
+  api<BanList>('POST', '/v1/ban-lists', { name, names, start: true, ...(how === 'block' ? { block: true } : {}) });

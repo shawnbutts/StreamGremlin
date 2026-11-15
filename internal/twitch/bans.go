@@ -311,3 +311,48 @@ func (s *Service) AccountMade(ctx context.Context, userID string) (time.Time, bo
 	s.madeCache.mu.Unlock()
 	return t, true
 }
+
+// BlockScope lets StreamGremlin block and unblock accounts as you (the
+// follow-bot review, D-109).
+const BlockScope = "user:manage:blocked_users"
+
+// ListBlock blocks an account as you, once: they can't follow, whisper or
+// chat with you. Blocking again is harmless (Twitch replaces the block).
+// Whether a block removes a follow already made isn't documented.
+func (s *Service) ListBlock(ctx context.Context, userID string) (ListOutcome, string, RateInfo) {
+	ctx, ri := withRate(ctx)
+	q := url.Values{"target_user_id": {userID}, "source_context": {"chat"}, "reason": {"spam"}}
+	o, d := listOutcome(s.userCall(ctx, BlockScope, "PUT", "/users/blocks", q))
+	return o, d, *ri
+}
+
+// ListUnblock lifts a block, once.
+func (s *Service) ListUnblock(ctx context.Context, userID string) (ListOutcome, string, RateInfo) {
+	ctx, ri := withRate(ctx)
+	o, d := listOutcome(s.userCall(ctx, BlockScope, "DELETE", "/users/blocks", url.Values{"target_user_id": {userID}}))
+	if o == ListNotBanned {
+		o = ListDone
+	}
+	return o, d, *ri
+}
+
+// userCall is a request as you about your own account, without the
+// broadcaster_id the moderation calls send.
+func (s *Service) userCall(ctx context.Context, scope, method, path string, q url.Values) error {
+	st := s.streamer.Status()
+	if st.UserID == "" || (st.State != StateConnected && st.State != StateUnknown) {
+		return errStreamerSignIn
+	}
+	if scope != "" && !containsScope(st.Scopes, scope) {
+		return ErrNeedsPermission
+	}
+	tok, err := s.streamer.AccessToken(ctx)
+	if err != nil {
+		return err
+	}
+	clientID, _ := s.ClientID(ctx)
+	if clientID == "" {
+		return ErrNoClientID
+	}
+	return s.helix.call(ctx, method, path+"?"+q.Encode(), clientID, tok.Reveal(), nil, nil)
+}

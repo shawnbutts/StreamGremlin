@@ -244,6 +244,14 @@ func TwitchManifest() Manifest {
 					"asks Get Users for a new chatter's created_at once, to tell brand-new accounts.",
 			},
 			{
+				Name: "blocks", Support: PermissionRequired, Scopes: []string{BlockScope},
+				Notes: "M8 slice 5 (D-109): Block User (PUT /users/blocks, target_user_id, source_context chat, reason spam) and Unblock " +
+					"User (DELETE), as you, user:manage:blocked_users; one account a request, at the ban lists' pace. Twitch replaces an " +
+					"existing block, so blocking again is harmless and an unanswered block is sent again. Not documented: whether a " +
+					"block removes a follow already made (help.twitch.tv couldn't be read), and any way to remove a follower. Your block " +
+					"list isn't read (user:read:blocked_users isn't asked for).",
+			},
+			{
 				Name: "shield_mode", Support: PermissionRequired, Scopes: []string{ShieldScope},
 				Notes: "M8 slice 1 (D-105): Get Shield Mode Status (GET /moderation/shield_mode, broadcaster_id and moderator_id) and " +
 					"Update Shield Mode Status (PUT, body is_active), moderator:manage:shield_mode (it covers reading too); " +

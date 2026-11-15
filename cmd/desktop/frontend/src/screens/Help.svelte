@@ -194,7 +194,10 @@
       checked and banned; the ones gone from it can be unbanned, but only bans the list made. If you or a mod unban someone
       on Twitch, the list notices (<strong>Check against Twitch</strong>) and leaves them alone unless you ask.
       <strong>Undo</strong> lifts only what the list banned. <strong>Copy Twitch’s ban list</strong> makes a list of everyone
-      banned now, and <strong>Save to a file</strong> saves any list.
+      banned now, and <strong>Save to a file</strong> saves any list. <strong>Follow-bot review</strong>, at the top, finds Twitch follows from
+      accounts made only days before they followed that never chatted, marks those that came in a burst, and blocks or bans
+      the ones you pick (asking first) as a list you can undo. A block stops an account following, whispering or chatting with
+      you; Twitch doesn’t say whether it removes a follow already made.
     </dd>
     <dt>The window</dt>
     <dd>Opens where you left it, at the same size. Live stretches with it: chat in the middle, your buttons on the right.</dd>

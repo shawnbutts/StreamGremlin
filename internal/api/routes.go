@@ -17,6 +17,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/events"
 	"code.streamgremlin.com/streamgremlin/internal/filters"
 	"code.streamgremlin.com/streamgremlin/internal/firstwords"
+	"code.streamgremlin.com/streamgremlin/internal/followbots"
 	"code.streamgremlin.com/streamgremlin/internal/giveaways"
 	"code.streamgremlin.com/streamgremlin/internal/gives"
 	"code.streamgremlin.com/streamgremlin/internal/links"
@@ -105,6 +106,9 @@ type Deps struct {
 	// RaidGuard watches for hate raids (D-107); nil in tests that don't
 	// need it.
 	RaidGuard *raidguard.Service
+	// FollowBots reviews recent follows (D-109); nil in tests that don't
+	// need it.
+	FollowBots *followbots.Deps
 	// Filters catch spam in chat (D-085).
 	Filters *filters.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
@@ -199,7 +203,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(append(clientRoutes(d), filterRoutes(d)...), append(append(append(discordRoutes(d), youtubeRoutes(d)...), banListRoutes(d)...), raidGuardRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(append(clientRoutes(d), filterRoutes(d)...), append(append(append(append(discordRoutes(d), youtubeRoutes(d)...), banListRoutes(d)...), raidGuardRoutes(d)...), followBotRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {
