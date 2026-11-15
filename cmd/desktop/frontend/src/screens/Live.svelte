@@ -14,6 +14,10 @@
     getConnections,
     getYouTube,
     getModeration,
+    getRaidGuard,
+    dismissRaidGuard,
+    banListFromNames,
+    type RaidAlert,
     openInBrowser,
     getEvents,
     getUISettings,
@@ -333,6 +337,42 @@
   const FOLLOW_CHOICES = [0, 10, 30, 60, 1440, 10080];
   const SLOW_CHOICES = [3, 5, 10, 30, 60, 120];
 
+  // The raid guard's warning (D-107).
+  let raid = $state<RaidAlert | null>(null);
+  let raidBan = $state<RaidAlert | undefined>();
+  let raidNotice = $state('');
+  const twitchRaiders = (r: RaidAlert) => r.accounts.filter((a) => a.platform === 'twitch' && a.login);
+
+  async function loadRaid() {
+    try {
+      raid = (await getRaidGuard()).alert;
+    } catch {
+      raid = null;
+    }
+  }
+
+  async function dismissRaid() {
+    try {
+      raid = (await dismissRaidGuard()).alert;
+      raidNotice = '';
+    } catch (e) {
+      raidNotice = message(e);
+    }
+  }
+
+  async function banRaiders(r: RaidAlert) {
+    raidBan = undefined;
+    const names = twitchRaiders(r).map((a) => a.login);
+    const at = new Date(r.at);
+    const name = `Raid ${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`;
+    try {
+      await banListFromNames(name, names, true);
+      raidNotice = `Banning ${names.length} accounts now, as the ban list “${name}” (see Ban lists; Undo there lifts them).`;
+    } catch (e) {
+      raidNotice = `Not banned: ${message(e)}`;
+    }
+  }
+
   // Shield Mode and locking chat (D-105).
   let shield = $state<TwitchShield | null>(null);
   let shieldProblem = $state('');
@@ -498,10 +538,12 @@
     loadYouTube();
     loadButtons();
     loadModes();
+    loadRaid();
     const timer = setInterval(() => {
       loadTwitch();
       loadYouTube();
       loadModes();
+      loadRaid();
       if (!editing && !form) loadButtons();
     }, refreshMs);
     abort.signal.addEventListener('abort', () => clearInterval(timer));
@@ -737,6 +779,29 @@
     </div>
   </div>
   {#if placeError}<p class="error" role="alert">{placeError}</p>{/if}
+
+  {#if raid}
+    {@const r = raid}
+    <section class="sg-panel live-raid" aria-labelledby="live-raid-heading">
+      <h2 id="live-raid-heading"><span aria-hidden="true">!</span> {r.test ? 'Test: ' : ''}This looks like a raid</h2>
+      <p>
+        {r.count} {r.reason === 'new_accounts' ? 'brand-new Twitch accounts' : 'first-time chatters'} in {r.window_seconds} seconds{r.after_raid
+          ? `, right after a raid from ${r.after_raid}`
+          : ''}{r.locked ? '. Chat was locked.' : '.'}
+      </p>
+      <p class="sg-muted live-raid-names">{r.accounts.map((a) => a.display_name).join(', ')}{r.count > r.accounts.length ? ', …' : ''}</p>
+      <div class="row-actions">
+        {#if youIn && !lock && !r.test}
+          <button type="button" class="button button-danger" disabled={modesBusy} onclick={() => shieldOrLock({ action: 'lock' })}>Lock chat</button>
+        {/if}
+        {#if !r.test && twitchRaiders(r).length}
+          <button type="button" class="button" onclick={() => (raidBan = r)}>Ban these {twitchRaiders(r).length} accounts…</button>
+        {/if}
+        <button type="button" class="button" onclick={dismissRaid}>Dismiss</button>
+      </div>
+      <p class="saved" role="status">{raidNotice}</p>
+    </section>
+  {/if}
 
   <div class="live" data-place={place}>
     <section class="sg-panel live-chat" aria-labelledby="live-chat-heading">
@@ -1162,6 +1227,17 @@
   />
 {/if}
 
+{#if raidBan}
+  {@const r = raidBan}
+  <ConfirmDialog
+    title={`Ban these ${twitchRaiders(r).length} accounts?`}
+    message={`They're banned on Twitch now, one at a time, as a ban list you can undo on Ban lists. Anyone who turns out to be your mod, VIP or a viewer with points is left alone. ${twitchRaiders(r).map((a) => a.display_name).join(', ')}`}
+    confirmLabel="Ban them"
+    onconfirm={() => banRaiders(r)}
+    oncancel={() => (raidBan = undefined)}
+  />
+{/if}
+
 <style>
   .live-head {
     display: flex;
@@ -1185,6 +1261,13 @@
   }
   .live-platform[data-platform='twitch'] {
     color: var(--sg-twitch, #8f5cff);
+  }
+  .live-raid {
+    border-left: 4px solid var(--sg-danger, #d32f2f);
+    margin-bottom: 1rem;
+  }
+  .live-raid-names {
+    overflow-wrap: anywhere;
   }
   .live-lock {
     margin-bottom: 0.75rem;

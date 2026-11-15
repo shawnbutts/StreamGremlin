@@ -29,6 +29,10 @@ type BanListImport struct {
 	Reason string `json:"reason,omitempty"`
 	// Copy starts the list from Twitch's own ban list instead of a file.
 	Copy bool `json:"copy,omitempty"`
+	// Names makes the list from names instead of a file (up to 1,000: a
+	// raid's accounts); with Start, it bans as soon as they're checked.
+	Names []string `json:"names,omitempty"`
+	Start bool     `json:"start,omitempty"`
 }
 
 // MaxBanListFile is the most entries GET /v1/ban-lists/{id}/file returns.
@@ -108,7 +112,8 @@ func banListRoutes(d Deps) []Route {
 			Method: "POST", Path: "/v1/ban-lists",
 			Summary: "Import a ban list from a file on this computer {name, path (absolute), reason?}: one Twitch login or user id a line, " +
 				"or a CSV with a login or id column, up to 5,000,000 lines. A list with that name is updated: only new names are " +
-				"checked, and names gone from the file are offered for unbanning. Or {name, copy: true} copies Twitch's own ban list. " +
+				"checked, and names gone from the file are offered for unbanning. Or {name, copy: true} copies Twitch's own ban list, or " +
+				"{name, names: [...] (up to 1,000), start?} makes one from names (a raid's accounts): with start, it bans once they're checked. " +
 				"It's read and checked in the background; nothing is banned until it's confirmed.",
 			Permission: PermModerationWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
@@ -118,9 +123,12 @@ func banListRoutes(d Deps) []Route {
 				}
 				var l banlists.List
 				var err error
-				if in.Copy {
+				switch {
+				case in.Copy:
 					l, err = d.BanLists.Copy(r.Context(), in.Name)
-				} else {
+				case len(in.Names) > 0:
+					l, err = d.BanLists.FromNames(r.Context(), in.Name, in.Names, in.Reason, in.Start)
+				default:
 					l, err = d.BanLists.Import(r.Context(), in.Name, in.Path, in.Reason)
 				}
 				one(w, r, l, err)

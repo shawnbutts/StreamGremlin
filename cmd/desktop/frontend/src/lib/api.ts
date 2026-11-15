@@ -2187,3 +2187,47 @@ export async function banListFile(id: string, states: string[] = []): Promise<st
   }
   return resp.text();
 }
+
+// The raid guard (M8 slice 3, D-107).
+export interface RaidGuardSettings {
+  mode: 'off' | 'alert' | 'lock';
+  first_time: number;
+  new_accounts: number;
+  days: number;
+  window_seconds: number;
+  after_raid_minutes: number;
+}
+
+export interface RaidAccount {
+  platform: string;
+  id: string;
+  login: string;
+  display_name: string;
+  at: string;
+  age_days?: number;
+}
+
+export interface RaidAlert {
+  at: string;
+  reason: 'first_time' | 'new_accounts';
+  count: number;
+  window_seconds: number;
+  after_raid?: string;
+  accounts: RaidAccount[];
+  locked: boolean;
+  lock?: string;
+  test?: boolean;
+}
+
+export interface RaidGuardView {
+  settings: RaidGuardSettings;
+  alert: RaidAlert | null;
+}
+
+export const getRaidGuard = () => api<RaidGuardView>('GET', '/v1/raid-guard');
+export const setRaidGuard = (s: RaidGuardSettings) => api<RaidGuardView>('PUT', '/v1/raid-guard', s);
+export const testRaidGuard = () => api<RaidGuardView>('POST', '/v1/raid-guard/test');
+export const dismissRaidGuard = () => api<RaidGuardView>('POST', '/v1/raid-guard/dismiss');
+/** A ban list from names (a raid's accounts); with start, banned once checked. */
+export const banListFromNames = (name: string, names: string[], start: boolean) =>
+  api<BanList>('POST', '/v1/ban-lists', { name, names, start });

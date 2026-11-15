@@ -228,6 +228,15 @@ func Triggers() []TriggerEntry {
 			Help:  "A gift bought with YouTube Jewels, such as on a vertical stream.",
 			Match: []MatchField{}, Values: []Value{from, {Token: "gift", Label: "The gift", Expr: "event.payload.gift"},
 				{Token: "jewels", Label: "Jewels", Expr: "event.payload.jewels"}, {Token: "count", Label: "How many", Expr: "event.payload.count"}}},
+		{Type: "moderation.raid.suspected", Label: "A raid looks suspicious", Category: "Chat",
+			Help: "The raid guard (on Chat filters) saw a burst of chatters StreamGremlin has never seen, or of brand-new Twitch " +
+				"accounts. Post in Discord, play a sound, or switch to a scene. Whether it locked chat is in its values.",
+			Match: []MatchField{{Path: "reason", Label: "Only for", Kind: "text", Help: "first_time or new_accounts. Leave empty for either."}},
+			Values: []Value{{Token: "count", Label: "How many accounts", Expr: "event.payload.count"},
+				{Token: "names", Label: "Their names, with commas", Expr: "event.payload.names"},
+				{Token: "seconds", Label: "Within how many seconds", Expr: "event.payload.window_seconds"},
+				{Token: "raider", Label: "The raid it came after, if any", Expr: "event.payload.after_raid"},
+				{Token: "locked", Label: "Whether it locked chat (true or false)", Expr: "event.payload.locked"}}},
 		{Type: "moderation.shield_mode.changed", Label: "Shield Mode turns on or off", Category: "Twitch", More: true,
 			Help: "Twitch's Shield Mode turns on or off, from StreamGremlin, Twitch's site or another bot. Shield Mode applies the " +
 				"stricter settings you chose in Twitch's Mod View.",

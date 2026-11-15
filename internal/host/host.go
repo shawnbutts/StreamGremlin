@@ -44,6 +44,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/raidguard"
 	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -106,6 +107,7 @@ type Host struct {
 	timers    *timers.Service
 	firsts    *firstwords.Service
 	audience  *audience.Service
+	raidGuard *raidguard.Service
 	banLists  *banlists.Service
 	filters   *filters.Service
 	ads       *ads.Service
@@ -305,6 +307,19 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	// Ban lists (D-106): after the audience, which says when you're live.
 	h.banLists.Start(ctx)
+	// The raid guard (D-107): after workflows, which its alerts start.
+	h.raidGuard = raidguard.New(raidguard.Options{Inbox: inbox, Settings: set, Known: raidguard.KnownFrom(h.viewers), Users: h.twitch.LookUpUsers,
+		Lock: func(ctx context.Context) (string, string) {
+			rec, _, err := mods.Do(ctx, moderation.Request{RequestID: events.NewID(), Action: moderation.Lock, Platform: moderation.PlatformTwitch,
+				From: moderation.FromGuard})
+			if err != nil {
+				return moderation.Refused, err.Error()
+			}
+			return rec.State, rec.Answer
+		}, Logger: log})
+	if err := h.raidGuard.Start(ctx); err != nil {
+		return nil, err
+	}
 	// After workflows: first words are stored as events, which they run on.
 	if err := h.firsts.Start(ctx); err != nil {
 		return nil, err
@@ -380,6 +395,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 		Clients:       paired,
 		Moderation:    mods,
 		BanLists:      h.banLists,
+		RaidGuard:     h.raidGuard,
 		Filters:       h.filters,
 		Discord:       h.discord,
 		Songs:         h.songs,
@@ -555,6 +571,9 @@ func (h *Host) cleanup() {
 	}
 	if h.audience != nil {
 		h.audience.Close() // before workflows: no new counts while runs finish
+	}
+	if h.raidGuard != nil {
+		h.raidGuard.Close() // before workflows: no new alerts while runs finish
 	}
 	if h.banLists != nil {
 		h.banLists.Close() // after the request in flight; the rest carries on at the next start

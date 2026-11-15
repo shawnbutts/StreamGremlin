@@ -229,3 +229,100 @@ func TestBanListsThroughTheCLI(t *testing.T) {
 		t.Fatalf("still banned: %v", got)
 	}
 }
+
+// The raid guard (M8 slice 3, D-107) through the real engine, CLI and
+// mocktwitch: regulars and old accounts don't count; a burst of brand-new
+// accounts right after a raid warns, starts "A raid looks suspicious" and,
+// set to lock, locks chat; the cooldown holds back a second warning; and
+// the raiders are banned as a ban list from names.
+func TestRaidGuardThroughTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	e := startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	ok := func(want string, args ...string) string {
+		t.Helper()
+		out, errOut, code := cli(t, dir, args...)
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("%v: %d %s %s", args, code, out, errOut)
+		}
+		return out
+	}
+	eventually(t, "chat and raids", func() string {
+		if tw.Subscribed("streamer") == 0 || tw.SubscribedTo("streamer", "channel.raid") == 0 {
+			return "not yet"
+		}
+		return ""
+	})
+	ok("warns on Live.", "raidguard")
+	ok("Saved.", "raidguard", "set", "mode=lock", "first=50", "new=6", "days=7", "window=60", "after-raid=5")
+	// A regular, and an old account: never count.
+	tw.Say("streamer", "regular", "hello")
+	eventually(t, "the regular recorded", func() string {
+		if out, _, _ := cli(t, dir, "viewers", "regular"); !strings.Contains(out, "regular") {
+			return out
+		}
+		return ""
+	})
+	time.Sleep(4 * time.Second) // well past the grace for "just seen"
+	tw.Say("streamer", "regular", "still here")
+	tw.SetAccountCreated("oldtimer", time.Now().Add(-3*365*24*time.Hour))
+	tw.Say("streamer", "oldtimer", "hi")
+	// A raid, then brand-new accounts: half of 6 is a burst.
+	tw.Raid("streamer", "SomeChannel", 50)
+	for i := range 3 {
+		name := fmt.Sprintf("freshbot%d", i)
+		tw.SetAccountCreated(name, time.Now().Add(-2*time.Hour))
+		tw.Say("streamer", name, "hate")
+	}
+	var out string
+	eventually(t, "the warning", func() string {
+		out, _, _ = cli(t, dir, "raidguard")
+		if !strings.Contains(out, "Latest warning") {
+			return out
+		}
+		return ""
+	})
+	if ev, _, _ := cli(t, dir, "events", "-types", "moderation.raid.suspected"); !strings.Contains(ev, "#") {
+		t.Fatal("no event:", ev)
+	}
+	if !strings.Contains(out, "3 brand-new accounts in 60 seconds; chat was locked.") || strings.Contains(out, "regular") ||
+		strings.Contains(out, "oldtimer") {
+		t.Fatal(out)
+	}
+	eventually(t, "chat locked", func() string {
+		if !tw.ShieldActive("streamer") {
+			return "Shield Mode off"
+		}
+		return ""
+	})
+	ok("Locked from StreamGremlin since", "mod", "modes")
+	ok("lock", "mod", "history")
+	// The raiders banned as a ban list from names (Live's "Ban these
+	// accounts…"), at once though you're live.
+	code, body := call(t, e, "POST", "/v1/ban-lists", e.token, `{"name":"Raid","names":["freshbot0","freshbot1","freshbot2"],"start":true}`, nil)
+	if code != 200 {
+		t.Fatal(code, body)
+	}
+	eventually(t, "raiders banned", func() string {
+		for i := range 3 {
+			if !tw.IsBanned("streamer", fmt.Sprintf("freshbot%d", i)) {
+				return "not yet"
+			}
+		}
+		return ""
+	})
+	// Within the cooldown, more new accounts don't warn again.
+	for i := range 4 {
+		name := fmt.Sprintf("laterbot%d", i)
+		tw.SetAccountCreated(name, time.Now().Add(-time.Hour))
+		tw.Say("streamer", name, "more")
+	}
+	time.Sleep(time.Second)
+	if out, _, _ := cli(t, dir, "events", "-types", "moderation.raid.suspected"); strings.Count(out, "#") != 1 {
+		t.Fatal("warned again within the cooldown:", out)
+	}
+}

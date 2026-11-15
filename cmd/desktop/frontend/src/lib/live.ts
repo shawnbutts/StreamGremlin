@@ -386,6 +386,7 @@ export function historyWords(r: ModRecord): string {
   if (r.platform === 'youtube') w += ' on YouTube';
   if (r.from === 'filter') w += ', by a chat filter';
   else if (r.from === 'workflow') w += ', by a workflow';
+  else if (r.from === 'guard') w += ', by the raid guard';
   const state = r.state === 'done' ? '' : r.state === 'refused' ? ': refused' : r.state === 'unknown' ? ': unknown' : ': waiting';
   return w + state;
 }

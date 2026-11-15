@@ -240,7 +240,8 @@ func TwitchManifest() Manifest {
 					"(first=100, after), Get Moderators and Get VIPs with user_id (up to 100), Ban User and Unban User one account a " +
 					"request. No bulk ban exists. Ratelimit-Limit, -Remaining and -Reset are read on each: ban lists wait at 200 points " +
 					"left, and on 429 until the reset. 400 \"already banned\" and \"not banned\" are read from Twitch's message (not a " +
-					"code: checked in the live check). Not documented: a cap on how many bans a channel holds.",
+					"code: checked in the live check). Not documented: a cap on how many bans a channel holds. The raid guard (D-107) " +
+					"asks Get Users for a new chatter's created_at once, to tell brand-new accounts.",
 			},
 			{
 				Name: "shield_mode", Support: PermissionRequired, Scopes: []string{ShieldScope},

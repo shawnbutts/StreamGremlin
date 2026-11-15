@@ -363,6 +363,59 @@ func (s *Service) Import(ctx context.Context, name, path, reason string) (List, 
 	return s.Get(ctx, old.ID)
 }
 
+// MaxNames is the most names a list made from names (not a file) takes.
+const MaxNames = 1000
+
+// FromNames makes a new list from names (a raid's accounts, D-107), checked
+// like a file's. With start, it bans as soon as it's checked, without
+// waiting while you're live: the streamer confirmed already.
+func (s *Service) FromNames(ctx context.Context, name string, names []string, reason string, start bool) (List, error) {
+	name, err := checkName(name)
+	if err != nil {
+		return List{}, err
+	}
+	if len(names) == 0 || len(names) > MaxNames {
+		return List{}, invalid("a list from names has 1 to %d", MaxNames)
+	}
+	if _, err := s.byName(ctx, name); err == nil {
+		return List{}, invalid("there's a list called %q already", name)
+	}
+	if reason == "" {
+		reason = "Ban list: " + name
+	}
+	if utf8.RuneCountInString(reason) > MaxReason {
+		return List{}, invalid("a reason is up to %d characters", MaxReason)
+	}
+	id, now := newID(), storage.Timestamp(s.o.Now())
+	live := 1
+	if start {
+		live = 0
+	}
+	err = s.tx(ctx, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO ban_lists (id, name, reason, phase, pause_live, generation, cursor, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)`, id, name, reason, Checking, live, map[bool]string{true: "start", false: ""}[start], now, now); err != nil {
+			return err
+		}
+		for _, raw := range names {
+			n, ok := ParseName(raw)
+			if !ok {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO ban_list_entries (list_id, name, state, generation, updated_at) VALUES (?, ?, ?, 1, ?)
+				ON CONFLICT (list_id, name) DO NOTHING`, id, string(n), StateNew, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return List{}, err
+	}
+	s.log.Info("ban list from names", "list", id, "names", len(names), "start", start)
+	s.poke()
+	return s.Get(ctx, id)
+}
+
 // Copy starts a new list from Twitch's own ban list: everyone banned for
 // good now. Saved as a file, it's an export; the list never unbans them.
 func (s *Service) Copy(ctx context.Context, name string) (List, error) {

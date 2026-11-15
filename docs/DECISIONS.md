@@ -1866,3 +1866,21 @@ Decided 2026-11-14, building M8 slice 2 after the user's "proceed". The design i
   - "Export" became **Copy Twitch's ban list** into a list, plus **Save to a file** for any list. A million-name export takes many requests, so it runs in the background like the rest.
   - The app saves up to 16 MiB through its save dialog (about a million names). The CLI streams any size.
 - No new Twitch permission: `moderator:manage:banned_users`, `moderation:read` and `channel:read:vips` are already asked for.
+
+## D-107. M8 slice 3: the raid guard
+
+Decided 2026-11-14, building M8 slice 3 after the user's "proceed". As D-104 set, it warns by default and locks chat only when chosen, and never unlocks on its own.
+
+- **What counts:** a chat message from an account StreamGremlin has never seen (no viewer record, or one made within 3 seconds of the message), on Twitch or YouTube, once per account. You, mods, VIPs, subscribers and YouTube members never count, nor history (backlog) or test events.
+- **Two bursts**, within a window (30 seconds by default):
+  - first-time chatters (8 by default);
+  - Twitch accounts younger than a number of days (5 accounts younger than 7 days by default). Get Users' `created_at` is asked once per account and kept in memory.
+  - YouTube gives no account age, so YouTube only counts toward first-time chatters.
+- **After a raid** (`audience.raid.received`), for 2 minutes by default, half the counts (at least 2) are a burst, and the warning names the raider.
+- **When it fires:** at most once every 5 minutes. Live shows a warning for 15 minutes or until dismissed. The event `moderation.raid.suspected` (source streamgremlin) starts the new trigger **A raid looks suspicious**. With mode **lock**, it also locks chat (D-105's lock, recorded as from the raid guard).
+- **On Live's warning:**
+  - **Lock chat**.
+  - **Ban these N accounts…** asks first, then makes a ban list from the burst's Twitch accounts that bans as soon as they're checked, even while live. It's still checked: mods, VIPs and viewers with points are left alone, and **Undo** on Ban lists lifts them. Up to 1,000 names; YouTube accounts are listed but not banned.
+  - **Dismiss**.
+- **Settings** on Chat filters (**Raid guard**), with **Test the warning** (a test event: nothing locks, no workflow runs outside a test); `streamgremlin raidguard`; `/v1/raid-guard`.
+- **Not done:** an alert for YouTube-only bursts beyond first-time chatters (YouTube says nothing of account age), and unlocking on its own (never, by D-104).

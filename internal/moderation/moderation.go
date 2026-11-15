@@ -45,6 +45,8 @@ const (
 	FromFilter = "filter"
 	// FromWorkflow is a workflow's step (D-100).
 	FromWorkflow = "workflow"
+	// FromGuard is the raid guard locking chat (D-107).
+	FromGuard = "guard"
 )
 
 // Platforms.
@@ -164,8 +166,8 @@ func (s *Service) Recover(ctx context.Context) error {
 
 func (s *Service) check(r Request) error {
 	switch {
-	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter && r.From != FromWorkflow:
-		return invalid("a request comes from live, cli, filter or workflow")
+	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter && r.From != FromWorkflow && r.From != FromGuard:
+		return invalid("a request comes from live, cli, filter, workflow or guard")
 	case r.Platform != PlatformTwitch && r.Platform != PlatformYouTube:
 		return invalid("platform must be twitch or youtube")
 	case r.Platform == PlatformYouTube && s.yt == nil:

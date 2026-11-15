@@ -475,3 +475,36 @@ func TestRestartLiveAndCopy(t *testing.T) {
 		t.Fatal("deleting unbanned", err)
 	}
 }
+
+// A list from names (a raid's accounts) is checked like a file, and with
+// start banned at once, even while live.
+func TestFromNames(t *testing.T) {
+	tw := newFake(5)
+	r := newRig(t, tw)
+	r.mu.Lock()
+	r.live = true
+	r.mu.Unlock()
+	ctx := context.Background()
+	if _, err := r.s.FromNames(ctx, "Raid", nil, "", true); !errors.Is(err, ErrInvalid) {
+		t.Fatal("no names")
+	}
+	l, err := r.s.FromNames(ctx, "Raid 20:04", []string{"bot0000", "@BOT0001", "streamer", "not a name"}, "", true)
+	if err != nil || l.PauseLive {
+		t.Fatalf("%+v %v", l, err)
+	}
+	r.phase(l.ID, Done)
+	if c := r.counts(l.ID); c[StateBanned] != 2 || c[StateKept] != 1 || !tw.banned["1000"] || !tw.banned["1001"] {
+		t.Fatalf("%v", c)
+	}
+	// Without start: it waits while live, as any list does; then it's
+	// checked and waits for a confirm.
+	l2, _ := r.s.FromNames(ctx, "Later", []string{"bot0002"}, "", false)
+	time.Sleep(50 * time.Millisecond)
+	if got, _ := r.s.Get(ctx, l2.ID); got.Phase != Checking {
+		t.Fatalf("checked while live: %+v", got)
+	}
+	r.mu.Lock()
+	r.live = false
+	r.mu.Unlock()
+	r.phase(l2.ID, Ready)
+}

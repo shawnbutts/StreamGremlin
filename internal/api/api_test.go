@@ -37,6 +37,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/plugins"
 	"code.streamgremlin.com/streamgremlin/internal/points"
 	"code.streamgremlin.com/streamgremlin/internal/quotes"
+	"code.streamgremlin.com/streamgremlin/internal/raidguard"
 	"code.streamgremlin.com/streamgremlin/internal/rounds"
 	"code.streamgremlin.com/streamgremlin/internal/secrets"
 	"code.streamgremlin.com/streamgremlin/internal/settings"
@@ -204,12 +205,17 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 	bl.Start(context.Background())
 	t.Cleanup(bl.Close)
 	testBanLists = bl
+	rg := raidguard.New(raidguard.Options{Inbox: inbox, Settings: set, Known: raidguard.KnownFrom(vs)})
+	if err := rg.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(rg.Close)
 	started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
 	cl := clients.New(db, nil, nil)
 	return NewServer(Options{Token: testToken, Clients: cl}, Routes(Deps{
 		DataDir: dir, StartedAt: started, DB: db, Settings: set, Secrets: sec,
 		Events: inbox, Twitch: tw, YouTube: yt, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
-		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, BanLists: bl, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
+		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, BanLists: bl, RaidGuard: rg, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec

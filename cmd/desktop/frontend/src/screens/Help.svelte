@@ -65,7 +65,8 @@
       it turns on Twitch’s Shield Mode (the stricter settings you chose in Twitch’s Mod View), emote-only and followers-only
       (followed at least 10 minutes); <strong>Unlock chat</strong> puts back only what it changed. <strong>Shield Mode</strong>
       turns it on and off by itself. Mods can type <code>!lock</code> and <code>!unlock</code> with the template, and
-      “Shield Mode on when I go offline” guards chat while you’re away. Twitch’s suspicious-user flags (a likely or possible ban evader,
+      “Shield Mode on when I go offline” guards chat while you’re away. The <strong>raid guard</strong> (set up on Chat filters) warns at
+      the top of Live when a burst of new accounts arrives, with buttons to lock chat or ban them (asking first). Twitch’s suspicious-user flags (a likely or possible ban evader,
       someone banned in a channel you share bans with) show on their messages and card, and “A suspicious user chats” can
       start a workflow. YouTube lines are moderated too, as your YouTube channel, while its chat is read: delete (20 quota
       units), time out, ban, and make or remove a moderator (200 each). YouTube takes no reason, has no warnings, and can

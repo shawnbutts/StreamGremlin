@@ -202,4 +202,33 @@ describe('Chat filters', () => {
     await settle(30);
     expect(el.querySelector('[role=alert]')?.textContent).toContain('a * goes only at the start or end');
   });
+
+  it('sets up the raid guard, and shows a test warning (D-107)', async () => {
+    let settings = { mode: 'alert', first_time: 8, new_accounts: 5, days: 7, window_seconds: 30, after_raid_minutes: 2 };
+    const calls = mockFetch({
+      '/v1/filters': () => ({ status: 200, body: { settings: defaults(), recent: [] } }),
+      '/v1/filters/blocked-terms': () => ({ status: 200, body: { terms: [] } }),
+      '/v1/raid-guard': (m, body) => {
+        if (m === 'PUT') settings = body as typeof settings;
+        return { status: 200, body: { settings, alert: null } };
+      },
+      '/v1/raid-guard/test': () => ({ status: 200, body: { settings, alert: { test: true } } }),
+    });
+    const el = start();
+    await settle(40);
+    const form = el.querySelector<HTMLFormElement>('form[aria-label="Raid guard settings"]')!;
+    expect(form).not.toBeNull();
+    const lock = Array.from(form.querySelectorAll<HTMLInputElement>('input[type=radio]')).find((r) => r.value === 'lock')!;
+    lock.click();
+    flushSync();
+    typed(input(form, 'First-time chatters in a burst'), '3');
+    form.requestSubmit();
+    await settle(30);
+    expect(calls.find((c) => c.path === '/v1/raid-guard' && c.method === 'PUT')?.body).toMatchObject({ mode: 'lock', first_time: 3 });
+    button(form, 'Test the warning').click();
+    await settle(30);
+    expect(el.textContent).toContain('A test warning is on Live. Nothing was locked.');
+    const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
 });

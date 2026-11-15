@@ -452,6 +452,15 @@ func Catalog() []Kind {
 			func(a *Actor, v map[string]string) map[string]any {
 				return map[string]any{"gift": v["gift"], "jewels": atoi(v["jewels"]), "count": atoi(v["count"]), "description": v["gift"], "from": a.DisplayName}
 			}),
+		{Type: "moderation.raid.suspected", Label: "Suspicious raid", Description: "The raid guard saw a burst of chatters it has never " +
+			"seen, or of brand-new Twitch accounts.",
+			Sources: []string{"streamgremlin"},
+			Fields: []Field{{Name: "count", Label: "How many", Kind: "number", Default: "12", Max: 4},
+				{Name: "names", Label: "Names, with commas", Kind: "text", Default: "Raider1, Raider2", Max: 200}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"reason": "new_accounts", "count": atoi(v["count"]), "window_seconds": 30, "after_raid": "",
+					"accounts": []any{}, "names": v["names"], "locked": false, "lock": ""}, nil, nil
+			}},
 		{Type: "moderation.shield_mode.changed", Label: "Shield Mode", Description: "Shield Mode turned on or off on Twitch, from anywhere.",
 			Sources: []string{"twitch"},
 			Fields: []Field{{Name: "enabled", Label: "Turned on", Kind: "choice", Default: "true", Max: 5, Choices: []string{"true", "false"}},

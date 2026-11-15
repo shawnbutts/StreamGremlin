@@ -253,6 +253,10 @@ func (s *Service) check(ctx context.Context, l List) error {
 		return err
 	}
 	if len(batch) == 0 {
+		if l.cursor == "start" {
+			// Confirmed when it was made (a raid's accounts): ban now.
+			return s.setPhase(ctx, l.ID, Banning)
+		}
 		return s.setPhase(ctx, l.ID, Ready)
 	}
 	var logins, ids []string

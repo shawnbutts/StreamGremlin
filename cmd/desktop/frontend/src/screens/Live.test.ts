@@ -1031,4 +1031,45 @@ describe('Live moderating', () => {
     expect(el.textContent).toContain('viewers unknown');
     expect(el.textContent).not.toContain('0 watching');
   });
+
+  it('warns of a raid, locks chat, and bans the raiders only after asking (D-107)', async () => {
+    let alert: Record<string, unknown> | null = {
+      at: now, reason: 'new_accounts', count: 3, window_seconds: 30, after_raid: 'Raider', locked: false,
+      accounts: [
+        { platform: 'twitch', id: '1', login: 'bot_a', display_name: 'Bot_A', at: now, age_days: 0 },
+        { platform: 'twitch', id: '2', login: 'bot_b', display_name: 'Bot_B', at: now, age_days: 1 },
+        { platform: 'youtube', id: 'UCx', login: '', display_name: 'YT person', at: now },
+      ],
+    };
+    const { calls } = engine({
+      extra: {
+        '/v1/raid-guard': () => ({ status: 200, body: { settings: { mode: 'alert' }, alert } }),
+        '/v1/raid-guard/dismiss': () => {
+          alert = null;
+          return { status: 200, body: { settings: { mode: 'alert' }, alert } };
+        },
+        '/v1/ban-lists': (_m, body) => ({ status: 200, body: { id: 'bl', ...(body as object) } }),
+      },
+    });
+    const el = start();
+    await settle(60);
+    const banner = el.querySelector('.live-raid')!;
+    expect(banner.textContent).toContain('This looks like a raid');
+    expect(banner.textContent).toContain('3 brand-new Twitch accounts in 30 seconds, right after a raid from Raider.');
+    expect(banner.textContent).toContain('Bot_A, Bot_B, YT person');
+    await noViolations('raid warning');
+    // Banning asks first, and bans only the Twitch accounts.
+    button(banner, 'Ban these 2 accounts…')!.click();
+    flushSync();
+    expect(calls.some((c) => c.path === '/v1/ban-lists')).toBe(false);
+    button(document.body, 'Ban them')!.click();
+    await settle(20);
+    const post = calls.find((c) => c.path === '/v1/ban-lists' && c.method === 'POST')!.body as { names: string[]; start: boolean };
+    expect(post.names).toEqual(['bot_a', 'bot_b']);
+    expect(post.start).toBe(true);
+    expect(banner.textContent).toContain('Banning 2 accounts now');
+    button(banner, 'Dismiss')!.click();
+    await settle(20);
+    expect(el.querySelector('.live-raid')).toBeNull();
+  });
 });

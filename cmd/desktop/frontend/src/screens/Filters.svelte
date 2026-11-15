@@ -12,6 +12,11 @@
     removeBlockedTerm,
     type BlockedTerm,
     getFilters,
+    getRaidGuard,
+    setRaidGuard,
+    testRaidGuard,
+    type RaidGuardSettings,
+    type RaidGuardView,
     saveFilters,
     type FilterCatch,
     type FilterRule,
@@ -76,9 +81,38 @@
     }
   }
 
+  // The raid guard (D-107): read once, saved on its own button.
+  let guard = $state<RaidGuardSettings | undefined>();
+  let guardBusy = $state(false);
+  let guardNotice = $state('');
+  let guardError = $state('');
+
+  async function loadGuard() {
+    try {
+      guard = (await getRaidGuard()).settings;
+    } catch (e) {
+      guardError = message(e);
+    }
+  }
+
+  async function guardAct(f: () => Promise<RaidGuardView>, done: string) {
+    guardBusy = true;
+    guardNotice = '';
+    guardError = '';
+    try {
+      guard = (await f()).settings;
+      guardNotice = done;
+    } catch (e) {
+      guardError = message(e);
+    } finally {
+      guardBusy = false;
+    }
+  }
+
   onMount(() => {
     load();
     loadBlocked();
+    loadGuard();
     const t = setInterval(load, refreshMs);
     return () => clearInterval(t);
   });
@@ -342,6 +376,46 @@
     {/if}
     <p class="saved" role="status">{blockedNotice}</p>
     {#if blockedError}<p class="error" role="alert">{blockedError}</p>{/if}
+  </section>
+{/if}
+
+{#if guard}
+  {@const g = guard}
+  <section class="sg-panel card" aria-labelledby="guard-heading" aria-busy={guardBusy}>
+    <h2 id="guard-heading">Raid guard</h2>
+    <p class="sg-muted">
+      Notices a hate raid as it starts: a burst of chatters StreamGremlin has never seen, or of Twitch accounts made only days ago.
+      You, your mods, VIPs and subscribers, and viewers it already knows never count. It warns you on Live and starts “A raid looks
+      suspicious”; it locks chat only if you choose that, and never unlocks on its own.
+    </p>
+    <form class="test-form" aria-label="Raid guard settings" onsubmit={(e) => {
+      e.preventDefault();
+      guardAct(() => setRaidGuard(g), 'Saved.');
+    }}>
+      <fieldset class="field">
+        <legend>When it sees a burst</legend>
+        <label class="field-check"><input type="radio" name="guard-mode" value="alert" bind:group={g.mode} /> Warn me on Live</label>
+        <label class="field-check"><input type="radio" name="guard-mode" value="lock" bind:group={g.mode} /> Warn me and lock chat (Shield Mode, emote-only, followers-only)</label>
+        <label class="field-check"><input type="radio" name="guard-mode" value="off" bind:group={g.mode} /> Off</label>
+      </fieldset>
+      <label class="field"><span>First-time chatters in a burst</span><input class="sg-input" type="number" min="2" max="100" bind:value={g.first_time} /></label>
+      <label class="field"><span>Brand-new Twitch accounts in a burst</span><input class="sg-input" type="number" min="2" max="100" bind:value={g.new_accounts} /></label>
+      <label class="field"><span>Brand-new means younger than (days)</span><input class="sg-input" type="number" min="1" max="365" bind:value={g.days} /></label>
+      <label class="field"><span>Within (seconds)</span><input class="sg-input" type="number" min="10" max="600" bind:value={g.window_seconds} /></label>
+      <label class="field">
+        <span>Watch more closely after a raid (minutes)</span>
+        <input class="sg-input" type="number" min="0" max="30" bind:value={g.after_raid_minutes} />
+        <span class="sg-muted field-hint">For this long after a raid arrives, half as many is a burst. 0: no closer watch.</span>
+      </label>
+      <div class="row-actions">
+        <button type="submit" class="sg-button" disabled={guardBusy}>Save</button>
+        <button type="button" class="button" disabled={guardBusy} onclick={() => guardAct(testRaidGuard, 'A test warning is on Live. Nothing was locked.')}
+          >Test the warning</button
+        >
+      </div>
+    </form>
+    <p class="saved" role="status">{guardNotice}</p>
+    {#if guardError}<p class="error" role="alert">{guardError}</p>{/if}
   </section>
 {/if}
 

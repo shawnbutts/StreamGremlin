@@ -52,6 +52,8 @@ func withRate(ctx context.Context) (context.Context, *RateInfo) {
 type User struct {
 	ID    string `json:"id"`
 	Login string `json:"login"`
+	// CreatedAt is when the account was made (the raid guard, D-107).
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // LookUpUsers finds up to MaxLookup accounts by login and id together.
