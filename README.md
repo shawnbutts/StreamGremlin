@@ -2,7 +2,9 @@
 
 ![StreamGremlin](brand-kit/StreamGremlin%20Workshop%20Banner.png)
 
-StreamGremlin is a local-first streaming automation app for Twitch streamers, with YouTube in a later milestone. It's for streamers switching from Streamer.bot and for streamers with no bot yet. It runs on your own computer, with no required account, no required cloud service and no telemetry by default.
+**[Website](https://streamgremlin.com)** · **[Download](https://streamgremlin.com/download.html)** · **[Help](https://streamgremlin.com/help.html)** · **[Report a bug or idea](https://github.com/shawnbutts/StreamGremlin/issues/new/choose)** · **[Security](SECURITY.md)**
+
+StreamGremlin is a local-first streaming automation app for Twitch streamers, with YouTube alongside. It's for streamers switching from Streamer.bot and for streamers with no bot yet. It runs on your own computer, with no required account, no required cloud service and no telemetry by default.
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
