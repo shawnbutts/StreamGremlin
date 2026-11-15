@@ -3,7 +3,7 @@ import { flushSync, mount, unmount } from 'svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Live from './Live.svelte';
 import { forgetCards } from './ViewerCard.svelte';
-import { mockFetch, settle, twitchStatus } from '../test/helpers';
+import { found, mockFetch, settle, twitchStatus } from '../test/helpers';
 import type { ChatterCard, EventRecord, LiveButton, WorkflowSummary } from '../lib/api';
 
 let comp: ReturnType<typeof mount> | undefined;
@@ -363,14 +363,12 @@ describe('Live', () => {
     button(el, 'Edit buttons')!.click();
     flushSync();
     button(el, 'New button')!.click();
-    await settle(30);
-    const form = el.querySelector<HTMLFormElement>('form[aria-label="A new button"]')!;
+    const form = await found<HTMLFormElement>(el, 'form[aria-label="A new button"]');
     setValue(form.querySelector<HTMLInputElement>('input')!, 'Mute');
     setValue(form.querySelector<HTMLSelectElement>('select[aria-label="Icon set"]')!, 'nf');
-    await settle(30);
-    setValue(form.querySelector<HTMLInputElement>('input[type="search"]')!, 'microphone off');
-    await settle(10);
-    form.querySelector<HTMLButtonElement>('.live-icon-grid button[aria-label="md-microphone_off"]')!.click();
+    // Nerd Fonts' names load when first chosen.
+    setValue(await found<HTMLInputElement>(form, 'input[type="search"]'), 'microphone off');
+    (await found<HTMLButtonElement>(form, '.live-icon-grid button[aria-label="md-microphone_off"]')).click();
     flushSync();
     expect(form.querySelector('.live-icon-now')!.textContent).toContain('md-microphone_off');
     button(form, 'Save')!.click();

@@ -43,6 +43,18 @@ export async function settle(ms = 30) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+/** Waits up to 5 seconds for selector under root, for what loads lazily
+ * or slowly on a busy computer, where a fixed settle can be too short. */
+export async function found<T extends Element = HTMLElement>(root: ParentNode, selector: string): Promise<T> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const el = root.querySelector<T>(selector);
+    if (el) return el;
+    if (Date.now() > deadline) throw new Error(`nothing matches ${selector}`);
+    await settle(10);
+  }
+}
+
 export const noSecrets = () => ({
   status: 200,
   body: { store: { kind: 'keyring', label: 'macOS Keychain' }, checked: false, secrets: [] },

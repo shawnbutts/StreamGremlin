@@ -36,6 +36,15 @@ test -f /usr/share/applications/com.streamgremlin.StreamGremlin.desktop
 test -f /usr/share/icons/hicolor/256x256/apps/com.streamgremlin.StreamGremlin.png
 streamgremlin version
 
+# WebKit runs its pages in a bubblewrap sandbox, which needs new
+# namespaces. Some container hosts refuse them (Docker on GitHub's Ubuntu
+# runners); a desktop allows them. There, start without the sandbox, and
+# say so, to test everything else; where they work, test with it.
+if command -v bwrap >/dev/null && ! bwrap --ro-bind / / true 2>/tmp/bwrap.txt; then
+	say "this container can't make namespaces ($(cat /tmp/bwrap.txt)); starting WebKit without its sandbox"
+	export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+fi
+
 export STREAMGREMLIN_DATA_DIR=/tmp/streamgremlin-smoke
 Xvfb :99 -screen 0 1280x800x24 >/tmp/xvfb.log 2>&1 &
 export DISPLAY=:99
