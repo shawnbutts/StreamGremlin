@@ -47,6 +47,14 @@ type chatState struct {
 	subscribeWait time.Duration
 	refused       map[string]bool        // subscription types answered 403
 	channels      map[string]channelInfo // channel login -> title and category
+	said          map[string]said        // message id -> a viewer's message, to deliver again
+}
+
+// said is a viewer's message as delivered, kept so it can be delivered
+// again exactly: the same metadata, as Twitch's redeliveries are.
+type said struct {
+	channelID string
+	frame     []byte
 }
 
 func (s *Server) chatInit() {
@@ -56,6 +64,7 @@ func (s *Server) chatInit() {
 		s.chat.subscribeWait = 10 * time.Second
 		s.chat.refused = map[string]bool{}
 		s.chat.channels = map[string]channelInfo{}
+		s.chat.said = map[string]said{}
 	}
 }
 
@@ -147,15 +156,34 @@ func (s *Server) sayLocked(channelLogin, chatterLogin, text string) string {
 		"source_broadcaster_user_id": nil,
 	}
 	s.chat.log = append(s.chat.log, ChatMessage{Channel: c, ChatterLogin: u, Text: text, MessageID: msgID})
+	frame := s.envelope("notification", "channel.chat.message", map[string]any{
+		"subscription": map[string]any{"type": "channel.chat.message", "version": "1", "status": "enabled"},
+		"event":        ev,
+	})
+	s.chat.said[msgID] = said{channelID: cid, frame: frame}
+	s.deliverChatLocked(cid, frame)
+	return msgID
+}
+
+// SayAgain delivers a viewer's message again, with the same message id, as
+// Twitch may (a redelivery). It reports whether msgID was said.
+func (s *Server) SayAgain(msgID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.chatInit()
+	m, ok := s.chat.said[msgID]
+	if ok {
+		s.deliverChatLocked(m.channelID, m.frame)
+	}
+	return ok
+}
+
+func (s *Server) deliverChatLocked(channelID string, frame []byte) {
 	for _, ss := range s.chat.sessions {
-		if ss.subs["channel.chat.message"] == cid {
-			ss.send(s.envelope("notification", "channel.chat.message", map[string]any{
-				"subscription": map[string]any{"type": "channel.chat.message", "version": "1", "status": "enabled"},
-				"event":        ev,
-			}))
+		if ss.subs["channel.chat.message"] == channelID {
+			ss.send(frame)
 		}
 	}
-	return msgID
 }
 
 // mockEmotes are the words the stand-in Twitch sends as emotes.
@@ -237,9 +265,16 @@ func (s *Server) Silence() {
 func (ss *session) send(b []byte) {
 	select {
 	case ss.out <- b:
-	default: // a stuck client: drop, as a real server would close it
+	default:
+		// A client that's this far behind is stuck: close it, as a real
+		// server would, rather than lose messages without a word.
+		ss.close(websocket.StatusPolicyViolation)
 	}
 }
+
+// sessionBuffer is how many messages wait for a slow client before it's
+// closed. A chat surge (the load test's 2,200 messages at once) fits.
+const sessionBuffer = 8192
 
 func (s *Server) envelope(kind, subType string, payload any) []byte {
 	meta := map[string]any{"message_id": random(16), "message_type": kind, "message_timestamp": s.now().UTC().Format(time.RFC3339Nano)}
@@ -266,7 +301,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	if s.chat.keepaliveFor > 0 {
 		keepalive = s.chat.keepaliveFor
 	}
-	ss := &session{id: random(12), out: make(chan []byte, 256), subs: map[string]string{}, keepalive: keepalive, done: make(chan struct{})}
+	ss := &session{id: random(12), out: make(chan []byte, sessionBuffer), subs: map[string]string{}, keepalive: keepalive, done: make(chan struct{})}
 	if old, ok := s.chat.sessions[r.URL.Query().Get("reconnect")]; ok {
 		for k, v := range old.subs {
 			ss.subs[k] = v // subscriptions carry over

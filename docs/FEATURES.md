@@ -211,6 +211,6 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Release builds: macOS dmg, Windows installer, a Linux package, reproducible archives, SBOMs | 0052 | Release. Beta installers for Windows and macOS built (D-084, ADR-0043) |
 | Upgrade and install tests: containers for Linux, the user's Mac and Windows machines for installers | — | Release |
 | Website built from the Help docs, on streamgremlin.com | 0055 | Release: M9 slice 4, hosted by the user (D-110) |
-| Fuzzing, load tests, route guard sweep | 0050 | Release: M9 slice 1 (D-110) |
+| Fuzzing, load tests, route guard sweep | 0050 | Release: built in M9 slice 1 (D-111, ADR-0050) |
 | Code signing and notarization | D-077 | Decided in K-5 |
 | OCI container image | 0052 | Leave, while there's no headless server |

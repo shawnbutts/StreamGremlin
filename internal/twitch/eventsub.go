@@ -228,7 +228,9 @@ func (s *Service) chatSession(ctx context.Context, userID string) error {
 	q.Set("keepalive_timeout_seconds", fmt.Sprint(keepaliveSeconds))
 	u.RawQuery = q.Encode()
 
-	frames := make(chan frame, 64)
+	// Room for a chat surge: frames wait here, not in the socket, so a
+	// burst never stalls the connection while it is stored (the load test).
+	frames := make(chan frame, 4096)
 	cur, err := s.dial(ctx, u.String(), frames)
 	if err != nil {
 		return err
@@ -432,6 +434,11 @@ func (s *Service) storeChat(ctx context.Context, m wsMessage) {
 	}
 	msg, cmd := chatEnvelopes(ev, occurred)
 	res, err := s.inbox.Accept(ctx, msg)
+	if errors.Is(err, events.ErrConflict) {
+		// Twitch's message id was seen with different delivery details
+		// (the inbox has logged it): a redelivery, never run twice.
+		return
+	}
 	if err != nil {
 		s.log.Warn("twitch chat: couldn't store a message", "err", err)
 		return

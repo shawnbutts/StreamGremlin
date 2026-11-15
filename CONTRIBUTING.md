@@ -17,6 +17,14 @@ make bootstrap     # pinned tools into ./bin/tools
 make verify        # licences, lint, unit tests, acceptance tests, desktop UI checks, desktop build
 ```
 
+Before a release, and after changing a parser or the event path ([ADR-0050](docs/adr/0050-security-and-load-testing.md)):
+
+```sh
+make test-fuzz     # every fuzz target, FUZZTIME each (15s by default)
+make test-load     # the chat surge load test, with budgets
+make vuln          # govulncheck and npm audit (needs the network)
+```
+
 ## Run it
 
 ```sh

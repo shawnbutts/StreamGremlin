@@ -329,7 +329,7 @@ func (m Message) Marshal() []byte {
 	sn = appendString(sn, snPublishedAt, m.Snippet.PublishedAt)
 	sn = appendString(sn, snDisplayMessage, m.Snippet.DisplayMessage)
 	sn = appendBool(sn, snHasDisplay, m.Snippet.HasDisplayContent)
-	if m.Snippet.Type == TypeText {
+	if m.Snippet.Type == TypeText || m.Snippet.Text != "" {
 		sn = appendMessage(sn, snTextDetails, appendString(nil, textMessageText, m.Snippet.Text))
 	}
 	sn = appendDetails(sn, m.Snippet)

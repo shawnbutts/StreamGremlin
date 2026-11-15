@@ -10,6 +10,10 @@ FRONTEND := $(DESKTOP)/frontend
 
 GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT := $(TOOLS)/golangci-lint
+GOVULNCHECK_VERSION := v1.9.0
+GOVULNCHECK := $(TOOLS)/govulncheck
+# How long each fuzz target runs in `make test-fuzz`.
+FUZZTIME ?= 15s
 
 VERSION ?= dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -42,17 +46,20 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
 
-bootstrap: $(GOLANGCI_LINT) ## Install pinned tools into ./bin/tools
+bootstrap: $(GOLANGCI_LINT) $(GOVULNCHECK) ## Install pinned tools into ./bin/tools
 	$(GO) mod download
 	cd $(DESKTOP) && $(GO) mod download
 
 $(GOLANGCI_LINT):
 	GOBIN=$(TOOLS) $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
+$(GOVULNCHECK):
+	GOBIN=$(TOOLS) $(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 fmt: $(GOLANGCI_LINT) ## Format Go code
 	$(GOLANGCI_LINT) fmt ./...
@@ -65,6 +72,7 @@ lint: $(GOLANGCI_LINT) ## Lint Go code (includes the format check)
 vet: ## go vet, with the acceptance tests included
 	$(GO) vet ./...
 	$(GO) vet -tags acceptance ./tests/acceptance
+	$(GO) vet -tags 'acceptance load' ./tests/acceptance
 	$(GO) vet -tags release ./tests/release
 
 test: ## Unit tests with the race detector
@@ -72,6 +80,18 @@ test: ## Unit tests with the race detector
 
 test-acceptance: ## Acceptance tests through the real binary
 	$(GO) test -tags acceptance -count=1 ./tests/acceptance
+
+test-fuzz: ## Run every fuzz target for FUZZTIME each (default 15s)
+	GO=$(GO) FUZZTIME=$(FUZZTIME) ./scripts/fuzz.sh
+
+test-load: ## The chat surge load test through the real binary, with budgets
+	$(GO) test -tags 'acceptance load' -count=1 -run TestLoad -v ./tests/acceptance
+
+vuln: $(GOVULNCHECK) ## Known vulnerabilities in code that's called, and in npm packages (needs the network)
+	$(GOVULNCHECK) ./...
+	cd $(DESKTOP) && $(GOVULNCHECK) ./...
+	$(NPM) audit --audit-level=moderate
+	$(NPM_DECK) audit --audit-level=moderate
 
 mockobs: ## Build the stand-in for OBS's WebSocket server into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockobs ./cmd/mockobs

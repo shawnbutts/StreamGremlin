@@ -463,6 +463,13 @@ func channelEnvelope(typ, messageID string, raw json.RawMessage, occurred time.T
 		return events.Envelope{}, false
 	}
 	env.Payload, _ = json.Marshal(payload)
+	// An event missing what the inbox needs (a raid without its raider,
+	// found by fuzzing) is dropped here, like one that can't be read.
+	check := env
+	check.Prepare(occurred)
+	if check.Validate() != nil {
+		return events.Envelope{}, false
+	}
 	return env, true
 }
 

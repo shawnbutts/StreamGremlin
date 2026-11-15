@@ -1918,3 +1918,14 @@ Decided 2026-11-15, after M6 and M8 closed. Asked what the release work should e
 - **The website:** the user hosts it. StreamGremlin builds the site's files: a home page saying what StreamGremlin is and who it's for, features, download with the beta guide, Help (from the same text as the app's Help), privacy, security and the changelog. It also has the `go-import` page for `code.streamgremlin.com/streamgremlin`.
 - **Streamer.bot import** stays in Later (D-061), after the release.
 - **CI** stays "much later" (D-007): `make verify` and `make release` run by hand. The Linux package is built in a container (Podman or Docker).
+
+## D-111. M9 slice 1: hardening
+
+Decided 2026-11-15, building M9 slice 1 after the user's "proceed". The design is in [ADR-0050](adr/0050-security-and-load-testing.md).
+
+- **A route sweep:** a test checks every API route refuses a missing or wrong token, a foreign Host or Origin, and a Stream Deck's token where it has no permission. Only the health check and pairing are public, by an exact list. A route that changes something can't need only a read permission, except four that only check (each listed with why).
+- **Fuzz tests for every parser of outside input,** each checking a property: chat commands, Twitch's events, YouTube's chat stream, add-ons' messages, packages, add-on templates, workflows, ban list files, schedules, Discord links and the filters. `make test-fuzz`. Two bugs found and fixed: a Twitch event missing its account made an event the inbox refused; the stand-in YouTube's encoder lost text.
+- **A chat surge load test with budgets:** 2,000 `!hype` messages at once, a tenth delivered twice, with the API read throughout; every message runs exactly once. `make test-load`. It found that a surge could cost messages: the engine read only 64 chat messages ahead, the connection backed up and was dropped. It now reads 4,096 ahead. A chat redelivery with a different delivery time is a duplicate without a second warning.
+- **Vulnerability scans:** `make vuln` (govulncheck v1.9.0 and npm audit). golang.org/x/net updated to v0.62.0.
+- **`SECURITY.md`:** report privately to `security@streamgremlin.com` (the user's task from D-005, still open), or to whoever invited you during the beta.
+- **No screen:** nothing in this slice is something a streamer uses. The website (slice 4) will link to `SECURITY.md`.
