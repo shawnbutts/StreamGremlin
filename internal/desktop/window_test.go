@@ -85,7 +85,15 @@ func TestWindowSaver(t *testing.T) {
 	for i := range 10 {
 		s.Note(Bounds{X: 100 + i, Y: 80, Width: 1200, Height: 800}, false, false)
 	}
-	time.Sleep(120 * time.Millisecond)
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		mu.Lock()
+		n := writes
+		mu.Unlock()
+		if n > 0 || time.Now().After(deadline) {
+			break
+		}
+	}
+	time.Sleep(120 * time.Millisecond) // and no more
 	mu.Lock()
 	if writes != 1 {
 		t.Fatalf("writes %d", writes)

@@ -48,7 +48,11 @@ until streamgremlin status >/tmp/status.txt 2>&1; do
 	i=$((i + 1))
 	if ! kill -0 "$app" 2>/dev/null || [ "$i" -ge 120 ]; then
 		say "the app didn't start its engine:"
-		# A crash names its cause at the top, then dumps every goroutine.
+		# What WebKit, GTK or the sandbox said, and a Go crash's header
+		# (its signal and where), which comes before every goroutine.
+		grep -n -i -E 'bwrap|sandbox|webkit|gtk-(critical|error)|abort|^(SIG[A-Z]+|fatal error|panic):|^signal ' /tmp/app.log | head -40 || true
+		awk '/^(SIG[A-Z]+|fatal error|panic):/ {n = 25} n > 0 {print; n--}' /tmp/app.log | head -60
+		echo "--- the log"
 		if [ "$(wc -l </tmp/app.log)" -gt 70 ]; then
 			head -30 /tmp/app.log
 			echo "..."

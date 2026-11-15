@@ -263,7 +263,8 @@ func TestOffUntilTurnedOnAndOneJobPerEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.start()
-	time.Sleep(200 * time.Millisecond)
+	r.jobs("chat.hello", 2)
+	time.Sleep(200 * time.Millisecond) // and no more
 	if js, _ := r.eng.Jobs(context.Background(), "chat.hello", 10); len(js) != 2 || len(r.rec.got()) != 2 {
 		// m1 now matches too (the workflow is on), m2 must not repeat.
 		t.Fatalf("%d jobs, %d calls", len(js), len(r.rec.got()))

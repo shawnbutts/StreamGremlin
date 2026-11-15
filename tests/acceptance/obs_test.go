@@ -65,7 +65,12 @@ func TestOBSThroughTheCLI(t *testing.T) {
 	run(0, "obs", "snapshot", "take", "brb", "Be Right Back")
 	time.Sleep(200 * time.Millisecond)
 	m.SwitchByHand("Gaming")
-	time.Sleep(200 * time.Millisecond)
+	eventually(t, "the change by hand seen", func() string {
+		if out := run(0, "obs", "snapshot", "list"); !strings.Contains(out, "wouldn't switch back") {
+			return "not yet: " + out
+		}
+		return ""
+	})
 	if out := run(0, "obs", "snapshot", "restore", "brb"); !strings.Contains(out, "Didn't switch back: The scene was changed in OBS") || m.Current() != "Gaming" {
 		t.Fatalf("manual change:\n%s", out)
 	}

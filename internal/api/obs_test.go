@@ -47,10 +47,15 @@ func TestOBSThroughTheAPI(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 	testOBS.SwitchByHand("Gaming")
-	time.Sleep(100 * time.Millisecond)
-	w = do(t, s, req{method: "GET", path: "/v1/obs/snapshots", token: testToken})
-	if !strings.Contains(w.Body.String(), `"would_restore":false`) || !strings.Contains(w.Body.String(), "manual_change") {
-		t.Fatalf("open: %s", w.Body)
+	// OBS's event for the change by hand arrives when it arrives.
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		w = do(t, s, req{method: "GET", path: "/v1/obs/snapshots", token: testToken})
+		if strings.Contains(w.Body.String(), `"would_restore":false`) && strings.Contains(w.Body.String(), "manual_change") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("open: %s", w.Body)
+		}
 	}
 	w = do(t, s, req{method: "POST", path: "/v1/obs/snapshots/brb/restore", token: testToken})
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"status":"skipped"`) || testOBS.Current() != "Gaming" {
