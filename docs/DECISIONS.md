@@ -1904,3 +1904,17 @@ Decided 2026-11-14, building M8 slice 5 after the user's "proceed". As D-104 set
 - **Blocking is a ban list that blocks** (`kind` block, migration `0036_block_lists.sql`; [ADR-0049](adr/0049-ban-lists.md) applies): the same checks (you, your mods and VIPs, viewers with points left alone), pace, resume and undo (unblock). It blocks banned accounts too. Twitch replaces an existing block, so an unanswered block is sent again rather than checked. A block list can't be compared with Twitch, since StreamGremlin doesn't read your block list.
 - **What a block does, honestly:** Twitch documents that it stops an account interacting with you. It doesn't document that it removes a follow already made, nor any way to remove a follower. The screen says so, and the live check will tell.
 - **A new permission:** `user:manage:blocked_users`, so the streamer signs in to Twitch again once.
+
+## D-110. M9, Release: an unsigned wider beta (amends D-005, D-084)
+
+Decided 2026-11-15, after M6 and M8 closed. Asked what the release work should end in, the user chose an "unsigned wider beta". On signing: "both eventually. but not yet." On the website: "i'll take care of the static hosting. also, we probably want it to be more then just help". Streamer.bot import: after release.
+
+- **Who it's for:** more streamers than the user invites one by one, on Windows and macOS, with Linux "lightly tested" (D-003).
+- **A new milestone, M9. Release,** ends in an unsigned wider beta. The plan is in [docs/milestones/M9.md](milestones/M9.md).
+- **Unsigned, amending D-084's "signing still comes first" before a wider beta:**
+  - Apple's Developer Program (US$99 a year, notarization included) and Windows signing (Azure Artifact Signing, about US$9.99 a month, for individuals in the US or Canada) both come later.
+  - The guide keeps explaining Gatekeeper's and SmartScreen's warnings. SHA-256 checksums, published on the website, and SBOMs let a tester check what they downloaded. Signing the checksums (D-005, for Linux) comes with the rest of the signing.
+- **Still a beta:** migrations stay numbered files (ADR-0001). They're squashed into one baseline only at the first public release, so data from the wider beta keeps working through later betas.
+- **The website:** the user hosts it. StreamGremlin builds the site's files: a home page saying what StreamGremlin is and who it's for, features, download with the beta guide, Help (from the same text as the app's Help), privacy, security and the changelog. It also has the `go-import` page for `code.streamgremlin.com/streamgremlin`.
+- **Streamer.bot import** stays in Later (D-061), after the release.
+- **CI** stays "much later" (D-007): `make verify` and `make release` run by hand. The Linux package is built in a container (Podman or Docker).

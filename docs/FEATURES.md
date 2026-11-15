@@ -22,7 +22,7 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104). M1 to M3 and M5 to M8 are done; the release work is next.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104), M9 Release (an unsigned wider beta, D-110). M1 to M3 and M5 to M8 are done.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
@@ -210,7 +210,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 |---|---|---|
 | Release builds: macOS dmg, Windows installer, a Linux package, reproducible archives, SBOMs | 0052 | Release. Beta installers for Windows and macOS built (D-084, ADR-0043) |
 | Upgrade and install tests: containers for Linux, the user's Mac and Windows machines for installers | — | Release |
-| Website built from the Help docs, on streamgremlin.com | 0055 | Release |
-| Fuzzing, load tests, route guard sweep | 0050 | Release |
+| Website built from the Help docs, on streamgremlin.com | 0055 | Release: M9 slice 4, hosted by the user (D-110) |
+| Fuzzing, load tests, route guard sweep | 0050 | Release: M9 slice 1 (D-110) |
 | Code signing and notarization | D-077 | Decided in K-5 |
 | OCI container image | 0052 | Leave, while there's no headless server |
