@@ -3,6 +3,7 @@ package lua
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -180,6 +181,38 @@ func TestPluginTimeLimits(t *testing.T) {
 	}
 	if r, _ := call(t, p, "count", nil); r.Value != int64(1) {
 		t.Errorf("state after a timeout: %v", r.Value)
+	}
+}
+
+// The caller's deadline passing just before the worker stops the script
+// itself (a busy computer) waits for the worker's answer instead of killing
+// it, so the plugin keeps its state. One that never answers is still killed.
+func TestPluginDeadlineBeforeWorker(t *testing.T) {
+	p, _, err := startPlugin(t, dicePlugin, Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = call(t, p, "roll", nil)
+	log := slog.New(slog.DiscardHandler)
+	exchange := func(deadline, workerLimit time.Duration) error {
+		ctx, cancel := context.WithTimeout(context.Background(), deadline)
+		defer cancel()
+		f := frame{Type: "call", Action: "slow", ID: p.id(), TimeoutMS: workerLimit.Milliseconds()}
+		_, err := p.proc.exchange(ctx, f, workerLimit, log, func(g frame) frame { return frame{Type: "reply", ID: g.ID} })
+		return err
+	}
+	var le *Error
+	if err := exchange(100*time.Millisecond, 150*time.Millisecond); !errors.As(err, &le) || le.Kind != KindTimeout {
+		t.Fatalf("the worker's own stop: %v", err)
+	}
+	if p.Dead() {
+		t.Fatal("killed a worker that stopped the script itself")
+	}
+	if r, _ := call(t, p, "count", nil); r.Value != int64(1) {
+		t.Errorf("state after the deadline: %v", r.Value)
+	}
+	if err := exchange(50*time.Millisecond, 10*time.Second); !errors.Is(err, context.DeadlineExceeded) || !p.Dead() {
+		t.Fatalf("a worker past grace: %v, dead %v", err, p.Dead())
 	}
 }
 

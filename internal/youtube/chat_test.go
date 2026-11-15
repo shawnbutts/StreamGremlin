@@ -273,11 +273,13 @@ func TestChatTurnedOffIsNotRetriedInALoop(t *testing.T) {
 	b := r.mock.GoLive("UCstreamer", "No chat")
 	r.mock.TurnChatOff(b.ChatID)
 	s.FindNow()
-	waitChat(t, s, ChatLooking)
-	time.Sleep(20 * time.Millisecond)
-	st := s.ChatStatus()
-	if !strings.Contains(st.Detail, "turned off") {
-		t.Fatalf("%+v", st)
+	// It was looking before it found the stream too: wait for the reason.
+	deadline := time.Now().Add(5 * time.Second)
+	for st := s.ChatStatus(); st.State != ChatLooking || !strings.Contains(st.Detail, "turned off"); st = s.ChatStatus() {
+		if time.Now().After(deadline) {
+			t.Fatalf("%+v", st)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	streams := r.mock.Streams()
 	// Asking again finds it, but skips the chat that's off.

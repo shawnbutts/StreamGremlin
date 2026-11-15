@@ -3,6 +3,10 @@
 # them, and puts them on a draft GitHub release with their SBOMs (D-117)
 # and SHA256SUMS.txt. The user reads the draft and publishes it.
 #
+# Run by hand from the Actions tab, it builds and checks everything as
+# version 0.0.0-ci.RUN and stops before the release: a way to test the
+# build without spending a tag.
+#
 # Needs the repository secret TWITCH_CLIENT_ID (StreamGremlin's registered
 # Twitch app, never committed, AGENTS.md). YOUTUBE_CLIENT_ID and
 # YOUTUBE_CLIENT_SECRET are passed on when set (D-095).
@@ -16,6 +20,7 @@ name: Release
 on:
   push:
     tags: ['v[0-9]*']
+  workflow_dispatch:
 
 permissions: {}
 
@@ -50,7 +55,9 @@ jobs:
         with:
           node-version: 24
       - name: Version from the tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v=${GITHUB_REF_NAME#v}; else v=0.0.0-ci.$GITHUB_RUN_NUMBER; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       - name: Tools
         run: brew install makensis
       # NODE_BIN= makes make use the Node set up above, not Homebrew's.
@@ -90,7 +97,9 @@ jobs:
         with:
           node-version: 24
       - name: Version from the tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v=${GITHUB_REF_NAME#v}; else v=0.0.0-ci.$GITHUB_RUN_NUMBER; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       # The container reads the modules from here and downloads nothing.
       - name: Go modules
         run: go mod download && (cd cmd/desktop && go mod download)
@@ -131,12 +140,15 @@ jobs:
           merge-multiple: true
           path: bin/release
       - name: Version from the tag
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v=${GITHUB_REF_NAME#v}; else v=0.0.0-ci.$GITHUB_RUN_NUMBER; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       - name: Checksums and checks
         run: make release-sums VERSION="$VERSION"
         env:
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
       - name: Draft release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

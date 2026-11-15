@@ -118,6 +118,7 @@ func TestReleaseWorkflow(t *testing.T) {
 			Needs       []string          `yaml:"needs"`
 			Permissions map[string]string `yaml:"permissions"`
 			Steps       []struct {
+				If   string            `yaml:"if"`
 				Uses string            `yaml:"uses"`
 				Run  string            `yaml:"run"`
 				Env  map[string]string `yaml:"env"`
@@ -130,8 +131,9 @@ func TestReleaseWorkflow(t *testing.T) {
 	if wf.Permissions == nil || len(wf.Permissions) != 0 {
 		t.Errorf("the workflow's default permissions should be none: %v", wf.Permissions)
 	}
-	if _, ok := wf.On["push"]; !ok || len(wf.On) != 1 {
-		t.Errorf("only a pushed tag should start a release: %v", wf.On)
+	// A pushed tag, or a run by hand that stops before the release.
+	if _, ok := wf.On["push"]; !ok || len(wf.On) != 2 || wf.On["workflow_dispatch"] != nil {
+		t.Errorf("only a pushed tag or a run by hand, with no inputs: %v", wf.On)
 	}
 	makefile := read(t, "Makefile")
 	pinned := regexp.MustCompile(`^actions/[a-z-]+@[0-9a-f]{40}$`)
@@ -151,6 +153,9 @@ func TestReleaseWorkflow(t *testing.T) {
 		for _, s := range job.Steps {
 			if s.Uses != "" && !pinned.MatchString(s.Uses) {
 				t.Errorf("job %s uses %s: only GitHub's own actions, pinned to a commit", name, s.Uses)
+			}
+			if strings.Contains(s.Run, "gh release") && s.If != "github.ref_type == 'tag'" {
+				t.Errorf("job %s releases from a run that isn't a tag's", name)
 			}
 			if strings.Contains(s.Run, "${{") {
 				t.Errorf("job %s puts an expression in a script; pass it in env", name)

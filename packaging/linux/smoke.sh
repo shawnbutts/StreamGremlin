@@ -48,7 +48,14 @@ until streamgremlin status >/tmp/status.txt 2>&1; do
 	i=$((i + 1))
 	if ! kill -0 "$app" 2>/dev/null || [ "$i" -ge 120 ]; then
 		say "the app didn't start its engine:"
-		tail -40 /tmp/app.log
+		# A crash names its cause at the top, then dumps every goroutine.
+		if [ "$(wc -l </tmp/app.log)" -gt 70 ]; then
+			head -30 /tmp/app.log
+			echo "..."
+			tail -40 /tmp/app.log
+		else
+			cat /tmp/app.log
+		fi
 		cat /tmp/status.txt
 		exit 1
 	fi

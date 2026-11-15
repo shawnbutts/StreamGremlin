@@ -93,6 +93,8 @@ git push github v0.1.0-beta.5
 
 `.github/workflows/release.yml` runs `make verify`, then builds the Windows and macOS installers on macOS and the Linux packages on Ubuntu. It installs the Linux packages in fresh containers, runs `make release-sums` over everything, and makes a **draft** release with every file. Read the draft, then publish it. The repository needs the secret `TWITCH_CLIENT_ID`; it's never committed.
 
+To test the build without a tag, run the workflow by hand: Actions → Release → Run workflow, or `gh workflow run release.yml --repo shawnbutts/StreamGremlin`. It builds and checks everything as version `0.0.0-ci.RUN` and stops before the release; the files are on the run's page for a week.
+
 For the website, `make release-fetch VERSION=0.1.0-beta.5` downloads the release into `bin/release` and checks it. `make site` then links Download to the files on GitHub.
 
 ## Build for Windows from a Mac

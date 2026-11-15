@@ -36,6 +36,20 @@ func waitChat(t *testing.T, s *Service, want ChatState) {
 	t.Fatalf("chat %s (%s), want %s", s.ChatStatus().State, s.ChatStatus().Detail, want)
 }
 
+// waitChatSays waits for the chat state with a detail containing says:
+// chat is off with no reason before the service works one out.
+func waitChatSays(t *testing.T, s *Service, want ChatState, says string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if st := s.ChatStatus(); st.State == want && strings.Contains(st.Detail, says) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("chat %+v, want %s saying %q", s.ChatStatus(), want, says)
+}
+
 // waitEvents waits until the inbox holds n events, and returns them.
 func waitEvents(t *testing.T, in *events.Inbox, n int) []events.Record {
 	t.Helper()
@@ -183,9 +197,7 @@ func TestNotSignedInCantSend(t *testing.T) {
 	if _, err := s.SendChat(context.Background(), SendRequest{Text: "hi"}); !errors.Is(err, ErrNotSignedIn) {
 		t.Fatal(err)
 	}
-	if st := s.ChatStatus(); st.State != ChatOff || !strings.Contains(st.Detail, "Sign in") {
-		t.Fatalf("%+v", st)
-	}
+	waitChatSays(t, s, ChatOff, "Sign in")
 }
 
 func TestChatSurvivesReconnectWithoutDuplicates(t *testing.T) {
@@ -227,7 +239,7 @@ func TestSilentConnectionIsNoticed(t *testing.T) {
 	r.signIn(s, RoleStreamer, "streamer")
 	waitChat(t, s, ChatConnected)
 	r.mock.Silence()
-	waitChat(t, s, ChatDisconnected)
+	waitChatSays(t, s, ChatDisconnected, "no keepalive")
 	if !strings.Contains(s.ChatStatus().Detail, "no keepalive") || !strings.Contains(s.ChatStatus().Detail, "doesn't resend") {
 		t.Fatal(s.ChatStatus())
 	}
@@ -262,10 +274,7 @@ func TestChatNeedsTheReadScope(t *testing.T) {
 	r.mock.GrantScopes = []string{"user:write:chat"}
 	s := r.configured()
 	r.signIn(s, RoleStreamer, "streamer")
-	waitChat(t, s, ChatOff)
-	if !strings.Contains(s.ChatStatus().Detail, "allow reading chat") {
-		t.Fatal(s.ChatStatus())
-	}
+	waitChatSays(t, s, ChatOff, "allow reading chat")
 }
 
 // TestTwitchExamplePayload reads the channel.chat.message example from

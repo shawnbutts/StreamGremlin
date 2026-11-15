@@ -317,6 +317,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ### Fixed
 
+- On a busy computer, a workflow step whose timeout came first could kill a Lua plugin instead of letting it stop at its time limit. The plugin lost its state, the stop counted as a crash, and enough of them in 10 minutes turned it off.
 - **A chat surge no longer loses messages** (D-111): when hundreds of chat messages arrived at once, the connection to Twitch could back up and drop, losing what was still on the way. A message Twitch delivers twice no longer logs a second warning.
 - **No gap under Live's chat** (D-088): an empty notice line under the send box took room; chat now ends at the panel's edge.
 - **Live fits the window again** (D-087): a long chat no longer grows the screen and puts a scroll bar over the buttons and chat modes. Chat keeps its own scroll bar. The buttons and chat modes no longer scroll sideways: the Followers-only and Slow choices shrink, and wrap under their buttons when the side is narrow. The side lines up with the Right and Top buttons above it.

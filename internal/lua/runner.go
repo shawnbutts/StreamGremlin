@@ -356,11 +356,23 @@ func (p *proc) exchange(ctx context.Context, f frame, limit time.Duration, log *
 	}
 	watchdog := time.NewTimer(limit + grace)
 	defer watchdog.Stop()
+	done := ctx.Done()
+	var late <-chan time.Time
 	for {
 		select {
-		case <-ctx.Done():
+		case <-done:
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				// The callers shorten limit to their deadline, so the worker
+				// is stopping the script about now. Give it grace to answer
+				// rather than kill a worker that may keep a plugin's state.
+				done, late = nil, time.After(grace)
+				continue
+			}
 			p.kill()
 			return res, ctx.Err()
+		case <-late:
+			p.kill()
+			return res, context.DeadlineExceeded
 		case <-watchdog.C:
 			p.kill()
 			return fail(KindTimeout, "the script ran longer than its time limit")
