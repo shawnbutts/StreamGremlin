@@ -19,7 +19,7 @@ func TestSavedVariablesThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -57,7 +57,7 @@ func TestSavedVariablesThroughTheCLI(t *testing.T) {
 	startEngine(t, dir, "-twitch-auth-url", twURL)
 	eventually(t, "chat again", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -78,7 +78,7 @@ func TestSavedVariablesThroughTheCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "chat.command.received", "command=!lurk", "user=Tester")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.lurk"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

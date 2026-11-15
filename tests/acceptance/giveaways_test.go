@@ -59,7 +59,7 @@ func TestGiveawaysThroughChatAndTheCLI(t *testing.T) {
 	eventually(t, "the entries", func() string {
 		out, _, _ := cli(t, dir, "giveaways")
 		if !strings.Contains(out, "3 entries") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -104,7 +104,7 @@ func TestGiveawaysThroughChatAndTheCLI(t *testing.T) {
 	eventually(t, "the test entry", func() string {
 		out, _, _ := cli(t, dir, "giveaways")
 		if !strings.Contains(out, "1 entry") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -184,7 +184,7 @@ func TestGiveawayEntryRules(t *testing.T) {
 	eventually(t, "the practice entries", func() string {
 		out, _, _ := cli(t, dir, "giveaways")
 		if !strings.Contains(out, "1 entry") || !strings.Contains(out, "Turned away: 1 viewer") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

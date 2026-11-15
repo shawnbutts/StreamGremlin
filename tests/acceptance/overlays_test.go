@@ -153,7 +153,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	shown, _ := fakeOBS(t, link, false)
 	eventually(t, "OBS", func() string {
 		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "open in 1 page") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -168,7 +168,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "events", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -182,7 +182,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "audience.follow.created")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "twitch.follow-alert"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -204,7 +204,7 @@ func TestAlertOverlaysThroughTheCLI(t *testing.T) {
 	previewShown, _ := fakeOBS(t, link, true)
 	eventually(t, "the preview", func() string {
 		if out, _, _ := cli(t, dir, "overlays", "-json"); !strings.Contains(out, `"previews": 1`) {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

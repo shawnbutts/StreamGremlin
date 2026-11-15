@@ -67,7 +67,7 @@ func TestLuaScriptsThroughTheEngineAndCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "chat.command.received", "command=!roll", "args=20")
 	eventually(t, "the dice run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.dice"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

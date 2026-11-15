@@ -20,7 +20,7 @@ func TestQuotesThroughChatAndTheCLI(t *testing.T) {
 	}
 	chatUp := func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	}
@@ -72,7 +72,7 @@ func TestQuotesThroughChatAndTheCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "chat.command.received", "command=!quoteadd", "args=just a test", "role=moderator")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.quoteadd"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

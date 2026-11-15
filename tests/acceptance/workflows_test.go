@@ -40,7 +40,7 @@ func TestWorkflowsDriveTwitchAndOBS(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -83,7 +83,7 @@ func TestWorkflowsDriveTwitchAndOBS(t *testing.T) {
 	cli(t, dir, "events", "simulate", "chat.command.received", "command=!brb")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.brb"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -121,8 +121,9 @@ func TestWorkflowsDriveTwitchAndOBS(t *testing.T) {
 	// A crash in the middle of a run: it's interrupted, never run again.
 	tw.Say("streamer", "viewer", "!slow")
 	eventually(t, "the slow run starts", func() string {
+		// Empty output (no run yet) must mean "not yet", not "done".
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.slow"); !strings.Contains(out, "running") {
-			return out
+			return "not running yet: " + out
 		}
 		return ""
 	})
@@ -130,7 +131,7 @@ func TestWorkflowsDriveTwitchAndOBS(t *testing.T) {
 	startEngine(t, dir, "-twitch-auth-url", twURL)
 	eventually(t, "interrupted", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.slow"); !strings.Contains(out, "interrupted") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

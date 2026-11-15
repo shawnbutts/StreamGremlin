@@ -25,7 +25,7 @@ func TestChannelPointRewardsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat and events", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "✓ Channel point redemptions") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -62,7 +62,7 @@ func TestChannelPointRewardsThroughTheCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "rewards.channel_points.redeemed", "reward=Group hug")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "points.hug"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -77,7 +77,7 @@ func TestChannelPointRewardsThroughTheCLI(t *testing.T) {
 	tw.Redeem("streamer", "Fan", "Hydrate", 0, "")
 	eventually(t, "the refused refund", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "points.hydrate"); !strings.Contains(out, "failed") || !strings.Contains(out, "made in StreamGremlin") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -87,7 +87,7 @@ func TestChannelPointRewardsThroughTheCLI(t *testing.T) {
 	waiting := tw.Redeem("streamer", "Pal", "Group hug", 0, "me please")
 	eventually(t, "the queue", func() string {
 		if out, _, _ := cli(t, dir, "rewards", "queue", "Group hug"); !strings.Contains(out, waiting) || !strings.Contains(out, "me please") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

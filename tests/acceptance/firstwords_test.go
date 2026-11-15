@@ -22,7 +22,7 @@ func TestFirstWordsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -71,7 +71,7 @@ func TestFirstWordsThroughTheCLI(t *testing.T) {
 	startEngine(t, dir, "-twitch-auth-url", twURL)
 	eventually(t, "chat again", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -86,7 +86,7 @@ func TestFirstWordsThroughTheCLI(t *testing.T) {
 	tw.GoLive("streamer")
 	eventually(t, "the stream start", func() string {
 		if out, _, _ := cli(t, dir, "first-words"); !strings.Contains(out, "you went live") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

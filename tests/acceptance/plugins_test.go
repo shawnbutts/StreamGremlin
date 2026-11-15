@@ -23,7 +23,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -78,7 +78,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	eventually(t, "the failed run", func() string {
 		out, _, _ := cli(t, dir, "runs", "-workflow", "chat.dice-tray-roll")
 		if !strings.Contains(out, "failed") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -121,7 +121,7 @@ func TestLuaPluginThroughChatAndTheCLI(t *testing.T) {
 	startEngine(t, dir, "-twitch-auth-url", twURL)
 	eventually(t, "chat again", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

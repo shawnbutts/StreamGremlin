@@ -1,0 +1,65 @@
+{{define "title"}}StreamGremlin’s code{{end}}
+{{define "description"}}code.streamgremlin.com is where StreamGremlin’s Go code is named: the module, its programs and packages, and where the source lives.{{end}}
+{{define "head"}}<meta name="go-import" content="{{.Module}} git {{.Repo}}">
+{{end}}
+{{define "content"}}
+<div class="wrap page-head">
+  <span class="kicker">code.streamgremlin.com</span>
+  <h1>StreamGremlin’s code</h1>
+  <p>StreamGremlin is free and open source under the Apache License 2.0. Its Go module is named <code>{{.Module}}</code>, so the name stays the same wherever the code is kept. Today it’s on GitHub.</p>
+  <div class="actions">
+    <a class="button primary" href="{{.Home}}">The code on GitHub</a>
+    <a class="button" href="https://pkg.go.dev/{{.Module}}">Documentation on pkg.go.dev</a>
+  </div>
+</div>
+
+<section class="section">
+  <div class="wrap">
+    <ul class="features">
+      <li>
+        <h3>Get the code</h3>
+        <pre><code>git clone {{.Repo}}</code></pre>
+        <p><a href="{{.Home}}/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> says what to install and how to build the app. <code>make verify</code> runs every check.</p>
+      </li>
+      <li>
+        <h3>The command line</h3>
+        <pre><code>go install {{.Module}}/cmd/streamgremlin@latest</code></pre>
+        <p>Needs Go {{.GoVersion}} or newer. It talks to the StreamGremlin app running on the same computer; the app itself comes from the <a href="{{.Site}}download.html">download page</a>.</p>
+      </li>
+      <li>
+        <h3>Help make it better</h3>
+        <p>Report a bug or an idea in <a href="{{.Home}}/issues/new/choose">GitHub’s issues</a>, and a security problem <a href="{{.Home}}/security/advisories/new">privately</a>. Every commit is signed off under the <a href="https://developercertificate.org">Developer Certificate of Origin</a>.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="section alt" aria-labelledby="programs">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="programs">Programs</h2>
+      <p>What’s built from this code. The desktop app is a module of its own, <code>{{.Module}}/cmd/desktop</code>.</p>
+    </div>
+    {{template "pkglist" .Programs}}
+  </div>
+</section>
+
+<section class="section" aria-labelledby="packages">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 id="packages">Packages</h2>
+      <p>StreamGremlin’s own parts, under <code>internal/</code>: Go lets only StreamGremlin import them. <a href="{{.Home}}/blob/main/ARCHITECTURE.md">ARCHITECTURE.md</a> says how they fit together.</p>
+    </div>
+    {{template "pkglist" .Packages}}
+  </div>
+</section>
+{{end}}
+
+{{define "pkglist"}}<div class="table-scroll" role="region" aria-label="Packages" tabindex="0">
+<table class="compare pkgs">
+  <thead><tr><th scope="col">Import path</th><th scope="col">What it is</th></tr></thead>
+  <tbody>
+  {{range .}}<tr><th scope="row"><a href="{{.Link}}"><code>{{.Rel}}</code></a></th><td>{{if .Synopsis}}{{.Synopsis}}{{else}}<span class="na">—</span>{{end}}</td></tr>
+  {{end}}</tbody>
+</table>
+</div>{{end}}

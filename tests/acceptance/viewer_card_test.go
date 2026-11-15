@@ -35,7 +35,7 @@ func TestViewerCardThroughTheCLI(t *testing.T) {
 	eventually(t, "ann recorded", func() string {
 		out, _, _ := cli(t, dir, "viewers", "ann")
 		if !strings.Contains(out, "ann") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

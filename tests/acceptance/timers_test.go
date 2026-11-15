@@ -78,7 +78,7 @@ func TestCountdownsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "started as it loaded", func() string {
 		if out, _, _ := cli(t, dir, "overlays"); !strings.Contains(out, "countdown, running") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

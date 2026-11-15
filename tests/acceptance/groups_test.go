@@ -22,7 +22,7 @@ func TestWorkflowGroupsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

@@ -21,7 +21,7 @@ func TestAdsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "the ad feed", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "✓ Ad breaks") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -73,7 +73,7 @@ func TestAdsThroughTheCLI(t *testing.T) {
 	tw.Say("streamer", "streamer", "!ad")
 	eventually(t, "the refused !ad", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.ad"); !strings.Contains(out, "failed") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

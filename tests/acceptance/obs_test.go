@@ -76,7 +76,7 @@ func TestOBSThroughTheCLI(t *testing.T) {
 	e = startEngine(t, dir)
 	eventually(t, "OBS reconnects", func() string {
 		if out := run(0, "obs"); !strings.Contains(out, "connected (OBS") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

@@ -28,7 +28,7 @@ func TestModerationThroughTheCLI(t *testing.T) {
 	tw.Say("streamer", "ann", "hello")
 	eventually(t, "ann recorded", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "ann"); !strings.Contains(out, "ann") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -63,7 +63,7 @@ func TestModerationThroughTheCLI(t *testing.T) {
 	tw.SuspiciousSay("streamer", "ann", "it's me again", "active_monitoring", "likely", "ban_evader")
 	eventually(t, "the flag on the card", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "card", "@ann"); !strings.Contains(out, "Suspicious: likely ban evader, monitored") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

@@ -86,7 +86,7 @@ func TestSoundsThroughTheCLI(t *testing.T) {
 	heard, stop := fakeWindow(t, e)
 	eventually(t, "the window", func() string {
 		if out, _, _ := cli(t, dir, "sounds"); !strings.Contains(out, "The app is open") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -101,7 +101,7 @@ func TestSoundsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -115,7 +115,7 @@ func TestSoundsThroughTheCLI(t *testing.T) {
 	cli(t, dir, "events", "simulate", "chat.command.received", "command=!horn")
 	eventually(t, "the test run", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.horn"); !strings.Contains(out, "succeeded (test)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -165,7 +165,7 @@ func TestOneOfSeveralSoundsThroughChat(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

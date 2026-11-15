@@ -26,7 +26,7 @@ func TestTwitchChannelEvents(t *testing.T) {
 		out, _, _ := cli(t, dir, "twitch")
 		if !strings.Contains(out, "Chat:       connected") || !strings.Contains(out, "✓ Channel point redemptions") ||
 			!strings.Contains(out, `Channel:    "Speedrun night", in Celeste`) {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -109,7 +109,7 @@ func TestHypeTrainsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "the Hype Train feed", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "✓ Hype Train ends") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

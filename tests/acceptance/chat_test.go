@@ -34,7 +34,7 @@ func TestChatReadAndSendThroughTheCLI(t *testing.T) {
 	}
 	chatConnected := func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	}
@@ -45,7 +45,7 @@ func TestChatReadAndSendThroughTheCLI(t *testing.T) {
 		out, _, _ := cli(t, dir, "events", "-types", "chat.*")
 		if !strings.Contains(out, "chat.message.received  (twitch)  SomeViewer: !hello there") ||
 			!strings.Contains(out, "chat.command.received  (twitch)  SomeViewer: !hello there") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -70,7 +70,7 @@ func TestChatReadAndSendThroughTheCLI(t *testing.T) {
 	eventually(t, "chat after the restart", func() string {
 		out, _, _ := cli(t, dir, "events", "-types", "chat.message.received")
 		if !strings.Contains(out, "welcome back") || strings.Contains(out, "while you were away") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

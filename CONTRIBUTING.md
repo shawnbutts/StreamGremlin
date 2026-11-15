@@ -38,6 +38,8 @@ make site          # build bin/site/www (streamgremlin.com) and bin/site/code (c
 
 Help is one text for the app and the site: `cmd/desktop/frontend/src/help/guide.html`. Change it there. Take the screenshots again after a screen changes. They use the stand-in Twitch and made-up names only, never real stream data.
 
+code.streamgremlin.com (D-116) is built from the code itself: a page for every package with Go code, described by the first sentence of its package comment, so a new package's comment is what people see there. Its templates are in `website/code/`. Upload `bin/site/code` with `404.html` served for missing pages.
+
 ## Run it
 
 ```sh

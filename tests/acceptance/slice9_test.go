@@ -27,7 +27,7 @@ func TestWhoRunAnotherAndDeleteThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -45,7 +45,7 @@ func TestWhoRunAnotherAndDeleteThroughTheCLI(t *testing.T) {
 	tw.Say("streamer", "streamer", "!announce first")
 	eventually(t, "the failed call", func() string {
 		if out, _, _ := cli(t, dir, "runs", "-workflow", "chat.announce"); !strings.Contains(out, "is off") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

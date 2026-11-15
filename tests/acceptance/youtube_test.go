@@ -204,7 +204,7 @@ func TestYouTubeChatThroughTheCLI(t *testing.T) {
 	eventually(t, "looking again", func() string {
 		out, _, _ := cli(t, dir, "youtube")
 		if !strings.Contains(out, "Chat:           not live on YouTube") || !strings.Contains(out, "Acceptance stream") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -258,7 +258,7 @@ func TestYouTubeCombinedChatThroughTheCLI(t *testing.T) {
 		out := chat()
 		if !strings.Contains(out, "chat.first_words.received  (youtube)  YouTube Viewer") ||
 			!strings.Contains(out, "chat.message.sent  (youtube)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -410,7 +410,7 @@ func TestYouTubeModerationThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "the deletion in the event log", func() string {
 		if out, _, _ := cli(t, dir, "events", "-types", "chat.message.deleted"); !strings.Contains(out, "chat.message.deleted  (youtube)") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -558,7 +558,7 @@ func TestYouTubeStreamAndPollsThroughTheCLI(t *testing.T) {
 	eventually(t, "the viewer count", func() string {
 		out, _, _ := cli(t, dir, "youtube")
 		if !strings.Contains(out, "Viewers:        37") || !strings.Contains(out, "Title:          Friday") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -566,7 +566,7 @@ func TestYouTubeStreamAndPollsThroughTheCLI(t *testing.T) {
 	eventually(t, "a YouTube subscriber as a follow", func() string {
 		out, _, _ := cli(t, dir, "events", "-types", "audience.follow.created")
 		if !strings.Contains(out, "New Fan") || strings.Contains(out, "Old Fan") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -589,7 +589,7 @@ func TestYouTubeStreamAndPollsThroughTheCLI(t *testing.T) {
 	eventually(t, "votes", func() string {
 		out, _, _ := cli(t, dir, "youtube")
 		if !strings.Contains(out, "Chips 2, Fruit 0") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

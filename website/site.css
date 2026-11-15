@@ -169,7 +169,7 @@ table.compare { border-collapse: collapse; width: 100%; min-width: 860px; font-s
 .cta .actions { justify-content: center; }
 
 /* Inner pages */
-.page-head { padding: 56px 0 24px; }
+.page-head { padding-top: 56px; padding-bottom: 24px; }
 .page-head p { color: var(--muted); font-size: 1.15rem; max-width: 42em; }
 .prose { padding-bottom: 80px; }
 .prose h2 { margin-top: 1.8em; font-size: 1.7rem; }
@@ -231,3 +231,13 @@ table.compare { border-collapse: collapse; width: 100%; min-width: 860px; font-s
 }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .tour-row[id] { scroll-margin-top: 96px; }
+
+/* code.streamgremlin.com (D-116) */
+.features li { min-width: 0; }
+.features pre { margin: 0 0 12px; padding: 10px 12px; border-radius: 9px; background: var(--surface-2); overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
+.pkgs th[scope="row"] { white-space: nowrap; }
+.crumbs { margin: 0 0 8px; font-size: 0.95rem; }
+.import-path { margin: 0 0 12px; overflow-wrap: anywhere; }
+.import-path code { font-size: 1rem; }
+.prose pre { padding: 12px 14px; border-radius: 9px; background: var(--surface-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre code { background: none; border: 0; padding: 0; font-size: inherit; }

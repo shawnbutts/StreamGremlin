@@ -31,7 +31,7 @@ func TestPointsThroughTheCLIAndChat(t *testing.T) {
 	eventually(t, "ann recorded", func() string {
 		out, _, _ := cli(t, dir, "viewers", "an")
 		if !strings.Contains(out, "ann") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -109,7 +109,7 @@ func TestEarningThroughTheCLIAndTwitch(t *testing.T) {
 	eventually(t, "chat and events", func() string {
 		out, _, _ := cli(t, dir, "twitch")
 		if !strings.Contains(out, "Chat:       connected") || !strings.Contains(out, "✓ Channel point redemptions") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -120,7 +120,7 @@ func TestEarningThroughTheCLIAndTwitch(t *testing.T) {
 	tw.Say("streamer", "early", "hi")
 	eventually(t, "early recorded", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "early"); !strings.Contains(out, "early") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -147,7 +147,7 @@ func TestEarningThroughTheCLIAndTwitch(t *testing.T) {
 	tw.GoLive("streamer")
 	eventually(t, "live", func() string {
 		if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "You're live") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -197,7 +197,7 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 	eventually(t, "chat and events", func() string {
 		out, _, _ := cli(t, dir, "twitch")
 		if !strings.Contains(out, "Chat:       connected") || !strings.Contains(out, "✓ Channel point redemptions") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -209,7 +209,7 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 	cli(t, dir, "points", "earning", "on")
 	eventually(t, "a tick while not live", func() string {
 		if out, _, _ := cli(t, dir, "points", "earning"); !strings.Contains(out, "unknown whether you were live") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -222,7 +222,7 @@ func TestTimeInChatThroughTheCLIAndTwitch(t *testing.T) {
 	tw.Say("streamer", "streamer", "the streamer never earns")
 	eventually(t, "chatty recorded", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "chatty"); !strings.Contains(out, "chatty") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -279,7 +279,7 @@ func TestGiveToEveryoneThroughTheCLIAndTwitch(t *testing.T) {
 	}
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "Chat:       connected") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -305,7 +305,7 @@ func TestGiveToEveryoneThroughTheCLIAndTwitch(t *testing.T) {
 	tw.Say("streamer", "eve", "hi all")
 	eventually(t, "recent chatters", func() string {
 		if out, _, _ := cli(t, dir, "points", "give-all", "recent=10", "5"); !strings.Contains(out, "(1 viewer): eve would get 5 each") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

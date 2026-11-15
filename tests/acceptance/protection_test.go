@@ -69,7 +69,7 @@ func TestShieldModeAndLockThroughTheCLI(t *testing.T) {
 	eventually(t, "the Shield Mode event", func() string {
 		out, _, _ := cli(t, dir, "events", "-types", "moderation.shield_mode.changed")
 		if !strings.Contains(out, "moderation.shield_mode.changed") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -263,7 +263,7 @@ func TestRaidGuardThroughTheCLI(t *testing.T) {
 	tw.Say("streamer", "regular", "hello")
 	eventually(t, "the regular recorded", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "regular"); !strings.Contains(out, "regular") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -282,7 +282,7 @@ func TestRaidGuardThroughTheCLI(t *testing.T) {
 	eventually(t, "the warning", func() string {
 		out, _, _ = cli(t, dir, "raidguard")
 		if !strings.Contains(out, "Latest warning") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -366,7 +366,7 @@ func TestNewAccountAndArtFiltersThroughTheCLI(t *testing.T) {
 	eventually(t, "two caught", func() string {
 		out, _, _ := cli(t, dir, "filters")
 		if !strings.Contains(out, "New accounts delete") || !strings.Contains(out, "Text art") || strings.Count(out, "done") < 2 {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
@@ -423,7 +423,7 @@ func TestFollowBotReviewThroughTheCLI(t *testing.T) {
 	eventually(t, "chattynew recorded as chatting", func() string {
 		out, _, _ := cli(t, dir, "viewers", "chattynew")
 		if !strings.Contains(out, "chattynew") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

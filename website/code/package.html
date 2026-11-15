@@ -1,0 +1,35 @@
+{{define "title"}}{{.Pkg.Path}}{{end}}
+{{define "description"}}{{if .Pkg.Synopsis}}{{.Pkg.Synopsis}}{{else}}Part of StreamGremlin’s Go module.{{end}}{{end}}
+{{define "head"}}<meta name="go-import" content="{{.Module}} git {{.Repo}}">
+<meta name="go-source" content="{{.Module}} {{.Home}} {{.Home}}/tree/main{/dir} {{.Home}}/blob/main{/dir}/{file}#L{line}">
+{{end}}
+{{define "content"}}
+<div class="wrap page-head narrow">
+  <p class="crumbs"><a href="{{.Assets}}index.html">code.streamgremlin.com</a></p>
+  <span class="kicker">{{if eq .Pkg.Kind "program"}}A program{{else if eq .Pkg.Kind "internal"}}An internal package{{else if eq .Pkg.Kind "module"}}The module{{else}}A package{{end}}</span>
+  <h1>{{.Pkg.Name}}</h1>
+  <p class="import-path"><code>{{.Pkg.Path}}</code></p>
+  {{if .Pkg.Synopsis}}<p>{{.Pkg.Synopsis}}</p>{{end}}
+  <div class="actions">
+    <a class="button primary" href="{{.Home}}/tree/main/{{.Pkg.Rel}}">Source on GitHub</a>
+    <a class="button" href="https://pkg.go.dev/{{.Pkg.Path}}">Documentation on pkg.go.dev</a>
+  </div>
+</div>
+<div class="wrap narrow prose">
+  {{if .Pkg.Install}}
+  <p>Install it with Go {{.GoVersion}} or newer:</p>
+  <pre><code>go install {{.Pkg.Path}}@latest</code></pre>
+  {{end}}
+  {{if eq .Pkg.Kind "internal"}}
+  <p>It’s one of StreamGremlin’s own parts: Go lets only StreamGremlin’s code import packages under <code>internal/</code>.</p>
+  {{end}}
+  {{if .Pkg.Children}}
+  <h2>Inside it</h2>
+  <ul>
+    {{range .Pkg.Children}}<li><a href="{{.Link}}"><code>{{.Rel}}</code></a>{{if .Synopsis}}: {{.Synopsis}}{{end}}</li>
+    {{end}}
+  </ul>
+  {{end}}
+  <p>Part of <a href="{{.Assets}}index.html">StreamGremlin’s code</a>, free and open source under the <a href="{{.Home}}/blob/main/LICENSE">Apache License 2.0</a>.</p>
+</div>
+{{end}}

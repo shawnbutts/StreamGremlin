@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -56,47 +57,11 @@ func TestSite(t *testing.T) {
 		t.Fatal(err)
 	}
 	www := filepath.Join(out, "www")
-	ref := regexp.MustCompile(`(?:href|src)="([^"]*)"`)
-	ids := regexp.MustCompile(`id="([^"]+)"`)
+	var files []string
 	for _, p := range pages {
-		raw, err := os.ReadFile(filepath.Join(www, p+".html"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		page := string(raw)
-		if strings.Contains(page, "<script") || strings.Contains(page, " on") && regexp.MustCompile(`\son[a-z]+="`).MatchString(page) {
-			t.Errorf("%s has a script", p)
-		}
-		have := map[string]bool{}
-		for _, m := range ids.FindAllStringSubmatch(page, -1) {
-			if have[m[1]] {
-				t.Errorf("%s: id %q twice", p, m[1])
-			}
-			have[m[1]] = true
-		}
-		for _, m := range ref.FindAllStringSubmatch(page, -1) {
-			u := m[1]
-			switch {
-			case strings.HasPrefix(u, "https://"), strings.HasPrefix(u, "mailto:"):
-				continue
-			case strings.HasPrefix(u, "http://"), strings.HasPrefix(u, "//"):
-				t.Errorf("%s links to %s without https", p, u)
-			case strings.HasPrefix(u, "#"):
-				if !have[u[1:]] {
-					t.Errorf("%s: no anchor %s", p, u)
-				}
-			default:
-				file, _, _ := strings.Cut(u, "#")
-				if _, err := os.Stat(filepath.Join(www, file)); err != nil {
-					t.Errorf("%s: %s doesn't exist", p, u)
-				}
-			}
-		}
-		// Outside resources: only links, never stylesheets or pictures.
-		if regexp.MustCompile(`(?:src|rel="stylesheet" href)="https?://`).MatchString(page) {
-			t.Errorf("%s loads something from outside", p)
-		}
+		files = append(files, p+".html")
 	}
+	checkPages(t, www, files)
 
 	help, _ := os.ReadFile(filepath.Join(www, "help.html"))
 	guide, _ := os.ReadFile("../desktop/frontend/src/help/guide.html")
@@ -123,11 +88,96 @@ func TestSite(t *testing.T) {
 		}
 	}
 
-	gi, err := os.ReadFile(filepath.Join(out, "code", "streamgremlin", "internal", "api", "index.html"))
-	if err != nil || !strings.Contains(string(gi), `<meta name="go-import" content="code.streamgremlin.com/streamgremlin git https://example.com/sg.git">`) {
-		t.Errorf("go-import page: %v\n%s", err, gi)
+	// code.streamgremlin.com (D-116): every page checked like the site's,
+	// and every package page has go-import and go-source.
+	code := filepath.Join(out, "code")
+	files = nil
+	err := filepath.WalkDir(code, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && strings.HasSuffix(p, ".html") {
+			rel, _ := filepath.Rel(code, p)
+			files = append(files, rel)
+		}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(out, "code", "streamgremlin", "cmd", "desktop", "index.html")); err != nil {
-		t.Error("no go-import page for the desktop module")
+	if len(files) < 60 {
+		t.Errorf("code.streamgremlin.com has only %d pages", len(files))
+	}
+	checkPages(t, code, files)
+	const goImport = `<meta name="go-import" content="code.streamgremlin.com/streamgremlin git https://example.com/sg.git">`
+	const goSource = `<meta name="go-source" content="code.streamgremlin.com/streamgremlin https://example.com/sg https://example.com/sg/tree/main{/dir} https://example.com/sg/blob/main{/dir}/{file}#L{line}">`
+	for _, pkg := range []string{"", "internal/api", "internal/youtube/livechat", "cmd/desktop", "cmd/streamgremlin"} {
+		page, err := os.ReadFile(filepath.Join(code, "streamgremlin", filepath.FromSlash(pkg), "index.html"))
+		if err != nil || !strings.Contains(string(page), goImport) || !strings.Contains(string(page), goSource) {
+			t.Errorf("%q: no go-import and go-source: %v", pkg, err)
+		}
+	}
+	home, _ := os.ReadFile(filepath.Join(code, "index.html"))
+	for _, want := range []string{goImport, `href="streamgremlin/cmd/streamgremlin/index.html"`, `href="streamgremlin/internal/banlists/index.html"`,
+		"Command streamgremlin is StreamGremlin", "go install code.streamgremlin.com/streamgremlin/cmd/streamgremlin@latest"} {
+		if !strings.Contains(string(home), want) {
+			t.Errorf("code.streamgremlin.com's home page has no %q", want)
+		}
+	}
+	if strings.Contains(string(home), "tests/") || strings.Contains(string(home), "testdata") {
+		t.Error("the home page lists test-only folders")
+	}
+	cli, _ := os.ReadFile(filepath.Join(code, "streamgremlin", "cmd", "streamgremlin", "index.html"))
+	if !strings.Contains(string(cli), "go install code.streamgremlin.com/streamgremlin/cmd/streamgremlin@latest") {
+		t.Error("the command line's page doesn't say how to install it")
+	}
+}
+
+// checkPages checks pages of a built site: no scripts, ids once each, every
+// relative link and picture there (from the page's folder, or the site's
+// root under <base href="/">), only https outside, and nothing loaded from
+// outside.
+func checkPages(t *testing.T, root string, files []string) {
+	t.Helper()
+	ref := regexp.MustCompile(`(?:href|src)="([^"]*)"`)
+	ids := regexp.MustCompile(`id="([^"]+)"`)
+	for _, p := range files {
+		raw, err := os.ReadFile(filepath.Join(root, p))
+		if err != nil {
+			t.Fatal(err)
+		}
+		page := string(raw)
+		if strings.Contains(page, "<script") || regexp.MustCompile(`\son[a-z]+="`).MatchString(page) {
+			t.Errorf("%s has a script", p)
+		}
+		have := map[string]bool{}
+		for _, m := range ids.FindAllStringSubmatch(page, -1) {
+			if have[m[1]] {
+				t.Errorf("%s: id %q twice", p, m[1])
+			}
+			have[m[1]] = true
+		}
+		dir := filepath.Dir(filepath.Join(root, p))
+		if strings.Contains(page, `<base href="/">`) {
+			dir = root
+		}
+		for _, m := range ref.FindAllStringSubmatch(page, -1) {
+			u := m[1]
+			switch {
+			case strings.HasPrefix(u, "https://"), strings.HasPrefix(u, "mailto:"):
+				continue
+			case strings.HasPrefix(u, "http://"), strings.HasPrefix(u, "//"):
+				t.Errorf("%s links to %s without https", p, u)
+			case strings.HasPrefix(u, "#"):
+				if !have[u[1:]] {
+					t.Errorf("%s: no anchor %s", p, u)
+				}
+			default:
+				file, _, _ := strings.Cut(u, "#")
+				if _, err := os.Stat(filepath.Join(dir, filepath.FromSlash(file))); err != nil {
+					t.Errorf("%s: %s doesn't exist", p, u)
+				}
+			}
+		}
+		if regexp.MustCompile(`(?:src|rel="stylesheet" href)="https?://`).MatchString(page) {
+			t.Errorf("%s loads something from outside", p)
+		}
 	}
 }

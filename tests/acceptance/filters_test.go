@@ -43,7 +43,7 @@ func TestChatFiltersThroughTheCLI(t *testing.T) {
 	tw.Say("streamer", "warmup", "hello")
 	eventually(t, "chat", func() string {
 		if out, _, _ := cli(t, dir, "viewers", "warmup"); !strings.Contains(out, "warmup") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})

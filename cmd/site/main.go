@@ -117,6 +117,8 @@ var kinds = []struct{ suffix, system, button string }{
 // Page is what every template gets.
 type Page struct {
 	Name      string // the page's file name, without .html
+	Site      string // before a link to a page of streamgremlin.com: "" there
+	Assets    string // before the stylesheet and pictures: the way to the site's root
 	Help      []Term
 	Changelog template.HTML
 	Security  template.HTML
@@ -220,7 +222,7 @@ func build(o Options) error {
 	if err := writeFile(filepath.Join(www, "robots.txt"), []byte("User-agent: *\nAllow: /\n")); err != nil {
 		return err
 	}
-	return goImport(o, filepath.Join(o.Out, "code"))
+	return codeSite(o, layout, page, filepath.Join(o.Out, "code"))
 }
 
 var termRe = regexp.MustCompile(`(?s)<dt id="([a-z0-9-]+)">(.*?)</dt>\s*<dd>(.*?)</dd>`)
@@ -376,59 +378,6 @@ func copyHashed(from, to string) (string, int64, error) {
 		err = cerr
 	}
 	return hex.EncodeToString(h.Sum(nil)), n, err
-}
-
-// goImport writes code.streamgremlin.com: a page for the module and for
-// every package in it, each with the go-import tag pointing git at the
-// repository, and a link to the website for people who open one.
-func goImport(o Options, out string) error {
-	const module = "code.streamgremlin.com/streamgremlin"
-	page := template.Must(template.New("go").Parse(`<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="go-import" content="{{.Module}} git {{.Repo}}">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Path}}</title></head>
-<body><p><code>{{.Path}}</code> is part of <a href="https://streamgremlin.com/">StreamGremlin</a>. Its source is at <a href="{{.Repo}}">{{.Repo}}</a>.</p></body></html>
-`))
-	dirs := map[string]bool{"": true}
-	err := filepath.WalkDir(o.Root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		name := d.Name()
-		if d.IsDir() && p != o.Root && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "testdata" || name == "bin" || name == "tmp") {
-			return filepath.SkipDir
-		}
-		if !d.IsDir() && strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, "_test.go") {
-			rel, _ := filepath.Rel(o.Root, filepath.Dir(p))
-			if rel == "." {
-				rel = ""
-			}
-			dirs[filepath.ToSlash(rel)] = true
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	for rel := range dirs {
-		path := module
-		if rel != "" {
-			path += "/" + rel
-		}
-		dir := filepath.Join(out, "streamgremlin", filepath.FromSlash(rel))
-		if err := mkdir(dir); err != nil {
-			return err
-		}
-		var buf bytes.Buffer
-		if err := page.Execute(&buf, map[string]string{"Module": module, "Repo": o.Repo, "Path": path}); err != nil {
-			return err
-		}
-		if err := writeFile(filepath.Join(dir, "index.html"), buf.Bytes()); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // The site is for a web server to read, so its files are readable by all.

@@ -21,7 +21,7 @@ func TestPollsAndPredictionsThroughTheCLI(t *testing.T) {
 	}
 	eventually(t, "the poll feeds", func() string {
 		if out, _, _ := cli(t, dir, "twitch"); !strings.Contains(out, "✓ Polls end") || !strings.Contains(out, "✓ Predictions end") {
-			return out
+			return "not yet: " + out
 		}
 		return ""
 	})
