@@ -173,7 +173,14 @@ func TestReleaseWorkflow(t *testing.T) {
 		t.Errorf("jobs: %d", len(wf.Jobs))
 	}
 	goLine := regexp.MustCompile(`(?m)^go (\d+\.\d+)`).FindStringSubmatch(read(t, "go.mod"))
-	if goLine == nil || wf.Env["GO"] != goLine[1]+".x" {
-		t.Errorf("the workflow builds with Go %q; go.mod says %v", wf.Env["GO"], goLine)
+	if goLine == nil || wf.Env["GO_SERIES"] != goLine[1]+".x" {
+		t.Errorf("the workflow builds with Go %q; go.mod says %v", wf.Env["GO_SERIES"], goLine)
+	}
+	// make reads the environment, so a workflow-wide name that is also a
+	// Makefile variable changes the build (GO once replaced the go command).
+	for k := range wf.Env {
+		if regexp.MustCompile(`(?m)^` + k + `\s*[:?+]?=`).MatchString(makefile) {
+			t.Errorf("the workflow's env %s is also a Makefile variable", k)
+		}
 	}
 }
