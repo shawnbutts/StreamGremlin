@@ -1,0 +1,160 @@
+# Release builds (D-118): pushing a version tag such as v0.1.0-beta.5 to
+# GitHub builds every installer with the Makefile's own targets, checks
+# them, and puts them on a draft GitHub release with their SBOMs (D-117)
+# and SHA256SUMS.txt. The user reads the draft and publishes it.
+#
+# Needs the repository secret TWITCH_CLIENT_ID (StreamGremlin's registered
+# Twitch app, never committed, AGENTS.md). YOUTUBE_CLIENT_ID and
+# YOUTUBE_CLIENT_SECRET are passed on when set (D-095).
+#
+# Actions are GitHub's own, pinned by commit. Nothing is cached between
+# runs, so a release is built only from the tagged code and the pinned
+# modules and packages. Go is the newest patch of the version go.mod
+# names, for its security fixes (a test keeps the two in step).
+name: Release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO: 1.27.x
+
+jobs:
+  # make verify, then the Windows installer (cross-compiled, packed by
+  # NSIS) and the universal macOS app in a dmg.
+  macos:
+    # Forgejo reads .github/workflows too; release builds are GitHub's.
+    if: github.server_url == 'https://github.com'
+    runs-on: macos-15
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO }}
+          check-latest: true
+          cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Tools
+        run: brew install makensis
+      # NODE_BIN= makes make use the Node set up above, not Homebrew's.
+      - name: Every check
+        run: make verify NODE_BIN=
+      - name: Windows and macOS installers
+        run: make release-windows release-macos NODE_BIN= VERSION="$VERSION"
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-macos
+          path: bin/release/StreamGremlin-*
+          if-no-files-found: error
+          retention-days: 7
+
+  # The Linux app in an Ubuntu 24.04 container, the .deb, .rpm and
+  # .tar.gz, then each installed and started in fresh containers.
+  linux:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO }}
+          check-latest: true
+          cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      # The container reads the modules from here and downloads nothing.
+      - name: Go modules
+        run: go mod download && (cd cmd/desktop && go mod download)
+      - name: Linux packages
+        run: make release-linux CONTAINER=docker VERSION="$VERSION"
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      - name: Install and start them on Ubuntu, Debian and Fedora
+        run: make linux-smoke CONTAINER=docker VERSION="$VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-linux
+          path: bin/release/StreamGremlin-*
+          if-no-files-found: error
+          retention-days: 7
+
+  # Checksums and tests/release over everything, then the draft release.
+  publish:
+    needs: [macos, linux]
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO }}
+          check-latest: true
+          cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: bin/release
+      - name: Version from the tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+      - name: Checksums and checks
+        run: make release-sums VERSION="$VERSION"
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          StreamGremlin $VERSION, built by GitHub from the tagged code.
+
+          - **Not signed yet.** Windows and macOS warn before opening it; [the beta guide](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/BETA.md) says how to open it anyway.
+          - **Check a download** against \`SHA256SUMS.txt\`.
+          - **What's inside each download** is in the CycloneDX SBOM beside it (\`.cdx.json\`).
+          - **What changed:** [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md).
+          EOF
+          files=(bin/release/StreamGremlin-"$VERSION"-* bin/release/SHA256SUMS.txt)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # A re-run replaces the files on the draft it made before.
+            gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
+          else
+            pre=()
+            case "$VERSION" in *-*) pre=(--prerelease) ;; esac
+            gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${pre[@]}" \
+              --title "StreamGremlin $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${files[@]}"
+          fi

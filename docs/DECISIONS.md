@@ -1997,3 +1997,47 @@ Decided 2026-11-15. The user: "can we build a site for code.streamgremlin.com?" 
 - **Also found on the way, a flaky acceptance test:** `TestWorkflowsDriveTwitchAndOBS` failed about one run in ten. Its wait for "the slow run starts" took the command's empty output (no run yet) as success, so the engine was sometimes killed before the run existed; the restarted engine then rightly ran the stored command as a fresh run, never "interrupted". The engine was right; the test wasn't. 72 waits across the acceptance tests had the same pattern and now say "not yet" when output is empty. The test then passed 25 runs in 25.
 - **A test** builds both sites and checks every page of each: links and pictures resolve, no scripts or outside resources, every package page has both tags, and the home page lists the programs and packages.
 
+
+## D-117. M9 slice 2, part two: an SBOM for each download
+
+Decided 2026-11-15. The user, after the choices were laid out: "CycloneDX, per download, and our own generator". See [ADR-0051](adr/0051-release-builds-and-sboms.md).
+
+- **CycloneDX 1.6 JSON,** the version scanners read most widely. 1.7 (2025) adds a field for what the system provides, but fewer tools read it yet.
+- **One per download,** beside it, named after it: `StreamGremlin-VERSION-windows-x64-setup.exe.cdx.json`, and likewise for the .dmg, .deb, .rpm and .tar.gz. Each is in `SHA256SUMS.txt`, on the GitHub release, and linked from the website's Download.
+- **Made by our own generator,** `cmd/release sbom`, run by `make release-windows`, `release-macos` and `release-linux` right after each installer. No outside SBOM tool.
+- **What each lists:**
+  - the download itself with its SHA-256 and its address on GitHub;
+  - each program and file in it with its SHA-256;
+  - the Go modules built into each program, read from Go's own build record in the binary (so exactly what was compiled, for that system), and Go's standard library with its version;
+  - the npm packages bundled into the app's screens and the Stream Deck plugin, as the bundler saw them (`packaging/sbom/bundled.mjs`, run by Vite and esbuild), not the tools that built them;
+  - the Nerd Fonts symbols kept in the repository;
+  - what the download needs from the system and doesn't carry (WebView2 on Windows; GTK 4 and WebKitGTK on Linux, by the names the .deb and .rpm depend on), marked `required` or `optional` with the property `streamgremlin:shipped=false`.
+- **The same bytes for the same download:** dated by the commit (`SOURCE_DATE_EPOCH`), and the serial number is a UUID made from the content.
+- **Licences:** npm packages carry the licence their package.json declares. Go modules don't: their licences are in `THIRD-PARTY-LICENSES.txt`, which ships in every download.
+- **Tests:**
+  - the generator's output is checked against CycloneDX's own schema, kept in `internal/release/testdata`, and a broken one is shown to fail;
+  - the Linux needs match `nfpm.yaml`;
+  - `tests/release` checks each real SBOM names its download's SHA-256 and lists its programs, Wails, Svelte and (for Windows and macOS) Elgato's SDK.
+
+  A trial release built all five, and each passed the schema.
+
+## D-118. Release builds on GitHub, and Download links to them (amends D-007, D-112, D-115)
+
+Decided 2026-11-15. The user: "then update the main site with the github link for release downloads. we'll also want to do the gh work so release builds happen automatically". See [ADR-0051](adr/0051-release-builds-and-sboms.md).
+
+- **Pushing a version tag to GitHub builds a release** (`.github/workflows/release.yml`), for example `git tag v0.1.0-beta.5 && git push github v0.1.0-beta.5`. The workflow runs:
+  - on macOS, `make verify`, then the Windows installer and the macOS dmg;
+  - on Ubuntu, the Linux packages in the same container as on the Mac, then `make linux-smoke`;
+  - then `make release-sums`: the checksums and `tests/release` over all of them.
+- **The workflow makes a draft release, not a published one.** It carries every installer, its SBOM and `SHA256SUMS.txt`, and is marked as a pre-release for a beta. The user reads it and clicks Publish. A re-run replaces the draft's files.
+- **Hardened:**
+  - only GitHub's own actions, each pinned to a commit;
+  - no permissions by default; only the last job can write, and only to the repository's contents (to make the release);
+  - no caches between runs;
+  - checkouts keep no credentials.
+
+  The Twitch Client ID comes from the repository secret `TWITCH_CLIENT_ID`, only into the steps that build; the user sets it once. The YouTube ones are passed on when set (D-095). A test (`internal/brand`) keeps all of this true.
+- **Forgejo is left out:** it reads `.github/workflows` too, so each job runs only on github.com.
+- **`make release` still works on the Mac,** unchanged apart from the SBOMs. GitHub runs the same make targets.
+- **Download on streamgremlin.com links to GitHub** (amends D-112): each installer's button, its SBOM ("What's inside it") and `SHA256SUMS.txt` point at the release's files on GitHub. The site no longer copies installers. `make site` still shows each file's size and SHA-256, from `bin/release`. `make release-fetch VERSION=…` downloads a GitHub release there first, and checks the checksums.
+- **D-007's "CI: much later" holds for everything else.** There is still no build on every push or pull request, and no Dependabot (D-115). `make verify` before every push stays the rule.

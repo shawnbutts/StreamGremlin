@@ -33,7 +33,7 @@ import (
 type Options struct {
 	Root    string // the repository
 	Out     string // the output folder; www and code go inside it
-	Release string // built installers to offer (make release), or ""
+	Release string // a release's installers to offer (make release or release-fetch), or ""
 	Repo    string // where git fetches the code, for go-import
 }
 
@@ -95,14 +95,24 @@ var helpShots = map[string]string{
 	"help-ban-lists": "banlists",
 }
 
-// Download is one installer on the download page.
+// Download is one installer on the download page. The files are on
+// GitHub's release (D-118); the site only links to them.
 type Download struct {
 	File   string
 	System string // the heading: "Windows", "Linux: Fedora (beta)"
 	Button string // after "Download": "for Windows", ".rpm"
 	Size   string
 	SHA256 string
+	URL    string // the file on GitHub
+	SBOM   string // its CycloneDX SBOM on GitHub (D-117), or ""
 	rank   int
+}
+
+// Release is the newest release's place on GitHub.
+type Release struct {
+	Page string // the release's page
+	Sums string // its SHA256SUMS.txt, or ""
+	All  string // every release
 }
 
 // kinds says what each installer is for, in the order the page lists them.
@@ -125,6 +135,7 @@ type Page struct {
 	Beta      template.HTML
 	Version   string
 	Downloads []Download
+	Release   Release
 	Shots     map[string]Shot
 	Built     string
 }
@@ -172,7 +183,7 @@ func build(o Options) error {
 	security = dropTitle(security)
 	beta = dropTitle(beta)
 
-	version, downloads, err := findDownloads(o.Release, filepath.Join(www, "downloads"))
+	version, downloads, release, err := findDownloads(o.Release, strings.TrimSuffix(o.Repo, ".git"))
 	if err != nil {
 		return err
 	}
@@ -180,7 +191,7 @@ func build(o Options) error {
 	page := Page{
 		Help: terms, Changelog: template.HTML(markdown(changelog, 1)), Security: template.HTML(markdown(security, 0)), //nolint:gosec // escaped by markdown
 		Beta:    template.HTML(markdown(beta, 1)), //nolint:gosec // escaped by markdown
-		Version: version, Downloads: downloads, Shots: shots,
+		Version: version, Downloads: downloads, Release: release, Shots: shots,
 		Built: time.Now().UTC().Format("2 January 2006"),
 	}
 
@@ -260,17 +271,18 @@ func dropTitle(md string) string {
 
 var installer = regexp.MustCompile(`^StreamGremlin-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-(macos|windows|linux)[^/]*\.(dmg|exe|deb|rpm|tar\.gz|zip)$`)
 
-// findDownloads offers the newest version's installers from dir, copying
-// them into to with their SHA-256. No folder, or none in it, offers none.
-func findDownloads(dir, to string) (string, []Download, error) {
+// findDownloads offers the newest version's installers in dir, with
+// their sizes and SHA-256, linked to the files on the repository's GitHub
+// release, tagged vVERSION. No folder, or none in it, offers none.
+func findDownloads(dir, home string) (string, []Download, Release, error) {
 	if dir == "" {
-		return "", nil, nil
+		return "", nil, Release{}, nil
 	}
 	entries, err := os.ReadDir(dir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil, nil
+		return "", nil, Release{}, nil
 	} else if err != nil {
-		return "", nil, err
+		return "", nil, Release{}, err
 	}
 	byVersion := map[string][]string{}
 	var versions []string
@@ -285,23 +297,27 @@ func findDownloads(dir, to string) (string, []Download, error) {
 		byVersion[m[1]] = append(byVersion[m[1]], e.Name())
 	}
 	if len(versions) == 0 {
-		return "", nil, nil
+		return "", nil, Release{}, nil
 	}
 	sort.Slice(versions, func(i, j int) bool { return versionLess(versions[i], versions[j]) })
 	newest := versions[len(versions)-1]
-	if err := mkdir(to); err != nil {
-		return "", nil, err
-	}
-	var out []Download
-	var sums strings.Builder
 	files := byVersion[newest]
 	sort.Strings(files)
+	base := home + "/releases/download/v" + newest + "/"
+	rel := Release{Page: home + "/releases/tag/v" + newest, All: home + "/releases"}
+	if exists(filepath.Join(dir, "SHA256SUMS.txt")) {
+		rel.Sums = base + "SHA256SUMS.txt"
+	}
+	var out []Download
 	for _, f := range files {
-		sum, size, err := copyHashed(filepath.Join(dir, f), filepath.Join(to, f))
+		sum, size, err := hashFile(filepath.Join(dir, f))
 		if err != nil {
-			return "", nil, err
+			return "", nil, Release{}, err
 		}
-		d := Download{File: f, System: "Other", Button: "", Size: humanSize(size), SHA256: sum, rank: len(kinds)}
+		d := Download{File: f, System: "Other", Button: "", Size: humanSize(size), SHA256: sum, URL: base + f, rank: len(kinds)}
+		if exists(filepath.Join(dir, f+".cdx.json")) {
+			d.SBOM = base + f + ".cdx.json"
+		}
 		for i, k := range kinds {
 			if strings.HasSuffix(f, k.suffix) {
 				d.System, d.Button, d.rank = k.system, k.button, i
@@ -309,10 +325,14 @@ func findDownloads(dir, to string) (string, []Download, error) {
 			}
 		}
 		out = append(out, d)
-		sums.WriteString(sum + "  " + f + "\n")
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].rank < out[j].rank })
-	return newest, out, writeFile(filepath.Join(to, "SHA256SUMS.txt"), []byte(sums.String()))
+	return newest, out, rel, nil
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 var versionPart = regexp.MustCompile(`\d+|[A-Za-z]+`)
@@ -360,6 +380,18 @@ func humanSize(n int64) string {
 func copyFile(from, to string) error {
 	_, _, err := copyHashed(from, to)
 	return err
+}
+
+// hashFile is a file's SHA-256 and size.
+func hashFile(p string) (string, int64, error) {
+	in, err := os.Open(p) //nolint:gosec // an installer in the release folder
+	if err != nil {
+		return "", 0, err
+	}
+	defer func() { _ = in.Close() }()
+	h := sha256.New()
+	n, err := io.Copy(h, in)
+	return hex.EncodeToString(h.Sum(nil)), n, err
 }
 
 func copyHashed(from, to string) (string, int64, error) {

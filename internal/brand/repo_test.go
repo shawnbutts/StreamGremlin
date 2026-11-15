@@ -3,6 +3,7 @@ package brand
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -99,5 +100,80 @@ func TestIssueForms(t *testing.T) {
 			}
 			ids[b.ID] = true
 		}
+	}
+}
+
+// The release workflow (D-118): GitHub's own actions pinned to a commit,
+// no permissions unless a job asks, every job but the last kept off
+// Forgejo, the Twitch Client ID only from a secret, and every make target
+// it runs is one the Makefile has.
+func TestReleaseWorkflow(t *testing.T) {
+	raw := read(t, ".github/workflows/release.yml")
+	var wf struct {
+		On          map[string]any    `yaml:"on"`
+		Permissions map[string]any    `yaml:"permissions"`
+		Env         map[string]string `yaml:"env"`
+		Jobs        map[string]struct {
+			If          string            `yaml:"if"`
+			Needs       []string          `yaml:"needs"`
+			Permissions map[string]string `yaml:"permissions"`
+			Steps       []struct {
+				Uses string            `yaml:"uses"`
+				Run  string            `yaml:"run"`
+				Env  map[string]string `yaml:"env"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal([]byte(raw), &wf); err != nil {
+		t.Fatal(err)
+	}
+	if wf.Permissions == nil || len(wf.Permissions) != 0 {
+		t.Errorf("the workflow's default permissions should be none: %v", wf.Permissions)
+	}
+	if _, ok := wf.On["push"]; !ok || len(wf.On) != 1 {
+		t.Errorf("only a pushed tag should start a release: %v", wf.On)
+	}
+	makefile := read(t, "Makefile")
+	pinned := regexp.MustCompile(`^actions/[a-z-]+@[0-9a-f]{40}$`)
+	target := regexp.MustCompile(`\bmake ([a-z-]+(?: [a-z-]+)*)`)
+	for name, job := range wf.Jobs {
+		if job.If != "github.server_url == 'https://github.com'" && len(job.Needs) == 0 {
+			t.Errorf("job %s would run on Forgejo too", name)
+		}
+		if len(job.Permissions) == 0 {
+			t.Errorf("job %s should name its permissions", name)
+		}
+		for p, level := range job.Permissions {
+			if level == "write" && (name != "publish" || p != "contents") {
+				t.Errorf("job %s writes %s", name, p)
+			}
+		}
+		for _, s := range job.Steps {
+			if s.Uses != "" && !pinned.MatchString(s.Uses) {
+				t.Errorf("job %s uses %s: only GitHub's own actions, pinned to a commit", name, s.Uses)
+			}
+			if strings.Contains(s.Run, "${{") {
+				t.Errorf("job %s puts an expression in a script; pass it in env", name)
+			}
+			for k, v := range s.Env {
+				if strings.Contains(k, "CLIENT") && v != "${{ secrets."+k+" }}" {
+					t.Errorf("job %s sets %s from %q, not its secret", name, k, v)
+				}
+			}
+			for _, m := range target.FindAllStringSubmatch(s.Run, -1) {
+				for _, tg := range strings.Fields(m[1]) {
+					if !strings.Contains(makefile, "\n"+tg+":") {
+						t.Errorf("job %s runs make %s, which the Makefile hasn't", name, tg)
+					}
+				}
+			}
+		}
+	}
+	if len(wf.Jobs) != 3 {
+		t.Errorf("jobs: %d", len(wf.Jobs))
+	}
+	goLine := regexp.MustCompile(`(?m)^go (\d+\.\d+)`).FindStringSubmatch(read(t, "go.mod"))
+	if goLine == nil || wf.Env["GO"] != goLine[1]+".x" {
+		t.Errorf("the workflow builds with Go %q; go.mod says %v", wf.Env["GO"], goLine)
 	}
 }

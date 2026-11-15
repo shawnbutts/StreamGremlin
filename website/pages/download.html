@@ -4,7 +4,7 @@
 <div class="wrap page-head narrow">
   <h1>Download</h1>
   {{if .Version}}
-  <p>StreamGremlin <strong>{{.Version}}</strong>, a beta. It’s free.</p>
+  <p>StreamGremlin <strong>{{.Version}}</strong>, a beta. It’s free. The downloads come from <a href="{{.Release.Page}}">its release on GitHub</a>.</p>
   {{else}}
   <p>StreamGremlin is in a beta that testers are invited to. Downloads will be here when the wider beta opens.</p>
   {{end}}
@@ -16,16 +16,17 @@
     <li>
       <h3>{{.System}}</h3>
       <p class="meta">{{.File}} · {{.Size}}</p>
-      <a class="button primary" href="downloads/{{.File}}">Download {{.Button}}</a>
+      <a class="button primary" href="{{.URL}}">Download {{.Button}}</a>
       <span class="hash">SHA-256: {{.SHA256}}</span>
+      {{if .SBOM}}<p class="meta"><a href="{{.SBOM}}">What’s inside it</a> (an SBOM, in CycloneDX)</p>{{end}}
     </li>
     {{end}}
   </ul>
-  <p class="meta">All checksums: <a href="downloads/SHA256SUMS.txt">SHA256SUMS.txt</a>.</p>
+  <p class="meta">{{if .Release.Sums}}All checksums: <a href="{{.Release.Sums}}">SHA256SUMS.txt</a>. {{end}}Earlier versions: <a href="{{.Release.All}}">every release on GitHub</a>.</p>
   {{end}}
-  <p>The source code, the changelog and every issue are on <a href="https://github.com/shawnbutts/StreamGremlin">GitHub</a>. StreamGremlin is free and open source under the Apache License 2.0.</p>
+  <p>The source code, the changelog and every issue are on <a href="https://github.com/shawnbutts/StreamGremlin">GitHub</a>. StreamGremlin is free and open source under the Apache License 2.0. GitHub builds each release from its tagged code.</p>
   <div class="note">
-    <p><strong>The beta isn’t signed yet.</strong> Windows says “Windows protected your PC” and macOS says it can’t check the app for malicious software, because StreamGremlin doesn’t have a code-signing certificate yet. Linux packages aren’t signed either. The guide below says how to open it anyway. Only do that for a copy from this site or from <a href="https://github.com/shawnbutts/StreamGremlin">GitHub</a>, and check its SHA-256 if you can.</p>
+    <p><strong>The beta isn’t signed yet.</strong> Windows says “Windows protected your PC” and macOS says it can’t check the app for malicious software, because StreamGremlin doesn’t have a code-signing certificate yet. Linux packages aren’t signed either. The guide below says how to open it anyway. Only do that for a copy from <a href="https://github.com/shawnbutts/StreamGremlin/releases">StreamGremlin’s releases on GitHub</a>, and check its SHA-256 if you can.</p>
   </div>
   {{.Beta}}
 </div>

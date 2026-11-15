@@ -11,8 +11,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"debug/buildinfo"
 	"debug/pe"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -73,16 +76,90 @@ func checkBuild(t *testing.T, path, version, goos string) {
 	}
 }
 
+// downloads are the files a release offers, each with an SBOM beside it.
+func downloads(version string) []string {
+	return []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg",
+		"StreamGremlin-" + version + "-linux-x64.deb", "StreamGremlin-" + version + "-linux-x64.rpm", "StreamGremlin-" + version + "-linux-x64.tar.gz"}
+}
+
+// Each download has a CycloneDX SBOM beside it (D-117) that names it by
+// its SHA-256 and lists its programs, the Go modules and npm packages
+// built into them, and what it needs from the system.
+func TestSBOMs(t *testing.T) {
+	dir, version := env(t)
+	parts := map[string][]string{
+		"windows-x64-setup.exe": {"StreamGremlin.exe", "cli/streamgremlin.exe", "Stream Deck/com.streamgremlin.streamdeck.streamDeckPlugin"},
+		"macos.dmg":             {"StreamGremlin.app/Contents/MacOS/StreamGremlin", "StreamGremlin.app/Contents/Helpers/streamgremlin", "com.streamgremlin.streamdeck.streamDeckPlugin"},
+		"linux-x64.deb":         {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
+		"linux-x64.rpm":         {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
+		"linux-x64.tar.gz":      {"StreamGremlin-" + version + "-linux-x64/streamgremlin-desktop", "StreamGremlin-" + version + "-linux-x64/streamgremlin"},
+	}
+	for _, f := range downloads(version) {
+		b, err := os.ReadFile(filepath.Join(dir, f+".cdx.json")) //nolint:gosec // The release folder under test.
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		var bom struct {
+			Format   string `json:"bomFormat"`
+			Spec     string `json:"specVersion"`
+			Metadata struct {
+				Component struct {
+					Version string `json:"version"`
+					Hashes  []struct {
+						Content string `json:"content"`
+					} `json:"hashes"`
+				} `json:"component"`
+			} `json:"metadata"`
+			Components []struct {
+				Ref string `json:"bom-ref"`
+			} `json:"components"`
+		}
+		if err := json.Unmarshal(b, &bom); err != nil {
+			t.Errorf("%s: %v", f, err)
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, f)) //nolint:gosec // As above.
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(raw)
+		root := bom.Metadata.Component
+		if bom.Format != "CycloneDX" || bom.Spec != "1.6" || root.Version != version || len(root.Hashes) != 1 || root.Hashes[0].Content != hex.EncodeToString(sum[:]) {
+			t.Errorf("%s's SBOM doesn't describe it: %s %s %+v", f, bom.Format, bom.Spec, root)
+		}
+		var refs []string
+		for _, c := range bom.Components {
+			refs = append(refs, c.Ref)
+		}
+		all := strings.Join(refs, "\n")
+		kind := strings.TrimPrefix(f, "StreamGremlin-"+version+"-")
+		want := []string{"pkg:golang/stdlib@", "pkg:golang/github.com/wailsapp/wails/v3@", "pkg:npm/svelte@", "system:"}
+		for _, p := range parts[kind] {
+			want = append(want, "part:"+p+"\n")
+		}
+		if strings.HasSuffix(kind, ".exe") || strings.HasSuffix(kind, ".dmg") {
+			want = append(want, "pkg:npm/%40elgato/streamdeck@")
+		}
+		for _, w := range want {
+			if !strings.Contains(all+"\n", w) {
+				t.Errorf("%s's SBOM has no %q", f, strings.TrimSpace(w))
+			}
+		}
+	}
+}
+
 func TestChecksums(t *testing.T) {
 	dir, version := env(t)
 	sums, err := os.ReadFile(filepath.Join(dir, "SHA256SUMS.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg",
-		"StreamGremlin-" + version + "-linux-x64.deb", "StreamGremlin-" + version + "-linux-x64.rpm", "StreamGremlin-" + version + "-linux-x64.tar.gz"} {
-		if !strings.Contains(string(sums), f) {
-			t.Errorf("SHA256SUMS.txt misses %s", f)
+	for _, f := range downloads(version) {
+		for _, f := range []string{f, f + ".cdx.json"} {
+			if !strings.Contains(string(sums), f+"\n") {
+				t.Errorf("SHA256SUMS.txt misses %s", f)
+			}
 		}
 	}
 	cmd := exec.Command("shasum", "-a", "256", "-c", "SHA256SUMS.txt")

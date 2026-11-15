@@ -48,7 +48,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: linux linux-smoke release-linux release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: linux linux-smoke release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -95,8 +95,15 @@ test-load: ## The chat surge load test through the real binary, with budgets
 screenshots: desktop-ui ## Photograph the app with made-up data for the website (needs Chromium or Chrome; CHROME=path)
 	$(GO) run ./cmd/screenshots -out website/screenshots
 
-site: ## Build the website into ./bin/site (www and code); offers the newest installers in ./bin/release
+site: ## Build the website into ./bin/site (www and code); offers the newest installers in ./bin/release, linked to GitHub
 	$(GO) run ./cmd/site -out bin/site
+
+# GitHub builds releases (D-118); the site needs their sizes and SHA-256.
+GITHUB_REPO := shawnbutts/StreamGremlin
+release-fetch: ## Download a release's files from GitHub into ./bin/release, for make site (VERSION=...; needs gh, and gh auth login for a draft)
+	@test "$(VERSION)" != dev || { echo "Set the version: make release-fetch VERSION=0.1.0-beta.5"; exit 1; }
+	gh release download v$(VERSION) --repo $(GITHUB_REPO) --dir $(RELEASE) --clobber
+	cd $(RELEASE) && shasum -a 256 -c SHA256SUMS.txt
 
 vuln: $(GOVULNCHECK) ## Known vulnerabilities in code that's called, and in npm packages (needs the network)
 	$(GOVULNCHECK) ./...
@@ -156,6 +163,7 @@ GO_VERSION := $(patsubst go%,%,$(shell $(GO) env GOVERSION))
 LINUX_IMAGE := streamgremlin-linux-build:$(GO_VERSION)-$(LINUX_ARCH)
 linux: desktop-ui ## Build the Linux app and CLI into ./bin/linux/ARCH in a container (LINUX_ARCH=arm64 for ARM; needs Podman or Docker)
 	@test -n "$(CONTAINER)" || { echo "make linux needs Podman or Docker."; exit 1; }
+	mkdir -p $(BIN)/linux/$(LINUX_ARCH)
 	$(CONTAINER) build -q --platform linux/$(LINUX_ARCH) --build-arg GO_VERSION=$(GO_VERSION) -t $(LINUX_IMAGE) packaging/linux
 	$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(CURDIR)":/src -v "$$($(GO) env GOMODCACHE)":/go/pkg/mod \
 		-v streamgremlin-gocache-$(LINUX_ARCH):/root/.cache/go-build -w /src/$(DESKTOP) \
@@ -179,9 +187,10 @@ streamdeck: node-check build ## Check, test and pack the Stream Deck plugin into
 # Beta and release installers (D-084), built on macOS:
 #   make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
 # writes bin/release/StreamGremlin-VERSION-windows-x64-setup.exe (NSIS:
-# brew install makensis), StreamGremlin-VERSION-macos.dmg (a universal app)
-# and SHA256SUMS.txt, then checks them (tests/release). Both are unsigned
-# during the beta.
+# brew install makensis), StreamGremlin-VERSION-macos.dmg (a universal app),
+# the Linux packages, a CycloneDX SBOM beside each (FILE.cdx.json, D-117)
+# and SHA256SUMS.txt, then checks them (tests/release). All are unsigned
+# during the beta. GitHub builds the same on a version tag (D-118).
 RELEASE := $(BIN)/release
 MAC_STAGE := $(RELEASE)/macos-stage
 MAC_APP := $(MAC_STAGE)/StreamGremlin.app
@@ -189,6 +198,15 @@ MAC_TMP := $(RELEASE)/macos-build
 WIN_STAGE := $(RELEASE)/windows-stage
 MAC_CGO := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 ICONS := brand-kit/streamgremlin-icon
+# Builds are dated by the commit, so a rebuild is the same bytes.
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 0)
+# What the UI and Stream Deck builds bundled, for the SBOMs.
+SBOM_UI := $(BIN)/sbom/desktop-ui.json
+SBOM_DECK := $(BIN)/sbom/streamdeck.json
+SBOM := $(GO) run ./cmd/release sbom
+WIN_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-windows-x64-setup.exe
+MAC_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg
+DECK_PLUGIN := com.streamgremlin.streamdeck.streamDeckPlugin
 
 release-version:
 	@test -n "$(TWITCH_CLIENT_ID)" || { echo "Set TWITCH_CLIENT_ID: release builds sign in with StreamGremlin's own Twitch app (D-005)."; exit 1; }
@@ -199,22 +217,29 @@ release-check: release-version
 	@test "$$(uname -s)" = Darwin || { echo "Release builds need macOS, for the dmg."; exit 1; }
 	@command -v makensis >/dev/null || { echo "Release builds need NSIS: brew install makensis"; exit 1; }
 
-release: release-check verify release-windows release-macos release-linux ## Beta installers for Windows, macOS and Linux into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
+release: release-check verify release-windows release-macos release-linux release-sums ## Beta installers for Windows, macOS and Linux into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
+	@echo "Installers in $(RELEASE): send testers the .exe, .dmg, .deb, .rpm or .tar.gz and docs/BETA.md."
+
+# Checksums of every download and SBOM, then the checks of tests/release.
+release-sums: release-version
 	cd $(RELEASE) && shasum -a 256 StreamGremlin-$(VERSION)-* > SHA256SUMS.txt
 	RELEASE_DIR=$(RELEASE) RELEASE_VERSION=$(VERSION) $(GO) test -tags release -count=1 ./tests/release
-	@echo "Installers in $(RELEASE): send testers the .exe, .dmg, .deb, .rpm or .tar.gz and docs/BETA.md."
 
 release-windows: release-check windows streamdeck
 	rm -rf $(WIN_STAGE) && mkdir -p $(WIN_STAGE)/cli "$(WIN_STAGE)/Stream Deck"
 	cp $(BIN)/windows/app/StreamGremlin.exe $(WIN_STAGE)/
 	cp $(BIN)/windows/streamgremlin.exe $(WIN_STAGE)/cli/
-	cp $(BIN)/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin "$(WIN_STAGE)/Stream Deck/"
+	cp $(BIN)/streamdeck/$(DECK_PLUGIN) "$(WIN_STAGE)/Stream Deck/"
 	cp docs/BETA.md "$(WIN_STAGE)/Read me first.txt"
 	cp LICENSE $(WIN_STAGE)/LICENSE.txt
 	cp THIRD-PARTY-NOTICES.md THIRD-PARTY-LICENSES.txt $(WIN_STAGE)/
 	$(GO) run ./cmd/release ico $(WIN_STAGE)/StreamGremlin.ico $(ICONS)-16.png $(ICONS)-32.png $(ICONS)-48.png $(ICONS)-64.png $(ICONS)-128.png $(ICONS)-256.png
 	makensis -V2 -DVERSION=$(VERSION) -DWINVERSION=$$($(GO) run ./cmd/release winversion $(VERSION)) \
-		-DSRC=$(WIN_STAGE) -DOUT=$(RELEASE)/StreamGremlin-$(VERSION)-windows-x64-setup.exe packaging/windows/StreamGremlin.nsi
+		-DSRC=$(WIN_STAGE) -DOUT=$(WIN_OUT) packaging/windows/StreamGremlin.nsi
+	$(SBOM) $(WIN_OUT).cdx.json $(WIN_OUT) $(VERSION) windows $(SOURCE_DATE_EPOCH) \
+		go:StreamGremlin.exe=$(WIN_STAGE)/StreamGremlin.exe npm:StreamGremlin.exe=$(SBOM_UI) \
+		go:cli/streamgremlin.exe=$(WIN_STAGE)/cli/streamgremlin.exe \
+		"file:Stream Deck/$(DECK_PLUGIN)=$(WIN_STAGE)/Stream Deck/$(DECK_PLUGIN)" "npm:Stream Deck/$(DECK_PLUGIN)=$(SBOM_DECK)"
 
 # A universal app (Apple silicon and Intel), with the command line in
 # Contents/Helpers: in Contents/MacOS, streamgremlin and StreamGremlin would
@@ -239,17 +264,21 @@ release-macos: release-check desktop-ui streamdeck
 	codesign --force --sign - $(MAC_APP)/Contents/Helpers/streamgremlin
 	codesign --force --sign - $(MAC_APP)
 	ln -s /Applications $(MAC_STAGE)/Applications
-	cp $(BIN)/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin $(MAC_STAGE)/
+	cp $(BIN)/streamdeck/$(DECK_PLUGIN) $(MAC_STAGE)/
 	cp docs/BETA.md "$(MAC_STAGE)/Read me first.txt"
 	hdiutil create -quiet -ov -volname "StreamGremlin $(VERSION)" -srcfolder $(MAC_STAGE) -fs HFS+ -format UDZO \
-		-o $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg
+		-o $(MAC_OUT)
+	$(SBOM) $(MAC_OUT).cdx.json $(MAC_OUT) $(VERSION) macos $(SOURCE_DATE_EPOCH) \
+		go:StreamGremlin.app/Contents/MacOS/StreamGremlin=$(MAC_APP)/Contents/MacOS/StreamGremlin \
+		npm:StreamGremlin.app/Contents/MacOS/StreamGremlin=$(SBOM_UI) \
+		go:StreamGremlin.app/Contents/Helpers/streamgremlin=$(MAC_APP)/Contents/Helpers/streamgremlin \
+		file:$(DECK_PLUGIN)=$(MAC_STAGE)/$(DECK_PLUGIN) npm:$(DECK_PLUGIN)=$(SBOM_DECK)
 
 # Linux packages (D-114): a .deb, an .rpm and a .tar.gz for LINUX_ARCH,
 # from the same files, dated by the commit so a rebuild is the same bytes.
 LINUX_NAME := $(if $(filter amd64,$(LINUX_ARCH)),x64,$(LINUX_ARCH))
 LINUX_STAGE := $(RELEASE)/linux-stage-$(LINUX_ARCH)
 LINUX_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-linux-$(LINUX_NAME)
-SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 0)
 release-linux: release-version linux $(NFPM)
 	rm -rf $(LINUX_STAGE) && mkdir -p $(LINUX_STAGE)/doc
 	cp $(BIN)/linux/$(LINUX_ARCH)/streamgremlin-desktop $(BIN)/linux/$(LINUX_ARCH)/streamgremlin $(LINUX_STAGE)/
@@ -266,6 +295,12 @@ release-linux: release-version linux $(NFPM)
 			$(NFPM) package -f $(CURDIR)/packaging/linux/nfpm.yaml -p $$p -t $(LINUX_OUT).$$p) || exit 1; \
 	done
 	$(GO) run ./cmd/release tarball $(LINUX_OUT).tar.gz $(LINUX_STAGE) StreamGremlin-$(VERSION)-linux-$(LINUX_NAME) $(SOURCE_DATE_EPOCH)
+	for p in deb:deb:usr/bin rpm:rpm:usr/bin linux:tar.gz:StreamGremlin-$(VERSION)-linux-$(LINUX_NAME); do \
+		kind=$${p%%:*} && rest=$${p#*:} && ext=$${rest%%:*} && at=$${rest#*:} && \
+		$(SBOM) $(LINUX_OUT).$$ext.cdx.json $(LINUX_OUT).$$ext $(VERSION) $$kind $(SOURCE_DATE_EPOCH) \
+			go:$$at/streamgremlin-desktop=$(LINUX_STAGE)/streamgremlin-desktop npm:$$at/streamgremlin-desktop=$(SBOM_UI) \
+			go:$$at/streamgremlin=$(LINUX_STAGE)/streamgremlin || exit 1; \
+	done
 
 # Installs the Linux packages in fresh containers of the oldest systems
 # they're for and starts the app (packaging/linux/smoke.sh).
@@ -289,4 +324,4 @@ notices-check:
 verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/linux $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/linux $(BIN)/sbom $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

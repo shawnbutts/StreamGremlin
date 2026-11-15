@@ -80,7 +80,20 @@ On a Mac with Xcode's command-line tools, NSIS (`brew install makensis`) and Pod
 make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
 ```
 
-It runs `make verify`, then writes the Windows installer, the macOS disk image, the Linux `.deb`, `.rpm` and `.tar.gz`, and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). All are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
+It runs `make verify`, then writes the Windows installer, the macOS disk image, the Linux `.deb`, `.rpm` and `.tar.gz`, a CycloneDX SBOM beside each (`FILE.cdx.json`, D-117) and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). All are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
+
+## Releases on GitHub
+
+GitHub builds the same from a version tag (D-118, [ADR-0051](docs/adr/0051-release-builds-and-sboms.md)):
+
+```sh
+git tag v0.1.0-beta.5
+git push github v0.1.0-beta.5
+```
+
+`.github/workflows/release.yml` runs `make verify`, then builds the Windows and macOS installers on macOS and the Linux packages on Ubuntu. It installs the Linux packages in fresh containers, runs `make release-sums` over everything, and makes a **draft** release with every file. Read the draft, then publish it. The repository needs the secret `TWITCH_CLIENT_ID`; it's never committed.
+
+For the website, `make release-fetch VERSION=0.1.0-beta.5` downloads the release into `bin/release` and checks it. `make site` then links Download to the files on GitHub.
 
 ## Build for Windows from a Mac
 
