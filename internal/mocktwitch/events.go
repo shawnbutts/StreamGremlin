@@ -322,13 +322,11 @@ func (s *Server) channelsLocked(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.URL.Query().Get("broadcaster_id")
 	data := []any{}
-	for login, uid := range s.users {
-		if uid == id {
-			ch := s.chat.channels[login]
-			data = append(data, map[string]any{"broadcaster_id": uid, "broadcaster_login": login, "broadcaster_name": login,
-				"title": ch.title, "game_name": ch.category, "game_id": "cat-" + strings.ToLower(ch.category), "broadcaster_language": "en",
-				"tags": []any{}, "content_classification_labels": []any{}, "is_branded_content": false, "delay": 0})
-		}
+	if login, ok := s.logins[id]; ok {
+		ch := s.chat.channels[login]
+		data = append(data, map[string]any{"broadcaster_id": id, "broadcaster_login": login, "broadcaster_name": login,
+			"title": ch.title, "game_name": ch.category, "game_id": "cat-" + strings.ToLower(ch.category), "broadcaster_language": "en",
+			"tags": []any{}, "content_classification_labels": []any{}, "is_branded_content": false, "delay": 0})
 	}
 	writeJSON(w, map[string]any{"data": data})
 }

@@ -50,6 +50,7 @@ type Server struct {
 	access  map[string]*grant
 	refresh map[string]*grant
 	users   map[string]string // login -> user id
+	logins  map[string]string // user id -> login
 	revoked int
 	base    string
 	chat    chatState
@@ -87,7 +88,7 @@ func New() *Server {
 	return &Server{
 		ClientIDs: map[string]bool{}, CodeLifetime: 30 * time.Minute, Interval: 1, AccessLifetime: 4 * time.Hour,
 		now: time.Now, codes: map[string]*code{}, byUser: map[string]*code{},
-		access: map[string]*grant{}, refresh: map[string]*grant{}, users: map[string]string{},
+		access: map[string]*grant{}, refresh: map[string]*grant{}, users: map[string]string{}, logins: map[string]string{},
 	}
 }
 
@@ -126,7 +127,7 @@ func (s *Server) userIDLocked(login string) string {
 		return id
 	}
 	id := strconv.Itoa(100000 + len(s.users)*7919)
-	s.users[login] = id
+	s.users[login], s.logins[id] = id, login
 	return id
 }
 

@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/storage"
@@ -82,9 +84,11 @@ func (s *Service) step(ctx context.Context) (bool, time.Duration, error) {
 	}
 	live := s.o.Live != nil && s.o.Live()
 	waitingLive := map[string]bool{}
+	var working List
 	defer func() {
 		s.mu.Lock()
 		s.waitingLive = waitingLive
+		s.working, s.workingName = working.ID, working.Name
 		s.mu.Unlock()
 	}()
 	// Oldest first.
@@ -97,6 +101,7 @@ func (s *Service) step(ctx context.Context) (bool, time.Duration, error) {
 			waitingLive[l.ID] = true
 			continue
 		}
+		working = l
 		var err error
 		switch l.Phase {
 		case Reading:
@@ -164,12 +169,6 @@ func (s *Service) pace(ri twitch.RateInfo, told bool) {
 	}
 }
 
-func (s *Service) noteDone(id string) {
-	s.mu.Lock()
-	s.done[id] = append(s.done[id], s.o.Now())
-	s.mu.Unlock()
-}
-
 // lookupStop turns a failed lookup into a stop when it would fail for
 // everyone.
 func lookupErr(err error) error {
@@ -188,8 +187,21 @@ func (s *Service) read(ctx context.Context, l List) error {
 		return &stopError{why: "StreamGremlin can't read the file any more: import it again."}
 	}
 	defer func() { _ = f.Close() }()
+	rs := &readState{}
+	if st, err := f.Stat(); err == nil {
+		rs.size = st.Size()
+	}
+	s.mu.Lock()
+	s.reading[l.ID] = rs
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		delete(s.reading, l.ID)
+		s.mu.Unlock()
+	}()
 	now := storage.Timestamp(s.o.Now())
 	var batch []Name
+	var noted int64
 	flush := func() error {
 		if len(batch) == 0 {
 			return nil
@@ -209,9 +221,12 @@ func (s *Service) read(ctx context.Context, l List) error {
 			return nil
 		})
 		batch = batch[:0]
+		read := rs.read.Load()
+		s.noteDone(l.ID, Reading, read-noted)
+		noted = read
 		return err
 	}
-	skipped, err := Read(f, func(n Name) error {
+	skipped, err := Read(countingReader{f, &rs.read}, func(n Name) error {
 		batch = append(batch, n)
 		if len(batch) == readBatch {
 			return flush()
@@ -300,7 +315,7 @@ func (s *Service) check(ctx context.Context, l List) error {
 	}
 	me := s.o.Twitch.StreamerID()
 	now := storage.Timestamp(s.o.Now())
-	return s.tx(ctx, func(tx *sql.Tx) error {
+	if err := s.tx(ctx, func(tx *sql.Tx) error {
 		for _, e := range batch {
 			n := Name(e.Name)
 			u, ok := byLogin[n.Value()]
@@ -328,7 +343,11 @@ func (s *Service) check(ctx context.Context, l List) error {
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	s.noteDone(l.ID, Checking, int64(len(batch)))
+	return nil
 }
 
 func (s *Service) setEntry(ctx context.Context, listID, name, state, detail string) error {
@@ -470,7 +489,7 @@ func (s *Service) send(ctx context.Context, l List, e Entry) error {
 	if err := s.setEntry(sctx, l.ID, e.Name, state, detail); err != nil {
 		return err
 	}
-	s.noteDone(l.ID)
+	s.noteDone(l.ID, l.Phase, 1)
 	return nil
 }
 
@@ -481,6 +500,7 @@ func (s *Service) copyPage(ctx context.Context, l List) error {
 	if err != nil {
 		return lookupErr(err)
 	}
+	s.noteDone(l.ID, Copying, int64(len(bans)))
 	now := storage.Timestamp(s.o.Now())
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		for _, b := range bans {
@@ -520,6 +540,7 @@ func (s *Service) compare(ctx context.Context, l List) error {
 	if err != nil {
 		return lookupErr(err)
 	}
+	s.noteDone(l.ID, Comparing, int64(len(batch)))
 	now := storage.Timestamp(s.o.Now())
 	return s.tx(ctx, func(tx *sql.Tx) error {
 		for _, e := range batch {
@@ -572,4 +593,16 @@ func Describe(l List) string {
 		}
 		return ""
 	}()
+}
+
+// countingReader counts the bytes read from r.
+type countingReader struct {
+	r io.Reader
+	n *atomic.Int64
+}
+
+func (c countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n.Add(int64(n))
+	return n, err
 }

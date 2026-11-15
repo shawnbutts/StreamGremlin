@@ -261,6 +261,19 @@ func (r *rig) phase(id, want string) List {
 	}
 }
 
+func (r *rig) progress(id string) Progress {
+	r.t.Helper()
+	l, err := r.s.Get(context.Background(), id)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	p, err := r.s.ProgressOf(context.Background(), l, r.counts(id))
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return p
+}
+
 func (r *rig) counts(id string) map[string]int {
 	r.t.Helper()
 	c, err := r.s.Counts(context.Background(), id)
@@ -457,7 +470,7 @@ func TestRestartLiveAndCopy(t *testing.T) {
 	r.mu.Unlock()
 	_, _ = r.s.Confirm(ctx, l.ID, ConfirmOptions{})
 	time.Sleep(60 * time.Millisecond)
-	if len(tw.bans) != 0 || !r.s.ProgressOf(l.ID, 20).WaitingLive {
+	if len(tw.bans) != 0 || !r.progress(l.ID).WaitingLive {
 		t.Fatalf("banned while live: %v", tw.bans)
 	}
 	r.mu.Lock()
@@ -563,5 +576,107 @@ func TestBlockList(t *testing.T) {
 	r.phase(l.ID, Done)
 	if len(tw.blocked) != 0 {
 		t.Fatalf("still blocked %v", tw.blocked)
+	}
+}
+
+// Every busy phase says how far it has got and at what pace, and a list
+// behind another says which it's waiting for.
+func TestProgress(t *testing.T) {
+	tw := newFake(250)
+	r := newRig(t, tw)
+	r.s.Close() // driven by hand below
+	ctx := context.Background()
+	now := time.Date(2026, 11, 15, 20, 0, 0, 0, time.UTC)
+	s := New(Options{DB: r.db, Twitch: tw, Now: func() time.Time { return now }})
+	var names []string
+	for i := range 250 {
+		names = append(names, fmt.Sprintf("bot%04d", i))
+	}
+	path := r.file("big.txt", names...)
+	st, _ := os.Stat(path)
+	progress := func(id string) Progress {
+		t.Helper()
+		l, err := s.Get(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, _ := s.Counts(ctx, id)
+		p, err := s.ProgressOf(ctx, l, c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	l, err := s.Import(ctx, "big", path, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := progress(l.ID); p.Unit != "bytes" || p.Done != 0 {
+		t.Fatalf("before reading: %+v", p)
+	}
+	now = now.Add(time.Second)
+	other, _ := s.Import(ctx, "later", r.file("small.txt", "bot0001"), "")
+	// The runner takes the oldest first; the other waits for it.
+	if worked, _, err := s.step(ctx); !worked || err != nil {
+		t.Fatal(worked, err)
+	}
+	if p := progress(other.ID); p.After != "big" {
+		t.Fatalf("the newer list isn't waiting for the older: %+v", p)
+	}
+	if p := progress(l.ID); p.Unit != "names" || p.All != 250 || p.Done != 0 || p.After != "" {
+		t.Fatalf("after reading %d bytes: %+v", st.Size(), p)
+	}
+	l, _ = s.Get(ctx, l.ID)
+	if err := s.check(ctx, l); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(30 * time.Second)
+	if err := s.check(ctx, l); err != nil {
+		t.Fatal(err)
+	}
+	p := progress(l.ID)
+	if p.Done != 200 || p.All != 250 || p.PerMinute != 200 || p.Finish == nil || !p.Finish.Equal(now.Add(15*time.Second)) {
+		t.Fatalf("checking: %+v", p)
+	}
+	_ = s.check(ctx, l)
+	_ = s.check(ctx, l)
+	if _, err := s.Confirm(ctx, l.ID, ConfirmOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	// Banning counts requests at its own pace, not the lookups'.
+	if p := progress(l.ID); p.Unit != "requests" || p.All != 250 || p.Done != 0 || p.PerMinute != 0 {
+		t.Fatalf("banning: %+v", p)
+	}
+}
+
+// Reading counts the file's bytes as it goes, and forgets them after.
+func TestReadProgress(t *testing.T) {
+	r := newRig(t, newFake(0))
+	r.s.Close()
+	ctx := context.Background()
+	s := New(Options{DB: r.db, Twitch: r.tw})
+	var names []string
+	for i := range 3000 {
+		names = append(names, fmt.Sprintf("bot%06d", i))
+	}
+	path := r.file("big.txt", names...)
+	st, _ := os.Stat(path)
+	l, _ := s.Import(ctx, "big", path, "")
+	l, _ = s.Get(ctx, l.ID)
+	if err := s.read(ctx, l); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reading[l.ID] != nil {
+		t.Error("still reading after it finished")
+	}
+	var sum int64
+	for _, n := range s.done[l.ID].n {
+		sum += n
+	}
+	if d := s.done[l.ID]; d.phase != Reading || len(d.n) != 3 || sum != st.Size() {
+		t.Errorf("read %d of %d bytes in %d notes", sum, st.Size(), len(d.n))
 	}
 }

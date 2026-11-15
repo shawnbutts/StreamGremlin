@@ -174,7 +174,27 @@
 
   const kept = (l: BanList) => l.counts.kept ?? 0;
   const total = (l: BanList) => Object.values(l.counts).reduce((a, b) => a + b, 0);
-  const banningDone = (l: BanList) => (l.counts.banned ?? 0) + (l.counts.refused ?? 0) + (l.counts.unbanned ?? 0);
+  const mb = (b: number) => `${(b / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 1 })} MB`;
+  // How far the list's phase has got, in words.
+  function doneWords(l: BanList) {
+    const p = l.progress;
+    switch (l.phase) {
+      case 'reading':
+        return p.all ? `Read ${mb(p.done)} of ${mb(p.all)}: ${n(total(l))} names so far.` : `${n(total(l))} names so far.`;
+      case 'checking':
+        return `Looked up ${n(p.done)} of ${n(p.all)} names on Twitch.`;
+      case 'comparing':
+        return `Checked ${n(p.done)} of ${n(p.all)} of its bans.`;
+      case 'copying':
+        return `Copied ${n(p.done)} bans so far.`;
+      case 'undoing':
+        return `${l.kind === 'block' ? 'Unblocked' : 'Unbanned'}: ${n(p.done)} of ${n(p.all)}.`;
+      default:
+        return `Done: ${n(p.done)} of ${n(p.all)}.`;
+    }
+  }
+  const pace = (p: BanList['progress']) =>
+    p.unit === 'bytes' ? `${mb(p.per_minute)} a minute` : `${Math.round(p.per_minute).toLocaleString()} ${p.unit === 'names' ? 'names ' : ''}a minute`;
   const hours = (finish?: string) => {
     if (!finish) return '';
     const mins = Math.max(1, Math.round((new Date(finish).getTime() - Date.now()) / 60000));
@@ -306,14 +326,28 @@
       </div>
     {/if}
 
-    {#if l.phase === 'banning' || l.phase === 'undoing'}
-      {@const done = banningDone(l)}
-      {@const all = done + l.left}
-      <p>
-        {l.phase === 'undoing' ? (l.kind === 'block' ? 'Unblocked' : 'Unbanned') : 'Done'}: {n(done)} of {n(all)}.
-        {#if l.progress.per_minute > 0}{Math.round(l.progress.per_minute)} a minute{l.progress.finish ? `, finished in ${hours(l.progress.finish)}` : ''}.{/if}
-      </p>
-      <progress max={all || 1} value={done} aria-label="Progress"></progress>
+    {#if busyPhase(l)}
+      {@const p = l.progress}
+      <div class="bl-progress">
+        {#if p.after && !l.paused}<p class="sg-muted">Waiting for “{p.after}” to finish first: lists run one at a time.</p>{/if}
+        <p>
+          {doneWords(l)}
+          {#if p.per_minute > 0}{pace(p)}{p.finish ? `, finished in ${hours(p.finish)}` : ''}.{/if}
+        </p>
+        {#if p.all > 0}
+          <progress max={p.all} value={p.done} aria-label={`${l.name}: how far`}></progress>
+        {:else}
+          <progress aria-label={`${l.name}: copying`}></progress>
+        {/if}
+        {#if l.phase === 'checking' && p.done > 0}
+          <ul class="bl-counts bl-tally" aria-label="Found so far">
+            <li><strong>{n(l.counts.waiting)}</strong> to ban</li>
+            <li>{n(l.counts.already)} already banned</li>
+            <li>{n(l.counts.not_found)} not found</li>
+            <li>{n(kept(l))} left alone</li>
+          </ul>
+        {/if}
+      </div>
     {/if}
 
     {#if l.phase === 'done'}
@@ -416,6 +450,17 @@
   }
   progress {
     width: 100%;
+    height: 0.9rem;
+  }
+  .bl-progress p {
+    margin: 0.4rem 0;
+  }
+  .bl-tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    list-style: none;
+    padding: 0;
   }
   .bl-suspects {
     list-style: none;

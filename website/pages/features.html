@@ -89,11 +89,28 @@
           <li><strong>Chat filters</strong> for links (with allowed sites and <code>!permit</code>), capitals, symbols, emotes, repeats, your own words, brand-new accounts and text art. Each deletes, times out or warns, and never touches you, your mods or your bot.</li>
           <li>Twitch’s Blocked Terms, listed and copied either way.</li>
           <li>A <strong>raid guard</strong> that spots a burst of new accounts, and a one-press <strong>Lock chat</strong>.</li>
-          <li><strong>Ban lists</strong> from a file, up to 5 million lines, banned at Twitch’s pace, undoable.</li>
-          <li>A <strong>follow-bot review</strong> that finds follows from brand-new accounts that never chatted.</li>
+          <li><strong>Ban lists</strong> from a file, and a <strong>follow-bot review</strong>: <a href="features.html#ban-lists">more below</a>.</li>
         </ul>
       </div>
       {{template "shot" index .Shots "filters"}}
+    </div>
+
+    <div class="tour-row" id="ban-lists">
+      <div class="tour-text">
+        <span class="kicker">Ban lists</span>
+        <h2>Ban a shared list of thousands, safely</h2>
+        <p>When a community shares a list of hate-raid or spam accounts, import it and StreamGremlin works through it in the background.</p>
+        <ul>
+          <li><strong>Any size you’re likely to meet:</strong> a text file of Twitch names or user ids, or a CSV with a login or id column, up to 5 million lines.</li>
+          <li><strong>Checked before anything happens.</strong> Every name is looked up on Twitch first, then you see how many it will ban, how many are banned already, which don’t exist, and who it leaves alone: you, your mods and VIPs, and viewers with points. Nothing is banned until you press <strong>Start banning</strong>.</li>
+          <li><strong>A progress bar for every step:</strong> reading the file, looking names up, banning, undoing and copying, each with its pace and about when it will finish.</li>
+          <li><strong>At Twitch’s pace,</strong> always keeping room for chat and your own moderating, and waiting while you’re live if you like. Pause and resume any time; after a restart it carries on where it left off, checking any ban whose answer never came before sending it again.</li>
+          <li><strong>Stay in sync.</strong> Import a newer version under the same name and only the new names are checked and banned. Names gone from it can be unbanned, but only bans the list made. Someone you or a mod unbanned by hand is noticed and left alone.</li>
+          <li><strong>Undo</strong> lifts exactly what the list banned and nothing else. <strong>Copy Twitch’s ban list</strong> and <strong>Save to a file</strong> keep a copy of your own.</li>
+          <li><strong>Follow-bot review:</strong> finds follows from accounts made days before that never chatted, marks the ones that came in a burst, and blocks or bans the ones you pick, as a list you can undo.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "banlists"}}
     </div>
   </div>
 </section>

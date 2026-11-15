@@ -63,7 +63,8 @@ func startBrowser(ctx context.Context, width, height int, scale float64) (*brows
 		return nil, err
 	}
 	b := &browser{dir: dir, waiting: map[int]chan reply{}}
-	b.cmd = exec.CommandContext(ctx, exe, //nolint:gosec // the browser the developer chose "--headless=new", "--remote-debugging-port=0", "--user-data-dir="+dir,
+	b.cmd = exec.CommandContext(ctx, exe, //nolint:gosec // the browser the developer chose
+		"--headless=new", "--remote-debugging-port=0", "--user-data-dir="+dir,
 		"--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--mute-audio",
 		"--disable-extensions", "--disable-background-networking", "--disable-sync", "--lang=en-US",
 		"--font-render-hinting=none", "about:blank")

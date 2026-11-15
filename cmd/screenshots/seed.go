@@ -254,7 +254,9 @@ var shots = []shot{
 	{name: "points", screen: "Points"},
 	{name: "viewers", screen: "Viewers"},
 	{name: "filters", screen: "Chat filters"},
-	{name: "banlists", screen: "Ban lists"},
+	// A big list being looked up, below the forms.
+	{name: "banlists", screen: "Ban lists", before: banLists, steps: []string{
+		`document.querySelector('[aria-label="Found so far"]').closest('section').scrollIntoView({block: "start"})`}},
 	{name: "wheels", screen: "Wheels"},
 	// The stand-in Twitch's notice is for testers, not the picture.
 	{name: "connections", screen: "Connections", steps: []string{`__sg.hide('section[aria-label="Test server"]')`}},

@@ -1942,3 +1942,15 @@ Decided 2026-11-15. The user asked to work on the website next, ahead of slice 2
 - **Download** offers the newest version's installers from `bin/release`, copied into the site with their SHA-256 and a `SHA256SUMS.txt`, above the beta guide (`docs/BETA.md`, rendered). Without installers it says the beta is by invitation.
 - **go-import:** a page for the module and every package, pointing git at `https://github.com/shawnbutts/StreamGremlin.git` (`-repo` changes it when the code moves to GitHub).
 - **Markdown** is rendered by a small renderer for what the repository's files use, escaping everything first. Links to repository files become plain text.
+
+## D-113. Ban list progress for every phase, and a Ban lists section on the website
+
+Decided 2026-11-15. The user: "i think we should a dedicated section in the features area about the build ban list import/managment. since we'll need a screenshot of that feature, it might help to have a progress bar and details for importing/syncing a large list on that screen."
+
+- **Progress for every busy phase** (amends D-106's screen): `progress` in each list's view gains `done`, `all` and `unit`. Units: bytes of the file while reading, names while checking or comparing, requests while banning or undoing, and bans while copying (`all` is 0 because Twitch doesn't say how many there are, so the bar is indeterminate). The pace and finish are measured per phase, so a lookup burst doesn't make banning look faster. Reading's byte count is kept in memory only; a restart reads again anyway.
+- **While checking,** the screen shows what's been found so far: to ban, already banned, not found, left alone.
+- **Lists run one at a time, oldest first** (unchanged); a list behind another now says which (`progress.after`).
+- **"Twitch says to wait a moment"** shows only on a list that's running: the wait is Twitch's, shared by every list.
+- **No new API route or storage change.**
+- **The website:** Features has a Ban lists section (import, checking first, progress, pace, staying in sync, undo, copy and save, the follow-bot review). Its screenshot shows a made-up 250,000-name list being looked up at Twitch's real pace (the stand-in Twitch's rate limit set to Twitch's), with an earlier list that's done.
+- **Fixes found on the way:** the screenshot tool lost Chromium's first three flags to a lint comment in D-112's commit, so it couldn't start; the stand-in Twitch looked accounts up by id by scanning every account, too slow for a list this size, and now keeps an index.

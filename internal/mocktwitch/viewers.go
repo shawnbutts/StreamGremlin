@@ -88,12 +88,7 @@ func (s *Server) FollowerCalls() int {
 }
 
 func (s *Server) loginOfLocked(id string) string {
-	for login, uid := range s.users {
-		if uid == id {
-			return login
-		}
-	}
-	return ""
+	return s.logins[id]
 }
 
 func (s *Server) createdLocked(login string) time.Time {

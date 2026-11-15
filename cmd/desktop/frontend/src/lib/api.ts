@@ -2147,7 +2147,20 @@ export interface BanList {
   counts: Record<string, number>;
   /** Bans and unbans still to send. */
   left: number;
-  progress: { waiting_live: boolean; per_minute: number; finish?: string; wait_until?: string };
+  progress: BanListProgress;
+}
+
+/** How far a list's phase has got: done of all, in unit (all is 0 when Twitch doesn't say). */
+export interface BanListProgress {
+  waiting_live: boolean;
+  /** The list the runner is working on first. */
+  after?: string;
+  done: number;
+  all: number;
+  unit?: 'bytes' | 'names' | 'requests' | 'bans';
+  per_minute: number;
+  finish?: string;
+  wait_until?: string;
 }
 
 export interface BanListEntry {

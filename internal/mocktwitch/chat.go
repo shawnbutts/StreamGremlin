@@ -484,12 +484,7 @@ func (s *Server) helix(w http.ResponseWriter, r *http.Request) {
 			res["drop_reason"] = map[string]string{"code": s.chat.dropNext, "message": "Your message was held by mocktwitch."}
 			s.chat.dropNext = ""
 		} else {
-			channel := ""
-			for login, id := range s.users {
-				if id == in.BroadcasterID {
-					channel = login
-				}
-			}
+			channel := s.logins[in.BroadcasterID]
 			res["message_id"] = s.sayLocked(channel, g.login, in.Message)
 			res["is_sent"] = true
 		}

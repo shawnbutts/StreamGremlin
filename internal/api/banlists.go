@@ -59,8 +59,11 @@ func banListView(r *http.Request, d Deps, l banlists.List) (BanListView, error) 
 	if err != nil {
 		return BanListView{}, err
 	}
-	left := banlists.Left(l.Phase, c)
-	return BanListView{List: l, Words: banlists.Describe(l), Counts: c, Left: left, Progress: d.BanLists.ProgressOf(l.ID, left)}, nil
+	p, err := d.BanLists.ProgressOf(r.Context(), l, c)
+	if err != nil {
+		return BanListView{}, err
+	}
+	return BanListView{List: l, Words: banlists.Describe(l), Counts: c, Left: banlists.Left(l.Phase, c), Progress: p}, nil
 }
 
 func banListRoutes(d Deps) []Route {

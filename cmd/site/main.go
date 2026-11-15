@@ -81,7 +81,7 @@ var shots = map[string]Shot{
 	"points":          {"points.webp", "The Points screen: points called Acorns, and the top viewers."},
 	"viewers":         {"viewers.webp", "The Viewers screen: the made-up viewers who chatted, followed or subscribed."},
 	"filters":         {"filters.webp", "The Chat filters screen."},
-	"banlists":        {"banlists.webp", "The Ban lists screen."},
+	"banlists":        {"banlists.webp", "The Ban lists screen: a shared list of 250,004 names being looked up on Twitch, with a progress bar, its pace, about when it will finish and what it has found so far, and an earlier list that is done."},
 	"wheels":          {"wheels.webp", "The Wheels screen: a wheel of what to play next."},
 	"connections":     {"connections.webp", "The Connections screen: the streamer’s Twitch account and a bot account, both signed in."},
 	"settings":        {"settings.webp", "The Settings screen."},

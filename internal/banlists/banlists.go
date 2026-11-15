@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -113,9 +114,12 @@ type Service struct {
 	wg   sync.WaitGroup
 
 	mu sync.Mutex
-	// done is when each recent ban or unban finished, per list, for the
-	// pace and the estimated finish.
-	done map[string][]time.Time
+	// done is the work each list finished lately, for the pace and the
+	// estimated finish; reading how far through its file a list is.
+	done    map[string]*recent
+	reading map[string]*readState
+	// working is the list the runner last worked on.
+	working, workingName string
 	// waitingLive is the lists waiting until you're offline; waitUntil
 	// when Twitch said to wait.
 	waitingLive map[string]bool
@@ -137,7 +141,7 @@ func New(o Options) *Service {
 		o.Idle = 30 * time.Second
 	}
 	return &Service{o: o, log: o.Logger.With("component", "banlists"), kick: make(chan struct{}, 1),
-		done: map[string][]time.Time{}, waitingLive: map[string]bool{}}
+		done: map[string]*recent{}, reading: map[string]*readState{}, waitingLive: map[string]bool{}}
 }
 
 func (s *Service) poke() {
@@ -612,6 +616,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	}
 	s.mu.Lock()
 	delete(s.done, id)
+	delete(s.reading, id)
 	delete(s.waitingLive, id)
 	s.mu.Unlock()
 	return nil
@@ -633,41 +638,119 @@ func (s *Service) tx(ctx context.Context, f func(*sql.Tx) error) error {
 type Progress struct {
 	// WaitingLive: it waits until you're offline on Twitch.
 	WaitingLive bool `json:"waiting_live"`
-	// PerMinute is the bans and unbans done in the last 5 minutes, a
-	// minute; Finish when the rest would be done at that pace.
+	// After names the list the runner is working on first: it works on
+	// one list at a time, oldest first.
+	After string `json:"after,omitempty"`
+	// Done of All is how far the phase has got, in Unit: bytes of the
+	// file while reading, names while checking or comparing, requests
+	// while banning or undoing, and bans while copying, when All is 0
+	// because Twitch doesn't say how many there are.
+	Done int64  `json:"done"`
+	All  int64  `json:"all"`
+	Unit string `json:"unit,omitempty"`
+	// PerMinute is the work done in the last 5 minutes, in Unit a minute;
+	// Finish when the rest would be done at that pace.
 	PerMinute float64    `json:"per_minute"`
 	Finish    *time.Time `json:"finish,omitempty"`
-	// WaitUntil is when Twitch said requests may go on, while it waits.
+	// WaitUntil is when Twitch said requests may go on, while a list
+	// that's running waits.
 	WaitUntil *time.Time `json:"wait_until,omitempty"`
 }
 
-// ProgressOf says how a list is going; left is how many requests remain.
-func (s *Service) ProgressOf(id string, left int) Progress {
+// recent is the work a list finished in its phase lately.
+type recent struct {
+	phase string
+	at    []time.Time
+	n     []int64
+}
+
+// readState is how far through its file a list's reading is.
+type readState struct {
+	size int64
+	read atomic.Int64
+}
+
+// noteDone records n pieces of work finished in phase. A new phase starts
+// the pace afresh, since its unit differs.
+func (s *Service) noteDone(id, phase string, n int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := s.done[id]
+	if r == nil || r.phase != phase {
+		r = &recent{phase: phase}
+		s.done[id] = r
+	}
+	r.at, r.n = append(r.at, s.o.Now()), append(r.n, n)
+}
+
+// ProgressOf says how a list is going, from its counts.
+func (s *Service) ProgressOf(ctx context.Context, l List, counts map[string]int) (Progress, error) {
+	p := Progress{}
+	switch l.Phase {
+	case Reading:
+		s.mu.Lock()
+		if r := s.reading[l.ID]; r != nil {
+			p.Done, p.All = r.read.Load(), r.size
+		}
+		s.mu.Unlock()
+		p.Unit = "bytes"
+	case Checking:
+		// The names in the newest file; those not yet looked up are new.
+		if err := s.o.DB.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(state = ?), 0) FROM ban_list_entries
+			WHERE list_id = ? AND generation = ?`, StateNew, l.ID, l.generation).Scan(&p.All, &p.Done); err != nil {
+			return Progress{}, err
+		}
+		p.Done, p.Unit = p.All-p.Done, "names"
+	case Comparing:
+		var left int64
+		if err := s.o.DB.QueryRowContext(ctx, "SELECT count(*) FROM ban_list_entries WHERE list_id = ? AND state = ? AND name > ?",
+			l.ID, StateBanned, l.cursor).Scan(&left); err != nil {
+			return Progress{}, err
+		}
+		p.All = int64(counts[StateBanned] + counts[StateByHand])
+		p.Done, p.Unit = p.All-left, "names"
+	case Banning, Undoing:
+		p.Done = int64(counts[StateBanned] + counts[StateRefused] + counts[StateUnbanned])
+		p.All, p.Unit = p.Done+int64(Left(l.Phase, counts)), "requests"
+	case Copying:
+		for _, c := range counts {
+			p.Done += int64(c)
+		}
+		p.Unit = "bans"
+	}
 	now := s.o.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p := Progress{WaitingLive: s.waitingLive[id]}
-	recent := s.done[id][:0]
-	for _, t := range s.done[id] {
-		if now.Sub(t) <= 5*time.Minute {
-			recent = append(recent, t)
+	p.WaitingLive = s.waitingLive[l.ID]
+	if busy(l.Phase) && !l.Paused && !p.WaitingLive && s.working != "" && s.working != l.ID {
+		p.After = s.workingName
+	}
+	if r := s.done[l.ID]; r != nil && r.phase == l.Phase {
+		// Keep the last 5 minutes.
+		i := 0
+		for i < len(r.at) && now.Sub(r.at[i]) > 5*time.Minute {
+			i++
+		}
+		r.at, r.n = r.at[i:], r.n[i:]
+		if len(r.at) > 1 {
+			span := now.Sub(r.at[0])
+			if span < time.Minute {
+				span = time.Minute
+			}
+			var sum int64
+			for _, n := range r.n {
+				sum += n
+			}
+			p.PerMinute = float64(sum) / span.Minutes()
+			if left := p.All - p.Done; p.All > 0 && left > 0 {
+				f := now.Add(time.Duration(float64(left) / p.PerMinute * float64(time.Minute)))
+				p.Finish = &f
+			}
 		}
 	}
-	s.done[id] = recent
-	if len(recent) > 1 {
-		span := now.Sub(recent[0])
-		if span < time.Minute {
-			span = time.Minute
-		}
-		p.PerMinute = float64(len(recent)) / span.Minutes()
-		if left > 0 && p.PerMinute > 0 {
-			f := now.Add(time.Duration(float64(left) / p.PerMinute * float64(time.Minute)))
-			p.Finish = &f
-		}
-	}
-	if s.waitUntil.After(now) {
+	if s.waitUntil.After(now) && busy(l.Phase) && !l.Paused {
 		w := s.waitUntil
 		p.WaitUntil = &w
 	}
-	return p
+	return p, nil
 }

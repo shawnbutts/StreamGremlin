@@ -254,12 +254,22 @@ func printBanList(w io.Writer, l api.BanListView) {
 	if len(parts) > 0 {
 		fmt.Fprintf(w, "  %s\n", strings.Join(parts, ", "))
 	}
-	if l.Left > 0 && l.Progress.PerMinute > 0 {
-		fmt.Fprintf(w, "  %d left, %.0f a minute", l.Left, l.Progress.PerMinute)
-		if l.Progress.Finish != nil {
-			fmt.Fprintf(w, ", finished about %s", l.Progress.Finish.Local().Format("Mon 15:04"))
+	if p := l.Progress; p.Unit != "" && (p.Done > 0 || p.All > 0) {
+		if p.All > 0 {
+			fmt.Fprintf(w, "  %d of %d %s", p.Done, p.All, p.Unit)
+		} else {
+			fmt.Fprintf(w, "  %d %s so far", p.Done, p.Unit)
+		}
+		if p.PerMinute > 0 {
+			fmt.Fprintf(w, ", %.0f a minute", p.PerMinute)
+		}
+		if p.Finish != nil {
+			fmt.Fprintf(w, ", finished about %s", p.Finish.Local().Format("Mon 15:04"))
 		}
 		fmt.Fprintln(w)
+	}
+	if l.Progress.After != "" && !l.Paused {
+		fmt.Fprintf(w, "  Waiting for %q to finish first.\n", l.Progress.After)
 	}
 	if l.Progress.WaitingLive {
 		fmt.Fprintln(w, "  Waiting until you're offline on Twitch.")

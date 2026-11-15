@@ -38,7 +38,7 @@ const now = new Date().toISOString();
 const list = (over: Partial<BanList> = {}): BanList => ({
   id: 'bl_1', kind: 'ban', name: 'Bots', reason: 'Ban list: Bots', phase: 'ready', paused: false, pause_live: true, keep_points: true,
   file_name: 'bots.txt', skipped: 2, created_at: now, updated_at: now, words: 'Checked: confirm to start.',
-  counts: { waiting: 1200, already: 30, not_found: 400, kept: 3, removed: 5 }, left: 0, progress: { waiting_live: false, per_minute: 0 },
+  counts: { waiting: 1200, already: 30, not_found: 400, kept: 3, removed: 5 }, left: 0, progress: { waiting_live: false, done: 0, all: 0, per_minute: 0 },
   ...over,
 });
 
@@ -53,7 +53,7 @@ describe('Ban lists', () => {
       '/v1/ban-lists/bl_1/entries': () => ({ status: 200, body: { entries: [{ name: 'spambot1', login: 'spambot1', state: 'waiting' }] } }),
       '/v1/ban-lists/bl_1/confirm': (_m, body) => {
         current = list({ phase: 'banning', words: 'Banning…', counts: { waiting: 900, banned: 300 }, left: 900,
-          progress: { waiting_live: false, per_minute: 400, finish: new Date(Date.now() + 3 * 3600_000).toISOString() } });
+          progress: { waiting_live: false, done: 300, all: 1200, unit: 'requests', per_minute: 400, finish: new Date(Date.now() + 3 * 3600_000).toISOString() } });
         return { status: 200, body: { ...current, asked: body } };
       },
       '/desktop/choose-file': () => ({ status: 200, body: { path: '/home/me/hate-raid.txt' } }),
@@ -117,11 +117,46 @@ describe('Ban lists', () => {
     expect(calls.some((c) => c.path === '/v1/ban-lists/bl_1/undo' && c.method === 'POST')).toBe(true);
   });
 
+  it('shows how far reading, checking and copying have got, and which list waits for which', async () => {
+    const soon = new Date(Date.now() + 40 * 60_000).toISOString();
+    mockFetch({
+      '/v1/ban-lists': () => ({
+        status: 200,
+        body: {
+          lists: [
+            list({ id: 'bl_3', name: 'Copy', phase: 'copying', words: 'Copying Twitch’s ban list…', counts: { already: 1500 },
+              progress: { waiting_live: false, after: 'Big', done: 1500, all: 0, unit: 'bans', per_minute: 0 } }),
+            list({ id: 'bl_2', name: 'Big', phase: 'checking', words: 'Looking the names up on Twitch…',
+              counts: { new: 40000, waiting: 9000, already: 400, not_found: 550, kept: 50 },
+              progress: { waiting_live: false, done: 10000, all: 50000, unit: 'names', per_minute: 1000, finish: soon } }),
+            list({ id: 'bl_1', name: 'Huge', phase: 'reading', words: 'Reading the file…', counts: { new: 250000 },
+              progress: { waiting_live: false, done: 2_500_000, all: 48_000_000, unit: 'bytes', per_minute: 30_000_000 } }),
+          ],
+        },
+      }),
+    });
+    const el = start();
+    await settle();
+    expect(el.textContent).toContain('Read 2.5 MB of 48.0 MB: 250,000 names so far.');
+    expect(el.textContent).toContain('30.0 MB a minute');
+    expect(el.textContent).toContain('Looked up 10,000 of 50,000 names on Twitch. 1,000 names a minute, finished in about 40 minutes.');
+    const tally = el.querySelector('[aria-label="Found so far"]')!;
+    expect(tally.textContent).toContain('9,000 to ban');
+    expect(tally.textContent).toContain('550 not found');
+    expect(tally.textContent).toContain('50 left alone');
+    const bar = el.querySelector<HTMLProgressElement>('progress[aria-label="Big: how far"]')!;
+    expect([bar.value, bar.max]).toEqual([10000, 50000]);
+    expect(el.textContent).toContain('Waiting for “Big” to finish first');
+    expect(el.textContent).toContain('Copied 1,500 bans so far.');
+    expect(el.querySelector<HTMLProgressElement>('progress[aria-label="Copy: copying"]')!.hasAttribute('value')).toBe(false);
+    await noViolations('progress');
+  });
+
   it('says a list waits until you’re offline', async () => {
     mockFetch({
       '/v1/ban-lists': () => ({
         status: 200,
-        body: { lists: [list({ phase: 'banning', words: 'Banning…', left: 5, progress: { waiting_live: true, per_minute: 0 } })] },
+        body: { lists: [list({ phase: 'banning', words: 'Banning…', left: 5, progress: { waiting_live: true, done: 0, all: 5, unit: 'requests', per_minute: 0 } })] },
       }),
     });
     const el = start();

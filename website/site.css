@@ -230,3 +230,4 @@ table.compare { border-collapse: collapse; width: 100%; min-width: 860px; font-s
   .button, .top nav a { transition: background-color 0.15s, color 0.15s; }
 }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.tour-row[id] { scroll-margin-top: 96px; }

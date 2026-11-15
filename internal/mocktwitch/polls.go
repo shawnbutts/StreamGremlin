@@ -108,12 +108,7 @@ func (s *Server) notifyLocked(b, typ string, ev map[string]any) {
 }
 
 func (s *Server) loginOf(userID string) string {
-	for l, id := range s.users {
-		if id == userID {
-			return l
-		}
-	}
-	return ""
+	return s.logins[userID]
 }
 
 func (p *mockPoll) event(end bool) map[string]any {
