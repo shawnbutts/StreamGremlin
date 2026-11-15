@@ -46,7 +46,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -86,6 +86,12 @@ test-fuzz: ## Run every fuzz target for FUZZTIME each (default 15s)
 
 test-load: ## The chat surge load test through the real binary, with budgets
 	$(GO) test -tags 'acceptance load' -count=1 -run TestLoad -v ./tests/acceptance
+
+screenshots: desktop-ui ## Photograph the app with made-up data for the website (needs Chromium or Chrome; CHROME=path)
+	$(GO) run ./cmd/screenshots -out website/screenshots
+
+site: ## Build the website into ./bin/site (www and code); offers the newest installers in ./bin/release
+	$(GO) run ./cmd/site -out bin/site
 
 vuln: $(GOVULNCHECK) ## Known vulnerabilities in code that's called, and in npm packages (needs the network)
 	$(GOVULNCHECK) ./...

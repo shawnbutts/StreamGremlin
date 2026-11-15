@@ -4,7 +4,8 @@ StreamGremlin beta guide
 Thank you for trying StreamGremlin! It's stream automation for Twitch that
 runs on your own computer: chat commands, alerts in OBS, sounds, timers,
 giveaways, points, wheels, a Live screen to run your stream from, and Stream
-Deck keys. Nothing is sent anywhere but Twitch and OBS.
+Deck keys, with YouTube alongside. Nothing is sent anywhere but the services
+you connect (Twitch, YouTube, OBS, Discord).
 
 This is a beta, so expect rough edges, and please tell us about them.
 
@@ -109,8 +110,7 @@ Settings, Backups makes copies of your data.
 What isn't there yet
 --------------------
 
-- YouTube (planned next).
-- Importing from Streamer.bot.
+- Importing from Streamer.bot (after the first public release).
 - Signed installers, and automatic updates.
 
 

@@ -1,0 +1,31 @@
+{{define "title"}}Download · StreamGremlin{{end}}
+{{define "description"}}Download the StreamGremlin beta for Windows and macOS, with how to install it and check the download.{{end}}
+{{define "content"}}
+<div class="wrap page-head narrow">
+  <h1>Download</h1>
+  {{if .Version}}
+  <p>StreamGremlin <strong>{{.Version}}</strong>, a beta. It’s free.</p>
+  {{else}}
+  <p>StreamGremlin is in a beta that testers are invited to. Downloads will be here when the wider beta opens.</p>
+  {{end}}
+</div>
+<div class="wrap narrow prose">
+  {{if .Downloads}}
+  <ul class="downloads">
+    {{range .Downloads}}
+    <li>
+      <h3>{{.System}}</h3>
+      <p class="meta">{{.File}} · {{.Size}}</p>
+      <a class="button primary" href="downloads/{{.File}}">Download for {{.System}}</a>
+      <span class="hash">SHA-256: {{.SHA256}}</span>
+    </li>
+    {{end}}
+  </ul>
+  <p class="meta">All checksums: <a href="downloads/SHA256SUMS.txt">SHA256SUMS.txt</a>.</p>
+  {{end}}
+  <div class="note">
+    <p><strong>The beta isn’t signed yet.</strong> Windows says “Windows protected your PC” and macOS says it can’t check the app for malicious software, because StreamGremlin doesn’t have a code-signing certificate yet. The guide below says how to open it anyway. Only do that for a copy from this site or from the person who invited you, and check its SHA-256 if you can.</p>
+  </div>
+  {{.Beta}}
+</div>
+{{end}}

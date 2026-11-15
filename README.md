@@ -22,6 +22,7 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 | [FEATURES.md](FEATURES.md) | StreamWisp's full feature list with the original suggestions, kept as the input to the feature cut |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Developer setup, `make verify`, DCO sign-off |
 | [CHANGELOG.md](CHANGELOG.md) | What changed |
+| [website/](website) | The website, built with `make site`; Help comes from the app's own Help text |
 | [SECURITY.md](SECURITY.md) | Reporting a security problem, and what StreamGremlin protects |
 | [docs/milestones/](docs/milestones/M1.md) | Milestone progress and live-check results |
 | [docs/adr/](docs/adr/) | Architecture decisions for storage, protocols, file formats and security |

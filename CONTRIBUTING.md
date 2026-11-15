@@ -25,6 +25,15 @@ make test-load     # the chat surge load test, with budgets
 make vuln          # govulncheck and npm audit (needs the network)
 ```
 
+The website ([D-112](docs/DECISIONS.md)):
+
+```sh
+make screenshots   # photograph the app with made-up data into website/screenshots (needs Chromium or Chrome)
+make site          # build bin/site/www (streamgremlin.com) and bin/site/code (code.streamgremlin.com)
+```
+
+Help is one text for the app and the site: `cmd/desktop/frontend/src/help/guide.html`. Change it there. Take the screenshots again after a screen changes. They use the stand-in Twitch and made-up names only, never real stream data.
+
 ## Run it
 
 ```sh

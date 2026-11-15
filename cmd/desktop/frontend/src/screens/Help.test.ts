@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import Help from './Help.svelte';
 import { mockFetch, runningStatus, settle } from '../test/helpers';
 import { screens } from '../lib/screens';
+import guide from '../help/guide.html?raw';
 
 let comp: ReturnType<typeof mount> | undefined;
 
@@ -51,5 +52,16 @@ describe('Help', () => {
   it('writes the logs folder as Windows does', async () => {
     const el = await start('C:\\Users\\sam\\AppData\\Local\\StreamGremlin');
     expect(el.textContent).toContain('C:\\Users\\sam\\AppData\\Local\\StreamGremlin\\logs');
+  });
+
+  // The same text is the website's Help (D-112), shown as it is: plain
+  // HTML, and every term has an id the site links to.
+  it('keeps the shared Help text plain', () => {
+    expect(guide).not.toMatch(/<(script|style|iframe|img|object|embed|form)\b/i);
+    expect(guide).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(guide).not.toMatch(/javascript:/i);
+    const dts = guide.match(/<dt\b[^>]*>/g) ?? [];
+    expect(dts.length).toBeGreaterThan(20);
+    for (const dt of dts) expect(dt).toMatch(/^<dt id="help-[a-z0-9-]+">$/);
   });
 });

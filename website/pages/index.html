@@ -1,0 +1,191 @@
+{{define "title"}}StreamGremlin: stream automation that lives on your computer{{end}}
+{{define "description"}}Free, open-source stream automation for Twitch and YouTube: chat commands, alerts in OBS, giveaways, points, chat protection and a Live screen, all running on your own computer.{{end}}
+{{define "content"}}
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <ul class="eyebrow" aria-label="In short">
+        <li>Free</li><li>Open source</li><li>Runs on your computer</li><li>Twitch + YouTube</li>
+      </ul>
+      <h1>Your stream’s helper, <em>living on your computer.</em></h1>
+      <p class="lede">StreamGremlin answers chat commands, shows alerts in OBS, runs giveaways and points, guards your chat from raids, and gives you one Live screen to run it all. No cloud account, no subscription.</p>
+      <div class="actions">
+        <a class="button primary" href="download.html">Download the beta</a>
+        <a class="button" href="features.html">See everything it does</a>
+      </div>
+      <p class="small-print">Windows 10 and 11, and macOS 13 or later. It’s a beta: free, and still growing.</p>
+    </div>
+    <img class="banner" src="img/banner.webp" width="1600" height="640" alt="StreamGremlin’s mascot, a green gremlin in brass goggles and overalls, holding up a wrench in a workshop beside the StreamGremlin name.">
+  </div>
+</section>
+
+<section class="showcase" aria-label="The Live screen">
+  <div class="wrap">
+    {{template "shot" index .Shots "live"}}
+    <p class="caption">The Live screen: your chat, with your own buttons beside it. Everyone in these pictures is made up.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Who it’s for</span>
+      <h2>Simple to start. Room to grow.</h2>
+    </div>
+    <div class="for-who">
+      <div class="card accent">
+        <h3>No bot yet?</h3>
+        <p>Home has a checklist that ticks itself as you go: sign in to Twitch, turn on a ready-made workflow, try it with a test, and watch it answer in your chat. Templates cover the usual: <code>!hello</code>, <code>!lurk</code>, <code>!uptime</code>, quotes, a death counter, shoutouts, welcomes, thank-yous and alerts.</p>
+      </div>
+      <div class="card accent">
+        <h3>Coming from Streamer.bot?</h3>
+        <p>The same idea, “when this happens, do that”, in plain words instead of sub-actions. Triggers, variables, timers, OBS control, Lua scripts and a Stream Deck plugin are all here, and every run has a trace showing what each step did and why.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">What it does</span>
+      <h2>Everything a stream needs, in one app</h2>
+      <p>It all runs on your computer, and it all has a screen: no settings files, no command line needed.</p>
+    </div>
+    <ul class="features">
+      <li><h3>Workflows</h3><p>When a viewer types a command, follows, subs, cheers or raids, do something: reply, switch scenes, play a sound, show an alert.</p></li>
+      <li><h3>A Live screen</h3><p>Twitch and YouTube chat side by side, a box to send as you or your bot, and your own buttons with icons.</p></li>
+      <li><h3>Alerts and overlays</h3><p>Alerts with profile pictures and sounds, a now-playing card, clocks and countdowns, and wheel spins, all as OBS browser sources.</p></li>
+      <li><h3>Giveaways you can check</h3><p>Chat enters with a command. Winners are drawn with a secure random source and every draw is recorded, so you can prove it was fair.</p></li>
+      <li><h3>Points</h3><p>Your own currency, earned by chatting, time in chat, follows, subs and cheers. A ledger that never loses a point or pays twice.</p></li>
+      <li><h3>Chat protection</h3><p>Filters for links, caps, spam and new accounts, a raid guard, a one-press lock, ban lists from a file, and a follow-bot review.</p></li>
+      <li><h3>Moderation from chat</h3><p>Rest on a name for a viewer card: time out, ban, warn, shoutout, VIP and mod, each sent once and recorded.</p></li>
+      <li><h3>Timers, quotes and wheels</h3><p>Reminders on a schedule, numbered quotes with <code>!quote</code>, and wheels of choices drawn fairly.</p></li>
+      <li><h3>Stream Deck and Discord</h3><p>An official Stream Deck plugin presses your buttons. Workflows post to Discord when you go live.</p></li>
+    </ul>
+    <div class="actions"><a class="button" href="features.html">All the features</a></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap tour">
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Workflows</span>
+        <h2>“When this happens, do that.”</h2>
+        <p>Pick a trigger and add steps, in plain words. Start from a template, change anything, and press Test: it runs without reaching your chat or OBS, and its trace shows what it would have done.</p>
+        <ul>
+          <li><strong>One answer per command,</strong> so chat never gets two replies.</li>
+          <li><strong>Groups</strong> switch a whole set off and on.</li>
+          <li><strong>Lua</strong> for anything the built-in steps don’t do, safely sandboxed.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "workflow-editor"}}
+    </div>
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Giveaways</span>
+        <h2>Fair, and you can prove it.</h2>
+        <p>Viewers type a command to enter, once each. Set who may enter, give subscribers extra chances (chat is told), and draw. StreamGremlin records every entry list and draw, and <strong>Check the draws</strong> confirms them later.</p>
+        <p>Chat alone tells viewers everything: how to enter, that they’re in, and who won. An overlay is a bonus, never required.</p>
+      </div>
+      {{template "shot" index .Shots "giveaways"}}
+    </div>
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Protection</span>
+        <h2>Ready for the bad nights.</h2>
+        <p>The raid guard notices a burst of brand-new accounts and offers to lock chat or ban them, asking first. <strong>Lock chat</strong> turns on Shield Mode, emote-only and followers-only in one press, and <strong>Unlock chat</strong> puts back only what it changed.</p>
+        <p>Ban lists from a file are banned at Twitch’s own pace, carry on after a restart, and can be undone.</p>
+      </div>
+      {{template "shot" index .Shots "raid-guard"}}
+    </div>
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Points</span>
+        <h2>Your channel’s own currency.</h2>
+        <p>Call them what you like. Viewers earn by chatting, time in chat, follows, subs, gifts and cheers, on Twitch and YouTube, and someone’s two accounts can share one balance.</p>
+        <p>Nothing is ever changed or deleted: a mistake is undone, nobody goes below zero, and a retried workflow never pays twice.</p>
+      </div>
+      {{template "shot" index .Shots "points"}}
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Safe by design</span>
+      <h2>Your stream, your computer, your data.</h2>
+      <p>StreamGremlin keeps everything in one folder on your computer, and talks only to the services you connect.</p>
+    </div>
+    <ul class="safety">
+      <li><strong>No account with us</strong><span>There’s no StreamGremlin login, no cloud and no tracking. You sign in to Twitch, YouTube, OBS and Discord only.</span></li>
+      <li><strong>Sign-ins in your system’s keyring</strong><span>Keychain on macOS and Credential Manager on Windows. They never appear in logs, backups or exports.</span></li>
+      <li><strong>Add-ons can’t reach your files</strong><span>Lua scripts and plugins run in their own process, with time and memory limits, and only do what you allowed.</span></li>
+      <li><strong>Unknown says unknown</strong><span>When Twitch or OBS doesn’t answer, StreamGremlin says so instead of guessing it’s fine.</span></li>
+      <li><strong>Nothing listens beyond your computer</strong><span>Its local API needs a token and refuses web pages it doesn’t know.</span></li>
+      <li><strong>Backups every day</strong><span>Settings → Backups copies everything, every day and whenever you ask. Restoring asks first.</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="compare">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">How it compares</span>
+      <h2>StreamGremlin and other stream bots</h2>
+      <p>Each one is good at different things. Cloud bots keep running when your computer is off; desktop apps can control OBS and keep your data at home. Here’s where StreamGremlin fits.</p>
+    </div>
+    <div class="table-scroll" role="region" aria-label="Comparison table" tabindex="0">
+      <table class="compare">
+        <caption>Checked on 15 November 2026 against each product’s own website and documentation. “—” means their pages don’t say, not that it can’t be done. Products change, so check theirs too.</caption>
+        <thead>
+          <tr><th scope="col"><span class="visually-hidden">Feature</span></th><th scope="col" class="us">StreamGremlin</th><th scope="col">Streamer.bot</th><th scope="col">Firebot</th><th scope="col">Mix It Up</th><th scope="col">Nightbot</th><th scope="col">StreamElements</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Runs on</th><td class="us">Your computer</td><td>Your computer</td><td>Your computer</td><td>Your computer</td><td>Their servers</td><td>Their servers</td></tr>
+          <tr><th scope="row">Keeps going with your computer off</th><td class="us no">No</td><td class="no">No</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Systems</th><td class="us">Windows, macOS; Linux in the works</td><td>Windows; macOS and Linux experimental, through Wine</td><td>Windows, macOS (Apple silicon), Linux</td><td>Windows</td><td>A web browser</td><td>A web browser</td></tr>
+          <tr><th scope="row">Platforms</th><td class="us">Twitch, YouTube</td><td>Twitch, YouTube, Kick</td><td>Twitch</td><td>Twitch, YouTube, Kick and more</td><td>Twitch, YouTube, SOOP</td><td>Twitch, YouTube</td></tr>
+          <tr><th scope="row">Price</th><td class="us">Free</td><td>Free; some features for Patreon supporters</td><td>Free</td><td class="na">—</td><td class="na">—</td><td>Free</td></tr>
+          <tr><th scope="row">Source code</th><td class="us">Open source (Apache 2.0)</td><td>Closed</td><td>Open source (GPL 3.0)</td><td>Source available, under its own licence</td><td class="na">—</td><td class="na">—</td></tr>
+          <tr><th scope="row">An account with the maker</th><td class="us">Not needed</td><td>Not needed</td><td class="na">—</td><td class="na">—</td><td>Sign in with Twitch or YouTube</td><td>Yes</td></tr>
+          <tr><th scope="row">Your data is kept</th><td class="us">On your computer</td><td>On your computer</td><td>On your computer</td><td>On your computer</td><td>On their servers</td><td>On their servers</td></tr>
+          <tr><th scope="row">Triggers and actions without code</th><td class="us yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="na">—</td><td class="na">—</td></tr>
+          <tr><th scope="row">Scripting</th><td class="us">Lua, sandboxed</td><td>C#</td><td>JavaScript</td><td>C#, Python, JavaScript</td><td class="na">—</td><td class="na">—</td></tr>
+          <tr><th scope="row">OBS control</th><td class="us yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="na">—</td><td class="na">—</td></tr>
+          <tr><th scope="row">Alerts in OBS</th><td class="us yes">Yes</td><td class="yes">HTML overlays</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="na">—</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Points</th><td class="us yes">Yes</td><td class="na">—</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="na">—</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Giveaways</th><td class="us yes">Yes, with checkable draws</td><td class="na">—</td><td class="na">—</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Chat filters</th><td class="us yes">Yes</td><td class="na">—</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+          <tr><th scope="row">Stream Deck</th><td class="us yes">Official plugin</td><td class="yes">Official plugin</td><td class="na">—</td><td class="yes">Plugin</td><td class="na">—</td><td class="na">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="sources">
+      <summary>Where these come from</summary>
+      <ul>
+        <li><a href="https://streamer.bot/">streamer.bot</a> and <a href="https://docs.streamer.bot/get-started/installation">its installation guide</a></li>
+        <li><a href="https://firebot.app/">firebot.app</a> and <a href="https://github.com/crowbartools/Firebot">Firebot on GitHub</a></li>
+        <li><a href="https://mixitup.bot/">mixitup.bot</a> and <a href="https://mixitup.bot/docs/getting-started">its getting-started guide</a></li>
+        <li><a href="https://docs.nightbot.tv/">docs.nightbot.tv</a></li>
+        <li><a href="https://streamelements.com/">streamelements.com</a> and <a href="https://streamelements.com/features/chatBot">its chatbot page</a></li>
+        <li><a href="features.html">StreamGremlin’s features</a></li>
+      </ul>
+    </details>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <img src="img/icon-256.png" alt="" width="120" height="120">
+    <h2>Give your stream a gremlin.</h2>
+    <p>StreamGremlin is in beta: free, on Windows and macOS. Tell us what works and what doesn’t, and help shape it.</p>
+    <div class="actions">
+      <a class="button primary" href="download.html">Download the beta</a>
+      <a class="button" href="help.html">Read the Help</a>
+    </div>
+  </div>
+</section>
+{{end}}

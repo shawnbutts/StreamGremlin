@@ -1,0 +1,58 @@
+{{define "title"}}Help · StreamGremlin{{end}}
+{{define "description"}}How StreamGremlin fits together: every screen, explained, with pictures. The same text as the Help screen in the app.{{end}}
+{{define "content"}}
+<div class="wrap page-head">
+  <h1>Help</h1>
+  <p>How StreamGremlin fits together. This is the same text as the app’s Help screen (<kbd>Ctrl</kbd> + <kbd>/</kbd>, or <kbd>⌘</kbd> + <kbd>/</kbd> on a Mac), with pictures. In the app, help for each field also sits beside it.</p>
+</div>
+<div class="wrap help-layout">
+  <nav class="help-toc" aria-labelledby="toc-title">
+    <h2 id="toc-title">On this page</h2>
+    <ul>
+      <li><a href="#getting-started">Getting started</a></li>
+      {{range .Help}}<li><a href="#{{.ID}}">{{.Name}}</a></li>
+      {{end}}<li><a href="#your-data">Your data</a></li>
+      <li><a href="#something-went-wrong">Something went wrong?</a></li>
+    </ul>
+  </nav>
+  <div>
+    <section class="help-term" id="getting-started">
+      <h2>Getting started</h2>
+      <div class="help-text">
+        <p><strong>Home</strong> has a Get set up checklist that ticks itself as you go: sign in to Twitch, turn on a workflow, test it, then watch it answer in your chat.</p>
+      </div>
+      {{template "shot" index .Shots "home"}}
+    </section>
+    {{range .Help}}
+    <section class="help-term" id="{{.ID}}">
+      <h2>{{.Name}}</h2>
+      <div class="help-text"><p>{{.Text}}</p></div>
+      {{with .Shot}}{{template "shot" .}}{{end}}
+    </section>
+    {{end}}
+    <section class="help-term" id="your-data">
+      <h2>Your data</h2>
+      <div class="help-text">
+        <p>Everything StreamGremlin keeps (workflows, runs, events, variables and settings) is in one folder on your computer. Help in the app shows exactly where. Sign-ins and passwords are in your system’s keyring, not in that folder. Nothing is sent anywhere but the services you connect.</p>
+        <ul>
+          <li>Windows: <code>%LocalAppData%\StreamGremlin</code></li>
+          <li>macOS: <code>~/Library/Application Support/StreamGremlin</code></li>
+        </ul>
+        <p>The <code>streamgremlin</code> command does what the app does, from a terminal: try <code>streamgremlin status</code>, <code>streamgremlin workflows</code> or <code>streamgremlin help</code>.</p>
+      </div>
+    </section>
+    <section class="help-term" id="something-went-wrong">
+      <h2>Something went wrong?</h2>
+      <div class="help-text">
+        <p>Tell whoever invited you to the beta. The most useful report has:</p>
+        <ul>
+          <li>what you did, what you expected, and what happened instead (a screenshot helps);</li>
+          <li>the version (Help in the app shows it), and Windows or macOS;</li>
+          <li>the log files from the <code>logs</code> folder in your data folder. Logs never contain your passwords or sign-ins, but they do have chat names and messages from your stream.</li>
+        </ul>
+        <p>Found a security problem? Please see <a href="security.html">Security</a> and report it privately.</p>
+      </div>
+    </section>
+  </div>
+</div>
+{{end}}

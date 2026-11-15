@@ -1,0 +1,61 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{{if eq .Name "404"}}<base href="/">{{end}}
+<title>{{template "title" .}}</title>
+<meta name="description" content="{{template "description" .}}">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0b1f2b">
+<meta property="og:title" content="{{template "title" .}}">
+<meta property="og:description" content="{{template "description" .}}">
+<meta property="og:image" content="https://streamgremlin.com/img/banner.webp">
+<meta property="og:type" content="website">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="stylesheet" href="site.css">
+</head>
+<body class="page-{{.Name}}">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap top-row">
+    <a class="brand" href="index.html"><img src="img/icon-128.png" alt="" width="36" height="36"><span>StreamGremlin</span></a>
+    <nav aria-label="Site">
+      <ul>
+        <li><a href="features.html"{{if eq .Name "features"}} aria-current="page"{{end}}>Features</a></li>
+        <li><a href="help.html"{{if eq .Name "help"}} aria-current="page"{{end}}>Help</a></li>
+        <li><a href="changelog.html"{{if eq .Name "changelog"}} aria-current="page"{{end}}>Changelog</a></li>
+        <li><a class="nav-cta" href="download.html"{{if eq .Name "download"}} aria-current="page"{{end}}>Download</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+<main id="main" tabindex="-1">
+{{template "content" .}}
+</main>
+<footer class="foot">
+  <div class="wrap foot-row">
+    <div class="foot-brand">
+      <img src="img/icon-128.png" alt="" width="48" height="48">
+      <p><strong>StreamGremlin</strong><br>Stream automation that lives on your computer. Free and open source under the Apache License 2.0.</p>
+    </div>
+    <ul class="foot-links">
+      <li><a href="features.html">Features</a></li>
+      <li><a href="download.html">Download</a></li>
+      <li><a href="help.html">Help</a></li>
+      <li><a href="changelog.html">Changelog</a></li>
+      <li><a href="privacy.html">Privacy</a></li>
+      <li><a href="security.html">Security</a></li>
+    </ul>
+  </div>
+  <div class="wrap foot-small">
+    <p>Twitch, YouTube, OBS, Stream Deck, Discord and the other products named here are trademarks of their owners. StreamGremlin isn’t made by or affiliated with any of them. This page was built {{.Built}}.</p>
+  </div>
+</footer>
+</body>
+</html>
+{{end}}
+
+{{define "shot"}}<figure class="shot">
+  <a href="screenshots/{{.File}}"><img src="screenshots/{{.File}}" alt="{{.Alt}}" width="1280" height="800" loading="lazy" decoding="async"></a>
+</figure>{{end}}

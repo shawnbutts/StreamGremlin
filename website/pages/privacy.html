@@ -1,0 +1,32 @@
+{{define "title"}}Privacy · StreamGremlin{{end}}
+{{define "description"}}What StreamGremlin keeps, where, and what it sends: everything stays on your computer, and it talks only to the services you connect.{{end}}
+{{define "content"}}
+<div class="wrap page-head narrow">
+  <h1>Privacy</h1>
+  <p>The short version: StreamGremlin runs on your computer, keeps what it knows there, and has no servers of its own to send anything to.</p>
+</div>
+<div class="wrap narrow prose">
+  <h2>The app</h2>
+  <h3>What it keeps, and where</h3>
+  <p>StreamGremlin keeps your workflows, settings, events, chat it has seen, viewers’ records and points, and its logs in one data folder on your computer. Sign-ins and passwords (Twitch, YouTube, OBS, Discord webhooks) go in your system’s keyring: Keychain on macOS, Credential Manager on Windows, or Secret Service on Linux, or an encrypted file in the data folder where none answers. They never appear in logs, backups or exports.</p>
+  <h3>What it sends, and to whom</h3>
+  <p>Only to the services you connect, and only to do what you set up:</p>
+  <ul>
+    <li><strong>Twitch</strong>, to read and send chat, hear your channel’s events, and moderate, as you or your bot account.</li>
+    <li><strong>YouTube</strong>, if you sign in, to read and send live chat and the like, through a Google project of your own.</li>
+    <li><strong>OBS</strong>, on your own computer or network, to switch scenes and show sources.</li>
+    <li><strong>Discord</strong>, if you add a webhook, to post what your workflows say.</li>
+  </ul>
+  <p>There is no StreamGremlin account, no analytics, no crash reporting and no update check. StreamGremlin never sends viewers’ names to anyone else, such as bot-list services.</p>
+  <h3>Your viewers</h3>
+  <p>StreamGremlin records the viewers it sees in your chat and events, so points, giveaways and moderation work. On the Viewers screen you can export one viewer’s record, or forget a viewer completely if they ask.</p>
+  <h3>Reports you send</h3>
+  <p>If you send a bug report with your logs, the logs contain chat names and messages from your stream, though never passwords or sign-ins. Send them only to the person you’re reporting to.</p>
+
+  <h2>This website</h2>
+  <p>This site is plain pages. It sets no cookies and runs no scripts, analytics or trackers, and it loads nothing from other sites. The server that hosts it may keep ordinary access logs (such as your IP address and the page asked for), as web servers do.</p>
+
+  <h2>Questions</h2>
+  <p>Ask whoever invited you to the beta. For security problems, see <a href="security.html">Security</a>.</p>
+</div>
+{{end}}

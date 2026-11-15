@@ -342,7 +342,7 @@ Decided 2026-11-07.
 - [ ] USPTO and EUIPO trademark search.
 - [ ] Create the `security@streamgremlin.com` address.
 - [ ] Join the Apple Developer Program before the first outside tester.
-- [ ] Choose the website host.
+- [x] Choose the website host: the user hosts it (D-110).
 
 ## D-006. Milestones (K-6)
 
@@ -1929,3 +1929,16 @@ Decided 2026-11-15, building M9 slice 1 after the user's "proceed". The design i
 - **Vulnerability scans:** `make vuln` (govulncheck v1.9.0 and npm audit). golang.org/x/net updated to v0.62.0.
 - **`SECURITY.md`:** report privately to `security@streamgremlin.com` (the user's task from D-005, still open), or to whoever invited you during the beta.
 - **No screen:** nothing in this slice is something a streamer uses. The website (slice 4) will link to `SECURITY.md`.
+
+## D-112. M9 slice 4: the website
+
+Decided 2026-11-15. The user asked to work on the website next, ahead of slice 2: "we do want to include help with screenshots (use fake data for all the details). but the main/landing page should be a little more marketing focused. screenshots, feature list, tables with differences between other bots, etc."
+
+- **Built by `make site`** (`cmd/site`) into `bin/site`: `www` is streamgremlin.com, `code` is code.streamgremlin.com. Plain static pages from Go templates in `website/`: no scripts, cookies, analytics, web fonts or outside requests, so the privacy page can say so. A test builds the real site and checks every link and picture resolves and nothing loads from outside.
+- **Pages:** a marketing home page (hero, the Live screen, who it's for, the features, a tour with screenshots, safety, a comparison table), Features, Download, Help, Privacy, Security (from `SECURITY.md`), the changelog (from `CHANGELOG.md`) and a 404.
+- **One Help text:** the app's Help terms moved to `cmd/desktop/frontend/src/help/guide.html`. The app shows it as it is, and the site's Help shows the same text with a screenshot beside each screen. A test keeps it plain HTML (no scripts, styles or event attributes) with an id for each term.
+- **Screenshots with made-up data:** `make screenshots` (`cmd/screenshots`) starts a throwaway engine in a temporary folder with the file secret store, against the stand-in Twitch, fills it through the API with a made-up streamer (CozyKestrel), bot and viewers, serves the built app to headless Chromium and saves one WebP a screen into `website/screenshots`. They're committed. The stand-in's "Test mode" notice is hidden in the Connections picture.
+- **The comparison table:** Streamer.bot, Firebot, Mix It Up, Nightbot and StreamElements, from each one's own site and docs, checked 2026-11-15. Only confirmed facts; a dash means their pages don't say. It includes where StreamGremlin is behind (no Kick, doesn't run with the computer off). Sources are listed under the table. Re-check before each wider release.
+- **Download** offers the newest version's installers from `bin/release`, copied into the site with their SHA-256 and a `SHA256SUMS.txt`, above the beta guide (`docs/BETA.md`, rendered). Without installers it says the beta is by invitation.
+- **go-import:** a page for the module and every package, pointing git at `https://github.com/shawnbutts/StreamGremlin.git` (`-repo` changes it when the code moves to GitHub).
+- **Markdown** is rendered by a small renderer for what the repository's files use, escaping everything first. Links to repository files become plain text.

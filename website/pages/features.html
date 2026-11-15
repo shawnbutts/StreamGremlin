@@ -1,0 +1,141 @@
+{{define "title"}}Features · StreamGremlin{{end}}
+{{define "description"}}Everything StreamGremlin does: workflows, a Live screen, alerts and overlays, giveaways, points, chat protection, moderation, timers, quotes, wheels, Stream Deck, Discord, YouTube and Lua.{{end}}
+{{define "content"}}
+<div class="wrap page-head">
+  <h1>Everything it does</h1>
+  <p>StreamGremlin is one app for running a Twitch stream, with YouTube alongside. Every feature has a screen, and Help explains each one. Here’s the whole list.</p>
+</div>
+
+<section class="section">
+  <div class="wrap tour">
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Workflows</span>
+        <h2>When this happens, do that</h2>
+        <ul>
+          <li><strong>Triggers:</strong> chat commands and messages, a viewer’s first words this stream, follows, subs, resubs, gifts, cheers, raids, channel point redemptions, Hype Trains, polls and predictions, ad breaks, going live and offline, OBS scene changes, timers, countdowns, your buttons, and add-on events.</li>
+          <li><strong>Steps:</strong> send chat, play a sound, show an alert, switch scenes, show or hide sources, give or take points, spin a wheel, run a poll, change the title or category, make a clip, add a stream marker, moderate, post to Discord, save variables, run another workflow, and run Lua.</li>
+          <li><strong>Templates</strong> for the usual jobs, in a gallery: pick one, change anything, save.</li>
+          <li><strong>Test</strong> runs a workflow without reaching chat or OBS. Every real run has a <strong>trace</strong>: what each step was given and gave back, or why it didn’t run.</li>
+          <li><strong>One answer per command</strong>, groups with their own switch, variables kept between streams, and deleted workflows you can restore.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "workflows"}}
+    </div>
+
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Live</span>
+        <h2>Run your stream from one screen</h2>
+        <ul>
+          <li>Twitch and YouTube chat together, each line marked, with a box to send as you or your bot.</li>
+          <li>Your own <strong>buttons</strong>, with colours and icons, on the right or along the top. A button runs the workflows that start from it.</li>
+          <li>A <strong>viewer card</strong> on every name: following, subscribed, VIP, moderator, banned, their points and recent messages. Anything Twitch didn’t say shows as unknown.</li>
+          <li><strong>Moderate from chat:</strong> delete, time out, ban, unban, warn, shoutout, VIP and moderator, chat modes and Shield Mode. Anything that can’t be undone asks first.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "live"}}
+    </div>
+
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Overlays and sounds</span>
+        <h2>Alerts in OBS</h2>
+        <ul>
+          <li>Each overlay is one OBS browser source with a private link. Alerts come one at a time, with the viewer’s profile picture and a sound if you like.</li>
+          <li><strong>Now playing</strong> shows the song your music player writes out, with its album art.</li>
+          <li><strong>Clock and timers:</strong> the time, a “Starting soon” countdown, or a stopwatch, started from a button or a workflow.</li>
+          <li><strong>Wheels and giveaways</strong> have their own overlays. Wheels come in several looks, and add-on looks can be installed.</li>
+          <li>A <strong>sound library</strong> with a volume for each sound.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "overlays"}}
+    </div>
+
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Giveaways and wheels</span>
+        <h2>Fair draws, on the record</h2>
+        <ul>
+          <li>Viewers enter with a command, once each. Limit entry to followers, older accounts, subscribers or regular chatters, and give subscribers extra chances (chat is told).</li>
+          <li>Or draw at once from everyone who chatted recently.</li>
+          <li>Winners are drawn on your computer with a cryptographically secure random source, and every entry list and draw is recorded, so <strong>Check the draws</strong> can confirm them.</li>
+          <li><strong>Wheels</strong> show each wedge at its real size, so the odds you see are the real odds.</li>
+          <li>A practice giveaway uses test chat and sends nothing.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "wheels"}}
+    </div>
+
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Viewers and points</span>
+        <h2>Your channel’s own points</h2>
+        <ul>
+          <li>Name your points. Viewers earn by chatting, time in chat, follows, subs, gifted subs, cheers, and on YouTube by memberships and Super Chats.</li>
+          <li>Give to everyone in chat, every subscriber, or everyone who chatted recently, and take it back if it was a mistake.</li>
+          <li>An append-only ledger: nothing is changed or deleted, nobody goes below zero, and a retried run never pays twice. <strong>Check the ledger</strong> proves it.</li>
+          <li>A record for every viewer, with export and “forget me”. Twitch and YouTube accounts can be linked to share one balance, by you or by the viewer with <code>!link</code>.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "viewers"}}
+    </div>
+
+    <div class="tour-row">
+      <div class="tour-text">
+        <span class="kicker">Protection</span>
+        <h2>Chat filters, raids and bots</h2>
+        <ul>
+          <li><strong>Chat filters</strong> for links (with allowed sites and <code>!permit</code>), capitals, symbols, emotes, repeats, your own words, brand-new accounts and text art. Each deletes, times out or warns, and never touches you, your mods or your bot.</li>
+          <li>Twitch’s Blocked Terms, listed and copied either way.</li>
+          <li>A <strong>raid guard</strong> that spots a burst of new accounts, and a one-press <strong>Lock chat</strong>.</li>
+          <li><strong>Ban lists</strong> from a file, up to 5 million lines, banned at Twitch’s pace, undoable.</li>
+          <li>A <strong>follow-bot review</strong> that finds follows from brand-new accounts that never chatted.</li>
+        </ul>
+      </div>
+      {{template "shot" index .Shots "filters"}}
+    </div>
+  </div>
+</section>
+
+<section class="section alt">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">And also</span>
+      <h2>The rest of the workshop</h2>
+    </div>
+    <ul class="features">
+      <li><h3>Timers</h3><p>Every so often or on a schedule, only while you’re live, only when chat is active, or once.</p></li>
+      <li><h3>Quotes</h3><p>Numbered quotes viewers see with <code>!quote</code> and mods add with <code>!quoteadd</code>. Deleting one never renumbers the rest.</p></li>
+      <li><h3>Channel commands</h3><p>Templates for <code>!title</code>, <code>!game</code>, <code>!uptime</code>, <code>!followage</code>, <code>!clip</code> and <code>!marker</code>.</p></li>
+      <li><h3>Rewards and polls</h3><p>Make and manage channel point rewards, mark redemptions done or refund them, and run polls and predictions. Affiliates and Partners.</p></li>
+      <li><h3>Ads</h3><p>See your next ad and snoozes, run or snooze one, and tell chat when a break starts.</p></li>
+      <li><h3>OBS</h3><p>Scenes, sources, filters, mute, media, recording and replay. Switch for now and come back, without undoing a scene you chose yourself.</p></li>
+      <li><h3>YouTube</h3><p>Live chat beside Twitch’s, Super Chats, memberships, polls and moderation, with the quota shown as you go.</p></li>
+      <li><h3>Stream Deck</h3><p>An official plugin: pair it with a code, and keys press your buttons. A paired deck can do nothing else.</p></li>
+      <li><h3>Discord</h3><p>Workflows post to your server through webhooks: going live, new clips, and a summary when you go offline.</p></li>
+      <li><h3>Lua and add-ons</h3><p>Lua steps for anything else, and plugins that add steps and triggers. Each runs in its own process, with only the permissions you allow.</p></li>
+      <li><h3>Backups</h3><p>Everything copied every day and whenever you ask. Restoring asks first and backs up what it replaces.</p></li>
+      <li><h3>Made comfortable</h3><p>Dark, light and midnight themes, four text sizes, keyboard shortcuts, screens you don’t use tucked under More, and accessibility checks in every theme.</p></li>
+      <li><h3>A command line</h3><p><code>streamgremlin</code> does what the app does, from a terminal, through the same local API.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap narrow">
+    <div class="section-head">
+      <span class="kicker">Not yet</span>
+      <h2>What isn’t here</h2>
+      <p>So you know before you switch:</p>
+    </div>
+    <ul>
+      <li><strong>Importing from Streamer.bot</strong> comes after the first public release.</li>
+      <li><strong>Signed installers:</strong> the beta isn’t signed yet, so Windows and macOS warn the first time. The <a href="download.html">download page</a> says what to do.</li>
+      <li><strong>Kick</strong> isn’t planned.</li>
+      <li>StreamGremlin runs while your computer does: it isn’t a cloud bot.</li>
+      <li>English only.</li>
+    </ul>
+  </div>
+</section>
+{{end}}
