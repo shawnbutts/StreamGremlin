@@ -105,8 +105,10 @@ data may need a fresh start. You'll be told before that happens.
 Telling us what went wrong
 --------------------------
 
-Send it to the person who invited you to the beta. The most useful report
-says:
+Report it on GitHub (you'll need a free account):
+https://github.com/shawnbutts/StreamGremlin/issues/new/choose
+Help in the app has a button for it. Look first for an issue that already
+describes it, and add to that one. The most useful report says:
 - what you did, what you expected, and what happened instead;
 - the version, shown on Home under "Version";
 - Windows, macOS or Linux, and which version (on Linux, which
@@ -114,9 +116,12 @@ says:
 - the log files, if you can: they're in the "logs" folder inside your
   StreamGremlin data folder (below). Logs never contain your passwords or
   sign-in tokens, but they do contain chat names and messages from your
-  stream.
+  stream, so attach only what you're happy to share in public.
 
 A screenshot helps too.
+
+Found a security problem? Don't open a public issue: report it privately,
+as SECURITY.md says (https://github.com/shawnbutts/StreamGremlin/security).
 
 
 Where your data is

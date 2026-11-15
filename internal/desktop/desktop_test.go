@@ -116,6 +116,8 @@ func TestAllowedURL(t *testing.T) {
 		"https://console.cloud.google.com/apis/library/youtube.googleapis.com",
 		"https://console.cloud.google.com/auth/clients",
 		"http://127.0.0.1:7700/o/oauth2/v2/auth?client_id=1",
+		"https://github.com/shawnbutts/StreamGremlin/issues/new/choose",
+		"https://github.com/shawnbutts/StreamGremlin/security/advisories/new",
 	} {
 		if !AllowedURL(ok) {
 			t.Errorf("%s should be allowed", ok)
@@ -129,6 +131,8 @@ func TestAllowedURL(t *testing.T) {
 		"http://accounts.google.com/o/oauth2/v2/auth", "https://console.cloud.google.com/billing",
 		"http://10.0.0.2:7700/o/oauth2/v2/auth", "https://www.twitch.tv/moderator/a/b", "https://www.twitch.tv/moderator/BAD!",
 		"https://www.twitch.tv/moderator/x?redirect=y", "http://www.twitch.tv/moderator/x", "https://www.twitch.tv/moderator/",
+		"https://github.com/shawnbutts/StreamGremlin/issues/new/choose?template=x", "https://github.com/someone/else/issues/new/choose",
+		"http://github.com/shawnbutts/StreamGremlin/issues/new/choose", "https://github.com/shawnbutts/StreamGremlin",
 	} {
 		if AllowedURL(bad) {
 			t.Errorf("%s should be refused", bad)

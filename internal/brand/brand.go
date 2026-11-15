@@ -10,6 +10,12 @@ const (
 	// LinuxAppID names the app to Linux desktops: GTK's application id,
 	// the .desktop file and the icon in the Linux package.
 	LinuxAppID = "com.streamgremlin.StreamGremlin"
+	// Repo is where the code, issues and private security reports are
+	// (D-115). IssuesURL starts a bug report or idea; SecurityURL a
+	// private security report.
+	Repo        = "https://github.com/shawnbutts/StreamGremlin"
+	IssuesURL   = Repo + "/issues/new/choose"
+	SecurityURL = Repo + "/security/advisories/new"
 	// EnvPrefix starts every environment variable the app reads.
 	EnvPrefix = "STREAMGREMLIN_"
 

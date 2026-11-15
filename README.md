@@ -6,7 +6,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** milestones M1 (the Spine), M2 (the everyday bot), M3 (giveaways, points and wheels) and M5 (Lua and plugins) are done. M7 (the Live screen, moderating and Stream Deck) is built and awaiting its real-stream check ([progress](docs/milestones/M7.md)). A first beta, unsigned, is for a few invited testers: see the [beta guide](docs/BETA.md). Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Status:** a beta. Milestones M1 to M8 are done (M4, importing from Streamer.bot, moved to later), each used on real streams on macOS and Windows; M9, the release work, is in progress ([progress](docs/milestones/M9.md)). Installers for Windows and macOS are unsigned for now, and Linux is a beta, lightly tested: see the [beta guide](docs/BETA.md). Found a bug or have an idea? [Open an issue](https://github.com/shawnbutts/StreamGremlin/issues/new/choose). A security problem? See [SECURITY.md](SECURITY.md). Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documents
 
@@ -33,4 +33,4 @@ It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 
 
 ## Where the code lives
 
-During beta, the code is on a private server. After beta it moves to [github.com/shawnbutts/StreamGremlin](https://github.com/shawnbutts/StreamGremlin). The Go module path, `code.streamgremlin.com/streamgremlin`, stays the same through the move.
+The code, issues and private security reports are at [github.com/shawnbutts/StreamGremlin](https://github.com/shawnbutts/StreamGremlin). The Go module path, `code.streamgremlin.com/streamgremlin`, stays the same through the move.

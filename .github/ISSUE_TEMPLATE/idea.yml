@@ -1,0 +1,42 @@
+name: An idea
+description: Something StreamGremlin could do, or do better.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        StreamGremlin keeps a short, decided list of what it does, so each idea is weighed by who it would help. Telling us that is the most useful part.
+
+        Please look first for an issue with the same idea, and add to that one.
+  - type: textarea
+    id: who
+    attributes:
+      label: Who would use it?
+      description: You, streamers like you, your mods or your viewers? What kind of stream?
+      placeholder: I stream cozy games three nights a week, about 30 viewers, and my two mods…
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What would it do?
+      description: What you'd like to happen, in your own words. No need to say how it should be built.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you do it today?
+      description: With another bot (say which), by hand, or not at all.
+  - type: dropdown
+    id: from
+    attributes:
+      label: Are you coming from another bot?
+      options:
+        - "No"
+        - Streamer.bot
+        - Firebot
+        - Mix It Up
+        - Nightbot
+        - StreamElements
+        - Another one

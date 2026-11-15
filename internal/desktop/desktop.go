@@ -195,6 +195,9 @@ func AllowedURL(u string) bool {
 	case p.Scheme == "https" && p.Host == "console.cloud.google.com" && (p.Path == "/projectcreate" ||
 		strings.HasPrefix(p.Path, "/apis/") || strings.HasPrefix(p.Path, "/auth/")):
 		return true
+	case u == brand.IssuesURL || u == brand.SecurityURL:
+		// Reporting a problem, from Help (D-115).
+		return true
 	case p.Scheme == "http" && (p.Path == "/activate" || p.Path == "/o/oauth2/v2/auth"):
 		ip := net.ParseIP(p.Hostname())
 		return ip != nil && ip.IsLoopback() && p.Port() != ""

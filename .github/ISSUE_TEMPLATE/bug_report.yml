@@ -1,0 +1,79 @@
+name: Something went wrong
+description: StreamGremlin did something it shouldn't, or didn't do something it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for telling us. Please look first for an issue that already describes it, and add to that one.
+
+        **A security problem?** Don't report it here, where everyone can read it: use [a private security report](https://github.com/shawnbutts/StreamGremlin/security/advisories/new) instead.
+
+        Everything you write here is public. Leave out passwords, sign-in codes, tokens, Discord webhook links and anything from your data folder you don't want to share.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. A screenshot helps.
+      placeholder: |
+        I pressed Start banning on a ban list of 2,000 names. I expected…
+        Instead…
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can we make it happen?
+      description: The steps, if you know them. "It happens every time I go live" is useful too.
+      placeholder: |
+        1. On Workflows, add the "Shoutout on raid" template
+        2. …
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown in Help in the app, and on Home under "Version". For example 0.1.0-beta.4 (b017ff7).
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: system-version
+    attributes:
+      label: Which version of it?
+      description: For example Windows 11, macOS 15, or Ubuntu 24.04.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in StreamGremlin?
+      multiple: true
+      options:
+        - Signing in, Connections
+        - Live, chat, moderating
+        - Workflows, templates, timers
+        - Overlays, alerts, sounds
+        - Giveaways, wheels, points, viewers
+        - Chat filters, raid guard, ban lists
+        - YouTube
+        - OBS
+        - Stream Deck
+        - Discord
+        - Lua, add-ons
+        - Installing, updating, backups
+        - The command line
+        - Something else
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The files in the "logs" folder in your data folder (Help shows where) say what StreamGremlin was doing. They never contain passwords or sign-ins, but they do contain chat names and messages from your stream, so paste only the part around the problem, and only what you're happy to share in public.
+      render: text

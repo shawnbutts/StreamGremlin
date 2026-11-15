@@ -1,5 +1,9 @@
 # Contributing
 
+## Bugs, ideas and security problems
+
+Report bugs and ideas as [GitHub issues](https://github.com/shawnbutts/StreamGremlin/issues/new/choose); the forms ask for what helps. A new feature needs a decision naming who will use it (docs/DECISIONS.md), so open an idea issue before building one. Security problems go privately through [GitHub's security advisories](https://github.com/shawnbutts/StreamGremlin/security/advisories/new), as [SECURITY.md](SECURITY.md) says.
+
 ## Sign your commits (DCO)
 
 Every commit needs a `Signed-off-by` line, which certifies the [Developer Certificate of Origin](https://developercertificate.org) (D-005). `git commit -s` adds it.

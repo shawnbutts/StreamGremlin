@@ -4,8 +4,8 @@ StreamGremlin runs on your own computer and signs in to Twitch, YouTube, OBS and
 
 ## Reporting a problem
 
-- **Email `security@streamgremlin.com`** with what you found, how to make it happen, the version (Help shows it) and your system. Please don't put it in a public issue or chat until it's fixed.
-- **During the beta,** you can also tell the person who invited you, privately.
+- **Report it privately on GitHub:** [open a security advisory](https://github.com/shawnbutts/StreamGremlin/security/advisories/new) (the repository's Security tab, then "Report a vulnerability"), with what you found, how to make it happen, the version (Help shows it) and your system. Only the maintainers can see it. In the app, Help has a button for it.
+- Please don't put it in a public issue, discussion or chat until it's fixed.
 - Please don't include your own sign-ins, tokens or the contents of your data folder. If a log is needed, we'll say which, and StreamGremlin's logs never contain tokens.
 
 We'll say when we've read it, work on a fix, and credit you in the changelog if you'd like. StreamGremlin is made by a small team without a bug bounty.
@@ -28,4 +28,4 @@ Only the newest beta gets fixes. Updating means installing the newest build; you
 
 - Someone who can already use your computer as you, or read your data folder.
 - Twitch's, YouTube's, OBS's or Discord's own security.
-- Builds you didn't get from the person who invited you or from streamgremlin.com.
+- Builds you didn't get from streamgremlin.com or [GitHub](https://github.com/shawnbutts/StreamGremlin).

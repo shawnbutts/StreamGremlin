@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/shawnbutts/StreamGremlin/security/advisories/new
+    about: Report it privately, so it can be fixed before anyone else knows about it.
+  - name: How do I…?
+    url: https://streamgremlin.com/help.html
+    about: Help explains every screen, with pictures. The app has the same text under Help.

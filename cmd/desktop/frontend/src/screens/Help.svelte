@@ -3,7 +3,7 @@
   // and where your data lives. Help for a field sits beside the field; this
   // is the overview.
   import { onMount } from 'svelte';
-  import { getStatus } from '../lib/api';
+  import { ApiError, getStatus, openInBrowser } from '../lib/api';
   // The same text is the website's Help (src/help/guide.html).
   import guide from '../help/guide.html?raw';
 
@@ -18,6 +18,20 @@
   const logsDir = $derived(dataDir ? dataDir + (dataDir.includes('\\') ? '\\' : '/') + 'logs' : '');
   const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
   const mod = mac ? '⌘' : 'Ctrl';
+
+  // Where reports go (D-115): GitHub's issues, and its private security
+  // reports. The engine opens only these exact pages.
+  const issuesURL = 'https://github.com/shawnbutts/StreamGremlin/issues/new/choose';
+  const securityURL = 'https://github.com/shawnbutts/StreamGremlin/security/advisories/new';
+  let openError = $state('');
+  async function open(url: string) {
+    openError = '';
+    try {
+      await openInBrowser(url);
+    } catch (e) {
+      openError = `Couldn’t open your browser (${e instanceof ApiError ? e.message : String(e)}). The address is ${url}`;
+    }
+  }
 
   onMount(() => {
     getStatus()
@@ -86,15 +100,20 @@
 
 <section class="sg-panel card" aria-labelledby="help-report">
   <h2 id="help-report">Something went wrong?</h2>
-  <p>Tell whoever invited you to the beta (or wherever you got StreamGremlin). The most useful report has:</p>
+  <p>Report it on GitHub, where you can also see whether someone has already. You’ll need a free GitHub account. The most useful report has:</p>
   <ul>
     <li>what you did, what you expected, and what happened instead (a screenshot helps);</li>
-    <li>the version{#if version}: <strong>{version}</strong>{/if}, and Windows or macOS;</li>
+    <li>the version{#if version}: <strong>{version}</strong>{/if}, and Windows, macOS or Linux;</li>
     <li>
       the log files from the logs folder{#if logsDir}, <code>{logsDir}</code>{/if}. Logs never contain your passwords or sign-ins,
-      but they do have chat names and messages from your stream.
+      but they do have chat names and messages from your stream, so attach only what you’re happy to share.
     </li>
   </ul>
+  <div class="row-actions">
+    <button type="button" class="button" onclick={() => open(issuesURL)}>Report a problem or idea…</button>
+    <button type="button" class="button" onclick={() => open(securityURL)}>Report a security problem privately…</button>
+  </div>
+  {#if openError}<p class="error" role="alert">{openError}</p>{/if}
 </section>
 
 <section class="sg-panel card" aria-labelledby="help-credits">

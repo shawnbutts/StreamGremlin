@@ -81,7 +81,7 @@ A chat redelivery whose delivery time differs from the first is now treated as t
 
 ### SECURITY.md
 
-How to report a problem privately (`security@streamgremlin.com`, or the person who invited you during the beta), what's supported (the newest beta), and what StreamGremlin does and doesn't protect against.
+How to report a problem privately (GitHub's private security advisories since D-115; at first `security@streamgremlin.com` or the person who invited you), what's supported (the newest beta), and what StreamGremlin does and doesn't protect against.
 
 ## Consequences
 

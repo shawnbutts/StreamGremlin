@@ -9,7 +9,9 @@ version: ${VERSION}
 version_schema: semver
 section: video
 priority: optional
-maintainer: StreamGremlin <security@streamgremlin.com>
+# Debian's package format needs a maintainer with an email address; it's
+# the only place StreamGremlin names one (D-115).
+maintainer: StreamGremlin <security@spicercreek.com>
 description: |-
   Local-first stream automation for Twitch and YouTube.
   Workflows, a Live screen, alerts and overlays, giveaways, points, chat

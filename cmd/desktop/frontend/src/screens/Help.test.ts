@@ -49,6 +49,30 @@ describe('Help', () => {
     expect(report).toMatch(/never contain your passwords/);
   });
 
+  // Reports go to GitHub (D-115): issues, or a private security report.
+  it('opens GitHub to report a problem or a security problem', async () => {
+    const opened: string[] = [];
+    mockFetch({
+      '/v1/status': () => ({ status: 200, body: { ...runningStatus().body, version: '0.1.0-beta.1', data_dir: '/tmp/sg' } }),
+      '/desktop/open-url': (_m, body) => {
+        opened.push((body as { url: string }).url);
+        return { status: 204, body: null };
+      },
+    });
+    const target = document.createElement('main');
+    document.body.appendChild(target);
+    comp = mount(Help, { target });
+    await settle();
+    const buttons = Array.from(target.querySelectorAll('button'));
+    buttons.find((b) => b.textContent?.startsWith('Report a problem'))!.click();
+    buttons.find((b) => b.textContent?.startsWith('Report a security problem'))!.click();
+    await settle();
+    expect(opened).toEqual([
+      'https://github.com/shawnbutts/StreamGremlin/issues/new/choose',
+      'https://github.com/shawnbutts/StreamGremlin/security/advisories/new',
+    ]);
+  });
+
   it('writes the logs folder as Windows does', async () => {
     const el = await start('C:\\Users\\sam\\AppData\\Local\\StreamGremlin');
     expect(el.textContent).toContain('C:\\Users\\sam\\AppData\\Local\\StreamGremlin\\logs');

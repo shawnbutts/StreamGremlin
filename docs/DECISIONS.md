@@ -1970,3 +1970,19 @@ Decided 2026-11-15. The user: "let's do the linux builds and go with th "Linux (
 - **Still in slice 2:** SBOMs.
 - **The raid warning** on Live is now "A burst of new chatters", with one bold line: "A friendly raid needs nothing: just Dismiss. Lock chat or ban only for a hate raid or a flood of bots." Its box gets padding, and the empty status line takes no room. Help and the home page say the same.
 
+## D-115. Going public on GitHub: reports, security, and the history (amends D-005, D-007's findings, D-110)
+
+Decided 2026-11-15. The user: "i think we're close to opening this up to the public. we're going to host this on github (https://github.com/shawnbutts/StreamGremlin). let's move the bug/etc reports there. update the security email to security@spicercreek.com. but only if an email address is appsolutly required. also reivew the git history to make sure we're not going to leak anything when we push to the public repo. also, add issue templates, etc for the gh automation stuff."
+
+- **The code moves to `github.com/shawnbutts/StreamGremlin`.** The module path `code.streamgremlin.com/streamgremlin` stays (D-005); `make site`'s go-import pages now point at GitHub.
+- **Bugs and ideas are GitHub issues,** with two forms: "Something went wrong" (what happened, steps, version, system, where in StreamGremlin, logs with a warning that they hold chat) and "An idea" (who would use it first, as D-001 and AGENTS.md ask, then what it would do, how it's done today, and which bot they come from). Blank issues are off; the chooser links to private security reports and the website's Help. Ideas get GitHub's own `enhancement` label, so no labels need making.
+- **Security reports go through GitHub's private security advisories,** so no email address is needed there. The user turns on "Private vulnerability reporting" in the repository's settings. `security@streamgremlin.com` (D-005) is no longer needed.
+- **The one email address:** a .deb must name a maintainer with an email address, so `packaging/linux/nfpm.yaml` says `StreamGremlin <security@spicercreek.com>`. Nothing else names one.
+- **Help in the app** has "Report a problem or idea…" and "Report a security problem privately…", opening those two GitHub pages; the engine's allow-list opens exactly those two addresses. The beta guide, the website (Help, Privacy, Download, the footer), README, CONTRIBUTING and `SECURITY.md` send people to GitHub instead of "whoever invited you". A test keeps them all saying the same place.
+- **A pull request template:** what and why, how it was checked, `make verify`, sign-off, screen and changelog, and no secrets or real stream data.
+- **No GitHub Actions or Dependabot:** CI stays "much later" (D-007), and Dependabot's pull requests would arrive with nothing to test them.
+- **The history review** (all 218 commits, every branch): gitleaks v8.30.1 found two matches, both test fixtures (OBS's documented example password and the acceptance tests' planted canary token). Searches for anything shaped like a Twitch Client ID (only the made-up one), Google client IDs and secrets, Discord webhooks, GitHub, AWS and Slack tokens, IP addresses and local paths found only made-up test values. No real stream data, exports or real viewers' names. What will be public, for the user to decide on:
+  - **The author and sign-off address `(the user's personal address)`** on every commit.
+  - **A 37 MB macOS build of the app,** `cmd/desktop/desktop`, committed in a1d14f6 and removed in 13d2191. It has no Twitch Client ID or secrets, but holds 689 local paths (`/Users/(the user)/...`) and makes every clone about that much bigger.
+  - **The beta host's name** in the decision log.
+
