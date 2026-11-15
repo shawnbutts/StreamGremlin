@@ -1,0 +1,14 @@
+# The Linux build environment (D-114): Ubuntu 24.04 with the GTK 4 and
+# WebKitGTK 6.0 headers Wails v3 compiles against (it needs GTK 4.10 or
+# newer, so not Debian 12), and Go copied from the official image. Its C
+# library (glibc 2.39) is the oldest the app runs on: Ubuntu 24.04,
+# Debian 13 and Fedora 42 or newer. `make linux` builds it and compiles
+# the app in it.
+ARG GO_VERSION
+FROM docker.io/library/golang:${GO_VERSION} AS go
+FROM docker.io/library/ubuntu:24.04
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libx11-dev \
+ && rm -rf /var/lib/apt/lists/*
+COPY --from=go /usr/local/go /usr/local/go
+ENV PATH=/usr/local/go/bin:$PATH GOPATH=/go

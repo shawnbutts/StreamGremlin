@@ -8,9 +8,13 @@
 package release
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"debug/buildinfo"
 	"debug/pe"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,7 +79,8 @@ func TestChecksums(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg"} {
+	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg",
+		"StreamGremlin-" + version + "-linux-x64.deb", "StreamGremlin-" + version + "-linux-x64.rpm", "StreamGremlin-" + version + "-linux-x64.tar.gz"} {
 		if !strings.Contains(string(sums), f) {
 			t.Errorf("SHA256SUMS.txt misses %s", f)
 		}
@@ -84,6 +89,65 @@ func TestChecksums(t *testing.T) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("checksums: %v\n%s", err, out)
+	}
+}
+
+// The Linux archive holds what the .deb and .rpm do (D-114): the app and
+// command line for linux, the launcher, icons and the documents. The
+// packages themselves are installed and started by make linux-smoke.
+func TestLinuxArchive(t *testing.T) {
+	dir, version := env(t)
+	prefix := "StreamGremlin-" + version + "-linux-x64/"
+	f, err := os.Open(filepath.Join(dir, prefix[:len(prefix)-1]+".tar.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr := tar.NewReader(gz)
+	out := t.TempDir()
+	var names []string
+	for {
+		h, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		name, ok := strings.CutPrefix(h.Name, prefix)
+		if !ok {
+			t.Fatalf("%s is outside %s", h.Name, prefix)
+		}
+		names = append(names, name)
+		if name == "streamgremlin-desktop" || name == "streamgremlin" {
+			if h.Mode != 0o755 {
+				t.Errorf("%s has mode %o", name, h.Mode)
+			}
+			b, err := io.ReadAll(tr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := filepath.Join(out, name)
+			if err := os.WriteFile(p, b, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			checkBuild(t, p, version, "linux")
+		}
+	}
+	for _, want := range []string{"streamgremlin-desktop", "streamgremlin", "com.streamgremlin.StreamGremlin.desktop",
+		"icons/256x256/apps/com.streamgremlin.StreamGremlin.png", "doc/LICENSE", "doc/README.md", "doc/THIRD-PARTY-LICENSES.txt"} {
+		if !slices.Contains(names, want) {
+			t.Errorf("the archive misses %s: %q", want, names)
+		}
+	}
+	for _, ext := range []string{"deb", "rpm"} {
+		if st, err := os.Stat(filepath.Join(dir, "StreamGremlin-"+version+"-linux-x64."+ext)); err != nil || st.Size() < 1<<20 {
+			t.Errorf("no .%s: %v", ext, err)
+		}
 	}
 }
 

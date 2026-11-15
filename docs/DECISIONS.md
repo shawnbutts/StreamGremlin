@@ -1954,3 +1954,19 @@ Decided 2026-11-15. The user: "i think we should a dedicated section in the feat
 - **No new API route or storage change.**
 - **The website:** Features has a Ban lists section (import, checking first, progress, pace, staying in sync, undo, copy and save, the follow-bot review). Its screenshot shows a made-up 250,000-name list being looked up at Twitch's real pace (the stand-in Twitch's rate limit set to Twitch's), with an earlier list that's done.
 - **Fixes found on the way:** the screenshot tool lost Chromium's first three flags to a lint comment in D-112's commit, so it couldn't start; the stand-in Twitch looked accounts up by id by scanning every account, too slow for a list this size, and now keeps an index.
+
+## D-114. M9 slice 2, part one: Linux builds, "beta, lightly tested"
+
+Decided 2026-11-15. The user: "let's do the linux builds and go with th "Linux (beta, lightly tested)" you suggested." Also, on the raid warning: "on twitch raids are generally a good thing. when this section comes up, we should make it clear that "lock chat", etc should only be needed if this is a suspected hate raid or other flood of bad actors. obviously, we have to keep the explaination/instructions short".
+
+- **Which Linux:** Wails v3 needs GTK 4.10 or newer and WebKitGTK 6.0, so Debian 12 is too old. The app is compiled on Ubuntu 24.04 (glibc 2.39), so it runs on Ubuntu 24.04, Debian 13 and Fedora 42 or newer. 64-bit Intel and AMD (`LINUX_ARCH=arm64` builds for ARM, but isn't released).
+- **Built in a container** (`packaging/linux/Containerfile`, Podman or Docker), since the app needs cgo against GTK. Go is copied from the official image of the version that builds everything else. The command line cross-compiles without one.
+- **Packages, made by nfpm v2.48.0** (pinned in `bin/tools`): a .deb and an .rpm, plus a .tar.gz of the same files for other systems. The app is `/usr/bin/streamgremlin-desktop`, the command line `/usr/bin/streamgremlin`, with a launcher and icons named by the app's GTK id `com.streamgremlin.StreamGremlin` (set in the app, so the window matches its launcher). Dependencies: GTK 4 and WebKitGTK 6.0; recommended: GStreamer's good plugins (sounds) and GNOME Keyring. No Stream Deck plugin: Stream Deck's software doesn't run on Linux.
+- **Reproducible:** every file is dated by the commit (`SOURCE_DATE_EPOCH`) before packaging, and the .tar.gz is written by `cmd/release tarball` in name order with fixed owners and modes. Two builds from the same commit gave identical .deb, .rpm and .tar.gz.
+- **Unsigned,** like the others (D-110). The maintainer field names `security@streamgremlin.com`, still to be created (D-005).
+- **Smoke test, `make linux-smoke`:** fresh Ubuntu 24.04, Debian 13 and Fedora 42 containers install the package with their own tool, check no library is missing, run the command line, and start the app on a virtual display until its engine answers. All three pass. Found on the way: the app stops at once without a session D-Bus (Wails' one-window check needs it). Every desktop session has one; the test gives the app its own.
+- **"Linux (beta, lightly tested)"** on the website (home, comparison, Download with a card each for .deb, .rpm and .tar.gz) and in the beta guide (installing, data folder `~/.local/share/streamgremlin`, updating, uninstalling). D-003 stands: no real-stream check until a Linux streamer is involved.
+- **Not checked yet:** sounds playing in the app under WebKitGTK without a click, the keyring prompt, and Wayland. The user's check covers them.
+- **Still in slice 2:** SBOMs.
+- **The raid warning** on Live is now "A burst of new chatters", with one bold line: "A friendly raid needs nothing: just Dismiss. Lock chat or ban only for a hate raid or a flood of bots." Its box gets padding, and the empty status line takes no room. Help and the home page say the same.
+

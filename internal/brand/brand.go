@@ -7,6 +7,9 @@ const (
 	Name = "StreamGremlin"
 	// Slug is the lower-case name used for binaries, Linux paths and formats.
 	Slug = "streamgremlin"
+	// LinuxAppID names the app to Linux desktops: GTK's application id,
+	// the .desktop file and the icon in the Linux package.
+	LinuxAppID = "com.streamgremlin.StreamGremlin"
 	// EnvPrefix starts every environment variable the app reads.
 	EnvPrefix = "STREAMGREMLIN_"
 

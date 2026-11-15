@@ -50,6 +50,27 @@ The dmg also holds the Stream Deck plugin. The command line is inside the
 app, at StreamGremlin.app/Contents/Helpers/streamgremlin.
 
 
+Installing on Linux (beta, lightly tested)
+------------------------------------------
+
+Linux is lightly tested: it's built and started on Ubuntu, Debian and
+Fedora before each release, but nobody has streamed with it yet. Please
+tell us how it goes. It needs a 64-bit Intel or AMD computer and Ubuntu
+24.04, Debian 13, Fedora 42 or newer (or another system as new).
+
+- Ubuntu or Debian:
+  sudo apt install ./StreamGremlin-VERSION-linux-x64.deb
+- Fedora:
+  sudo dnf install ./StreamGremlin-VERSION-linux-x64.rpm
+- Anything else: unpack StreamGremlin-VERSION-linux-x64.tar.gz and run
+  streamgremlin-desktop. It needs GTK 4 and WebKitGTK 6.0 from your system.
+
+Then open StreamGremlin from your applications. The command line is
+streamgremlin. Sign-ins are kept by your desktop's keyring (GNOME Keyring
+or KWallet); without one, they go in an encrypted file in your data folder.
+Stream Deck's software doesn't run on Linux, so the plugin isn't included.
+
+
 Getting started
 ---------------
 
@@ -60,7 +81,7 @@ Getting started
 - Workflows: "when this happens, do that". Start from a template.
 - Live: your chat, moderation, and your own buttons.
 - Chat filters: catch links, shouting, spam and words you don't want.
-- Help (Ctrl+/ on Windows, Cmd+/ on macOS) explains every screen.
+- Help (Ctrl+/ on Windows and Linux, Cmd+/ on macOS) explains every screen.
 
 Stream Deck (Stream Deck 7.1 or later): double-click
 com.streamgremlin.streamdeck.streamDeckPlugin to install it (on Windows, or
@@ -73,7 +94,8 @@ Updating
 --------
 
 Install the new version over the old one: on Windows run the new installer,
-on macOS drag the new app over the old one. Close StreamGremlin first. Your
+on macOS drag the new app over the old one, and on Linux install the new
+package the same way as the first. Close StreamGremlin first. Your
 workflows, settings and sign-ins are kept.
 
 One exception: when StreamGremlin's first public release comes out, beta
@@ -87,7 +109,8 @@ Send it to the person who invited you to the beta. The most useful report
 says:
 - what you did, what you expected, and what happened instead;
 - the version, shown on Home under "Version";
-- Windows or macOS, and which version;
+- Windows, macOS or Linux, and which version (on Linux, which
+  distribution);
 - the log files, if you can: they're in the "logs" folder inside your
   StreamGremlin data folder (below). Logs never contain your passwords or
   sign-in tokens, but they do contain chat names and messages from your
@@ -101,9 +124,11 @@ Where your data is
 
 - Windows: %LocalAppData%\StreamGremlin
 - macOS: ~/Library/Application Support/StreamGremlin
+- Linux: ~/.local/share/streamgremlin
 
 Help, "Your data", shows the exact folder. Passwords and sign-ins are kept
-in Windows Credential Manager or the macOS Keychain, not in that folder.
+in Windows Credential Manager, the macOS Keychain or your Linux desktop's
+keyring, not in that folder.
 Settings, Backups makes copies of your data.
 
 
@@ -119,6 +144,7 @@ Uninstalling
 
 - Windows: Settings, Apps, StreamGremlin, Uninstall.
 - macOS: drag StreamGremlin from Applications to the Bin.
+- Linux: sudo apt remove streamgremlin, or sudo dnf remove streamgremlin.
 
 Uninstalling keeps your data folder, in case you come back. Delete it
 yourself to remove everything.

@@ -1054,7 +1054,8 @@ describe('Live moderating', () => {
     const el = start();
     await settle(60);
     const banner = el.querySelector('.live-raid')!;
-    expect(banner.textContent).toContain('This looks like a raid');
+    expect(banner.textContent).toContain('A burst of new chatters');
+    expect(banner.textContent).toContain('A friendly raid needs nothing: just Dismiss. Lock chat or ban only for a hate raid or a flood of bots.');
     expect(banner.textContent).toContain('3 brand-new Twitch accounts in 30 seconds, right after a raid from Raider.');
     expect(banner.textContent).toContain('Bot_A, Bot_B, YT person');
     await noViolations('raid warning');

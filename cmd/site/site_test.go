@@ -46,7 +46,8 @@ func TestVersionOrder(t *testing.T) {
 func TestSite(t *testing.T) {
 	out := t.TempDir()
 	rel := t.TempDir()
-	for _, f := range []string{"StreamGremlin-0.1.0-beta.2-macos.dmg", "StreamGremlin-0.1.0-beta.10-macos.dmg", "StreamGremlin-0.1.0-beta.10-windows-x64-setup.exe", "notes.txt"} {
+	for _, f := range []string{"StreamGremlin-0.1.0-beta.2-macos.dmg", "StreamGremlin-0.1.0-beta.10-macos.dmg", "StreamGremlin-0.1.0-beta.10-windows-x64-setup.exe",
+		"StreamGremlin-0.1.0-beta.10-linux-x64.deb", "StreamGremlin-0.1.0-beta.10-linux-x64.rpm", "StreamGremlin-0.1.0-beta.10-linux-x64.tar.gz", "notes.txt"} {
 		if err := os.WriteFile(filepath.Join(rel, f), []byte(f), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -111,8 +112,15 @@ func TestSite(t *testing.T) {
 	}
 
 	dl, _ := os.ReadFile(filepath.Join(www, "download.html"))
-	if !strings.Contains(string(dl), "0.1.0-beta.10") || strings.Contains(string(dl), "beta.2-macos") || strings.Count(string(dl), "SHA-256:") != 2 {
-		t.Errorf("the download page should offer only beta.10's two installers:\n%s", dl)
+	if !strings.Contains(string(dl), "0.1.0-beta.10") || strings.Contains(string(dl), "beta.2-macos") || strings.Count(string(dl), "SHA-256:") != 5 {
+		t.Errorf("the download page should offer only beta.10's five installers:\n%s", dl)
+	}
+	// Windows, then macOS, then Linux's three.
+	order := []string{"Download for Windows", "Download for macOS", "Download .deb", "Download .rpm", "Download .tar.gz"}
+	for i := 1; i < len(order); i++ {
+		if a, b := strings.Index(string(dl), order[i-1]), strings.Index(string(dl), order[i]); a < 0 || b < a {
+			t.Errorf("%q should come before %q", order[i-1], order[i])
+		}
 	}
 
 	gi, err := os.ReadFile(filepath.Join(out, "code", "streamgremlin", "internal", "api", "index.html"))

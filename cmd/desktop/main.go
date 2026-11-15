@@ -107,6 +107,9 @@ func run() error {
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
+		// Matches the Linux package's .desktop file, so the window gets its
+		// icon and groups with the launcher.
+		Linux: application.LinuxOptions{ApplicationID: brand.LinuxAppID},
 		// The window plays sounds for workflows, with no click first
 		// (docs/adr/0016-sounds.md). macOS's is set on the window below.
 		Windows: application.WindowsOptions{AdditionalBrowserArgs: []string{"--autoplay-policy=no-user-gesture-required"}},
@@ -140,6 +143,7 @@ func run() error {
 		Hidden:           haveSaved,
 		URL:              "/",
 		BackgroundColour: application.NewRGB(0x08, 0x19, 0x23),
+		Linux:            application.LinuxWindow{Icon: icon},
 		Mac: application.MacWindow{
 			WebviewPreferences: application.MacWebviewPreferences{EnableAutoplayWithoutUserAction: application.Enabled},
 		},

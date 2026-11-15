@@ -1,0 +1,45 @@
+# The Linux packages (D-114), made by nfpm from what `make release-linux`
+# stages, run from the stage folder. The app is /usr/bin/streamgremlin-desktop and the
+# command line /usr/bin/streamgremlin; the launcher and icon are named by
+# the app's GTK id, com.streamgremlin.StreamGremlin.
+name: streamgremlin
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+version_schema: semver
+section: video
+priority: optional
+maintainer: StreamGremlin <security@streamgremlin.com>
+description: |-
+  Local-first stream automation for Twitch and YouTube.
+  Workflows, a Live screen, alerts and overlays, giveaways, points, chat
+  protection and ban lists, running on your own computer.
+vendor: StreamGremlin
+homepage: https://streamgremlin.com
+license: Apache-2.0
+umask: 0o022
+
+contents:
+  - src: ./streamgremlin-desktop
+    dst: /usr/bin/streamgremlin-desktop
+    file_info: {mode: 0755}
+  - src: ./streamgremlin
+    dst: /usr/bin/streamgremlin
+    file_info: {mode: 0755}
+  - src: ./com.streamgremlin.StreamGremlin.desktop
+    dst: /usr/share/applications/com.streamgremlin.StreamGremlin.desktop
+  - src: ./icons/
+    dst: /usr/share/icons/hicolor/
+    type: tree
+  - src: ./doc/
+    dst: /usr/share/doc/streamgremlin/
+    type: tree
+
+overrides:
+  deb:
+    depends: [libgtk-4-1, libwebkitgtk-6.0-4]
+    # Sounds in the app; a keyring for sign-ins (else an encrypted file).
+    recommends: [gstreamer1.0-plugins-good, gnome-keyring]
+  rpm:
+    depends: [gtk4, webkitgtk6.0]
+    recommends: [gstreamer1-plugins-good, gnome-keyring]

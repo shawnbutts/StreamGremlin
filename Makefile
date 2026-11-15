@@ -12,6 +12,8 @@ GOLANGCI_LINT_VERSION := v2.14.0
 GOLANGCI_LINT := $(TOOLS)/golangci-lint
 GOVULNCHECK_VERSION := v1.9.0
 GOVULNCHECK := $(TOOLS)/govulncheck
+NFPM_VERSION := v2.48.0
+NFPM := $(TOOLS)/nfpm
 # How long each fuzz target runs in `make test-fuzz`.
 FUZZTIME ?= 15s
 
@@ -46,7 +48,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: linux linux-smoke release-linux release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -60,6 +62,9 @@ $(GOLANGCI_LINT):
 
 $(GOVULNCHECK):
 	GOBIN=$(TOOLS) $(GO) install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+
+$(NFPM):
+	GOBIN=$(TOOLS) $(GO) install github.com/goreleaser/nfpm/v2/cmd/nfpm@$(NFPM_VERSION)
 
 fmt: $(GOLANGCI_LINT) ## Format Go code
 	$(GOLANGCI_LINT) fmt ./...
@@ -140,6 +145,25 @@ windows: desktop-ui ## Build the Windows app and CLI into ./bin/windows (WINDOWS
 	GOOS=windows GOARCH=$(WINDOWS_ARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/windows/streamgremlin.exe ./cmd/streamgremlin
 	@echo "Copy the bin/windows folder to the Windows computer: app\StreamGremlin.exe is the app, streamgremlin.exe the command line."
 
+# Linux builds (D-114) compile the app in a container, since it links GTK 4
+# and WebKitGTK 6.0 with cgo: Ubuntu 24.04, so it runs on Ubuntu 24.04,
+# Debian 13 and Fedora 42 or newer (packaging/linux/Containerfile). Needs
+# Podman or Docker; another architecture runs under emulation, slowly. The
+# command line needs no cgo and cross-compiles here.
+CONTAINER ?= $(firstword $(shell command -v podman docker 2>/dev/null))
+LINUX_ARCH ?= amd64
+GO_VERSION := $(patsubst go%,%,$(shell $(GO) env GOVERSION))
+LINUX_IMAGE := streamgremlin-linux-build:$(GO_VERSION)-$(LINUX_ARCH)
+linux: desktop-ui ## Build the Linux app and CLI into ./bin/linux/ARCH in a container (LINUX_ARCH=arm64 for ARM; needs Podman or Docker)
+	@test -n "$(CONTAINER)" || { echo "make linux needs Podman or Docker."; exit 1; }
+	$(CONTAINER) build -q --platform linux/$(LINUX_ARCH) --build-arg GO_VERSION=$(GO_VERSION) -t $(LINUX_IMAGE) packaging/linux
+	$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(CURDIR)":/src -v "$$($(GO) env GOMODCACHE)":/go/pkg/mod \
+		-v streamgremlin-gocache-$(LINUX_ARCH):/root/.cache/go-build -w /src/$(DESKTOP) \
+		-e GOFLAGS=-mod=readonly -e GOTOOLCHAIN=local -e LDFLAGS='$(LDFLAGS)' $(LINUX_IMAGE) \
+		sh -c 'go build -trimpath -ldflags "$$LDFLAGS" -o /src/bin/linux/$(LINUX_ARCH)/streamgremlin-desktop .'
+	GOOS=linux GOARCH=$(LINUX_ARCH) CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN)/linux/$(LINUX_ARCH)/streamgremlin ./cmd/streamgremlin
+	@echo "bin/linux/$(LINUX_ARCH)/streamgremlin-desktop is the app, streamgremlin the command line."
+
 # The Stream Deck plugin (M7 slice 5, ADR-0042). Its tests run the plugin
 # against the CLI just built and a stand-in Stream Deck; the installer is
 # bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin, for macOS
@@ -166,17 +190,19 @@ WIN_STAGE := $(RELEASE)/windows-stage
 MAC_CGO := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 ICONS := brand-kit/streamgremlin-icon
 
-release-check:
+release-version:
 	@test -n "$(TWITCH_CLIENT_ID)" || { echo "Set TWITCH_CLIENT_ID: release builds sign in with StreamGremlin's own Twitch app (D-005)."; exit 1; }
 	@test "$(VERSION)" != dev || { echo "Set the version: make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=..."; exit 1; }
 	@$(GO) run ./cmd/release winversion "$(VERSION)" >/dev/null
+
+release-check: release-version
 	@test "$$(uname -s)" = Darwin || { echo "Release builds need macOS, for the dmg."; exit 1; }
 	@command -v makensis >/dev/null || { echo "Release builds need NSIS: brew install makensis"; exit 1; }
 
-release: release-check verify release-windows release-macos ## Beta installers for Windows and macOS into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
+release: release-check verify release-windows release-macos release-linux ## Beta installers for Windows, macOS and Linux into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
 	cd $(RELEASE) && shasum -a 256 StreamGremlin-$(VERSION)-* > SHA256SUMS.txt
 	RELEASE_DIR=$(RELEASE) RELEASE_VERSION=$(VERSION) $(GO) test -tags release -count=1 ./tests/release
-	@echo "Installers in $(RELEASE): send testers the .exe or .dmg and docs/BETA.md."
+	@echo "Installers in $(RELEASE): send testers the .exe, .dmg, .deb, .rpm or .tar.gz and docs/BETA.md."
 
 release-windows: release-check windows streamdeck
 	rm -rf $(WIN_STAGE) && mkdir -p $(WIN_STAGE)/cli "$(WIN_STAGE)/Stream Deck"
@@ -218,6 +244,40 @@ release-macos: release-check desktop-ui streamdeck
 	hdiutil create -quiet -ov -volname "StreamGremlin $(VERSION)" -srcfolder $(MAC_STAGE) -fs HFS+ -format UDZO \
 		-o $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg
 
+# Linux packages (D-114): a .deb, an .rpm and a .tar.gz for LINUX_ARCH,
+# from the same files, dated by the commit so a rebuild is the same bytes.
+LINUX_NAME := $(if $(filter amd64,$(LINUX_ARCH)),x64,$(LINUX_ARCH))
+LINUX_STAGE := $(RELEASE)/linux-stage-$(LINUX_ARCH)
+LINUX_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-linux-$(LINUX_NAME)
+SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || echo 0)
+release-linux: release-version linux $(NFPM)
+	rm -rf $(LINUX_STAGE) && mkdir -p $(LINUX_STAGE)/doc
+	cp $(BIN)/linux/$(LINUX_ARCH)/streamgremlin-desktop $(BIN)/linux/$(LINUX_ARCH)/streamgremlin $(LINUX_STAGE)/
+	cp packaging/linux/com.streamgremlin.StreamGremlin.desktop $(LINUX_STAGE)/
+	for s in 16 32 48 64 128 256 512; do \
+		mkdir -p $(LINUX_STAGE)/icons/$${s}x$${s}/apps && \
+		cp $(ICONS)-$$s.png $(LINUX_STAGE)/icons/$${s}x$${s}/apps/com.streamgremlin.StreamGremlin.png || exit 1; \
+	done
+	cp docs/BETA.md $(LINUX_STAGE)/doc/README.md
+	cp LICENSE THIRD-PARTY-NOTICES.md THIRD-PARTY-LICENSES.txt $(LINUX_STAGE)/doc/
+	$(GO) run ./cmd/release stamp $(LINUX_STAGE) $(SOURCE_DATE_EPOCH)
+	for p in deb rpm; do \
+		(cd $(LINUX_STAGE) && ARCH=$(LINUX_ARCH) VERSION=$(VERSION) SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH) \
+			$(NFPM) package -f $(CURDIR)/packaging/linux/nfpm.yaml -p $$p -t $(LINUX_OUT).$$p) || exit 1; \
+	done
+	$(GO) run ./cmd/release tarball $(LINUX_OUT).tar.gz $(LINUX_STAGE) StreamGremlin-$(VERSION)-linux-$(LINUX_NAME) $(SOURCE_DATE_EPOCH)
+
+# Installs the Linux packages in fresh containers of the oldest systems
+# they're for and starts the app (packaging/linux/smoke.sh).
+LINUX_SMOKE := ubuntu:24.04=deb debian:trixie=deb fedora:42=rpm
+linux-smoke: ## Install the Linux packages in fresh Ubuntu, Debian and Fedora containers and start the app (VERSION=...)
+	@test "$(VERSION)" != dev || { echo "Set the version of the packages in bin/release: make linux-smoke VERSION=0.1.0-beta.1"; exit 1; }
+	for pair in $(LINUX_SMOKE); do \
+		image=$${pair%=*} && ext=$${pair#*=} && echo "== $$image" && \
+		$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(RELEASE)":/pkgs:ro -v "$(CURDIR)/packaging/linux/smoke.sh":/smoke.sh:ro \
+			docker.io/library/$$image sh /smoke.sh /pkgs/StreamGremlin-$(VERSION)-linux-$(LINUX_NAME).$$ext || exit 1; \
+	done
+
 # THIRD-PARTY-LICENSES.txt holds the licence of every Go module built into
 # the app and CLI, on every platform; THIRD-PARTY-NOTICES.md must name each.
 notices: ## Rewrite THIRD-PARTY-LICENSES.txt after Go modules change
@@ -229,4 +289,4 @@ notices-check:
 verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/linux $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

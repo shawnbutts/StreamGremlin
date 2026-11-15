@@ -68,13 +68,13 @@ STREAMGREMLIN_TEST_OS_KEYRING=1 go test ./internal/secrets -run TestRealKeyring 
 
 ## Beta installers
 
-On a Mac with Xcode's command-line tools and NSIS (`brew install makensis`):
+On a Mac with Xcode's command-line tools, NSIS (`brew install makensis`) and Podman or Docker:
 
 ```sh
 make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
 ```
 
-It runs `make verify`, then writes the Windows installer, the macOS disk image and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). Both are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
+It runs `make verify`, then writes the Windows installer, the macOS disk image, the Linux `.deb`, `.rpm` and `.tar.gz`, and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). All are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
 
 ## Build for Windows from a Mac
 
@@ -87,6 +87,19 @@ make windows TWITCH_CLIENT_ID=...    # with the built-in Client ID, as with make
 ```
 
 Copy the whole `bin/windows` folder to the Windows computer, and run `app\StreamGremlin.exe`. The app and the CLI stay in separate folders because Windows (and macOS) file names ignore case: `StreamGremlin.exe` and `streamgremlin.exe` would be the same file. The app needs Microsoft's WebView2, which Windows 10 and 11 include. The build isn't code-signed yet, so Windows SmartScreen may warn the first time: choose "More info", then "Run anyway".
+
+## Build for Linux
+
+The Linux app links GTK 4 and WebKitGTK 6.0 with cgo, so it's compiled in a container (Ubuntu 24.04, `packaging/linux/Containerfile`) with Podman or Docker, from macOS or Linux. The command line cross-compiles without one.
+
+```sh
+make linux                           # bin/linux/amd64/streamgremlin-desktop and streamgremlin
+make linux LINUX_ARCH=arm64          # for ARM (fast on an Apple silicon Mac; amd64 runs emulated, slowly)
+make release-linux VERSION=... TWITCH_CLIENT_ID=...   # the .deb, .rpm and .tar.gz in bin/release
+make linux-smoke VERSION=...         # install them in fresh Ubuntu 24.04, Debian 13 and Fedora 42 and start the app
+```
+
+The packages are the same bytes each time they're built from the same commit. Linux is "lightly tested" (D-003): each release gets `make linux-smoke`, not a real stream.
 
 ## How work is done
 

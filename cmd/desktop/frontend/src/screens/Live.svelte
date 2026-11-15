@@ -783,12 +783,13 @@
   {#if raid}
     {@const r = raid}
     <section class="sg-panel live-raid" aria-labelledby="live-raid-heading">
-      <h2 id="live-raid-heading"><span aria-hidden="true">!</span> {r.test ? 'Test: ' : ''}This looks like a raid</h2>
+      <h2 id="live-raid-heading"><span aria-hidden="true">!</span> {r.test ? 'Test: ' : ''}A burst of new chatters</h2>
       <p>
         {r.count} {r.reason === 'new_accounts' ? 'brand-new Twitch accounts' : 'first-time chatters'} in {r.window_seconds} seconds{r.after_raid
           ? `, right after a raid from ${r.after_raid}`
           : ''}{r.locked ? '. Chat was locked.' : '.'}
       </p>
+      <p class="live-raid-advice">A friendly raid needs nothing: just Dismiss. Lock chat or ban only for a hate raid or a flood of bots.</p>
       <p class="sg-muted live-raid-names">{r.accounts.map((a) => a.display_name).join(', ')}{r.count > r.accounts.length ? ', …' : ''}</p>
       <div class="row-actions">
         {#if youIn && !lock && !r.test}
@@ -1265,6 +1266,22 @@
   .live-raid {
     border-left: 4px solid var(--sg-danger, #d32f2f);
     margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+  }
+  .live-raid h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.15rem;
+  }
+  .live-raid p {
+    margin: 0.3rem 0;
+  }
+  .live-raid-advice {
+    font-weight: 600;
+  }
+  /* The status line takes no room until it says something. */
+  .live-raid .saved:empty {
+    min-height: 0;
+    margin: 0;
   }
   .live-raid-names {
     overflow-wrap: anywhere;

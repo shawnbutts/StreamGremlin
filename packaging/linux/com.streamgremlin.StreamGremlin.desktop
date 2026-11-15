@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=StreamGremlin
+GenericName=Stream automation
+Comment=Local-first stream automation for Twitch and YouTube
+Exec=streamgremlin-desktop
+Icon=com.streamgremlin.StreamGremlin
+Terminal=false
+Categories=AudioVideo;Video;Network;
+Keywords=Twitch;YouTube;stream;bot;OBS;
+StartupWMClass=com.streamgremlin.StreamGremlin
+StartupNotify=true

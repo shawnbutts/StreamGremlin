@@ -70,7 +70,7 @@ type Shot struct {
 var shots = map[string]Shot{
 	"home":            {"home.webp", "The Home screen: nothing needs you, and the Get set up checklist with three of four steps ticked."},
 	"live":            {"live.webp", "The Live screen: chat in the middle with timestamps and badges, and coloured buttons with icons on the right."},
-	"raid-guard":      {"raid-guard.webp", "The raid guard's warning on Live: four first-time chatters right after a raid, with Lock chat, Ban these accounts and Dismiss."},
+	"raid-guard":      {"raid-guard.webp", "The raid guard’s warning on Live: a burst of four first-time chatters right after a raid, saying a friendly raid needs only Dismiss, with Lock chat, Ban these accounts and Dismiss."},
 	"workflows":       {"workflows.webp", "The Workflows screen: workflows in groups, each with its trigger, a switch, Test, Edit and Runs."},
 	"workflow-editor": {"workflow-editor.webp", "The workflow editor: when a viewer types !clip, for VIPs, mods and you."},
 	"events":          {"events.webp", "The Events screen: everything StreamGremlin heard from a made-up stream, newest first."},
@@ -98,9 +98,20 @@ var helpShots = map[string]string{
 // Download is one installer on the download page.
 type Download struct {
 	File   string
-	System string
+	System string // the heading: "Windows", "Linux: Fedora (beta)"
+	Button string // after "Download": "for Windows", ".rpm"
 	Size   string
 	SHA256 string
+	rank   int
+}
+
+// kinds says what each installer is for, in the order the page lists them.
+var kinds = []struct{ suffix, system, button string }{
+	{"-setup.exe", "Windows", "for Windows"},
+	{".dmg", "macOS", "for macOS"},
+	{".deb", "Linux: Ubuntu and Debian (beta)", ".deb"},
+	{".rpm", "Linux: Fedora (beta)", ".rpm"},
+	{".tar.gz", "Linux: other systems (beta)", ".tar.gz"},
 }
 
 // Page is what every template gets.
@@ -288,10 +299,17 @@ func findDownloads(dir, to string) (string, []Download, error) {
 		if err != nil {
 			return "", nil, err
 		}
-		system := map[string]string{"macos": "macOS", "windows": "Windows", "linux": "Linux"}[installer.FindStringSubmatch(f)[2]]
-		out = append(out, Download{File: f, System: system, Size: humanSize(size), SHA256: sum})
+		d := Download{File: f, System: "Other", Button: "", Size: humanSize(size), SHA256: sum, rank: len(kinds)}
+		for i, k := range kinds {
+			if strings.HasSuffix(f, k.suffix) {
+				d.System, d.Button, d.rank = k.system, k.button, i
+				break
+			}
+		}
+		out = append(out, d)
 		sums.WriteString(sum + "  " + f + "\n")
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].rank < out[j].rank })
 	return newest, out, writeFile(filepath.Join(to, "SHA256SUMS.txt"), []byte(sums.String()))
 }
 
