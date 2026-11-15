@@ -112,6 +112,7 @@ func TestEveryTemplateWorks(t *testing.T) {
 	ids, wfIDs := map[string]bool{}, map[string]bool{}
 	var claims []commands.Claim
 	var sims []events.Simulation
+	sent := map[string]bool{}
 	for _, tp := range all {
 		if ids[tp.ID] || tp.Title == "" || tp.Description == "" || !contains(templates.Categories, tp.Category) {
 			t.Errorf("%s: %+v", tp.ID, tp)
@@ -154,7 +155,14 @@ func TestEveryTemplateWorks(t *testing.T) {
 		if len(tr.Sources) > 0 {
 			sim.Source = tr.Sources[0] // a YouTube-only template hears a YouTube test event
 		}
-		sims = append(sims, sim)
+		// Templates with the same trigger share one test event: sent twice,
+		// each would run twice, and a drop-queue workflow drops the second
+		// when the first is still running on a slow computer.
+		key, _ := json.Marshal([]any{sim.Type, sim.Source, sim.Fields})
+		if !sent[string(key)] {
+			sent[string(key)] = true
+			sims = append(sims, sim)
+		}
 	}
 	for _, s := range sims {
 		env, err := s.Build()

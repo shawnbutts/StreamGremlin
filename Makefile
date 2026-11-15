@@ -164,7 +164,7 @@ LINUX_IMAGE := streamgremlin-linux-build:$(GO_VERSION)-$(LINUX_ARCH)
 linux: desktop-ui ## Build the Linux app and CLI into ./bin/linux/ARCH in a container (LINUX_ARCH=arm64 for ARM; needs Podman or Docker)
 	@test -n "$(CONTAINER)" || { echo "make linux needs Podman or Docker."; exit 1; }
 	mkdir -p $(BIN)/linux/$(LINUX_ARCH)
-	$(CONTAINER) build -q --platform linux/$(LINUX_ARCH) --build-arg GO_VERSION=$(GO_VERSION) -t $(LINUX_IMAGE) packaging/linux
+	$(CONTAINER) build -q --platform linux/$(LINUX_ARCH) --build-arg GO_VERSION=$(GO_VERSION) -t $(LINUX_IMAGE) -f packaging/linux/Containerfile packaging/linux
 	$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(CURDIR)":/src -v "$$($(GO) env GOMODCACHE)":/go/pkg/mod \
 		-v streamgremlin-gocache-$(LINUX_ARCH):/root/.cache/go-build -w /src/$(DESKTOP) \
 		-e GOFLAGS=-mod=readonly -e GOTOOLCHAIN=local -e LDFLAGS='$(LDFLAGS)' $(LINUX_IMAGE) \

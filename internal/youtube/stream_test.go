@@ -194,12 +194,21 @@ func TestPolls(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	ups := youtubeChat(t, r, TypePollUpdated)
-	if len(ups) == 0 {
-		t.Fatal("no votes recorded")
-	}
-	if pl := payloadMap(t, ups[len(ups)-1]); pl["leader"] != "Go" || pl["votes"] != 3.0 {
-		t.Fatalf("%v", pl)
+	// The update event is written just after the count changes.
+	for {
+		ups := youtubeChat(t, r, TypePollUpdated)
+		if len(ups) > 0 {
+			if pl := payloadMap(t, ups[len(ups)-1]); pl["votes"] == 3.0 {
+				if pl["leader"] != "Go" {
+					t.Fatalf("%v", pl)
+				}
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no update for all three votes: %d updates", len(ups))
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	ended, err := s.EndPoll(ctx)
 	if err != nil || ended.Status != "closed" || ended.Choices[1].Votes != 2 {
