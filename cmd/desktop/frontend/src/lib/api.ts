@@ -2026,7 +2026,7 @@ export const stopPairing = () => api<void>('DELETE', '/v1/clients/pairing');
 
 // Chat filters (D-085).
 
-export type FilterRule = 'words' | 'links' | 'emotes' | 'caps' | 'symbols' | 'repeats';
+export type FilterRule = 'words' | 'new_accounts' | 'links' | 'emotes' | 'caps' | 'symbols' | 'art' | 'repeats';
 export type FilterAction = 'delete' | 'timeout' | 'warn';
 
 export interface FilterRuleSettings {
@@ -2047,6 +2047,9 @@ export interface FilterSettings {
   caps: FilterRuleSettings & { min_letters: number; percent: number };
   symbols: FilterRuleSettings & { min_length: number; percent: number };
   repeats: FilterRuleSettings & { times: number };
+  /** M8 slice 4 (D-108). */
+  new_accounts: FilterRuleSettings & { days: number };
+  art: FilterRuleSettings & { min_chars: number };
 }
 /** One message a filter caught, with Twitch's answer (or test). */
 export interface FilterCatch {

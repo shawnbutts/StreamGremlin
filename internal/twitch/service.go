@@ -102,9 +102,11 @@ type Service struct {
 	own         chat.OwnSends // workflows' messages sent as you, to skip their echo
 	pictures    pictureCache
 
-	chatMu  sync.Mutex
-	chat    ChatStatus
-	channel ChannelInfo // the channel's title and category
+	chatMu sync.Mutex
+	// madeCache caches when accounts were made (bans.go).
+	madeCache accountCache
+	chat      ChatStatus
+	channel   ChannelInfo // the channel's title and category
 	// clipChecks are the waits before each look for a new clip; nil is
 	// Twitch's minute (tests shorten it).
 	clipChecks []time.Duration

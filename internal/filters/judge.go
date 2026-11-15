@@ -25,10 +25,13 @@ const (
 	RuleCaps    = "caps"
 	RuleSymbols = "symbols"
 	RuleRepeats = "repeats"
+	// M8 slice 4 (D-108).
+	RuleNewAccounts = "new_accounts"
+	RuleArt         = "art"
 )
 
 // Order is the order rules are tried in.
-var Order = []string{RuleWords, RuleLinks, RuleEmotes, RuleCaps, RuleSymbols, RuleRepeats}
+var Order = []string{RuleWords, RuleNewAccounts, RuleLinks, RuleEmotes, RuleCaps, RuleSymbols, RuleArt, RuleRepeats}
 
 // What a rule does. A filter never bans: a mistake would cost a viewer
 // too much.
@@ -120,6 +123,20 @@ type RepeatRule struct {
 	Times int `json:"times"`
 }
 
+// NewAccountRule catches messages from Twitch accounts younger than Days
+// days (D-108). YouTube gives no account age, so it never applies there.
+type NewAccountRule struct {
+	Rule
+	Days int `json:"days"`
+}
+
+// ArtRule catches text art: at least MinChars of the characters such
+// pictures are drawn with (Braille patterns, blocks, box drawing).
+type ArtRule struct {
+	Rule
+	MinChars int `json:"min_chars"`
+}
+
 // WordRule catches the streamer's words and phrases.
 type WordRule struct {
 	Rule
@@ -135,6 +152,9 @@ type Settings struct {
 	Caps    CapsRule   `json:"caps"`
 	Symbols SymbolRule `json:"symbols"`
 	Repeats RepeatRule `json:"repeats"`
+	// M8 slice 4 (D-108): off until turned on.
+	NewAccounts NewAccountRule `json:"new_accounts"`
+	Art         ArtRule        `json:"art"`
 }
 
 // Defaults are the settings before any are saved: everything off.
@@ -147,12 +167,15 @@ func Defaults() Settings {
 		Caps:    CapsRule{Rule: r, MinLetters: 10, Percent: 70},
 		Symbols: SymbolRule{Rule: r, MinLength: 15, Percent: 50},
 		Repeats: RepeatRule{Rule: r, Times: 3},
+		// New accounts: subscribers are left alone by default too.
+		NewAccounts: NewAccountRule{Rule: Rule{Action: ActionDelete, ExemptVIPs: true, ExemptSubscribers: true}, Days: 7},
+		Art:         ArtRule{Rule: r, MinChars: 20},
 	}
 }
 
 // rules are the rules in Order.
 func (s *Settings) rules() []*Rule {
-	return []*Rule{&s.Words.Rule, &s.Links.Rule, &s.Emotes.Rule, &s.Caps.Rule, &s.Symbols.Rule, &s.Repeats.Rule}
+	return []*Rule{&s.Words.Rule, &s.NewAccounts.Rule, &s.Links.Rule, &s.Emotes.Rule, &s.Caps.Rule, &s.Symbols.Rule, &s.Art.Rule, &s.Repeats.Rule}
 }
 
 // RuleFor returns the named rule's common settings.
@@ -169,7 +192,7 @@ var (
 	spaces       = regexp.MustCompile(`\s+`)
 	inRange      = func(n, lo, hi int) bool { return n >= lo && n <= hi }
 	friendlyName = map[string]string{RuleWords: "Words", RuleLinks: "Links", RuleEmotes: "Emotes", RuleCaps: "Capitals",
-		RuleSymbols: "Symbols", RuleRepeats: "Repeats"}
+		RuleSymbols: "Symbols", RuleRepeats: "Repeats", RuleNewAccounts: "New accounts", RuleArt: "Text art"}
 )
 
 // Normalized checks the settings and returns them tidied: words trimmed,
@@ -200,6 +223,10 @@ func (s Settings) Normalized() (Settings, error) {
 		return s, invalid("Emotes: the most allowed is 1 to 100")
 	case !inRange(s.Repeats.Times, 2, 10):
 		return s, invalid("Repeats: the same message 2 to 10 times")
+	case !inRange(s.NewAccounts.Days, 1, 365):
+		return s, invalid("New accounts: younger than 1 to 365 days")
+	case !inRange(s.Art.MinChars, 5, 500):
+		return s, invalid("Text art: 5 to 500 drawing characters")
 	case len(s.Words.List) > MaxWords:
 		return s, invalid("up to %d words and phrases", MaxWords)
 	case len(s.Links.Allowed) > MaxAllowed:
@@ -245,12 +272,14 @@ func (s Settings) Check() error {
 // moderators see.
 func Reason(rule string) string {
 	return map[string]string{
-		RuleWords:   "That word isn't allowed here.",
-		RuleLinks:   "Please don't post links here.",
-		RuleEmotes:  "Please don't spam emotes.",
-		RuleCaps:    "Please don't type in all capitals.",
-		RuleSymbols: "Please don't spam symbols.",
-		RuleRepeats: "Please don't repeat the same message.",
+		RuleWords:       "That word isn't allowed here.",
+		RuleLinks:       "Please don't post links here.",
+		RuleEmotes:      "Please don't spam emotes.",
+		RuleCaps:        "Please don't type in all capitals.",
+		RuleSymbols:     "Please don't spam symbols.",
+		RuleRepeats:     "Please don't repeat the same message.",
+		RuleNewAccounts: "Please wait a few days: new accounts can't chat here yet.",
+		RuleArt:         "Please don't post text art.",
 	}[rule]
 }
 
@@ -267,7 +296,9 @@ type Message struct {
 	Text          string
 	// Emotes are the emotes' names in the message, once per use.
 	Emotes []string
-	At     time.Time
+	// AccountAgeDays is how old the Twitch account is, when known.
+	AccountAgeDays *int
+	At             time.Time
 	// Permits, when set, are the viewers allowed to post links now.
 	Permits *Permits
 }
@@ -341,6 +372,8 @@ func (c *Compiled) Judge(m Message, repeats *Repeats) string {
 	switch {
 	case applies(s.Words.Rule) && c.words != nil && c.words.MatchString(m.Text):
 		return RuleWords
+	case applies(s.NewAccounts.Rule) && m.Platform != "youtube" && m.AccountAgeDays != nil && *m.AccountAgeDays < s.NewAccounts.Days:
+		return RuleNewAccounts
 	case applies(s.Links.Rule) && !m.Permits.Allowed(m.Platform, m.Login, m.At) && hasLink(m.Text, s.Links.Allowed):
 		return RuleLinks
 	case applies(s.Emotes.Rule) && len(m.Emotes) > s.Emotes.Max:
@@ -349,10 +382,29 @@ func (c *Compiled) Judge(m Message, repeats *Repeats) string {
 		return RuleCaps
 	case applies(s.Symbols.Rule) && symbols(plain, s.Symbols.MinLength, s.Symbols.Percent):
 		return RuleSymbols
+	case applies(s.Art.Rule) && artChars(m.Text) >= s.Art.MinChars:
+		return RuleArt
 	case repeated:
 		return RuleRepeats
 	}
 	return ""
+}
+
+// artChars counts the characters text art is drawn with: Braille
+// patterns, block elements, box drawing, and the shade and geometric
+// shapes often mixed in.
+func artChars(text string) int {
+	n := 0
+	for _, r := range text {
+		switch {
+		case r >= 0x2800 && r <= 0x28FF, // Braille patterns
+			r >= 0x2580 && r <= 0x259F, // block elements: ▀ ▄ █ ░ ▒ ▓
+			r >= 0x2500 && r <= 0x257F, // box drawing
+			r >= 0x25A0 && r <= 0x25FF: // geometric shapes
+			n++
+		}
+	}
+	return n
 }
 
 // withoutEmotes drops the emotes' names, so "KEKW" isn't shouting.

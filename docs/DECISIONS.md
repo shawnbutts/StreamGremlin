@@ -1884,3 +1884,13 @@ Decided 2026-11-14, building M8 slice 3 after the user's "proceed". As D-104 set
   - **Dismiss**.
 - **Settings** on Chat filters (**Raid guard**), with **Test the warning** (a test event: nothing locks, no workflow runs outside a test); `streamgremlin raidguard`; `/v1/raid-guard`.
 - **Not done:** an alert for YouTube-only bursts beyond first-time chatters (YouTube says nothing of account age), and unlocking on its own (never, by D-104).
+
+## D-108. M8 slice 4: New accounts and Text art filters
+
+Decided 2026-11-14, building M8 slice 4 after the user's "proceed". Two more chat filters, off until turned on, acting on their own like the others (D-104):
+
+- **New accounts:** a message from a Twitch account younger than a number of days (7 by default) is deleted, timed out or warned. The account's age comes from Get Users `created_at`, asked once per account and remembered. YouTube gives no account age, so it never applies there. Subscribers and VIPs are left alone by default, as are you and your mods always.
+  - Changed from the plan's "a first-time chatter whose account is younger than N days": a hate raid's accounts send several messages, and only the first would have been caught. The rule judges every message from a young account. The raid guard (D-107) is what watches for first-time chatters.
+- **Text art:** a message with at least a number (20 by default) of the characters text pictures are drawn with is caught: Braille patterns, block elements, box drawing, geometric shapes.
+- **Order:** words, new accounts, links, emotes, capitals, symbols, text art, repeats. The first that matches acts.
+- **Saving the filters** (`PUT /v1/filters`) now starts from the saved settings, so a client that doesn't know a newer rule leaves it as it was, rather than being refused.

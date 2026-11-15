@@ -271,3 +271,30 @@ func TestPermitLetsALinkThrough(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 }
+
+// New accounts (D-108): a message from a Twitch account made a day ago is
+// deleted; an old account's isn't; an account whose age Twitch can't say
+// isn't judged by age.
+func TestNewAccountsFilter(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.svc.o.AccountCreated = func(_ context.Context, id string) (time.Time, bool) {
+		switch id {
+		case "1":
+			return time.Now().Add(-24 * time.Hour), true
+		case "2":
+			return time.Now().Add(-400 * 24 * time.Hour), true
+		}
+		return time.Time{}, false
+	}
+	r.set(func(s *Settings) { s.NewAccounts.On = true })
+	for _, id := range []string{"1", "2", "3"} {
+		r.svc.handle(ctx, r.say(id, "viewer", "hello", events.Confirmed, nil))
+	}
+	if r.tw.count() != 1 || r.tw.sent[0].Action != twitch.ModDelete {
+		t.Fatalf("%+v", r.tw.sent)
+	}
+	if c := r.caught(); len(c) != 1 || c[0]["rule"] != RuleNewAccounts {
+		t.Fatalf("%v", c)
+	}
+}

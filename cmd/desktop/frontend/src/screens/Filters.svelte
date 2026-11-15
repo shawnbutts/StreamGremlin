@@ -42,7 +42,7 @@
   let tryRole = $state('viewer');
   let tryResult = $state('');
 
-  const order: FilterRule[] = ['words', 'links', 'emotes', 'caps', 'symbols', 'repeats'];
+  const order: FilterRule[] = ['words', 'new_accounts', 'links', 'emotes', 'caps', 'symbols', 'art', 'repeats'];
   const ruleName: Record<FilterRule, string> = {
     words: 'Words',
     links: 'Links',
@@ -50,6 +50,8 @@
     caps: 'Capitals',
     symbols: 'Symbols',
     repeats: 'Repeats',
+    new_accounts: 'New accounts',
+    art: 'Text art',
   };
   const ruleHelp: Record<FilterRule, string> = {
     words: 'Your words and phrases, as whole words, in any case. A * at the start or end matches the rest of a word: spoil* catches spoiler.',
@@ -58,6 +60,8 @@
     caps: 'Messages mostly in capitals. Emotes’ names don’t count.',
     symbols: 'Messages mostly of symbols, like !!!!! or ░░░░.',
     repeats: 'The same message from the same viewer again and again within a minute, ignoring case and spaces.',
+    new_accounts: 'Messages from Twitch accounts made only days ago, the kind hate raids and spam bots use. Twitch only: YouTube doesn’t say how old an account is.',
+    art: 'Pictures drawn in text, with Braille dots, blocks and box lines, like ⣿⣿⣿ or ▀▄▀▄.',
   };
   const actionWords: Record<string, string> = { delete: 'deleted', timeout: 'timed out', warn: 'warned' };
   const stateWords: Record<FilterCatch['state'], string> = { done: 'Done', refused: 'Refused', unknown: 'Unknown', test: 'Test: nothing sent' };
@@ -126,7 +130,7 @@
       const rule = s[r] as FilterRuleSettings;
       rule.seconds = rule.action === 'timeout' ? Number(rule.seconds) || 0 : 0;
     }
-    for (const [k, f] of [['emotes', 'max'], ['caps', 'min_letters'], ['caps', 'percent'], ['symbols', 'min_length'], ['symbols', 'percent'], ['repeats', 'times']] as const) {
+    for (const [k, f] of [['emotes', 'max'], ['caps', 'min_letters'], ['caps', 'percent'], ['symbols', 'min_length'], ['symbols', 'percent'], ['repeats', 'times'], ['new_accounts', 'days'], ['art', 'min_chars']] as const) {
       (s[k] as unknown as Record<string, number>)[f] = Number((s[k] as unknown as Record<string, number>)[f]);
     }
     return s;
@@ -288,6 +292,10 @@
                 <label class="field inline-field"><span>Symbols (%)</span><input class="sg-input" type="number" min="1" max="100" bind:value={form.symbols.percent} /></label>
               {:else if r === 'repeats'}
                 <label class="field inline-field"><span>Times in a minute</span><input class="sg-input" type="number" min="2" max="10" bind:value={form.repeats.times} /></label>
+              {:else if r === 'new_accounts'}
+                <label class="field inline-field"><span>Younger than (days)</span><input class="sg-input" type="number" min="1" max="365" bind:value={form.new_accounts.days} /></label>
+              {:else if r === 'art'}
+                <label class="field inline-field"><span>At least (drawing characters)</span><input class="sg-input" type="number" min="5" max="500" bind:value={form.art.min_chars} /></label>
               {/if}
             </div>
             {#if rule.action === 'warn'}

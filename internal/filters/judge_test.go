@@ -275,12 +275,52 @@ func TestCheck(t *testing.T) {
 }
 
 func TestReasonsAndOrder(t *testing.T) {
-	if len(Order) != 6 || Order[0] != RuleWords || Order[1] != RuleLinks {
+	if len(Order) != 8 || Order[0] != RuleWords || Order[1] != RuleNewAccounts || Order[2] != RuleLinks || Order[6] != RuleArt {
 		t.Fatalf("order %v", Order)
 	}
 	for _, r := range Order {
 		if !strings.HasPrefix(Reason(r), "Please") && !strings.HasPrefix(Reason(r), "That") {
 			t.Errorf("%s: %q", r, Reason(r))
 		}
+	}
+}
+
+// New accounts (D-108): by age on Twitch, never on YouTube nor without an
+// age; subscribers and VIPs left alone by default. Text art: Braille,
+// blocks and box drawing, counted.
+func TestNewAccountsAndArt(t *testing.T) {
+	s := Defaults()
+	s.On, s.NewAccounts.On, s.Art.On = true, true, true
+	c, err := Compile(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	age := func(d int) *int { return &d }
+	for _, x := range []struct {
+		m    Message
+		want string
+	}{
+		{Message{Platform: "twitch", Role: "viewer", Text: "hi", AccountAgeDays: age(1)}, RuleNewAccounts},
+		{Message{Platform: "twitch", Role: "viewer", Text: "hi", AccountAgeDays: age(7)}, ""},
+		{Message{Platform: "twitch", Role: "viewer", Text: "hi"}, ""},
+		{Message{Platform: "youtube", Role: "viewer", Text: "hi", AccountAgeDays: age(0)}, ""},
+		{Message{Platform: "twitch", Role: "subscriber", IsSubscriber: true, Text: "hi", AccountAgeDays: age(0)}, ""},
+		{Message{Platform: "twitch", Role: "viewer", Text: strings.Repeat("⣿", 25)}, RuleArt},
+		{Message{Platform: "twitch", Role: "viewer", Text: "▀▄▀▄▀▄▀▄▀▄ ░░░░░ ▓▓▓▓▓ ┌──┐└──┘"}, RuleArt},
+		{Message{Platform: "twitch", Role: "viewer", Text: "nice ⣿⣿ art"}, ""},
+	} {
+		if got := c.Judge(x.m, nil); got != x.want {
+			t.Errorf("%+v: %q, want %q", x.m, got, x.want)
+		}
+	}
+	bad := Defaults()
+	bad.NewAccounts.Days = 0
+	if bad.Check() == nil {
+		t.Fatal("0 days")
+	}
+	bad = Defaults()
+	bad.Art.MinChars = 4
+	if bad.Check() == nil {
+		t.Fatal("4 characters")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -279,3 +280,34 @@ func containsScope(list []string, s string) bool {
 
 // StreamerID is your channel's user id, when signed in.
 func (s *Service) StreamerID() string { return s.streamer.Status().UserID }
+
+// accountCache remembers when accounts were made (an account's age never
+// changes), for the New accounts filter (D-108).
+type accountCache struct {
+	mu   sync.Mutex
+	made map[string]time.Time
+}
+
+const maxAccountCache = 50_000
+
+// AccountMade is AccountCreated asked once per account and remembered;
+// false when Twitch couldn't say.
+func (s *Service) AccountMade(ctx context.Context, userID string) (time.Time, bool) {
+	s.madeCache.mu.Lock()
+	t, ok := s.madeCache.made[userID]
+	s.madeCache.mu.Unlock()
+	if ok {
+		return t, true
+	}
+	t, err := s.AccountCreated(ctx, userID)
+	if err != nil {
+		return time.Time{}, false
+	}
+	s.madeCache.mu.Lock()
+	if s.madeCache.made == nil || len(s.madeCache.made) >= maxAccountCache {
+		s.madeCache.made = map[string]time.Time{}
+	}
+	s.madeCache.made[userID] = t
+	s.madeCache.mu.Unlock()
+	return t, true
+}

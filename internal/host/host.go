@@ -243,7 +243,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	mods.UseYouTube(h.youtube)
 	h.filters = filters.New(filters.Options{Inbox: inbox, Settings: set, Moderation: mods, Logger: log,
 		BotID:            func() string { a, _ := h.twitch.Account(twitch.RoleBot); return a.Status().UserID },
-		YouTubeQuotaLeft: h.youtube.QuotaLeft})
+		YouTubeQuotaLeft: h.youtube.QuotaLeft, AccountCreated: h.twitch.AccountMade})
 	discordBase, err := testServerURL(opts.DiscordAPIURL, discord.DefaultBase, "Discord")
 	if err != nil {
 		return nil, err

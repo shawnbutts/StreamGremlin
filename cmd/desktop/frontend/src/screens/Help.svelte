@@ -141,7 +141,9 @@
     </dd>
     <dt>Chat filters</dt>
     <dd>
-      Catch spam in chat: links (except allowed sites), capitals, symbols, too many emotes, repeats, and your own words. Each
+      Catch spam in chat: links (except allowed sites), capitals, symbols, too many emotes, repeats, your own words, messages
+      from Twitch accounts made only days ago (<strong>New accounts</strong>; subscribers and VIPs are left alone unless you
+      say), and pictures drawn in text (<strong>Text art</strong>: Braille dots, blocks and box lines). Each
       filter deletes the message, times the viewer out or warns them, as you, and never touches you, your moderators or your bot;
       each can leave VIPs or subscribers alone. They watch YouTube chat too, where they delete (20 quota units) unless a
       timeout rule says “Time out on YouTube too” (200 units each, and only while at least 1,000 units are left today);

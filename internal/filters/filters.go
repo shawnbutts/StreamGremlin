@@ -33,8 +33,11 @@ type Options struct {
 	// YouTubeQuotaLeft is today's YouTube quota units left; nil counts
 	// as none (D-100).
 	YouTubeQuotaLeft func(context.Context) int
-	Logger           *slog.Logger
-	Now              func() time.Time
+	// AccountCreated says when a Twitch account was made, for the New
+	// accounts rule (D-108); nil never knows.
+	AccountCreated func(ctx context.Context, userID string) (time.Time, bool)
+	Logger         *slog.Logger
+	Now            func() time.Time
 }
 
 // Service watches chat and acts on what the filters catch.
@@ -253,6 +256,12 @@ func (s *Service) handle(ctx context.Context, r events.Record) {
 	m := Message{Platform: a.Platform, UserID: a.ID, Login: a.Login, Role: p.Chatter.Role, IsBroadcaster: p.Chatter.IsBroadcaster,
 		IsModerator: p.Chatter.IsModerator, IsVIP: p.Chatter.IsVIP, IsSubscriber: p.Chatter.IsSubscriber, Text: p.Text,
 		Emotes: p.Emotes, At: r.OccurredAt, Permits: s.permits}
+	if st := c.Settings(); st.On && st.NewAccounts.On && a.Platform != events.SourceYouTube && s.o.AccountCreated != nil {
+		if made, ok := s.o.AccountCreated(ctx, a.ID); ok {
+			days := int(r.OccurredAt.Sub(made).Hours() / 24)
+			m.AccountAgeDays = &days
+		}
+	}
 	rule := c.Judge(m, s.repeats)
 	if rule == "" {
 		return

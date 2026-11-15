@@ -145,11 +145,17 @@ func filterRoutes(d Deps) []Route {
 		},
 		{
 			Method: "PUT", Path: "/v1/filters",
-			Summary: "Save the chat filters' settings, all at once (GET's settings, changed). They apply to the next message. " +
+			Summary: "Save the chat filters' settings (GET's settings, changed; a rule left out stays as it was). They apply to the next message. " +
 				"Words are saved in lower case; a * goes only at a word's start or end.",
 			Permission: PermModerationWrite,
 			Handler: func(w http.ResponseWriter, r *http.Request) {
-				var in filters.Settings
+				// Over the saved settings: a client that doesn't know a
+				// newer rule (D-108) leaves it as it was.
+				in, err := d.Filters.Settings(r.Context())
+				if err != nil {
+					internalError(w, r, d.Logger, err)
+					return
+				}
 				if !decodeJSON(w, r, &in) {
 					return
 				}

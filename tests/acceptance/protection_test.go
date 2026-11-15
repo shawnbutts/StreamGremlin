@@ -326,3 +326,52 @@ func TestRaidGuardThroughTheCLI(t *testing.T) {
 		t.Fatal("warned again within the cooldown:", out)
 	}
 }
+
+// The New accounts and Text art filters (M8 slice 4, D-108) through the
+// real engine and mocktwitch: a day-old account's message deleted, an old
+// account's left; text art deleted; a client that doesn't send the new
+// rules leaves them as they were.
+func TestNewAccountAndArtFiltersThroughTheCLI(t *testing.T) {
+	tw, twURL := startMockTwitch(t)
+	dir := t.TempDir()
+	e := startEngine(t, dir, "-twitch-auth-url", twURL)
+	cli(t, dir, "twitch", "client-id", "abcdefghij0123456789")
+	if out, code := signInThroughCLI(t, dir, tw, "Streamer"); code != 0 {
+		t.Fatal(out)
+	}
+	eventually(t, "chat", func() string {
+		if tw.Subscribed("streamer") == 0 {
+			return "not yet"
+		}
+		return ""
+	})
+	code, body := call(t, e, "PUT", "/v1/filters", e.token, `{"on":true,"new_accounts":{"on":true,"days":7},"art":{"on":true,"min_chars":10}}`, nil)
+	if code != 200 {
+		t.Fatal(code, body)
+	}
+	// An older client's save, without the new rules: they stay on.
+	code, body = call(t, e, "PUT", "/v1/filters", e.token, `{"on":true,"caps":{"on":false,"action":"delete","min_letters":10,"percent":70}}`, nil)
+	if code != 200 || !strings.Contains(body, `"new_accounts":{"on":true`) {
+		t.Fatal(code, body)
+	}
+	out, _, _ := cli(t, dir, "filters")
+	if !strings.Contains(out, "New accounts") || !strings.Contains(out, "younger than 7 days") || !strings.Contains(out, "Text art") {
+		t.Fatal(out)
+	}
+	tw.SetAccountCreated("freshie", time.Now().Add(-24*time.Hour))
+	tw.SetAccountCreated("veteran", time.Now().Add(-5*365*24*time.Hour))
+	tw.Say("streamer", "veteran", "hello everyone")
+	tw.Say("streamer", "freshie", "hello everyone")
+	tw.Say("streamer", "veteran", "⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿ look")
+	eventually(t, "two caught", func() string {
+		out, _, _ := cli(t, dir, "filters")
+		if !strings.Contains(out, "New accounts delete") || !strings.Contains(out, "Text art") || strings.Count(out, "done") < 2 {
+			return out
+		}
+		return ""
+	})
+	out, _, _ = cli(t, dir, "filters")
+	if strings.Contains(out, "veteran: hello everyone") {
+		t.Fatal("an old account's message was caught:", out)
+	}
+}

@@ -30,6 +30,8 @@ const defaults = (): FilterSettings => ({
   caps: { ...rule, min_letters: 10, percent: 70 },
   symbols: { ...rule, min_length: 15, percent: 50 },
   repeats: { ...rule, times: 3 },
+  new_accounts: { ...rule, exempt_subscribers: true, days: 7 },
+  art: { ...rule, min_chars: 20 },
 });
 
 const caught: FilterCatch[] = [
@@ -230,5 +232,25 @@ describe('Chat filters', () => {
     expect(el.textContent).toContain('A test warning is on Live. Nothing was locked.');
     const r = await axe.run(document.body, { rules: { 'color-contrast': { enabled: false } } });
     expect(r.violations.map((v) => v.id)).toEqual([]);
+  });
+
+  it('turns on the new-accounts and text-art rules (D-108)', async () => {
+    const calls = engine();
+    const el = start();
+    await settle(40);
+    expect(el.textContent).toContain('Messages from Twitch accounts made only days ago');
+    expect(el.textContent).toContain('Pictures drawn in text');
+    input(el, 'Filter new accounts').click();
+    input(el, 'Filter text art').click();
+    flushSync();
+    const days = input(el, 'Younger than (days)');
+    typed(days, '14');
+    const art = input(el, 'At least (drawing characters)');
+    typed(art, '30');
+    button(el, 'Save').click();
+    await settle(30);
+    const saved = calls.find((c) => c.method === 'PUT' && c.path === '/v1/filters')!.body as { new_accounts: { days: number }; art: { min_chars: number } };
+    expect(saved.new_accounts.days).toBe(14);
+    expect(saved.art.min_chars).toBe(30);
   });
 });

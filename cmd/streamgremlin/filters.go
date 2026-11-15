@@ -23,7 +23,8 @@ const filtersUsage = `usage:
 Change the filters on the Chat filters screen.`
 
 var ruleNames = map[string]string{filters.RuleWords: "Words", filters.RuleLinks: "Links", filters.RuleEmotes: "Emotes",
-	filters.RuleCaps: "Capitals", filters.RuleSymbols: "Symbols", filters.RuleRepeats: "Repeats"}
+	filters.RuleCaps: "Capitals", filters.RuleSymbols: "Symbols", filters.RuleRepeats: "Repeats",
+	filters.RuleNewAccounts: "New accounts", filters.RuleArt: "Text art"}
 
 func filtersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && (args[0] == "help" || args[0] == "-h" || args[0] == "--help") {
@@ -94,8 +95,12 @@ func filtersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 			extra = fmt.Sprintf(", %d words", len(s.Words.List))
 		case filters.RuleLinks:
 			extra = ", allowed: " + strings.Join(s.Links.Allowed, " ")
+		case filters.RuleNewAccounts:
+			extra = fmt.Sprintf(", younger than %d days (Twitch)", s.NewAccounts.Days)
+		case filters.RuleArt:
+			extra = fmt.Sprintf(", %d drawing characters or more", s.Art.MinChars)
 		}
-		fmt.Fprintf(stdout, "  %-9s %-14s leaves alone: %s%s\n", ruleNames[name], state, nobodyElse(alone), extra)
+		fmt.Fprintf(stdout, "  %-12s %-14s leaves alone: %s%s\n", ruleNames[name], state, nobodyElse(alone), extra)
 	}
 	if len(v.Recent) == 0 {
 		fmt.Fprintln(stdout, "Nothing caught lately.")
@@ -110,7 +115,7 @@ func filtersCmd(dir string, args []string, stdout, stderr io.Writer) int {
 		if c.Platform == "youtube" {
 			who += " (YouTube)"
 		}
-		fmt.Fprintf(stdout, "  %s  %-9s %-8s %-8s %s: %s\n", c.At.Local().Format("Jan 2 15:04"), ruleNames[c.Rule], c.Action, c.State, who, c.Text)
+		fmt.Fprintf(stdout, "  %s  %-12s %-8s %-8s %s: %s\n", c.At.Local().Format("Jan 2 15:04"), ruleNames[c.Rule], c.Action, c.State, who, c.Text)
 	}
 	return 0
 }
