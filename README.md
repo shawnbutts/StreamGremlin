@@ -8,7 +8,7 @@ StreamGremlin is a local-first streaming automation app for Twitch streamers, wi
 
 It's a rebuild of an earlier project, StreamWisp (2026-10-25 to 2026-11-07: 169 commits, 132 decisions, 79 ADRs and 95 migrations). It keeps StreamWisp's decisions, architecture and lessons, but none of its code. StreamWisp's repository stays available as reference. Paths such as `docs/adr/0045-giveaways.md` in these documents point into it.
 
-**Status:** a beta. Milestones M1 to M8 are done (M4, importing from Streamer.bot, moved to later), each used on real streams on macOS and Windows; M9, the release work, is in progress ([progress](docs/milestones/M9.md)). Installers for Windows and macOS are unsigned for now, and Linux is a beta, lightly tested: see the [beta guide](docs/BETA.md). Found a bug or have an idea? [Open an issue](https://github.com/shawnbutts/StreamGremlin/issues/new/choose). A security problem? See [SECURITY.md](SECURITY.md). Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
+**Status:** a beta. Milestones M1 to M9 are done (M4, importing from Streamer.bot, moved to later), each used on real streams on macOS and Windows. M9 ended in the first wider beta, open to anyone ([M9](docs/milestones/M9.md)). Installers for Windows and macOS are unsigned for now, and Linux is a beta, lightly tested: see the [beta guide](docs/BETA.md). Found a bug or have an idea? [Open an issue](https://github.com/shawnbutts/StreamGremlin/issues/new/choose). A security problem? See [SECURITY.md](SECURITY.md). Developers: see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documents
 

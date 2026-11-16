@@ -22,7 +22,7 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104), M9 Release (an unsigned wider beta, D-110). M1 to M3 and M5 to M8 are done.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104), M9 Release (an unsigned wider beta, D-110). M1 to M3 and M5 to M9 are done.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
