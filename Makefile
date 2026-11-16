@@ -175,14 +175,23 @@ linux: desktop-ui ## Build the Linux app and CLI into ./bin/linux/ARCH in a cont
 # The Stream Deck plugin (M7 slice 5, ADR-0042). Its tests run the plugin
 # against the CLI just built and a stand-in Stream Deck; the installer is
 # bin/streamdeck/com.streamgremlin.streamdeck.streamDeckPlugin, for macOS
-# and Windows alike.
+# and Windows alike. It's packed from a copy, so a release can stamp the
+# copy's manifest with its version (Elgato's pack --version rewrites the
+# manifest it packs): VERSION=0.1.0-beta.4 is 0.1.0.4, as on Windows.
+DECK_DIR := com.streamgremlin.streamdeck.sdPlugin
+DECK_STAGE := $(BIN)/streamdeck/stage
+DECK_VERSION = $(if $(filter dev,$(VERSION)),,$(shell $(GO) run ./cmd/release winversion "$(VERSION)"))
 streamdeck: node-check build ## Check, test and pack the Stream Deck plugin into ./bin/streamdeck
 	$(NPM_DECK) ci --no-audit --no-fund
 	$(NPM_DECK) run check
 	$(NPM_DECK) run build
 	cd $(STREAMDECK) && STREAMGREMLIN_BIN=$(BIN)/streamgremlin $(NPM_ENV) npm test
 	$(NPM_DECK) run validate
-	$(NPM_DECK) run pack
+	@test "$(VERSION)" = dev || test -n "$(DECK_VERSION)" || { echo "VERSION=$(VERSION) isn't a release version"; exit 1; }
+	rm -rf $(DECK_STAGE) && mkdir -p $(DECK_STAGE)
+	cp -R $(STREAMDECK)/$(DECK_DIR) $(DECK_STAGE)/
+	cd $(STREAMDECK) && $(NPM_ENV) npx streamdeck pack $(DECK_STAGE)/$(DECK_DIR) -o $(BIN)/streamdeck -f --no-update-check --no-file-list $(if $(DECK_VERSION),--version $(DECK_VERSION))
+	rm -rf $(DECK_STAGE)
 
 # Beta and release installers (D-084), built on macOS:
 #   make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...

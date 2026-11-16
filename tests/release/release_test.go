@@ -9,6 +9,7 @@ package release
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -24,6 +25,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	sgrelease "code.streamgremlin.com/streamgremlin/internal/release"
 )
 
 func env(t *testing.T) (dir, version string) {
@@ -345,3 +348,37 @@ func TestMacDMG(t *testing.T) {
 		t.Errorf("streamgremlin version: %v\n%s", err, out)
 	}
 }
+
+// The plugin says the release's version, in Stream Deck's four parts, the
+// same as the Windows installer's: 0.1.0-beta.4 is 0.1.0.4 (D-119).
+func TestStreamDeckVersion(t *testing.T) {
+	dir, version := env(t)
+	want, err := sgrelease.WindowsVersion(version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	z, err := zip.OpenReader(filepath.Join(dir, "StreamGremlin-"+version+"-streamdeck.streamDeckPlugin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = z.Close() }()
+	for _, f := range z.File {
+		if f.Name != deckDir+"/manifest.json" {
+			continue
+		}
+		r, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m struct{ Version, UUID string }
+		err = json.NewDecoder(r).Decode(&m)
+		_ = r.Close()
+		if err != nil || m.Version != want || m.UUID != "com.streamgremlin.streamdeck" {
+			t.Fatalf("the plugin's manifest: %+v %v, want version %s", m, err, want)
+		}
+		return
+	}
+	t.Fatal("the plugin has no " + deckDir + "/manifest.json")
+}
+
+const deckDir = "com.streamgremlin.streamdeck.sdPlugin"
