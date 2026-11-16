@@ -47,6 +47,9 @@ const (
 	FromWorkflow = "workflow"
 	// FromGuard is the raid guard locking chat (D-107).
 	FromGuard = "guard"
+	// FromDeck is a Stream Deck's switch key locking or unlocking chat
+	// (D-123).
+	FromDeck = "stream_deck"
 )
 
 // Platforms.
@@ -166,8 +169,11 @@ func (s *Service) Recover(ctx context.Context) error {
 
 func (s *Service) check(r Request) error {
 	switch {
-	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter && r.From != FromWorkflow && r.From != FromGuard:
-		return invalid("a request comes from live, cli, filter, workflow or guard")
+	case r.From != FromLive && r.From != FromCLI && r.From != FromFilter && r.From != FromWorkflow && r.From != FromGuard && r.From != FromDeck:
+		return invalid("a request comes from live, cli, filter, workflow, guard or stream_deck")
+	case r.From == FromDeck && r.Action != Lock && r.Action != Unlock:
+		// A Stream Deck's switch only locks and unlocks chat (D-123).
+		return invalid("the Stream Deck only locks and unlocks chat")
 	case r.Platform != PlatformTwitch && r.Platform != PlatformYouTube:
 		return invalid("platform must be twitch or youtube")
 	case r.Platform == PlatformYouTube && s.yt == nil:

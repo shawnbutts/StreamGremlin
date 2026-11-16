@@ -3,7 +3,7 @@
 // why it can't, never something that looks working when it isn't. Images
 // are SVG at 144×144, which Stream Deck scales for every model.
 import tabler from '../node_modules/@tabler/icons/tabler-nodes-outline.json';
-import type { DeckButton } from './engine';
+import { switchKey, type Change, type DeckButton, type DeckView } from './engine';
 import type { Glyph, NerdLookup } from './nerd';
 
 type Node = [string, Record<string, string>];
@@ -26,6 +26,8 @@ export type DeckState = 'ok' | 'unreachable' | 'unpaired';
 export interface KeyView {
   title: string;
   image: string;
+  /** Why a press can't work, for the log. */
+  why?: string;
 }
 
 const svg = (body: string) =>
@@ -136,4 +138,94 @@ export function keyView(o: { state: DeckState; buttonId?: string; buttons?: Deck
     (onlyIcon ? '' : drawLabel(b.label, ink, !!icon));
   const dim = b.starts === 0 ? `<g opacity="0.4">${body}</g>` : body;
   return { title: '', image: svg(dim) };
+}
+
+// Counter, status and switch keys (D-123). Each says why it can't, never
+// showing a value or a state it doesn't know.
+
+/** Why a key can't show anything yet, or undefined when it can. */
+function notReady(state: DeckState, deck: DeckView | undefined): KeyView | undefined {
+  if (state === 'unreachable') return { title: 'Not\nrunning', image: plain('?') };
+  if (state === 'unpaired') return { title: 'Pair\nfirst', image: plain('!', '#e6c229') };
+  if (!deck) return { title: 'Update\nStreamGremlin', image: plain('?') };
+  return undefined;
+}
+
+const notChosen = (what: string): KeyView => ({ title: `Choose in\nStreamGremlin`, image: plain('!', '#e6c229'), why: `${what} isn’t chosen for the Stream Deck` });
+
+/** Big centred text on a key, with a small line above and the label below. */
+function bigText(big: string, label: string, opts: { fill?: string; top?: string; dim?: boolean } = {}): string {
+  const fill = opts.fill ?? PLAIN;
+  const ink = opts.fill ? INK : '#ffffff';
+  const size = big.length <= 3 ? 64 : big.length <= 5 ? 46 : 32;
+  const body =
+    `<rect width="144" height="144" rx="16" fill="${fill}"/>` +
+    (opts.top ? `<text x="72" y="28" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${ink}" text-anchor="middle">${esc(opts.top)}</text>` : '') +
+    `<text x="72" y="${opts.top ? 82 : 72}" font-family="Helvetica, Arial, sans-serif" font-size="${size}" font-weight="700" fill="${ink}" text-anchor="middle" dominant-baseline="middle">${esc(big)}</text>` +
+    drawLabel(label, ink, true);
+  return svg(opts.dim ? `<g opacity="0.4">${body}</g>` : body);
+}
+
+/** A number as a key shows it: whole, or to two places. */
+function shown(v: number): string {
+  const s = Number.isInteger(v) ? String(v) : v.toFixed(2).replace(/\.?0+$/, '');
+  return s.length > 7 ? '9999999+' : s;
+}
+
+/** A counter key: its variable's value, and what a press does. */
+export function counterView(o: { state: DeckState; name?: string; change?: Change; deck?: DeckView }): KeyView {
+  const wait = notReady(o.state, o.deck);
+  if (wait) return wait;
+  if (!o.name) return { title: 'Pick a\ncounter', image: plain('…') };
+  const c = o.deck!.counters.find((x) => x.name === o.name);
+  if (!c) return notChosen(o.name);
+  const top = { add: '+1', take: '−1', reset: 'to 0' }[o.change ?? 'add'];
+  if (c.value === null || c.value === undefined) return { title: '', image: bigText('0', c.name, { top }) };
+  if (typeof c.value !== 'number') return { title: '', image: bigText('?', c.name, { top }), why: `${c.name} doesn’t hold a number` };
+  return { title: '', image: bigText(shown(c.value), c.name, { top }) };
+}
+
+export type StatusWhat = 'live' | 'chat' | 'obs' | 'lock';
+
+const CONNECTION: Record<string, { word: string; fill?: string }> = {
+  connected: { word: 'On', fill: COLORS.green },
+  connecting: { word: '…', fill: COLORS.yellow },
+  disconnected: { word: 'Lost', fill: COLORS.red },
+  needs_action: { word: 'Fix', fill: COLORS.red },
+  off: { word: 'Off' },
+};
+
+/** A status key: one thing about the stream, on, off or unknown. */
+export function statusView(o: { state: DeckState; what?: StatusWhat; deck?: DeckView }): KeyView {
+  const wait = notReady(o.state, o.deck);
+  if (wait) return wait;
+  const st = o.deck!.status;
+  const yesNo = (b: boolean | null, label: string, yes: { word: string; fill: string }, no: string): KeyView =>
+    b === null ? { title: '', image: bigText('?', label) } : { title: '', image: b ? bigText(yes.word, label, { fill: yes.fill }) : bigText(no, label) };
+  switch (o.what ?? 'live') {
+    case 'live':
+      return yesNo(st.live, 'Stream', { word: 'LIVE', fill: COLORS.red }, 'Off');
+    case 'lock':
+      return yesNo(st.chat_locked, 'Chat lock', { word: 'On', fill: COLORS.orange }, 'Off');
+    case 'chat': {
+      const c = CONNECTION[st.chat] ?? { word: '?' };
+      return { title: '', image: bigText(c.word, 'Chat', { fill: c.fill }) };
+    }
+    case 'obs': {
+      const c = CONNECTION[st.obs] ?? { word: '?' };
+      return { title: '', image: bigText(c.word, 'OBS', { fill: c.fill }) };
+    }
+  }
+}
+
+/** A switch key: lit when on, dim when off, "?" when unknown. */
+export function switchView(o: { state: DeckState; sw?: string; deck?: DeckView }): KeyView {
+  const wait = notReady(o.state, o.deck);
+  if (wait) return wait;
+  if (!o.sw) return { title: 'Pick a\nswitch', image: plain('…') };
+  const s = o.deck!.switches.find((x) => switchKey(x.kind, x.id) === o.sw);
+  if (!s) return notChosen('That switch');
+  if (s.gone) return { title: 'Switch\ngone', image: plain('?') };
+  if (s.on === null) return { title: '', image: bigText('?', s.label) };
+  return { title: '', image: s.on ? bigText('ON', s.label, { fill: COLORS.green }) : bigText('OFF', s.label, { dim: true }) };
 }

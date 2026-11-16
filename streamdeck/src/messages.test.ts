@@ -3,10 +3,10 @@ import { codeProblem, statusWords } from './messages';
 
 describe('statusWords', () => {
   it('never says paired when it can’t tell', () => {
-    expect(statusWords({ type: 'status', state: 'ok', name: 'Desk deck', buttons: [] })).toBe('Paired with StreamGremlin as “Desk deck”.');
-    expect(statusWords({ type: 'status', state: 'unpaired', buttons: [] })).toContain('Pair a Stream Deck');
-    expect(statusWords({ type: 'status', state: 'unreachable', name: 'Desk deck', buttons: [] })).toContain('isn’t answering');
-    expect(statusWords({ type: 'status', state: 'unreachable', buttons: [] })).toContain('Start it, then pair');
+    expect(statusWords({ type: 'status', state: 'ok', name: 'Desk deck', buttons: [], counters: [], switches: [], deck: true })).toBe('Paired with StreamGremlin as “Desk deck”.');
+    expect(statusWords({ type: 'status', state: 'unpaired', buttons: [], counters: [], switches: [], deck: true })).toContain('Pair a Stream Deck');
+    expect(statusWords({ type: 'status', state: 'unreachable', name: 'Desk deck', buttons: [], counters: [], switches: [], deck: true })).toContain('isn’t answering');
+    expect(statusWords({ type: 'status', state: 'unreachable', buttons: [], counters: [], switches: [], deck: true })).toContain('Start it, then pair');
   });
 });
 

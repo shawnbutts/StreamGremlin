@@ -110,14 +110,19 @@ const (
 	// cancelling pairing, and forgetting a client.
 	PermClientsRead  Permission = "clients.read"
 	PermClientsWrite Permission = "clients.write"
+	// The Stream Deck's keys beyond buttons (D-123, ADR-0053): what they
+	// show, and changing the counters and switches the streamer chose.
+	PermDeckRead Permission = "deck.read"
+	PermDeckUse  Permission = "deck.use"
 	// Self: who the caller is (GET /v1/whoami). Every caller has it.
 	PermSelfRead Permission = "self.read"
 )
 
 // clientPerms is what each kind of paired client may do (ADR-0042). A
-// Stream Deck reads and presses buttons; nothing else.
+// Stream Deck reads and presses buttons, and uses the counters and
+// switches the streamer chose for it (ADR-0053); nothing else.
 var clientPerms = map[string][]Permission{
-	clients.StreamDeck: {PermSelfRead, PermButtonsRead, PermButtonsPress},
+	clients.StreamDeck: {PermSelfRead, PermButtonsRead, PermButtonsPress, PermDeckRead, PermDeckUse},
 }
 
 // Principal is an authenticated caller.

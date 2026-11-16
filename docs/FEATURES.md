@@ -22,7 +22,7 @@ The features in StreamGremlin's first release, decided in kickoff K-4 ([D-004](D
 | **Later** | Not in the first release. Revisit once the core is used on real streams. |
 | **Leave** | Not carried over. The won't-do items are also in [PRINCIPLES.md](../PRINCIPLES.md). |
 
-Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104), M9 Release (an unsigned wider beta, D-110). M1 to M3 and M5 to M9 are done.
+Milestones (D-006): M1 Spine, M2 F1 and F2, M3 F3 and F4, M4 Import (moved to Later by D-061), M5 Lua & plugins, M7 Live (before M6, D-075), M6 YouTube, M8 Protection (before the release work, D-104), M9 Release (an unsigned wider beta, D-110), M10 the first public release (0.1.0, D-122). M1 to M3 and M5 to M9 are done.
 
 Every feature is built with its desktop screen in the same slice (`AGENTS.md`).
 
@@ -195,7 +195,7 @@ The carried ad features are listed under Twitch (F2). Twitch sends no "ad ended"
 | Sounds | 0042, D-057, D-066 | F2 (see Engagement) |
 | Text to speech | 0042, D-057, D-066 | Later |
 | Global hotkeys | 0042, D-057, D-066 | Later |
-| Our own Stream Deck plugin: paired once, buttons run StreamGremlin buttons or workflows and show state | new (D-075); pairing and the plugin built in M7 (ADR-0042, D-080, D-081); keys press buttons (a button runs its workflows); the Streamer.bot gateway stays Leave | Live |
+| Our own Stream Deck plugin: paired once, buttons run StreamGremlin buttons or workflows and show state | new (D-075); pairing and the plugin built in M7 (ADR-0042, D-080, D-081); keys press buttons (a button runs its workflows); counter, status and switch keys built in M10 (D-123, ADR-0053); the Streamer.bot gateway stays Leave | Live |
 | MIDI, window events, clipboard | not built | Later |
 
 ## AI

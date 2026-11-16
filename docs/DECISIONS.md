@@ -2080,3 +2080,28 @@ Decided 2026-11-16, building M9 slice 5 after the user's "proceed".
 - **A release checklist,** docs/RELEASE.md: one page, each step a tick box, from `make verify` to telling testers. CONTRIBUTING keeps the reasons and points to it. A test checks every `make` target it names exists, it has every step a release needs, and its links resolve.
 - **The first wider beta, beta.7,** is built from the checklist by the user: tagging, signing and publishing are theirs.
 - **No screen:** nothing here is used in the app.
+
+## D-122. M10, the first public release (0.1.0) (amends D-006, D-110, ADR-0001)
+
+Decided 2026-11-16, after M9 closed. Offered a public-release milestone, the user said: "yes, yes, and no. signing will be required for 0.5.0+." That is: M10 is the first public release; beta testers keep their data at 0.1.0; signing isn't in M10.
+
+- **Who it's for:** the wider beta's testers, and streamers who'd wait for a version without "beta" on it.
+- **M10 ends at 0.1.0:** the wider beta runs, testers' reports are sorted and fixed in betas by the release checklist, and "beta" leaves the app, the site and the guide. The plan is in [docs/milestones/M10.md](milestones/M10.md).
+- **Beta data is kept at 0.1.0,** amending ADR-0001's "squash into one baseline at the first public release" and the beta guide's warning. The migrations stay numbered files; the upgrade tests (M9 slice 3) prove each release's data still opens.
+- **Signing is required from 0.5.0,** not for 0.1.0: Apple's notarization and Windows code signing (D-110's costs) come before 0.5.0. Until then the guide keeps explaining the warnings.
+- **Streamer.bot import** stays after the release (D-061).
+- **First, Stream Deck keys** (D-123), asked for before 0.1.0.
+
+## D-123. Stream Deck: counter, status and switch keys (M10 slice 1; amends D-080, D-081)
+
+Decided 2026-11-16. The user asked: "we haven't looked at the streamdeck plugin in a while, are there any features we could add to it before 0.1.0?" Offered five, they chose the recommendation: "go with your recommendations": counters, status and switches; instant updates only if needed; dials later. The security design is [ADR-0053](adr/0053-stream-deck-keys.md).
+
+- **Who it's for:** streamers with a Stream Deck, especially those coming from Streamer.bot, who expect a death counter and keys that show what's on.
+- **Counter keys** show a global variable's value under its name. Each key adds one, takes one (never below 0) or sets it to 0, as the key's settings say. A press runs once, even when the plugin asks again after a lost answer.
+- **Status keys** show one thing, and pressing does nothing: whether you're live, Twitch chat, OBS, or whether chat is locked. Each is on, off or unknown ("?"), never a guess.
+- **Switch keys** turn a workflow, a timer or the chat lock on and off, lit when on and dim when off; unknown shows "?" and a press is refused.
+- **The streamer chooses what a deck may use,** on Connections → Stream Deck: which variables are counters, and which workflows and timers, and whether the chat lock, are switches. Nothing is allowed until chosen, and un-ticking refuses at once. Status is always readable: it holds no names, chat or records. This applies to every paired deck.
+- **The deck's token** gains `deck.read` and `deck.use`, which reach only what's chosen. It still can't read variables, workflows or timers in general, moderate otherwise, or send chat.
+- **Changes are recorded as from the Stream Deck:** a counter's "changed by", a lock in the moderation record, and the log.
+- **Keys refresh every 3 seconds,** and at once after a press. A push channel waits until that's too slow on a real stream.
+- **Left out:** Stream Deck + dials (later), changing a counter by more than one, viewer or workflow variables, and any key that sends chat.

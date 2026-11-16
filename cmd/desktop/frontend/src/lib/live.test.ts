@@ -171,6 +171,7 @@ describe('moderating', () => {
     expect(modWords(rec({ state: 'unknown', answer: 'Twitch didn’t answer' }))).toMatch(/^Unknown: /);
     expect(historyWords(rec({ seconds: 60, reason: 'calm' }))).toBe('Time out 1 minute (“calm”)');
     expect(historyWords(rec({ action: 'vip', state: 'refused' }))).toBe('Make VIP: refused');
+    expect(historyWords(rec({ action: 'lock', from: 'stream_deck' }))).toMatch(/, from your Stream Deck$/);
   });
   it('puts Twitch’s suspicious flags in words', () => {
     expect(suspicionWords({ low_trust_status: 'active_monitoring', ban_evasion: 'likely', types: ['ban_evader'], shared_ban_channel_ids: [] }))

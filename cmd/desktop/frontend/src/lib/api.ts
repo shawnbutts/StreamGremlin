@@ -2074,6 +2074,39 @@ export const getPairing = () => api<PairingState>('GET', '/v1/clients/pairing');
 export const startPairing = () => api<{ code: string; expires_at: string }>('POST', '/v1/clients/pairing', { kind: 'stream_deck' });
 export const stopPairing = () => api<void>('DELETE', '/v1/clients/pairing');
 
+// What a Stream Deck may use beyond buttons (D-123, ADR-0053): counters
+// (global variables), switches (workflows, timers, the chat lock) and the
+// stream's status. Nothing is chosen at first.
+
+export type DeckSwitchKind = 'workflow' | 'timer' | 'chat_lock';
+
+export interface DeckSwitch {
+  kind: DeckSwitchKind;
+  /** Absent for the chat lock. */
+  id?: string;
+}
+
+export interface DeckSettings {
+  counters: string[];
+  switches: DeckSwitch[];
+}
+
+export interface DeckView {
+  status: {
+    /** Null: unknown. */
+    live: boolean | null;
+    chat: string;
+    obs: string;
+    chat_locked: boolean | null;
+  };
+  counters: { name: string; value: unknown }[];
+  switches: (DeckSwitch & { label: string; on: boolean | null; gone?: boolean })[];
+}
+
+export const getDeckSettings = () => api<DeckSettings>('GET', '/v1/settings/streamdeck');
+export const putDeckSettings = (s: DeckSettings) => api<DeckSettings>('PUT', '/v1/settings/streamdeck', s);
+export const getDeck = () => api<DeckView>('GET', '/v1/deck');
+
 // Chat filters (D-085).
 
 export type FilterRule = 'words' | 'new_accounts' | 'links' | 'emotes' | 'caps' | 'symbols' | 'art' | 'repeats';

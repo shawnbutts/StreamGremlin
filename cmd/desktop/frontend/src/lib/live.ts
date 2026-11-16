@@ -387,6 +387,7 @@ export function historyWords(r: ModRecord): string {
   if (r.from === 'filter') w += ', by a chat filter';
   else if (r.from === 'workflow') w += ', by a workflow';
   else if (r.from === 'guard') w += ', by the raid guard';
+  else if (r.from === 'stream_deck') w += ', from your Stream Deck';
   const state = r.state === 'done' ? '' : r.state === 'refused' ? ': refused' : r.state === 'unknown' ? ': unknown' : ': waiting';
   return w + state;
 }

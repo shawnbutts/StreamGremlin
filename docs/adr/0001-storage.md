@@ -36,13 +36,13 @@ StreamGremlin keeps everything on the streamer's machine (PRINCIPLES.md). It nee
   - `schema_migrations` records each migration's SHA-256. Triggers make that table append-only.
   - The engine refuses to start if an applied migration has changed (`ErrChecksumMismatch`), or if the database is newer than the build (`ErrDatabaseNewer`).
   - Before changing a database that already has a schema, the engine writes `VACUUM INTO <data>/backups/<time>-before-migration-NNNN.db`.
-- **Numbered files during development, one baseline at release** (changed 2026-11-08, D-010). Each slice adds a new numbered file and never edits an applied one, so the streamer's development data folder keeps working from slice to slice. At the first public release, all files so far are squashed once into a new `0001_baseline.sql`. Development data folders are moved aside that one time, and from then on files are frozen. This keeps StreamWisp's lesson (it shipped 95 frozen migrations) without making every slice cost a fresh data folder.
+- **Numbered files during development, one baseline at release** (changed 2026-11-08, D-010). Each slice adds a new numbered file and never edits an applied one, so the streamer's development data folder keeps working from slice to slice. At the first public release, all files so far are squashed once into a new `0001_baseline.sql`. Development data folders are moved aside that one time, and from then on files are frozen. This keeps StreamWisp's lesson (it shipped 95 frozen migrations) without making every slice cost a fresh data folder. **Amended 2026-11-16 (D-122):** there's no squash at 0.1.0. Beta testers keep their data, so the numbered files stay, each frozen once released, and the upgrade tests open every release's data.
 - **Tables arrive with the slice that uses them.** Slice 1 adds only `settings`: small typed JSON documents keyed by group, such as `ui`.
 
 ## Consequences
 
 - Restoring from a backup is the only way back from a migration. The backup is taken automatically, and Settings → Backups lists and restores it ([ADR-0012](0012-backups-and-retention.md)).
-- Squashing at the first public release costs every development data folder once. Slice 2 rewrote the baseline before this change, which cost one fresh data folder.
+- Squashing at the first public release would have cost every development data folder once; D-122 dropped it. Slice 2 rewrote the baseline before this change, which cost one fresh data folder.
 - Windows file permissions are left to the default ACL on `%LocalAppData%`, which is already private to the user.
 
 ## Alternatives considered

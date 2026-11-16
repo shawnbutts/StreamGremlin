@@ -20,6 +20,11 @@ export interface Status {
   /** Said after pairing works. */
   notice?: string;
   buttons: { id: string; label: string }[];
+  /** The counters and switches chosen for the deck in StreamGremlin (D-123). */
+  counters: string[];
+  switches: { key: string; label: string }[];
+  /** False when StreamGremlin is too old for counters, status and switches. */
+  deck: boolean;
 }
 
 /** The panel's line about the connection. */

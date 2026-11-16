@@ -128,4 +128,32 @@ describe('Engine', () => {
     // Not running at all: certainly not pressed, and not asked again.
     expect(await e.press(await nothingThere(), 'tok', 'brb')).toMatchObject({ ok: false, why: 'unreachable' });
   });
+
+  it('counts once: a lost answer is asked again with the same request id', async () => {
+    const seen: { url?: string; body: { change: string; request_id: string } }[] = [];
+    let drop = 1;
+    const url = await serve((req, body, res) => {
+      seen.push({ url: req.url, body: JSON.parse(body) });
+      if (drop-- > 0) return res.destroy();
+      json(res, 200, { name: 'deaths', value: 8 });
+    });
+    const e = new Engine({ readFile: noFiles, retryMs: 10 });
+    expect(await e.count(url, 'tok', 'deaths', 'add')).toEqual({ ok: true, value: { name: 'deaths', value: 8 } });
+    expect(seen.map((s) => s.url)).toEqual(['/v1/deck/counters/deaths', '/v1/deck/counters/deaths']);
+    expect(seen[0].body).toEqual(seen[1].body);
+    expect(seen[0].body.change).toBe('add');
+  });
+
+  it('turns a switch by setting its state, chat lock with no id', async () => {
+    const seen: { method?: string; url?: string; body: unknown }[] = [];
+    const url = await serve((req, body, res) => {
+      seen.push({ method: req.method, url: req.url, body: JSON.parse(body) });
+      if (req.url?.includes('/timer/')) return fail(res, 403, 'that isn’t chosen for the Stream Deck');
+      json(res, 200, { kind: 'chat_lock', label: 'Chat lock', on: true });
+    });
+    const e = new Engine({ readFile: noFiles, retryMs: 5 });
+    expect(await e.turn(url, 'tok', 'chat_lock', '', true)).toMatchObject({ ok: true, value: { on: true } });
+    expect(seen[0]).toEqual({ method: 'PUT', url: '/v1/deck/switches/chat_lock/-', body: { on: true } });
+    expect(await e.turn(url, 'tok', 'timer', 'break', false)).toMatchObject({ ok: false, why: 'refused' });
+  });
 });

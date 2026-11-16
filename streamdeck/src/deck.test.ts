@@ -34,6 +34,17 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
   };
   const cli = (...args: string[]) => execFileSync(bin!, ['-data-dir', dir, ...args], { env, encoding: 'utf8' });
   const send = (m: Msg & { action?: string; device?: string }) => sock!.send(JSON.stringify(m));
+  /** Chooses what the deck may use, as the app does, with the admin token. */
+  async function choose(body: unknown): Promise<void> {
+    const at = readFileSync(join(dir, 'api-addr'), 'utf8').trim();
+    const token = readFileSync(join(dir, 'api-token'), 'utf8').trim();
+    const r = await fetch(`${at}/v1/settings/streamdeck`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'StreamGremlin-API-Version': '1' },
+      body: JSON.stringify(body),
+    });
+    expect(r.status).toBe(200);
+  }
 
   async function until<T>(what: string, f: () => T | undefined, ms = 8000): Promise<T> {
     const end = Date.now() + ms;
@@ -131,6 +142,49 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     expect(after(n, 'showAlert')).toBeTruthy();
     expect(cli('events', '-json')).toContain('stream_deck');
 
+    // Counter, status and switch keys (D-123): nothing until chosen in
+    // StreamGremlin, then each draws and works, and un-choosing stops it.
+    cli('vars', 'set', 'global', 'deaths', '7');
+    cli('timers', 'set', 'break', '-name', 'Take a break', '-every', '30m');
+    const image = (ctx: string) => decodeURIComponent(String(last('setImage', ctx)?.payload?.image));
+    const appearAs = (action: string, context: string, settings: Record<string, string>) =>
+      send({ event: 'willAppear', action: `com.streamgremlin.streamdeck.${action}`, context, device: 'dev1',
+        payload: { settings, coordinates: { column: 1, row: 0 }, controller: 'Keypad', isInMultiAction: false, state: 0 } });
+    const press = (action: string, context: string, settings: Record<string, string>) =>
+      send({ event: 'keyDown', action: `com.streamgremlin.streamdeck.${action}`, context, device: 'dev1',
+        payload: { settings, coordinates: { column: 1, row: 0 }, isInMultiAction: false, state: 0 } });
+    appearAs('counter', 'key2', { name: 'deaths', change: 'add' });
+    await until('“Choose in StreamGremlin”', () => (last('setTitle', 'key2')?.payload?.title === 'Choose in\nStreamGremlin' ? true : undefined));
+    await choose({ counters: ['deaths'], switches: [{ kind: 'timer', id: 'break' }] });
+    await until('the counter at 7', () => (image('key2').includes('>7<') ? true : undefined));
+    n = got.length;
+    press('counter', 'key2', { name: 'deaths', change: 'add' });
+    await until('the count', () => after(n, 'showOk', 'key2') ?? after(n, 'showAlert', 'key2'));
+    expect(after(n, 'showOk', 'key2')).toBeTruthy();
+    await until('the counter at 8', () => (image('key2').includes('>8<') ? true : undefined));
+    expect(cli('vars', 'global')).toMatch(/deaths\s+8/);
+
+    appearAs('status', 'key3', { what: 'obs' });
+    await until('OBS off', () => (image('key3').includes('>Off<') && image('key3').includes('OBS') ? true : undefined));
+
+    const timerOn = () => (JSON.parse(cli('timers', '-json')) as { timers: { id: string; enabled: boolean }[] }).timers.find((t) => t.id === 'break')!.enabled;
+    const was = timerOn();
+    appearAs('switch', 'key4', { switch: 'timer:break' });
+    await until('the switch drawn', () => (image('key4').includes(was ? '>ON<' : '>OFF<') ? true : undefined));
+    n = got.length;
+    press('switch', 'key4', { switch: 'timer:break' });
+    await until('the switch pressed', () => after(n, 'showOk', 'key4') ?? after(n, 'showAlert', 'key4'));
+    expect(after(n, 'showOk', 'key4')).toBeTruthy();
+    expect(timerOn()).toBe(!was);
+    await until('the switch flipped', () => (image('key4').includes(was ? '>OFF<' : '>ON<') ? true : undefined));
+
+    await choose({ counters: [], switches: [] });
+    await until('the counter refused', () => (last('setTitle', 'key2')?.payload?.title === 'Choose in\nStreamGremlin' ? true : undefined));
+    n = got.length;
+    press('counter', 'key2', { name: 'deaths', change: 'add' });
+    await until('the refusal', () => after(n, 'showAlert', 'key2'));
+    expect(cli('vars', 'global')).toMatch(/deaths\s+8/);
+
     // Forgotten in StreamGremlin: the key says to pair again.
     const id = (JSON.parse(cli('streamdeck', '-json')) as { clients: { id: string }[] }).clients[0].id;
     cli('streamdeck', 'forget', id);
@@ -139,5 +193,5 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     // StreamGremlin stops: the key never looks working.
     engine?.kill();
     await until('“Not running”', () => (last('setTitle')?.payload?.title === 'Not\nrunning' ? true : undefined));
-  }, 30_000);
+  }, 60_000);
 });

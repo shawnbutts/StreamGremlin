@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { keyView, titleLines } from './keys';
-import type { DeckButton } from './engine';
+import { counterView, keyView, statusView, switchView, titleLines } from './keys';
+import type { DeckButton, DeckView } from './engine';
 
 const brb: DeckButton = { id: 'brb', label: 'Be right back', color: 'blue', icon: '', hideLabel: false, starts: 1 };
 const decode = (url: string) => decodeURIComponent(url.replace('data:image/svg+xml,', ''));
@@ -71,5 +71,48 @@ describe('titleLines', () => {
     expect(titleLines('Start the raid train now')).toBe('Start the\nraid train\nnow');
     expect(titleLines('Supercalifragilistic')).toBe('Supercali…');
     expect(titleLines('one two three four five six seven')).toBe('one two\nthree four\nfive six…');
+  });
+});
+
+const deck: DeckView = {
+  status: { live: true, chat: 'connected', obs: 'disconnected', chat_locked: null },
+  counters: [{ name: 'deaths', value: 7 }, { name: 'wins', value: null }, { name: 'mood', value: 'happy' }],
+  switches: [
+    { kind: 'workflow', id: 'wf_a', label: 'Say hello', on: true },
+    { kind: 'timer', id: 'break', label: 'Take a break', on: false },
+    { kind: 'chat_lock', label: 'Chat lock', on: null },
+    { kind: 'workflow', id: 'wf_gone', label: 'Workflow gone', on: null, gone: true },
+  ],
+};
+
+describe('counter, status and switch keys', () => {
+  it('never shows a value without StreamGremlin', () => {
+    expect(counterView({ state: 'unreachable', name: 'deaths', deck }).title).toBe('Not\nrunning');
+    expect(statusView({ state: 'unpaired', what: 'live', deck }).title).toBe('Pair\nfirst');
+    expect(switchView({ state: 'ok', sw: 'timer:break' }).title).toBe('Update\nStreamGremlin');
+  });
+
+  it('shows a counter’s value, 0 when unset, and ? when it isn’t a number', () => {
+    expect(decode(counterView({ state: 'ok', name: 'deaths', change: 'take', deck }).image)).toMatch(/>−1<.*>7<.*deaths/s);
+    expect(decode(counterView({ state: 'ok', name: 'wins', deck }).image)).toMatch(/>\+1<.*>0</s);
+    expect(decode(counterView({ state: 'ok', name: 'mood', deck }).image)).toContain('>?<');
+    expect(counterView({ state: 'ok', name: 'other', deck }).title).toBe('Choose in\nStreamGremlin');
+    expect(counterView({ state: 'ok', deck }).title).toBe('Pick a\ncounter');
+  });
+
+  it('shows status as on, off or unknown', () => {
+    expect(decode(statusView({ state: 'ok', what: 'live', deck }).image)).toMatch(/fill="#d9534f".*>LIVE</s);
+    expect(decode(statusView({ state: 'ok', what: 'chat', deck }).image)).toMatch(/fill="#4caf50".*>On</s);
+    expect(decode(statusView({ state: 'ok', what: 'obs', deck }).image)).toContain('>Lost<');
+    expect(decode(statusView({ state: 'ok', what: 'lock', deck }).image)).toContain('>?<');
+    expect(decode(statusView({ state: 'ok', what: 'live', deck: { ...deck, status: { ...deck.status, live: false } } }).image)).toContain('>Off<');
+  });
+
+  it('lights a switch when on, dims it when off, and never guesses', () => {
+    expect(decode(switchView({ state: 'ok', sw: 'workflow:wf_a', deck }).image)).toMatch(/fill="#4caf50".*>ON<.*Say hello/s);
+    expect(decode(switchView({ state: 'ok', sw: 'timer:break', deck }).image)).toMatch(/opacity="0.4".*>OFF</s);
+    expect(decode(switchView({ state: 'ok', sw: 'chat_lock:', deck }).image)).toContain('>?<');
+    expect(switchView({ state: 'ok', sw: 'workflow:wf_gone', deck }).title).toBe('Switch\ngone');
+    expect(switchView({ state: 'ok', sw: 'timer:other', deck }).title).toBe('Choose in\nStreamGremlin');
   });
 });

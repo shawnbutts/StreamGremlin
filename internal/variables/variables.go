@@ -337,6 +337,20 @@ func (s *Store) Set(ctx context.Context, k Key, value any, c Change) (previous a
 // never lose a count. A missing variable counts as 0. It returns the old
 // and new values.
 func (s *Store) Add(ctx context.Context, k Key, amount any, c Change) (previous, value any, err error) {
+	return s.Update(ctx, k, func(prev any) (any, error) {
+		v, err := Sum(prev, amount)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %s %w", ErrInvalid, k.Name, err)
+		}
+		return v, nil
+	}, c)
+}
+
+// Update changes a value atomically: f gets the old value (nil when
+// missing) and returns the new one, with no other write between. An error
+// from f changes nothing and is returned as it is. It returns the old and
+// new values.
+func (s *Store) Update(ctx context.Context, k Key, f func(prev any) (any, error), c Change) (previous, value any, err error) {
 	if err := k.Check(); err != nil {
 		return nil, nil, err
 	}
@@ -349,9 +363,9 @@ func (s *Store) Add(ctx context.Context, k Key, amount any, c Change) (previous,
 	if err != nil {
 		return nil, nil, err
 	}
-	value, err = Sum(prev, amount)
+	value, err = f(prev)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: %s %w", ErrInvalid, k.Name, err)
+		return nil, nil, err
 	}
 	raw, err := encode(value)
 	if err != nil {

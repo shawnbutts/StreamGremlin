@@ -142,7 +142,10 @@ tick the box at the end of installing). The release on GitHub has the same
 plugin on its own too, StreamGremlin-VERSION-streamdeck.streamDeckPlugin,
 to install or update it without reinstalling. Drag "Press a
 button" onto a key, then in the key's settings type the pairing code from
-Connections, Stream Deck, "Pair a Stream Deck".
+Connections, Stream Deck, "Pair a Stream Deck". "Counter", "Status" and
+"Switch" keys show a variable, whether you're live or connected, and turn
+workflows, timers or the chat lock on and off: choose what they may use on
+Connections, under "What your Stream Deck can use".
 
 
 Updating
@@ -165,8 +168,7 @@ the new installer, on macOS drag the new app over the old one, and on Linux
 install the new package the same way as the first. Close StreamGremlin
 first. Your workflows, settings and sign-ins are kept.
 
-One exception: when StreamGremlin's first public release comes out, beta
-data may need a fresh start. You'll be told before that happens.
+Your data carries on into the first public release, 0.1.0, too.
 
 
 What leaves your computer

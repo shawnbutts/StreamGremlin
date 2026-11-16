@@ -97,8 +97,8 @@ func moderationRoutes(d Deps) []Route {
 				if !decodeJSON(w, r, &req) {
 					return
 				}
-				if req.From == moderation.FromFilter || req.From == moderation.FromWorkflow || req.From == moderation.FromGuard {
-					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli: only the chat filters and workflows act as filter and workflow")
+				if req.From == moderation.FromFilter || req.From == moderation.FromWorkflow || req.From == moderation.FromGuard || req.From == moderation.FromDeck {
+					writeError(w, http.StatusBadRequest, CodeInvalidRequest, "from is live or cli: only the chat filters, workflows, the raid guard and the Stream Deck act as themselves")
 					return
 				}
 				rec, dup, err := d.Moderation.Do(r.Context(), req)

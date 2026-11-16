@@ -3,7 +3,7 @@
   "Name": "StreamGremlin",
   "Version": "0.1.0.0",
   "Author": "StreamGremlin",
-  "Description": "Press your StreamGremlin buttons from your Stream Deck. Pair once with the code StreamGremlin shows; each key presses one button, with its colour and icon.",
+  "Description": "Press your StreamGremlin buttons from your Stream Deck, count with counter keys, see your stream's status, and turn workflows, timers and the chat lock on and off. Pair once with the code StreamGremlin shows.",
   "UUID": "com.streamgremlin.streamdeck",
   "Icon": "imgs/plugin",
   "Category": "StreamGremlin",
@@ -32,6 +32,57 @@
       "UUID": "com.streamgremlin.streamdeck.press",
       "Icon": "imgs/action",
       "Tooltip": "Presses one of your StreamGremlin buttons: the workflows that start from it run.",
+      "PropertyInspectorPath": "ui/press.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "SupportedInMultiActions": true,
+      "States": [
+        {
+          "Image": "imgs/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Counter",
+      "UUID": "com.streamgremlin.streamdeck.counter",
+      "Icon": "imgs/action",
+      "Tooltip": "Shows a StreamGremlin variable you chose for the Stream Deck, and adds one, takes one or sets it to 0.",
+      "PropertyInspectorPath": "ui/press.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "SupportedInMultiActions": true,
+      "States": [
+        {
+          "Image": "imgs/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Status",
+      "UUID": "com.streamgremlin.streamdeck.status",
+      "Icon": "imgs/action",
+      "Tooltip": "Shows whether you're live, Twitch chat, OBS, or the chat lock: on, off or unknown.",
+      "PropertyInspectorPath": "ui/press.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "SupportedInMultiActions": false,
+      "States": [
+        {
+          "Image": "imgs/key",
+          "TitleAlignment": "bottom"
+        }
+      ]
+    },
+    {
+      "Name": "Switch",
+      "UUID": "com.streamgremlin.streamdeck.switch",
+      "Icon": "imgs/action",
+      "Tooltip": "Turns a workflow, a timer or the chat lock you chose for the Stream Deck on and off, lit when on.",
       "PropertyInspectorPath": "ui/press.html",
       "Controllers": [
         "Keypad"

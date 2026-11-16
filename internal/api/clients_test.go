@@ -48,7 +48,7 @@ func TestPairingAStreamDeck(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &paired); err != nil || code != 201 || paired.Token == "" || paired.Client.Kind != "stream_deck" {
 		t.Fatal(code, out)
 	}
-	if strings.Join(paired.Permissions, ",") != "buttons.press,buttons.read,self.read" {
+	if strings.Join(paired.Permissions, ",") != "buttons.press,buttons.read,deck.read,deck.use,self.read" {
 		t.Fatal(paired.Permissions)
 	}
 	if code, out := call("GET", "/v1/clients/pairing", testToken, ""); !strings.Contains(out, `"state":"paired"`) || strings.Contains(out, paired.Token) {

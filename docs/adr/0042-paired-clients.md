@@ -36,7 +36,7 @@ There are up to 10 paired clients.
 
 | Kind | Permissions |
 |---|---|
-| `stream_deck` | `self.read`, `buttons.read`, `buttons.press` |
+| `stream_deck` | `self.read`, `buttons.read`, `buttons.press` (and `deck.read`, `deck.use` since [ADR-0053](0053-stream-deck-keys.md)) |
 
 A Stream Deck can't:
 - change buttons;

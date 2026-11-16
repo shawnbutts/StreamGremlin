@@ -21,6 +21,19 @@ export interface DeckButton {
   starts: number;
 }
 
+/** What counter, status and switch keys show (D-123): see GET /v1/deck. */
+export interface DeckView {
+  status: { live: boolean | null; chat: string; obs: string; chat_locked: boolean | null };
+  counters: { name: string; value: unknown }[];
+  switches: { kind: SwitchKind; id?: string; label: string; on: boolean | null; gone?: boolean }[];
+}
+
+export type SwitchKind = 'workflow' | 'timer' | 'chat_lock';
+export type Change = 'add' | 'take' | 'reset';
+
+/** A switch's key in settings and messages: kind:id (chat_lock: no id). */
+export const switchKey = (kind: string, id?: string) => `${kind}:${id ?? ''}`;
+
 export const DEFAULT_ADDRESS = 'http://127.0.0.1:7430';
 const API_VERSION = '1';
 
@@ -158,6 +171,26 @@ export class Engine {
     });
   }
 
+  /** What counter, status and switch keys show. */
+  deck(address: string, token: string): Promise<Result<DeckView>> {
+    return this.attempt(async () => (await this.call<DeckView>(address, 'GET', '/v1/deck', token)).body);
+  }
+
+  /**
+   * Asks again after a lost answer, up to twice: only for requests that are
+   * safe to repeat (a request id, or setting a state). Still no answer:
+   * unknown.
+   */
+  private async retrying<T>(f: () => Promise<T>, what: string): Promise<Result<T>> {
+    for (let tries = 0; ; tries++) {
+      const r = await this.attempt(f);
+      if (r.ok) return r;
+      if (!(r as { lost?: boolean }).lost) return { ok: false, why: r.why, message: r.message };
+      if (tries >= 2) return { ok: false, why: 'unknown', message: `StreamGremlin didn’t answer, so ${what} may or may not have happened.` };
+      await new Promise((ok) => setTimeout(ok, this.opts.retryMs ?? 500));
+    }
+  }
+
   /**
    * Presses a button once. The press carries a request id; when the answer
    * is lost, it's asked again with the same id, which StreamGremlin answers
@@ -166,14 +199,20 @@ export class Engine {
   async press(address: string, token: string, buttonId: string): Promise<Result<{ started: number }>> {
     const requestId = `sd-${randomUUID()}`;
     const path = `/v1/buttons/${encodeURIComponent(buttonId)}/press`;
-    for (let tries = 0; ; tries++) {
-      const r = await this.attempt(async () => (await this.call<{ started?: unknown[] }>(address, 'POST', path, token, { request_id: requestId }, 8000)).body);
-      if (r.ok) return { ok: true, value: { started: r.value.started?.length ?? 0 } };
-      if (!(r as { lost?: boolean }).lost) return { ok: false, why: r.why, message: r.message };
-      if (tries >= 2) {
-        return { ok: false, why: 'unknown', message: 'StreamGremlin didn’t answer, so the press may or may not have happened.' };
-      }
-      await new Promise((ok) => setTimeout(ok, this.opts.retryMs ?? 500));
-    }
+    const r = await this.retrying(async () => (await this.call<{ started?: unknown[] }>(address, 'POST', path, token, { request_id: requestId }, 8000)).body, 'the press');
+    return r.ok ? { ok: true, value: { started: r.value.started?.length ?? 0 } } : r;
+  }
+
+  /** Changes a counter by one, once: a retry carries the same request id (ADR-0053). */
+  count(address: string, token: string, name: string, change: Change): Promise<Result<{ value: unknown }>> {
+    const requestId = `sd-${randomUUID()}`;
+    const path = `/v1/deck/counters/${encodeURIComponent(name)}`;
+    return this.retrying(async () => (await this.call<{ value: unknown }>(address, 'POST', path, token, { change, request_id: requestId })).body, 'the change');
+  }
+
+  /** Turns a switch on or off; asking again is harmless, as it sets a state. */
+  turn(address: string, token: string, kind: SwitchKind, id: string | undefined, on: boolean): Promise<Result<{ on: boolean | null }>> {
+    const path = `/v1/deck/switches/${encodeURIComponent(kind)}/${encodeURIComponent(id || '-')}`;
+    return this.retrying(async () => (await this.call<{ on: boolean | null }>(address, 'PUT', path, token, { on }, 8000)).body, 'the switch');
   }
 }

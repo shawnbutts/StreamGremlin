@@ -62,7 +62,8 @@
   const workflowName = (id: string) => workflows.find((w) => w.id === id)?.name ?? id;
   const whose = (v: Variable) =>
     v.scope === 'global' ? 'Global' : v.scope === 'viewer' ? `Viewer: ${v.owner_label || v.owner}` : `Workflow: ${workflowName(v.owner)}`;
-  const by = (v: Variable) => (v.updated_by.startsWith('workflow:') ? workflowName(v.updated_by.slice(9)) : v.updated_by);
+  const by = (v: Variable) =>
+    v.updated_by.startsWith('workflow:') ? workflowName(v.updated_by.slice(9)) : v.updated_by.startsWith('stream_deck:') ? 'your Stream Deck' : v.updated_by;
 
   async function load() {
     try {

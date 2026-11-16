@@ -24,11 +24,44 @@
     </section>
     <section aria-labelledby="which">
       <h2 id="which">Key</h2>
-      <label for="button">Presses</label>
-      <select id="button" disabled>
-        <option value="">Pick a button</option>
-      </select>
-      <p class="hint">The key shows the button’s colour and icon. A dim key’s button starts nothing that’s on.</p>
+      <div id="for-press" hidden>
+        <label for="button">Presses</label>
+        <select id="button" disabled>
+          <option value="">Pick a button</option>
+        </select>
+        <p class="hint">The key shows the button’s colour and icon. A dim key’s button starts nothing that’s on.</p>
+      </div>
+      <div id="for-counter" hidden>
+        <label for="counter">Counter</label>
+        <select id="counter" disabled>
+          <option value="">Pick a counter</option>
+        </select>
+        <label for="change">A press</label>
+        <select id="change">
+          <option value="add">Adds one</option>
+          <option value="take">Takes one (never below 0)</option>
+          <option value="reset">Sets it to 0</option>
+        </select>
+        <p class="hint">Counters are the variables you choose in StreamGremlin, on Connections, “What your Stream Deck can use”.</p>
+      </div>
+      <div id="for-status" hidden>
+        <label for="what">Shows</label>
+        <select id="what">
+          <option value="live">Whether you’re live</option>
+          <option value="chat">Twitch chat’s connection</option>
+          <option value="obs">OBS’s connection</option>
+          <option value="lock">Whether chat is locked</option>
+        </select>
+        <p class="hint">It only shows: a press does nothing. “?” means StreamGremlin doesn’t know.</p>
+      </div>
+      <div id="for-switch" hidden>
+        <label for="switch">Turns on and off</label>
+        <select id="switch" disabled>
+          <option value="">Pick a switch</option>
+        </select>
+        <p class="hint">Switches are the workflows, timers and chat lock you choose in StreamGremlin, on Connections, “What your Stream Deck can use”. Lit is on.</p>
+      </div>
+      <p id="old" class="hint" hidden>This StreamGremlin is too old for counter, status and switch keys. Update it from Settings.</p>
     </section>
     <script src="press.js"></script>
   </body>
