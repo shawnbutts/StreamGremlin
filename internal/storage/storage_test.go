@@ -207,3 +207,50 @@ func TestTimestampFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Backups with the same name at the same moment each finish whole: one file
+// stays, readable only by its owner, with nothing half-written left behind.
+func TestSameBackupAtOnce(t *testing.T) {
+	db, dir := openTemp(t)
+	ctx := context.Background()
+	if _, err := db.ExecContext(ctx, "CREATE TABLE t (x INTEGER) STRICT; INSERT INTO t VALUES (1)"); err != nil {
+		t.Fatal(err)
+	}
+	backups := filepath.Join(dir, "backups")
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := db.Backup(ctx, backups, "before-migration-0002", fixedNow()); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(backups)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("backups: %v %v", entries, err)
+	}
+	fi, err := entries[0].Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
+		t.Errorf("backup mode %v, want 0600", fi.Mode().Perm())
+	}
+	copyDB, err := Open(ctx, filepath.Join(backups, entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer copyDB.Close()
+	var n int
+	if err := copyDB.QueryRow("SELECT COUNT(*) FROM t").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("the backup has %d rows, %v", n, err)
+	}
+}

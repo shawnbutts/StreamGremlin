@@ -20,6 +20,7 @@ The first wider beta: anyone can download it from GitHub or streamgremlin.com.
 
 ### Fixed
 
+- Two backups with the same name made at the same moment, such as when StreamGremlin and the command line both upgraded the database at once, could fail by writing into one file. Each is now made in a file of its own and then put in place.
 - The privacy page said to send logs only to the person you report to. Reports are public on GitHub, so it now says to attach only what you'd share in public.
 - The changelog, here and on the website, has a section for each release, newest first. Before, everything was under Unreleased, with the newest at the bottom. A release build now fails if its version has no section.
 

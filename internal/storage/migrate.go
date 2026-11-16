@@ -194,15 +194,33 @@ func (db *DB) SchemaVersion(ctx context.Context) (int, error) {
 }
 
 // Backup writes a consistent copy of the database to dir with VACUUM INTO.
+// The copy is made in a file of its own and then renamed into place, so
+// two backups with the same name at the same moment (two processes
+// migrating at once) each finish whole, and the last one stays, instead of
+// both writing into one file.
 func (db *DB) Backup(ctx context.Context, dir, label string, at time.Time) (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", fmt.Errorf("storage: backup folder: %w", err)
 	}
 	name := fmt.Sprintf("%s-%s.db", at.UTC().Format("20060102T150405.000Z"), label)
 	path := filepath.Join(dir, name)
-	if _, err := db.ExecContext(ctx, "VACUUM INTO ?", path); err != nil {
+	// VACUUM INTO accepts an empty file that already exists.
+	tmp, err := os.CreateTemp(dir, "."+name+"-*.tmp")
+	if err != nil {
 		return "", fmt.Errorf("storage: backup: %w", err)
 	}
-	_ = os.Chmod(path, 0o600)
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("storage: backup: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "VACUUM INTO ?", tmpPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("storage: backup: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return "", fmt.Errorf("storage: backup: %w", err)
+	}
 	return path, nil
 }
