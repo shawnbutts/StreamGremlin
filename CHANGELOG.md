@@ -12,7 +12,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 ### Changed
 
 - **The website's Features page has a Stream Deck section,** with a picture of eight keys drawn by the plugin's own code (made-up data) and the Connections card. The home page shows the keys too, and it and the comparison table say what they do now.
-- At 0.1.0, beta data is kept, not started afresh (D-122). The beta guide no longer warns of a fresh start.
+- Beta data is kept from release to release, not started afresh (D-122). The beta guide no longer warns of a fresh start.
+- **Versions** (D-125): this release is 0.2.0, a full release, and StreamGremlin stays a beta until 1.0.0. From here, a fix steps the last number and new features the middle one.
+
+### Fixed
+
+- **Windows, macOS's build number and Stream Deck now see a full release as newer than its betas** (D-125). Their four-part version gave 0.2.0 as 0.2.0.0, before 0.2.0-beta.1's 0.2.0.1; a full release's fourth part is now 65535.
 
 ## 0.1.0-beta.7 (2026-11-16)
 

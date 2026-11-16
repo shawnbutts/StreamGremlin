@@ -2117,3 +2117,14 @@ Decided 2026-11-16. The user asked: "should we add an option to run any workflow
 - **Ad:** shows when Twitch's next automatic ad is due and how many snoozes are left; a press snoozes it. Read from Twitch at most every 30 seconds and counted down in between. Running an ad stays a button and workflow (it costs viewers).
 - **Chosen like the rest** on Connections → What your Stream Deck can use: which workflows can be run, whether scenes can be switched, which countdowns, and whether ads can be snoozed. Nothing until chosen.
 - **Still left out:** keys that send chat, moderate beyond the chat lock, or start giveaways or polls; Stream Deck + dials.
+
+## D-125. 0.2.0 next, and "beta" until 1.0.0 (amends D-122, D-119)
+
+Decided 2026-11-16. Told that 0.1.0's four-part version (0.1.0.0) would sort before beta.7's (0.1.0.7) on Windows, in macOS's build number and in Stream Deck, the user said: "i've test the new code and a tester is checking it out as well. no issues. let's leave the beta "tag" on until 1.0.0. can we bump to 0.2.0 to get around the versoning bug?"
+
+- **Who it's for:** the wider beta's testers, who get the Stream Deck keys next, and streamers reading the site, who are told plainly it's still a beta.
+- **The next release is 0.2.0,** a full release by Semantic Versioning: GitHub marks it the latest release, not a pre-release, and beta.7 updates to it in the app. M10 ends at 0.2.0, not 0.1.0. There is no 0.1.0.
+- **"Beta" stays until 1.0.0:** in the app, the installer, the site and the guide. The guide's warnings and its "what a beta means for your stream" stay true.
+- **From 0.2.0, a version says what changed:** a fix is 0.2.1; new features are 0.3.0. A `-beta.N` version is only for trying something out before its release, and the app offers those only to someone already on a `-beta.N` version (a full release moves only to full releases, as before).
+- **The four-part version is fixed too,** not only stepped around: a full release's fourth number is 65535, so 0.2.0 is 0.2.0.65535, after every 0.2.0 beta, as 1.0.0 will be after 1.0.0's. A beta's fourth stays its number (0.2.1-beta.3 is 0.2.1.3), at most 65534. It's tested by version order.
+- **Unchanged:** beta data is kept (D-122); signing is required from 0.5.0 (D-122).

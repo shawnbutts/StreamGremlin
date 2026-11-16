@@ -7,6 +7,8 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -25,10 +27,11 @@ func TestCheckVersion(t *testing.T) {
 	}
 }
 
-// Windows wants four numbers; a pre-release's number becomes the fourth.
+// Windows wants four numbers; a pre-release's number becomes the fourth,
+// and a full release's is the highest, so it's newer than its betas (D-125).
 func TestWindowsVersion(t *testing.T) {
 	for v, want := range map[string]string{
-		"0.1.0":        "0.1.0.0",
+		"0.1.0":        "0.1.0.65535",
 		"0.1.0-beta.3": "0.1.0.3",
 		"1.2.3-rc.12":  "1.2.3.12",
 		"2.0.0-beta":   "2.0.0.0",
@@ -38,8 +41,28 @@ func TestWindowsVersion(t *testing.T) {
 			t.Errorf("%s: %q %v", v, got, err)
 		}
 	}
-	if _, err := WindowsVersion("1.0.0-beta.70000"); err == nil {
-		t.Error("a part over 65535 accepted")
+	for _, v := range []string{"1.0.0-beta.70000", "1.0.0-beta.65535", "70000.0.0"} {
+		if _, err := WindowsVersion(v); err == nil {
+			t.Errorf("%s accepted", v)
+		}
+	}
+	// Each in turn is newer, in the same order as Semantic Versioning.
+	order := []string{"0.1.0-beta.7", "0.2.0-beta.1", "0.2.0-beta.12", "0.2.0", "0.2.1-beta.1", "0.2.1", "1.0.0-beta.1", "1.0.0"}
+	var prev []int
+	for _, v := range order {
+		w, err := WindowsVersion(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var cur []int
+		for _, p := range strings.Split(w, ".") {
+			n, _ := strconv.Atoi(p)
+			cur = append(cur, n)
+		}
+		if prev != nil && slices.Compare(cur, prev) <= 0 {
+			t.Errorf("%s (%s) isn't after the one before", v, w)
+		}
+		prev = cur
 	}
 	if _, err := WindowsVersion("dev"); err == nil {
 		t.Error("dev accepted")

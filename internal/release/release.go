@@ -31,16 +31,28 @@ func CheckVersion(v string) error {
 	return nil
 }
 
-// WindowsVersion turns 0.1.0-beta.3 into the four numbers Windows wants,
-// 0.1.0.3: a pre-release's number is the fourth.
+// FullBuild is a full release's fourth number: the highest, so 0.2.0 sorts
+// after every 0.2.0 pre-release, as it does by Semantic Versioning (D-125).
+const FullBuild = 65535
+
+// WindowsVersion turns 0.1.0-beta.3 into the four numbers Windows, macOS's
+// build number and Stream Deck want, 0.1.0.3: a pre-release's number is the
+// fourth, at most 65534. A full release's fourth is FullBuild, 0.2.0.65535,
+// so it's newer than its own betas there too.
 func WindowsVersion(v string) (string, error) {
 	if err := CheckVersion(v); err != nil {
 		return "", err
 	}
-	core, pre, _ := strings.Cut(v, "-")
-	build := "0"
-	if _, n, ok := strings.Cut(pre, "."); ok {
-		build = n
+	core, pre, isPre := strings.Cut(v, "-")
+	build := strconv.Itoa(FullBuild)
+	if isPre {
+		build = "0"
+		if _, n, ok := strings.Cut(pre, "."); ok {
+			build = n
+		}
+		if n, err := strconv.Atoi(build); err != nil || n >= FullBuild {
+			return "", fmt.Errorf("version %q: a pre-release's number must be under %d", v, FullBuild)
+		}
 	}
 	parts := append(strings.Split(core, "."), build)
 	for _, p := range parts {

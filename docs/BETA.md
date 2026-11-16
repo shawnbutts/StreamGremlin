@@ -169,7 +169,7 @@ the new installer, on macOS drag the new app over the old one, and on Linux
 install the new package the same way as the first. Close StreamGremlin
 first. Your workflows, settings and sign-ins are kept.
 
-Your data carries on into the first public release, 0.1.0, too.
+Your data carries on into every later release, beta or not.
 
 
 What leaves your computer
