@@ -84,6 +84,8 @@ It runs `make verify`, then writes the Windows installer, the macOS disk image, 
 
 ## Releases on GitHub
 
+[docs/RELEASE.md](docs/RELEASE.md) is the checklist to follow, step by step. This section says why.
+
 First, in `CHANGELOG.md`, move what's under **Unreleased** to a new section, `## 0.1.0-beta.7 (YYYY-MM-DD)`, leaving Unreleased with "Nothing yet." Commit and push it. The release build fails without that section (`tests/release`), and the website's Changelog shows the sections newest first.
 
 GitHub builds the same from a version tag (D-118, [ADR-0051](docs/adr/0051-release-builds-and-sboms.md)):

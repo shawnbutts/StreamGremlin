@@ -2069,3 +2069,14 @@ Decided 2026-11-16. Asked about M9 slice 3, the user said: "as part of slice 3, 
 - **What it doesn't do:** no download in the background, no install at start without asking, no delta updates, no rollback beyond the backup and installing the older version by hand. Code signing and notarization stay later (D-110).
 - **Testing:** `mockgithub` stands in for GitHub's releases, in tests and standalone. The engine takes `-updates-url`, `-updates-key` and `-updates-version` (and `STREAMGREMLIN_UPDATES_*`) for a test server on this computer only.
 - Design and file formats: [ADR-0052](adr/0052-updates.md).
+
+## D-121. M9 slice 5: the guide for testers the user hasn't met, and a release checklist
+
+Decided 2026-11-16, building M9 slice 5 after the user's "proceed".
+
+- **Who it's for:** testers who find StreamGremlin on GitHub or streamgremlin.com, with nobody to ask (D-110).
+- **The beta guide** (docs/BETA.md, also "Read me first.txt" and the Download page) now says, before installing: what a beta means (keep your old bot ready, don't stake a real prize on it alone, data carries from beta to beta and is tested doing so); where to download it, and only there; how to check a file's SHA-256 on each system; why Windows and macOS warn (no certificates yet, for their cost; later, as D-110 says), and that updates are signed with StreamGremlin's own key even so; what leaves the computer; and what reports help most. "What isn't there yet" no longer lists updates, which beta.6 brought, and does list updating from the app on Linux.
+- **The privacy page** told people to send logs "only to the person you're reporting to". Reports are public GitHub issues (D-115), so it now says that, and to attach only what they'd share in public. The test that keeps report wording in step now covers it.
+- **A release checklist,** docs/RELEASE.md: one page, each step a tick box, from `make verify` to telling testers. CONTRIBUTING keeps the reasons and points to it. A test checks every `make` target it names exists, it has every step a release needs, and its links resolve.
+- **The first wider beta, beta.7,** is built from the checklist by the user: tagging, signing and publishing are theirs.
+- **No screen:** nothing here is used in the app.

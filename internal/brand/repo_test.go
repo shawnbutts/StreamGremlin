@@ -31,6 +31,7 @@ func TestWhereReportsGo(t *testing.T) {
 		"README.md":    {IssuesURL},
 		"cmd/desktop/frontend/src/screens/Help.svelte": {IssuesURL, SecurityURL},
 		"website/pages/help.html":                      {IssuesURL},
+		"website/pages/privacy.html":                   {Repo + "/issues"},
 		".github/ISSUE_TEMPLATE/config.yml":            {SecurityURL},
 		".github/ISSUE_TEMPLATE/bug_report.yml":        {SecurityURL},
 	} {
@@ -40,7 +41,7 @@ func TestWhereReportsGo(t *testing.T) {
 				t.Errorf("%s doesn't say %s", p, u)
 			}
 		}
-		for _, old := range []string{"security@streamgremlin.com", "person who invited", "whoever invited"} {
+		for _, old := range []string{"security@streamgremlin.com", "person who invited", "whoever invited", "the person you’re reporting to"} {
 			if strings.Contains(text, old) {
 				t.Errorf("%s still says %q", p, old)
 			}
@@ -192,5 +193,35 @@ func TestReleaseWorkflow(t *testing.T) {
 		if regexp.MustCompile(`(?m)^` + k + `\s*[:?+]?=`).MatchString(makefile) {
 			t.Errorf("the workflow's env %s is also a Makefile variable", k)
 		}
+	}
+}
+
+// The release checklist (M9 slice 5): every make target it names is one the
+// Makefile has, every step the release needs is on it, and its links to
+// the repository's files resolve.
+func TestReleaseChecklist(t *testing.T) {
+	list := read(t, "docs/RELEASE.md")
+	makefile := read(t, "Makefile")
+	targets := regexp.MustCompile("`make ([a-z-]+)").FindAllStringSubmatch(list, -1)
+	if len(targets) < 8 {
+		t.Fatalf("only %d make targets on the checklist", len(targets))
+	}
+	for _, m := range targets {
+		if !strings.Contains(makefile, "\n"+m[1]+":") {
+			t.Errorf("the checklist says make %s, which the Makefile hasn't", m[1])
+		}
+	}
+	for _, step := range []string{"make verify", "make windows", "CHANGELOG.md", "git tag", "make release-fetch", "make release-sign", "--draft=false", "make upgrade-fixture", "make site"} {
+		if !strings.Contains(list, step) {
+			t.Errorf("the checklist doesn't say %s", step)
+		}
+	}
+	for _, m := range regexp.MustCompile(`\]\(([^)#:]+)(?:#[^)]*)?\)`).FindAllStringSubmatch(list, -1) {
+		if _, err := os.Stat(filepath.Join(root, "docs", m[1])); err != nil {
+			t.Errorf("the checklist links to %s: %v", m[1], err)
+		}
+	}
+	if !strings.Contains(read(t, "CONTRIBUTING.md"), "(docs/RELEASE.md)") {
+		t.Error("CONTRIBUTING.md doesn't point to the checklist")
 	}
 }

@@ -8,8 +8,13 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 - **Upgrade tests** (M9 slice 3): a data folder made by each release since beta.4, by that release's own engine and with made-up data, is opened by every build, which must find everything still there: workflows, viewers and points, quotes, timers, wheels, overlays, sounds, add-ons, settings, sign-ins and backups. On Linux, the release build also installs the previous release, saves something, upgrades over it and checks it's kept.
 
+### Changed
+
+- **The beta guide** (M9 slice 5, D-121) is written for testers nobody has invited: what a beta means for your stream, where to download StreamGremlin, how to check a download's SHA-256 on Windows, macOS and Linux, why Windows and macOS warn about it, what leaves your computer, and which reports help most.
+
 ### Fixed
 
+- The privacy page said to send logs only to the person you report to. Reports are public on GitHub, so it now says to attach only what you'd share in public.
 - The changelog, here and on the website, has a section for each release, newest first. Before, everything was under Unreleased, with the newest at the bottom. A release build now fails if its version has no section.
 
 ## 0.1.0-beta.6 (2026-11-16)

@@ -5,18 +5,72 @@ Thank you for trying StreamGremlin! It's stream automation for Twitch that
 runs on your own computer: chat commands, alerts in OBS, sounds, timers,
 giveaways, points, wheels, a Live screen to run your stream from, and Stream
 Deck keys, with YouTube alongside. Nothing is sent anywhere but the services
-you connect (Twitch, YouTube, OBS, Discord).
+you connect (Twitch, YouTube, OBS, Discord) and GitHub, to check for
+updates.
 
 This is a beta, so expect rough edges, and please tell us about them.
+
+
+Before you start
+----------------
+
+- StreamGremlin is free and open source. Replies to reports may take a
+  few days.
+- A beta can break. Keep the bot you use now (if you have one) ready the
+  first few times you stream with StreamGremlin, and don't rely on it alone
+  for anything you can't redo, such as a giveaway with a real prize.
+- Your data stays between betas: each new beta opens the last one's data,
+  and is tested doing so before it's released. StreamGremlin backs up
+  before it installs an update, and Settings, Backups makes a copy any
+  time.
+- Windows and macOS warn about StreamGremlin when you first open it. That's
+  expected for now: see "Why Windows and macOS warn you" below.
+
+
+Getting StreamGremlin
+---------------------
+
+Download it only from StreamGremlin's releases on GitHub,
+https://github.com/shawnbutts/StreamGremlin/releases, or from Download on
+https://streamgremlin.com, which links to the same files. A copy from
+anywhere else may not be StreamGremlin.
+
+Each release lists the SHA-256 of every file, in SHA256SUMS.txt and on
+Download. To check yours, work out its SHA-256 and compare it with the
+list. They must match exactly; if they don't, delete the file and tell us.
+
+- Windows, in PowerShell:
+  Get-FileHash .\StreamGremlin-VERSION-windows-x64-setup.exe
+- macOS, in Terminal:
+  shasum -a 256 StreamGremlin-VERSION-macos.dmg
+- Linux, in the folder with the files and SHA256SUMS.txt:
+  sha256sum --check --ignore-missing SHA256SUMS.txt
+
+
+Why Windows and macOS warn you
+------------------------------
+
+Apple and Microsoft expect apps to be signed with a certificate that they
+check, and warn about any app that isn't. StreamGremlin isn't yet: the
+certificates cost a yearly fee, and they'll come later. So:
+
+- Windows says "Windows protected your PC". Choose "More info", then "Run
+  anyway".
+- macOS says it can't check the app for malicious software. Allow it once
+  in System Settings, as below.
+
+The warnings mean only that nobody has vouched for the file, which is why
+checking its SHA-256 is worth the minute. Updates are different: those are
+signed with StreamGremlin's own key, and the app installs an update only if
+the signature checks out (see "Updating").
 
 
 Installing on Windows (10 or 11, 64-bit)
 ----------------------------------------
 
 1. Run StreamGremlin-VERSION-windows-x64-setup.exe.
-2. Windows warns: "Windows protected your PC". The beta isn't signed with a
-   certificate yet, so Windows doesn't recognise it. Choose "More info",
-   then "Run anyway".
+2. Windows warns: "Windows protected your PC". Choose "More info", then
+   "Run anyway".
 3. The installer puts StreamGremlin in your user folder. It doesn't need an
    administrator. Untick "Desktop shortcut" if you don't want one.
 4. Open StreamGremlin from the Start menu.
@@ -39,8 +93,7 @@ Installing on macOS (13 Ventura or later, Apple silicon or Intel)
 1. Open StreamGremlin-VERSION-macos.dmg.
 2. Drag StreamGremlin to Applications.
 3. Open StreamGremlin from Applications. macOS says it can't check the app
-   for malicious software, because the beta isn't notarised by Apple yet.
-   Choose "Done" (or "OK"), not "Move to Bin".
+   for malicious software. Choose "Done" (or "OK"), not "Move to Bin".
 4. Open System Settings, then Privacy & Security. Scroll down to "StreamGremlin
    was blocked to protect your Mac" and choose "Open Anyway". Confirm with
    your password.
@@ -53,10 +106,10 @@ app, at StreamGremlin.app/Contents/Helpers/streamgremlin.
 Installing on Linux (beta, lightly tested)
 ------------------------------------------
 
-Linux is lightly tested: it's built and started on Ubuntu, Debian and
-Fedora before each release, but nobody has streamed with it yet. Please
-tell us how it goes. It needs a 64-bit Intel or AMD computer and Ubuntu
-24.04, Debian 13, Fedora 42 or newer (or another system as new).
+Linux is lightly tested: it's built, installed, upgraded and started on
+Ubuntu, Debian and Fedora before each release, but nobody has streamed with
+it yet. Please tell us how it goes. It needs a 64-bit Intel or AMD computer
+and Ubuntu 24.04, Debian 13, Fedora 42 or newer (or another system as new).
 
 - Ubuntu or Debian:
   sudo apt install ./StreamGremlin-VERSION-linux-x64.deb
@@ -116,13 +169,24 @@ One exception: when StreamGremlin's first public release comes out, beta
 data may need a fresh start. You'll be told before that happens.
 
 
+What leaves your computer
+-------------------------
+
+StreamGremlin has no servers and no account. There are no analytics and no
+crash reports. It talks to Twitch, YouTube, OBS and Discord only when you
+connect them, and to GitHub to check for updates, sending only its name and
+version. The Privacy page on https://streamgremlin.com says more.
+
+
 Telling us what went wrong
 --------------------------
 
 Report it on GitHub (you'll need a free account):
 https://github.com/shawnbutts/StreamGremlin/issues/new/choose
 Help in the app has a button for it. Look first for an issue that already
-describes it, and add to that one. The most useful report says:
+describes it, and add to that one. Everything on GitHub is public, so leave
+out passwords, sign-in codes and Discord webhook links. The most useful
+report says:
 - what you did, what you expected, and what happened instead;
 - the version, shown on Home under "Version";
 - Windows, macOS or Linux, and which version (on Linux, which
@@ -132,7 +196,14 @@ describes it, and add to that one. The most useful report says:
   sign-in tokens, but they do contain chat names and messages from your
   stream, so attach only what you're happy to share in public.
 
-A screenshot helps too.
+A screenshot helps too. Ideas are welcome the same way: the form asks who
+would use it, and how you do it today.
+
+We'd most like to hear:
+- anything that went wrong during a real stream;
+- where you got stuck setting up, or had to guess;
+- what you did in your old bot that you can't do here;
+- how installing, updating and the warnings went.
 
 Found a security problem? Don't open a public issue: report it privately,
 as SECURITY.md says (https://github.com/shawnbutts/StreamGremlin/security).
@@ -155,7 +226,8 @@ What isn't there yet
 --------------------
 
 - Importing from Streamer.bot (after the first public release).
-- Signed installers, and automatic updates.
+- Installers signed with Apple's and Microsoft's certificates.
+- Updating from inside the app on Linux.
 
 
 Uninstalling
