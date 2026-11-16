@@ -163,12 +163,12 @@ jobs:
           - **What changed:** [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md).
           EOF
           files=(bin/release/StreamGremlin-"$VERSION"-* bin/release/SHA256SUMS.txt)
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            # A re-run replaces the files on the draft it made before.
-            gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
-          else
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             pre=()
             case "$VERSION" in *-*) pre=(--prerelease) ;; esac
             gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${pre[@]}" \
-              --title "StreamGremlin $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${files[@]}"
+              --title "StreamGremlin $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
           fi
+          # --clobber replaces a file already there: one a re-run uploads
+          # again, or one an upload retried after GitHub had taken it.
+          gh release upload "$GITHUB_REF_NAME" --clobber "${files[@]}"
