@@ -2041,3 +2041,14 @@ Decided 2026-11-15. The user: "then update the main site with the github link fo
 - **`make release` still works on the Mac,** unchanged apart from the SBOMs. GitHub runs the same make targets.
 - **Download on streamgremlin.com links to GitHub** (amends D-112): each installer's button, its SBOM ("What's inside it") and `SHA256SUMS.txt` point at the release's files on GitHub. The site no longer copies installers. `make site` still shows each file's size and SHA-256, from `bin/release`. `make release-fetch VERSION=…` downloads a GitHub release there first, and checks the checksums.
 - **D-007's "CI: much later" holds for everything else.** There is still no build on every push or pull request, and no Dependabot (D-115). `make verify` before every push stays the rule.
+
+## D-119. The Stream Deck plugin as a download of its own (amends D-117, D-118)
+
+Decided 2026-11-16. The user: "for the release, should we put the streamdeck plugin on the gh release page on it's own? assuming it's crossplatform itself", then "yes, build it".
+
+- **One more download per release:** `StreamGremlin-VERSION-streamdeck.streamDeckPlugin`, the same file the Windows installer and the macOS dmg carry. It's one file for both systems: its manifest names macOS 13+ and Windows 10+, and Elgato's app runs it with its own Node.js. Streamers can install or update the plugin without running an installer, and find it more easily.
+- **Not for Linux:** Stream Deck has no Linux app, and StreamGremlin's API only answers on the same computer. The website, the release notes and the SBOM say so.
+- **It has a CycloneDX SBOM** like the other downloads (D-117), with the npm packages bundled in it. Its system needs are macOS or Windows, Stream Deck 7.1+, and the same version of StreamGremlin. It's in `SHA256SUMS.txt`.
+- **The installers keep it,** so a fresh install needs nothing more. `tests/release` checks that the plugin inside the Windows and macOS downloads is the same bytes as the one on its own.
+- **Its version matches the app's.** Use the plugin with the same version of StreamGremlin.
+- `make release-streamdeck` makes it; `make release` and the GitHub release workflow (D-118) run it. Download on streamgremlin.com lists it after the installers.

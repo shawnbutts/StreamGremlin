@@ -80,7 +80,7 @@ On a Mac with Xcode's command-line tools, NSIS (`brew install makensis`) and Pod
 make release VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...
 ```
 
-It runs `make verify`, then writes the Windows installer, the macOS disk image, the Linux `.deb`, `.rpm` and `.tar.gz`, a CycloneDX SBOM beside each (`FILE.cdx.json`, D-117) and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). All are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
+It runs `make verify`, then writes the Windows installer, the macOS disk image, the Linux `.deb`, `.rpm` and `.tar.gz`, the Stream Deck plugin on its own (`StreamGremlin-VERSION-streamdeck.streamDeckPlugin`, D-119), a CycloneDX SBOM beside each (`FILE.cdx.json`, D-117) and `SHA256SUMS.txt` to `bin/release/`, and checks them (`tests/release`). All are unsigned during the beta ([ADR-0043](docs/adr/0043-beta-installers.md)). Send testers the installer and [docs/BETA.md](docs/BETA.md), which is also inside each as "Read me first.txt".
 
 ## Releases on GitHub
 

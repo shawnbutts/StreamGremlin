@@ -48,7 +48,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: linux linux-smoke release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: linux linux-smoke release-streamdeck release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -207,6 +207,7 @@ SBOM := $(GO) run ./cmd/release sbom
 WIN_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-windows-x64-setup.exe
 MAC_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg
 DECK_PLUGIN := com.streamgremlin.streamdeck.streamDeckPlugin
+DECK_OUT := $(RELEASE)/StreamGremlin-$(VERSION)-streamdeck.streamDeckPlugin
 
 release-version:
 	@test -n "$(TWITCH_CLIENT_ID)" || { echo "Set TWITCH_CLIENT_ID: release builds sign in with StreamGremlin's own Twitch app (D-005)."; exit 1; }
@@ -217,13 +218,21 @@ release-check: release-version
 	@test "$$(uname -s)" = Darwin || { echo "Release builds need macOS, for the dmg."; exit 1; }
 	@command -v makensis >/dev/null || { echo "Release builds need NSIS: brew install makensis"; exit 1; }
 
-release: release-check verify release-windows release-macos release-linux release-sums ## Beta installers for Windows, macOS and Linux into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
-	@echo "Installers in $(RELEASE): send testers the .exe, .dmg, .deb, .rpm or .tar.gz and docs/BETA.md."
+release: release-check verify release-windows release-macos release-streamdeck release-linux release-sums ## Beta installers for Windows, macOS and Linux, and the Stream Deck plugin, into ./bin/release (VERSION=0.1.0-beta.1 TWITCH_CLIENT_ID=...)
+	@echo "Installers in $(RELEASE): send testers the .exe, .dmg, .deb, .rpm or .tar.gz, the .streamDeckPlugin, and docs/BETA.md."
 
 # Checksums of every download and SBOM, then the checks of tests/release.
 release-sums: release-version
 	cd $(RELEASE) && shasum -a 256 StreamGremlin-$(VERSION)-* > SHA256SUMS.txt
 	RELEASE_DIR=$(RELEASE) RELEASE_VERSION=$(VERSION) $(GO) test -tags release -count=1 ./tests/release
+
+# The Stream Deck plugin on its own (D-119): the same file the Windows and
+# macOS installers carry, for macOS and Windows alike.
+release-streamdeck: release-version streamdeck
+	mkdir -p $(RELEASE)
+	cp $(BIN)/streamdeck/$(DECK_PLUGIN) $(DECK_OUT)
+	$(SBOM) $(DECK_OUT).cdx.json $(DECK_OUT) $(VERSION) streamdeck $(SOURCE_DATE_EPOCH) \
+		file:$(DECK_PLUGIN)=$(DECK_OUT) npm:$(DECK_PLUGIN)=$(SBOM_DECK)
 
 release-windows: release-check windows streamdeck
 	rm -rf $(WIN_STAGE) && mkdir -p $(WIN_STAGE)/cli "$(WIN_STAGE)/Stream Deck"

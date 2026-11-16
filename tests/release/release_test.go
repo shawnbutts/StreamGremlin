@@ -79,7 +79,8 @@ func checkBuild(t *testing.T, path, version, goos string) {
 // downloads are the files a release offers, each with an SBOM beside it.
 func downloads(version string) []string {
 	return []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg",
-		"StreamGremlin-" + version + "-linux-x64.deb", "StreamGremlin-" + version + "-linux-x64.rpm", "StreamGremlin-" + version + "-linux-x64.tar.gz"}
+		"StreamGremlin-" + version + "-linux-x64.deb", "StreamGremlin-" + version + "-linux-x64.rpm", "StreamGremlin-" + version + "-linux-x64.tar.gz",
+		"StreamGremlin-" + version + "-streamdeck.streamDeckPlugin"}
 }
 
 // Each download has a CycloneDX SBOM beside it (D-117) that names it by
@@ -88,12 +89,15 @@ func downloads(version string) []string {
 func TestSBOMs(t *testing.T) {
 	dir, version := env(t)
 	parts := map[string][]string{
-		"windows-x64-setup.exe": {"StreamGremlin.exe", "cli/streamgremlin.exe", "Stream Deck/com.streamgremlin.streamdeck.streamDeckPlugin"},
-		"macos.dmg":             {"StreamGremlin.app/Contents/MacOS/StreamGremlin", "StreamGremlin.app/Contents/Helpers/streamgremlin", "com.streamgremlin.streamdeck.streamDeckPlugin"},
-		"linux-x64.deb":         {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
-		"linux-x64.rpm":         {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
-		"linux-x64.tar.gz":      {"StreamGremlin-" + version + "-linux-x64/streamgremlin-desktop", "StreamGremlin-" + version + "-linux-x64/streamgremlin"},
+		"windows-x64-setup.exe":       {"StreamGremlin.exe", "cli/streamgremlin.exe", "Stream Deck/com.streamgremlin.streamdeck.streamDeckPlugin"},
+		"macos.dmg":                   {"StreamGremlin.app/Contents/MacOS/StreamGremlin", "StreamGremlin.app/Contents/Helpers/streamgremlin", "com.streamgremlin.streamdeck.streamDeckPlugin"},
+		"linux-x64.deb":               {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
+		"linux-x64.rpm":               {"usr/bin/streamgremlin-desktop", "usr/bin/streamgremlin"},
+		"linux-x64.tar.gz":            {"StreamGremlin-" + version + "-linux-x64/streamgremlin-desktop", "StreamGremlin-" + version + "-linux-x64/streamgremlin"},
+		"streamdeck.streamDeckPlugin": {deckPlugin},
 	}
+	// The plugin's SHA-256 in each download that carries it.
+	deckSums := map[string]string{}
 	for _, f := range downloads(version) {
 		b, err := os.ReadFile(filepath.Join(dir, f+".cdx.json")) //nolint:gosec // The release folder under test.
 		if err != nil {
@@ -112,7 +116,10 @@ func TestSBOMs(t *testing.T) {
 				} `json:"component"`
 			} `json:"metadata"`
 			Components []struct {
-				Ref string `json:"bom-ref"`
+				Ref    string `json:"bom-ref"`
+				Hashes []struct {
+					Content string `json:"content"`
+				} `json:"hashes"`
 			} `json:"components"`
 		}
 		if err := json.Unmarshal(b, &bom); err != nil {
@@ -131,14 +138,22 @@ func TestSBOMs(t *testing.T) {
 		var refs []string
 		for _, c := range bom.Components {
 			refs = append(refs, c.Ref)
+			if strings.HasSuffix(c.Ref, "/"+deckPlugin) || c.Ref == "part:"+deckPlugin {
+				if len(c.Hashes) == 1 {
+					deckSums[f] = c.Hashes[0].Content
+				}
+			}
 		}
 		all := strings.Join(refs, "\n")
 		kind := strings.TrimPrefix(f, "StreamGremlin-"+version+"-")
 		want := []string{"pkg:golang/stdlib@", "pkg:golang/github.com/wailsapp/wails/v3@", "pkg:npm/svelte@", "system:"}
+		if kind == "streamdeck.streamDeckPlugin" {
+			want = []string{"system:StreamGremlin", "system:Elgato Stream Deck"}
+		}
 		for _, p := range parts[kind] {
 			want = append(want, "part:"+p+"\n")
 		}
-		if strings.HasSuffix(kind, ".exe") || strings.HasSuffix(kind, ".dmg") {
+		if strings.HasSuffix(kind, ".exe") || strings.HasSuffix(kind, ".dmg") || strings.HasSuffix(kind, ".streamDeckPlugin") {
 			want = append(want, "pkg:npm/%40elgato/streamdeck@")
 		}
 		for _, w := range want {
@@ -146,8 +161,16 @@ func TestSBOMs(t *testing.T) {
 				t.Errorf("%s's SBOM has no %q", f, strings.TrimSpace(w))
 			}
 		}
+	} // The plugin on its own is the one the installers carry (D-119).
+	alone := deckSums["StreamGremlin-"+version+"-streamdeck.streamDeckPlugin"]
+	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg"} {
+		if alone == "" || deckSums[f] != alone {
+			t.Errorf("%s carries a Stream Deck plugin %q, the download alone is %q", f, deckSums[f], alone)
+		}
 	}
 }
+
+const deckPlugin = "com.streamgremlin.streamdeck.streamDeckPlugin"
 
 func TestChecksums(t *testing.T) {
 	dir, version := env(t)

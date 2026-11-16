@@ -105,6 +105,7 @@ type Download struct {
 	SHA256 string
 	URL    string // the file on GitHub
 	SBOM   string // its CycloneDX SBOM on GitHub (D-117), or ""
+	Note   string // a line under the button, or ""
 	rank   int
 }
 
@@ -116,12 +117,15 @@ type Release struct {
 }
 
 // kinds says what each installer is for, in the order the page lists them.
-var kinds = []struct{ suffix, system, button string }{
-	{"-setup.exe", "Windows", "for Windows"},
-	{".dmg", "macOS", "for macOS"},
-	{".deb", "Linux: Ubuntu and Debian (beta)", ".deb"},
-	{".rpm", "Linux: Fedora (beta)", ".rpm"},
-	{".tar.gz", "Linux: other systems (beta)", ".tar.gz"},
+var kinds = []struct{ suffix, system, button, note string }{
+	{"-setup.exe", "Windows", "for Windows", ""},
+	{".dmg", "macOS", "for macOS", ""},
+	{".deb", "Linux: Ubuntu and Debian (beta)", ".deb", ""},
+	{".rpm", "Linux: Fedora (beta)", ".rpm", ""},
+	{".tar.gz", "Linux: other systems (beta)", ".tar.gz", ""},
+	// D-119: the same plugin the Windows and macOS installers carry.
+	{".streamDeckPlugin", "Stream Deck plugin (macOS and Windows)", "the plugin",
+		"For Stream Deck 7.1 or newer on the computer that runs StreamGremlin. The Windows and macOS downloads include it too, so you only need this to install or update it on its own. Use the same version as StreamGremlin. Stream Deck has no Linux app."},
 }
 
 // Page is what every template gets.
@@ -269,7 +273,7 @@ func dropTitle(md string) string {
 	return md
 }
 
-var installer = regexp.MustCompile(`^StreamGremlin-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-(macos|windows|linux)[^/]*\.(dmg|exe|deb|rpm|tar\.gz|zip)$`)
+var installer = regexp.MustCompile(`^StreamGremlin-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)-(macos|windows|linux|streamdeck)[^/]*\.(dmg|exe|deb|rpm|tar\.gz|zip|streamDeckPlugin)$`)
 
 // findDownloads offers the newest version's installers in dir, with
 // their sizes and SHA-256, linked to the files on the repository's GitHub
@@ -320,7 +324,7 @@ func findDownloads(dir, home string) (string, []Download, Release, error) {
 		}
 		for i, k := range kinds {
 			if strings.HasSuffix(f, k.suffix) {
-				d.System, d.Button, d.rank = k.system, k.button, i
+				d.System, d.Button, d.Note, d.rank = k.system, k.button, k.note, i
 				break
 			}
 		}

@@ -34,7 +34,7 @@ env:
 
 jobs:
   # make verify, then the Windows installer (cross-compiled, packed by
-  # NSIS) and the universal macOS app in a dmg.
+  # NSIS), the universal macOS app in a dmg, and the Stream Deck plugin.
   macos:
     # Forgejo reads .github/workflows too; release builds are GitHub's.
     if: github.server_url == 'https://github.com'
@@ -63,8 +63,8 @@ jobs:
       # NODE_BIN= makes make use the Node set up above, not Homebrew's.
       - name: Every check
         run: make verify NODE_BIN=
-      - name: Windows and macOS installers
-        run: make release-windows release-macos NODE_BIN= VERSION="$VERSION"
+      - name: Windows and macOS installers, and the Stream Deck plugin
+        run: make release-windows release-macos release-streamdeck NODE_BIN= VERSION="$VERSION"
         env:
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -157,6 +157,7 @@ jobs:
           StreamGremlin $VERSION, built by GitHub from the tagged code.
 
           - **Not signed yet.** Windows and macOS warn before opening it; [the beta guide](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/docs/BETA.md) says how to open it anyway.
+          - **Stream Deck plugin** (macOS and Windows): the Windows and macOS downloads include it; the \`.streamDeckPlugin\` here is the same file, to install or update it on its own. Use it with the same version of StreamGremlin.
           - **Check a download** against \`SHA256SUMS.txt\`.
           - **What's inside each download** is in the CycloneDX SBOM beside it (\`.cdx.json\`).
           - **What changed:** [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md).

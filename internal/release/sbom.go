@@ -137,6 +137,13 @@ var systemNeeds = map[string][]cdxComponent{
 		{Type: "library", Name: "gstreamer1-plugins-good", Scope: "optional", Description: "Plays the app's sounds."},
 		{Type: "application", Name: "gnome-keyring", Scope: "optional", Description: "Keeps sign-ins; without a keyring they go in an encrypted file."},
 	},
+	// The plugin on its own (D-119): Elgato's app runs it with its own
+	// Node.js, and it presses buttons through StreamGremlin's local API.
+	"streamdeck": {
+		{Type: "operating-system", Name: "macOS or Windows", Scope: "required", Description: "macOS 13 or newer, or Windows 10 or 11. Stream Deck has no Linux app."},
+		{Type: "application", Name: "Elgato Stream Deck", Scope: "required", Description: "Stream Deck 7.1 or newer, which runs the plugin with its own Node.js."},
+		{Type: "application", Name: "StreamGremlin", Scope: "required", Description: "The same version, on the same computer: the plugin presses its buttons through StreamGremlin's local API."},
+	},
 	"linux": {
 		{Type: "library", Name: "GTK", Scope: "required", Description: "GTK 4, 4.10 or newer, from the system's packages."},
 		{Type: "library", Name: "WebKitGTK", Scope: "required", Description: "WebKitGTK's 6.0 API, from the system's packages. Draws the app's window."},

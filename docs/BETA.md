@@ -83,9 +83,11 @@ Getting started
 - Chat filters: catch links, shouting, spam and words you don't want.
 - Help (Ctrl+/ on Windows and Linux, Cmd+/ on macOS) explains every screen.
 
-Stream Deck (Stream Deck 7.1 or later): double-click
+Stream Deck (Stream Deck 7.1 or later, macOS and Windows): double-click
 com.streamgremlin.streamdeck.streamDeckPlugin to install it (on Windows, or
-tick the box at the end of installing). Drag "Press a
+tick the box at the end of installing). The release on GitHub has the same
+plugin on its own too, StreamGremlin-VERSION-streamdeck.streamDeckPlugin,
+to install or update it without reinstalling. Drag "Press a
 button" onto a key, then in the key's settings type the pairing code from
 Connections, Stream Deck, "Pair a Stream Deck".
 
