@@ -138,7 +138,7 @@
     <p class="state state-unknown" role="alert"><span aria-hidden="true">?</span> Unknown: {loadError}</p>
   {:else if settings && view}
     <p class="status-line" aria-label="What status keys show now">
-      Now: {yesNo(view.status.live, 'live', 'not live')} · chat {view.status.chat} · OBS {view.status.obs} · chat {yesNo(view.status.chat_locked, 'locked', 'not locked')}
+      Now: {view.status.live === null ? 'live unknown' : view.status.live ? 'live' : 'not live'} · chat {view.status.chat} · OBS {view.status.obs} · chat lock {yesNo(view.status.chat_locked, 'on', 'off')}
     </p>
 
     <h3>Counters</h3>

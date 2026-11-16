@@ -11,6 +11,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ### Changed
 
+- **The website's Features page has a Stream Deck section,** with a picture of eight keys drawn by the plugin's own code (made-up data) and the Connections card. The home page and the comparison table say what the keys do now.
 - At 0.1.0, beta data is kept, not started afresh (D-122). The beta guide no longer warns of a fresh start.
 
 ## 0.1.0-beta.7 (2026-11-16)

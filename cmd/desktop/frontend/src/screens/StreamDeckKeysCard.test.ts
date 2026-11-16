@@ -53,7 +53,7 @@ describe('StreamDeckKeysCard', () => {
     engine();
     comp = mount(StreamDeckKeysCard, { target: document.body });
     await settle();
-    expect(text()).toContain('Now: unknown · chat connected · OBS off · chat not locked');
+    expect(text()).toContain('Now: live unknown · chat connected · OBS off · chat lock off');
     expect(text()).toContain('deaths now 7');
     expect(text()).toContain('A chosen workflow was deleted.');
     expect(document.querySelector('datalist option')?.getAttribute('value')).toBe('wins');

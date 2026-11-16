@@ -112,6 +112,29 @@
       </div>
       {{template "shot" index .Shots "banlists"}}
     </div>
+
+    <div class="tour-row" id="stream-deck">
+      <div class="tour-text">
+        <span class="kicker">Stream Deck</span>
+        <h2>Keys that show what’s happening</h2>
+        <p>An official plugin for Stream Deck on Windows and macOS. Pair it once with a code, then put any of these on a key:</p>
+        <ul>
+          <li><strong>Press a button:</strong> one of your buttons, in its colour and icon, running the workflows that start from it.</li>
+          <li><strong>Counter:</strong> a death counter or anything else, shown on the key; add one, take one or start again at 0.</li>
+          <li><strong>Status:</strong> whether you’re live, Twitch chat’s and OBS’s connections, or whether chat is locked. “?” when StreamGremlin doesn’t know, never a guess.</li>
+          <li><strong>Switch:</strong> a workflow, a timer or the chat lock, lit when it’s on.</li>
+          <li><strong>OBS scene:</strong> lit while it’s on air; press to switch.</li>
+          <li><strong>Countdown:</strong> a “Starting soon” countdown or a stopwatch from your overlays, ticking on the key; start, pause or reset it.</li>
+          <li><strong>Ad:</strong> how long until Twitch’s next ad, and snoozes left; press to snooze.</li>
+          <li><strong>Run a workflow</strong> now, whatever starts it otherwise.</li>
+        </ul>
+        <p><strong>A key reaches only what you choose.</strong> On Connections, tick which counters, switches, workflows, scenes, countdowns and ads your Stream Deck may use. Its own sign-in can’t see or change anything you didn’t tick, and Forget stops it at once.</p>
+      </div>
+      <div class="shots">
+        {{template "shot" index .Shots "streamdeck-keys"}}
+        {{template "shot" index .Shots "streamdeck"}}
+      </div>
+    </div>
   </div>
 </section>
 
@@ -129,7 +152,6 @@
       <li><h3>Ads</h3><p>See your next ad and snoozes, run or snooze one, and tell chat when a break starts.</p></li>
       <li><h3>OBS</h3><p>Scenes, sources, filters, mute, media, recording and replay. Switch for now and come back, without undoing a scene you chose yourself.</p></li>
       <li><h3>YouTube</h3><p>Live chat beside Twitch’s, Super Chats, memberships, polls and moderation, with the quota shown as you go.</p></li>
-      <li><h3>Stream Deck</h3><p>An official plugin: pair it with a code, and keys press your buttons. A paired deck can do nothing else.</p></li>
       <li><h3>Discord</h3><p>Workflows post to your server through webhooks: going live, new clips, and a summary when you go offline.</p></li>
       <li><h3>Lua and add-ons</h3><p>Lua steps for anything else, and plugins that add steps and triggers. Each runs in its own process, with only the permissions you allow.</p></li>
       <li><h3>Backups</h3><p>Everything copied every day and whenever you ask. Restoring asks first and backs up what it replaces.</p></li>

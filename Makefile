@@ -92,8 +92,10 @@ test-fuzz: ## Run every fuzz target for FUZZTIME each (default 15s)
 test-load: ## The chat surge load test through the real binary, with budgets
 	$(GO) test -tags 'acceptance load' -count=1 -run TestLoad -v ./tests/acceptance
 
-screenshots: desktop-ui ## Photograph the app with made-up data for the website (needs Chromium or Chrome; CHROME=path)
+screenshots: desktop-ui node-check ## Photograph the app with made-up data for the website (needs Chromium or Chrome; CHROME=path), and draw Stream Deck keys
 	$(GO) run ./cmd/screenshots -out website/screenshots
+	$(NPM_DECK) ci --no-audit --no-fund
+	$(NPM_DECK) run strip
 
 site: ## Build the website into ./bin/site (www and code); offers the newest installers in ./bin/release, linked to GitHub
 	$(GO) run ./cmd/site -out bin/site

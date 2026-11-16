@@ -9,6 +9,7 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "validate": "streamdeck validate com.streamgremlin.streamdeck.sdPlugin",
+    "strip": "node strip.mjs ../website/screenshots/streamdeck-keys.svg",
     "pack": "node build.mjs && streamdeck pack com.streamgremlin.streamdeck.sdPlugin -o ../bin/streamdeck -f --no-update-check"
   },
   "engines": {

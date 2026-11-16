@@ -63,28 +63,43 @@ type Term struct {
 type Shot struct {
 	File string // in screenshots/
 	Alt  string
+	// W and H are its size in CSS pixels: a screen is 1280 by 800.
+	W, H int
 }
 
 // shots describes each screenshot, for its alt text. A picture the site
 // uses must be here, and a test checks each file exists.
 var shots = map[string]Shot{
-	"home":            {"home.webp", "The Home screen: nothing needs you, and the Get set up checklist with three of four steps ticked."},
-	"live":            {"live.webp", "The Live screen: chat in the middle with timestamps and badges, and coloured buttons with icons on the right."},
-	"raid-guard":      {"raid-guard.webp", "The raid guard’s warning on Live: a burst of four first-time chatters right after a raid, saying a friendly raid needs only Dismiss, with Lock chat, Ban these accounts and Dismiss."},
-	"workflows":       {"workflows.webp", "The Workflows screen: workflows in groups, each with its trigger, a switch, Test, Edit and Runs."},
-	"workflow-editor": {"workflow-editor.webp", "The workflow editor: when a viewer types !clip, for VIPs, mods and you."},
-	"events":          {"events.webp", "The Events screen: everything StreamGremlin heard from a made-up stream, newest first."},
-	"timers":          {"timers.webp", "The Timers screen: a socials reminder, a hydrate reminder and a Discord plug."},
-	"quotes":          {"quotes.webp", "The Quotes screen: numbered quotes with who added them."},
-	"overlays":        {"overlays.webp", "The Overlays screen, with an alerts overlay for OBS."},
-	"giveaways":       {"giveaways.webp", "A giveaway taking entries: eight viewers typed !enter, and what was said in chat."},
-	"points":          {"points.webp", "The Points screen: points called Acorns, and the top viewers."},
-	"viewers":         {"viewers.webp", "The Viewers screen: the made-up viewers who chatted, followed or subscribed."},
-	"filters":         {"filters.webp", "The Chat filters screen."},
-	"banlists":        {"banlists.webp", "The Ban lists screen: a shared list of 250,004 names being looked up on Twitch, with a progress bar, its pace, about when it will finish and what it has found so far, and an earlier list that is done."},
-	"wheels":          {"wheels.webp", "The Wheels screen: a wheel of what to play next."},
-	"connections":     {"connections.webp", "The Connections screen: the streamer’s Twitch account and a bot account, both signed in."},
-	"settings":        {"settings.webp", "The Settings screen."},
+	"home":            {"home.webp", "The Home screen: nothing needs you, and the Get set up checklist with three of four steps ticked.", 0, 0},
+	"live":            {"live.webp", "The Live screen: chat in the middle with timestamps and badges, and coloured buttons with icons on the right.", 0, 0},
+	"raid-guard":      {"raid-guard.webp", "The raid guard’s warning on Live: a burst of four first-time chatters right after a raid, saying a friendly raid needs only Dismiss, with Lock chat, Ban these accounts and Dismiss.", 0, 0},
+	"workflows":       {"workflows.webp", "The Workflows screen: workflows in groups, each with its trigger, a switch, Test, Edit and Runs.", 0, 0},
+	"workflow-editor": {"workflow-editor.webp", "The workflow editor: when a viewer types !clip, for VIPs, mods and you.", 0, 0},
+	"events":          {"events.webp", "The Events screen: everything StreamGremlin heard from a made-up stream, newest first.", 0, 0},
+	"timers":          {"timers.webp", "The Timers screen: a socials reminder, a hydrate reminder and a Discord plug.", 0, 0},
+	"quotes":          {"quotes.webp", "The Quotes screen: numbered quotes with who added them.", 0, 0},
+	"overlays":        {"overlays.webp", "The Overlays screen, with an alerts overlay for OBS.", 0, 0},
+	"giveaways":       {"giveaways.webp", "A giveaway taking entries: eight viewers typed !enter, and what was said in chat.", 0, 0},
+	"points":          {"points.webp", "The Points screen: points called Acorns, and the top viewers.", 0, 0},
+	"viewers":         {"viewers.webp", "The Viewers screen: the made-up viewers who chatted, followed or subscribed.", 0, 0},
+	"filters":         {"filters.webp", "The Chat filters screen.", 0, 0},
+	"banlists":        {"banlists.webp", "The Ban lists screen: a shared list of 250,004 names being looked up on Twitch, with a progress bar, its pace, about when it will finish and what it has found so far, and an earlier list that is done.", 0, 0},
+	"wheels":          {"wheels.webp", "The Wheels screen: a wheel of what to play next.", 0, 0},
+	"connections":     {"connections.webp", "The Connections screen: the streamer’s Twitch account and a bot account, both signed in.", 0, 0},
+	"settings":        {"settings.webp", "The Settings screen.", 0, 0},
+	"streamdeck":      {"streamdeck.webp", "What your Stream Deck can use, on Connections: a counter, switches, a workflow to run, scene keys, a countdown and ads ticked.", 0, 0},
+	// Drawn by the Stream Deck plugin's own code (streamdeck/src/strip.ts).
+	"streamdeck-keys": {"streamdeck-keys.svg", "Eight Stream Deck keys: Be right back, a death counter at 7, LIVE, the Hydrate timer on, a Clip that workflow to run, the Game scene on air, a Back soon countdown at 4:59, and the next ad in 4:30 with 3 snoozes left.", 716, 372},
+}
+
+// A screen's picture is the app's window, 1280 by 800.
+func init() {
+	for k, s := range shots {
+		if s.W == 0 {
+			s.W, s.H = 1280, 800
+			shots[k] = s
+		}
+	}
 }
 
 // helpShots puts a picture beside a Help term.

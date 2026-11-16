@@ -261,4 +261,8 @@ var shots = []shot{
 	// The stand-in Twitch's notice is for testers, not the picture.
 	{name: "connections", screen: "Connections", steps: []string{`__sg.hide('section[aria-label="Test server"]')`}},
 	{name: "settings", screen: "Settings"},
+	// What the Stream Deck may use, scrolled to (D-124).
+	{name: "streamdeck", screen: "Connections", before: deckChoices, steps: []string{
+		`__sg.hide('section[aria-label="Test server"]')`,
+		`document.getElementById('deckkeys-heading').closest('section').scrollIntoView({block: "start"})`}},
 }
