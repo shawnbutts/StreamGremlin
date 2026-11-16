@@ -11,6 +11,9 @@
 //	release keygen KEYFILE         # a new signing key for updates (D-120)
 //	release sign KEYFILE SUMS OUT  # sign SHA256SUMS.txt for updates
 //	release verify SUMS SIG        # check a signature with the app's keys
+//	release previous VERSION CHANGELOG
+//	                               # the newest release older than VERSION
+//	                               # in CHANGELOG.md, or nothing
 //
 // Each PART of an SBOM is go:NAME=FILE (a Go program at NAME in the
 // download), file:NAME=FILE (any other file) or npm:NAME=LIST (npm
@@ -22,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -116,10 +120,19 @@ func run(args []string) error {
 		}
 		fmt.Println("signature OK")
 		return nil
+	case cmd == "previous" && len(args) == 2:
+		text, err := os.ReadFile(args[1]) //nolint:gosec // The path the Makefile names.
+		if err != nil {
+			return err
+		}
+		if p := previous(args[0], string(text)); p != "" {
+			fmt.Println(p)
+		}
+		return nil
 	case cmd == "sbom" && len(args) >= 6:
 		return sbom(args)
 	}
-	return errors.New("usage: release winversion VERSION | ico OUT PNG... | plist VERSION OUT | tarball OUT DIR PREFIX UNIXTIME | stamp DIR UNIXTIME | sbom OUT DOWNLOAD VERSION SYSTEM UNIXTIME PART [PART ...] | keygen KEYFILE | sign KEYFILE SUMS OUT | verify SUMS SIG")
+	return errors.New("usage: release winversion VERSION | ico OUT PNG... | plist VERSION OUT | tarball OUT DIR PREFIX UNIXTIME | stamp DIR UNIXTIME | sbom OUT DOWNLOAD VERSION SYSTEM UNIXTIME PART [PART ...] | keygen KEYFILE | sign KEYFILE SUMS OUT | verify SUMS SIG | previous VERSION CHANGELOG")
 }
 
 func sbom(args []string) error {
@@ -193,4 +206,28 @@ func sign(keyFile, sumsFile, out string) error {
 		return errors.New("that key isn't one the app trusts (internal/updates/keys.go)")
 	}
 	return os.WriteFile(out, sig, 0o644) //nolint:gosec // Published with the release.
+}
+
+// releaseHeading is a release's section in CHANGELOG.md: "## 0.1.0-beta.6 (2026-11-16)".
+var releaseHeading = regexp.MustCompile(`(?m)^## (\S+) \(\d{4}-\d{2}-\d{2}\)`)
+
+// previous is the newest release in changelog older than version, for the
+// Linux upgrade test; "" when there's none, or version isn't one.
+func previous(version, changelog string) string {
+	v, ok := updates.ParseVersion(version)
+	if !ok {
+		return ""
+	}
+	var best updates.Version
+	found := false
+	for _, m := range releaseHeading.FindAllStringSubmatch(changelog, -1) {
+		r, ok := updates.ParseVersion(m[1])
+		if ok && r.Compare(v) < 0 && (!found || r.Compare(best) > 0) {
+			best, found = r, true
+		}
+	}
+	if !found {
+		return ""
+	}
+	return best.String()
 }

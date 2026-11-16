@@ -103,6 +103,14 @@ make release-sign VERSION=0.1.0-beta.6    # sign SHA256SUMS.txt, upload SHA256SU
 gh release edit v0.1.0-beta.6 --repo shawnbutts/StreamGremlin --draft=false
 ```
 
+Once it's out, save a data folder made by that release, for the upgrade test, and commit it:
+
+```sh
+make upgrade-fixture VERSION=0.1.0-beta.6   # into tests/testdata/upgrade/0.1.0-beta.6
+```
+
+`make test-acceptance` opens every saved folder with the current build (`TestUpgradeFromEarlierBetas`), and fails when a released version other than the newest has none. The data in them is made up. The release workflow's Linux smoke test also upgrades from the previous release's packages.
+
 The signing key is `~/.config/streamgremlin-release/signing.key` on the release Mac (`SIGNING_KEY=` for another place). It never goes on GitHub or into the repository. Keep a copy somewhere safe and offline: without it, no release can be installed as an update, and testers have to install by hand until a version trusting a new key is out. `release-sign` refuses a key file others can read, and checks the signature with the keys the app trusts (`internal/updates/keys.go`) before uploading. Sign last: if the workflow is re-run after signing, it replaces `SHA256SUMS.txt`, the signature no longer matches, and the app won't install that release until it's signed again.
 
 To try updates without publishing, `make mockgithub` and run `bin/mockgithub -dir bin/release -version VERSION`: it serves those files as a signed release and prints the `STREAMGREMLIN_UPDATES_*` settings to start the app or engine with.

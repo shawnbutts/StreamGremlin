@@ -8,6 +8,20 @@ import (
 	"testing"
 )
 
+// The Linux upgrade test starts from the newest release older than the one
+// being built, by the changelog's sections.
+func TestPrevious(t *testing.T) {
+	log := "## Unreleased\n\n## 0.1.0-beta.10 (2026-11-20)\n\n## 0.1.0-beta.9 (2026-11-19)\n\n## 0.1.0-beta.4 (2026-11-16)\n"
+	for version, want := range map[string]string{
+		"0.1.0-beta.11": "0.1.0-beta.10", "0.1.0-beta.10": "0.1.0-beta.9", "0.1.0": "0.1.0-beta.10",
+		"0.1.0-beta.4": "", "0.0.0-ci.7": "", "dev": "",
+	} {
+		if got := previous(version, log); got != want {
+			t.Errorf("%s: %q, want %q", version, got, want)
+		}
+	}
+}
+
 func TestSBOMCommand(t *testing.T) {
 	dir := t.TempDir()
 	download := filepath.Join(dir, "StreamGremlin-0.1.0-beta.5-linux-x64.deb")

@@ -48,7 +48,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: linux linux-smoke release-streamdeck release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockgithub mockyoutube release-sign help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: linux linux-smoke release-streamdeck release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockgithub mockyoutube release-sign upgrade-fixture help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -104,6 +104,19 @@ release-fetch: ## Download a release's files from GitHub into ./bin/release, for
 	@test "$(VERSION)" != dev || { echo "Set the version: make release-fetch VERSION=0.1.0-beta.5"; exit 1; }
 	gh release download v$(VERSION) --repo $(GITHUB_REPO) --dir $(RELEASE) --clobber
 	cd $(RELEASE) && shasum -a 256 -c SHA256SUMS.txt
+
+# A data folder made by a released beta's own engine and CLI, with the
+# upgrade test's made-up data, into tests/testdata/upgrade/VERSION: run it
+# for each release once it's out, and commit the folder (M9 slice 3).
+FIXTURE := $(BIN)/fixture
+upgrade-fixture: ## Save a data folder made by a released version, for the upgrade test (VERSION=...)
+	@test "$(VERSION)" != dev || { echo "Set the version: make upgrade-fixture VERSION=0.1.0-beta.6"; exit 1; }
+	rm -rf $(FIXTURE) && git worktree prune && git worktree add --detach $(FIXTURE)/src v$(VERSION)
+	cd $(FIXTURE)/src && CGO_ENABLED=0 $(GO) build -trimpath \
+		-ldflags "-X code.streamgremlin.com/streamgremlin/internal/buildinfo.Version=$(VERSION)" -o $(FIXTURE)/streamgremlin ./cmd/streamgremlin
+	git worktree remove --force $(FIXTURE)/src
+	STREAMGREMLIN_ACCEPTANCE_BIN=$(FIXTURE)/streamgremlin STREAMGREMLIN_MAKE_FIXTURE=$(CURDIR)/tests/testdata/upgrade/$(VERSION) \
+		$(GO) test -tags acceptance -count=1 -run TestMakeUpgradeFixture -v ./tests/acceptance
 
 # Signs a release for updates (D-120), after release-fetch has downloaded it
 # and checked every file: SHA256SUMS.txt is signed with the key on this
@@ -340,12 +353,25 @@ release-linux: release-version linux $(NFPM)
 # Installs the Linux packages in fresh containers of the oldest systems
 # they're for and starts the app (packaging/linux/smoke.sh).
 LINUX_SMOKE := ubuntu:24.04=deb debian:trixie=deb fedora:42=rpm
-linux-smoke: ## Install the Linux packages in fresh Ubuntu, Debian and Fedora containers and start the app (VERSION=...)
+# Each distribution twice: a fresh install, then an upgrade from the
+# previous release (the newest older one in CHANGELOG.md, downloaded from
+# GitHub), which must keep the data. LINUX_PREVIOUS= skips the upgrade.
+LINUX_PREVIOUS ?= $(shell $(GO) run ./cmd/release previous "$(VERSION)" CHANGELOG.md)
+PREVIOUS_DIR := $(BIN)/linux-previous
+linux-smoke: ## Install the Linux packages in fresh Ubuntu, Debian and Fedora containers and start the app, then upgrade from the last release (VERSION=...)
 	@test "$(VERSION)" != dev || { echo "Set the version of the packages in bin/release: make linux-smoke VERSION=0.1.0-beta.1"; exit 1; }
+	mkdir -p $(PREVIOUS_DIR)
 	for pair in $(LINUX_SMOKE); do \
 		image=$${pair%=*} && ext=$${pair#*=} && echo "== $$image" && \
 		$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(RELEASE)":/pkgs:ro -v "$(CURDIR)/packaging/linux/smoke.sh":/smoke.sh:ro \
 			docker.io/library/$$image sh /smoke.sh /pkgs/StreamGremlin-$(VERSION)-linux-$(LINUX_NAME).$$ext || exit 1; \
+		if [ -n "$(LINUX_PREVIOUS)" ]; then \
+			old=StreamGremlin-$(LINUX_PREVIOUS)-linux-$(LINUX_NAME).$$ext && echo "== $$image, upgrading from $(LINUX_PREVIOUS)" && \
+			{ test -f $(PREVIOUS_DIR)/$$old || curl -fsSL -o $(PREVIOUS_DIR)/$$old https://github.com/$(GITHUB_REPO)/releases/download/v$(LINUX_PREVIOUS)/$$old; } && \
+			$(CONTAINER) run --rm --platform linux/$(LINUX_ARCH) -v "$(RELEASE)":/pkgs:ro -v "$(PREVIOUS_DIR)":/previous:ro \
+				-v "$(CURDIR)/packaging/linux/smoke.sh":/smoke.sh:ro \
+				docker.io/library/$$image sh /smoke.sh /pkgs/StreamGremlin-$(VERSION)-linux-$(LINUX_NAME).$$ext /previous/$$old || exit 1; \
+		fi; \
 	done
 
 # THIRD-PARTY-LICENSES.txt holds the licence of every Go module built into

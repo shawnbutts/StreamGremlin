@@ -29,10 +29,16 @@ func TestMain(m *testing.M) {
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
-	build := exec.Command("go", "build", "-o", bin, "code.streamgremlin.com/streamgremlin/cmd/streamgremlin")
-	build.Stdout, build.Stderr = os.Stdout, os.Stderr
-	if err := build.Run(); err != nil {
-		panic("build streamgremlin: " + err.Error())
+	// STREAMGREMLIN_ACCEPTANCE_BIN runs another build instead, such as a
+	// released beta's, to make an upgrade test's data folder.
+	if other := os.Getenv("STREAMGREMLIN_ACCEPTANCE_BIN"); other != "" {
+		bin = other
+	} else {
+		build := exec.Command("go", "build", "-o", bin, "code.streamgremlin.com/streamgremlin/cmd/streamgremlin")
+		build.Stdout, build.Stderr = os.Stdout, os.Stderr
+		if err := build.Run(); err != nil {
+			panic("build streamgremlin: " + err.Error())
+		}
 	}
 	code := m.Run()
 	_ = os.RemoveAll(tmp)

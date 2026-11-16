@@ -4,6 +4,10 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ## Unreleased
 
+### Added
+
+- **Upgrade tests** (M9 slice 3): a data folder made by each release since beta.4, by that release's own engine and with made-up data, is opened by every build, which must find everything still there: workflows, viewers and points, quotes, timers, wheels, overlays, sounds, add-ons, settings, sign-ins and backups. On Linux, the release build also installs the previous release, saves something, upgrades over it and checks it's kept.
+
 ### Fixed
 
 - The changelog, here and on the website, has a section for each release, newest first. Before, everything was under Unreleased, with the newest at the bottom. A release build now fails if its version has no section.
