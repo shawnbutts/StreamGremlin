@@ -4,6 +4,12 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.1.0-beta.7 (2026-11-16)
+
+The first wider beta: anyone can download it from GitHub or streamgremlin.com.
+
 ### Added
 
 - **Upgrade tests** (M9 slice 3): a data folder made by each release since beta.4, by that release's own engine and with made-up data, is opened by every build, which must find everything still there: workflows, viewers and points, quotes, timers, wheels, overlays, sounds, add-ons, settings, sign-ins and backups. On Linux, the release build also installs the previous release, saves something, upgrades over it and checks it's kept.
