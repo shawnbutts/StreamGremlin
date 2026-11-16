@@ -5,6 +5,7 @@
   import { applyTheme } from '../lib/theme';
   import BackupsCard from './BackupsCard.svelte';
   import SavedSecrets from './SavedSecrets.svelte';
+  import UpdatesCard from './UpdatesCard.svelte';
 
   const options: { value: Theme; label: string; hint: string }[] = [
     { value: 'system', label: 'System', hint: 'Dark or light, following your computer' },
@@ -97,7 +98,7 @@
 </script>
 
 <h1>Settings</h1>
-<p class="sg-muted screen-intro">How StreamGremlin looks, the passwords and sign-ins it keeps, backups, and how long it keeps history.</p>
+<p class="sg-muted screen-intro">How StreamGremlin looks, updates, the passwords and sign-ins it keeps, backups, and how long it keeps history.</p>
 
 <section class="sg-panel card" aria-labelledby="appearance-heading">
   <h2 id="appearance-heading">Appearance</h2>
@@ -171,6 +172,8 @@
     {/each}
   </ul>
 </section>
+
+<UpdatesCard />
 
 <SavedSecrets />
 

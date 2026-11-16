@@ -13,7 +13,10 @@ const (
 	// Repo is where the code, issues and private security reports are
 	// (D-115). IssuesURL starts a bug report or idea; SecurityURL a
 	// private security report.
-	Repo        = "https://github.com/shawnbutts/StreamGremlin"
+	// GitHubRepo is the repository's owner/name, where releases are
+	// (D-118) and the update check looks (D-120).
+	GitHubRepo  = "shawnbutts/StreamGremlin"
+	Repo        = "https://github.com/" + GitHubRepo
 	IssuesURL   = Repo + "/issues/new/choose"
 	SecurityURL = Repo + "/security/advisories/new"
 	// EnvPrefix starts every environment variable the app reads.

@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	sgrelease "code.streamgremlin.com/streamgremlin/internal/release"
+	"code.streamgremlin.com/streamgremlin/internal/updates"
 )
 
 func env(t *testing.T) (dir, version string) {
@@ -382,3 +383,33 @@ func TestStreamDeckVersion(t *testing.T) {
 }
 
 const deckDir = "com.streamgremlin.streamdeck.sdPlugin"
+
+// A signed release (make release-sign, D-120): the signature checks out
+// with the app's own keys, and SHA256SUMS.txt lists the installers the app
+// would download. A release built but not yet signed has none.
+func TestSignature(t *testing.T) {
+	dir, version := env(t)
+	sig, err := os.ReadFile(filepath.Join(dir, updates.SigFile))
+	if errors.Is(err, os.ErrNotExist) {
+		t.Skip("not signed yet: make release-sign signs a published draft")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	sums, err := os.ReadFile(filepath.Join(dir, updates.SumsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := updates.Verify(updates.TrustedKeys(), sums, sig); err != nil {
+		t.Fatal(err)
+	}
+	list, err := updates.ParseSums(sums)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"StreamGremlin-" + version + "-windows-x64-setup.exe", "StreamGremlin-" + version + "-macos.dmg"} {
+		if _, ok := list[f]; !ok {
+			t.Errorf("%s doesn't list %s", updates.SumsFile, f)
+		}
+	}
+}

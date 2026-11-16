@@ -6,6 +6,7 @@ package desktop
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net"
 	"net/http"
@@ -101,11 +102,21 @@ type SaveFunc func(name string, data []byte) (string, error)
 type ChooseFunc func(title, filter, pattern string) (string, error)
 
 // Dialogs are the system's own dialogs, for POST /desktop/save-file and
-// POST /desktop/choose-file.
+// POST /desktop/choose-file, and what only the app can do: Install, for
+// POST /desktop/install-update, starts installing the downloaded update
+// and quits the app, which the installer reopens (D-120).
 type Dialogs struct {
-	Save   SaveFunc
-	Choose ChooseFunc
+	Save    SaveFunc
+	Choose  ChooseFunc
+	Install func() error
 }
+
+// UpdateRefused is an Install error the streamer can act on (live, not
+// downloaded): 409 with its words, not 503.
+type UpdateRefused struct{ Err error }
+
+func (e UpdateRefused) Error() string { return e.Err.Error() }
+func (e UpdateRefused) Unwrap() error { return e.Err }
 
 func Handler(assets fs.FS, state *State, open func(url string) error, restart func() error, dialogs ...Dialogs) http.Handler {
 	var dl Dialogs
@@ -130,6 +141,8 @@ func Handler(assets fs.FS, state *State, open func(url string) error, restart fu
 			saveFile(w, r, dl.Save)
 		case r.URL.Path == "/desktop/choose-file":
 			chooseFile(w, r, dl.Choose)
+		case r.URL.Path == "/desktop/install-update":
+			installUpdate(w, r, dl.Install)
 		case strings.HasPrefix(r.URL.Path, "/v1/"):
 			bridge(w, r, state)
 		default:
@@ -177,6 +190,9 @@ func bridge(w http.ResponseWriter, r *http.Request, state *State) {
 // modViewPath is a channel's Mod View: /moderator/ and a Twitch login.
 var modViewPath = regexp.MustCompile(`^/moderator/[a-z0-9_]{1,25}$`)
 
+// releasePath is one of StreamGremlin's releases on GitHub.
+var releasePath = regexp.MustCompile(`^/` + regexp.QuoteMeta(brand.GitHubRepo) + `/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$`)
+
 func AllowedURL(u string) bool {
 	p, err := url.Parse(u)
 	if err != nil || p.User != nil || p.Fragment != "" {
@@ -194,6 +210,9 @@ func AllowedURL(u string) bool {
 		return true
 	case p.Scheme == "https" && p.Host == "console.cloud.google.com" && (p.Path == "/projectcreate" ||
 		strings.HasPrefix(p.Path, "/apis/") || strings.HasPrefix(p.Path, "/auth/")):
+		return true
+	case p.Scheme == "https" && p.Host == "github.com" && releasePath.MatchString(p.Path) && p.RawQuery == "":
+		// A release's page, from Settings' updates (D-120).
 		return true
 	case u == brand.IssuesURL || u == brand.SecurityURL:
 		// Reporting a problem, from Help (D-115).
@@ -351,4 +370,30 @@ func chooseFile(w http.ResponseWriter, r *http.Request, choose ChooseFunc) {
 		return
 	}
 	reply(http.StatusOK, map[string]string{"path": p})
+}
+
+func installUpdate(w http.ResponseWriter, r *http.Request, install func() error) {
+	fail := func(status int, code, msg string) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": msg}})
+	}
+	switch {
+	case r.Method != http.MethodPost:
+		fail(http.StatusMethodNotAllowed, "method_not_allowed", "use POST")
+		return
+	case install == nil:
+		fail(http.StatusServiceUnavailable, "unavailable", "updates install from the desktop app only")
+		return
+	}
+	if err := install(); err != nil {
+		var refused UpdateRefused
+		if errors.As(err, &refused) {
+			fail(http.StatusConflict, "conflict", refused.Error())
+			return
+		}
+		fail(http.StatusServiceUnavailable, "unavailable", err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }

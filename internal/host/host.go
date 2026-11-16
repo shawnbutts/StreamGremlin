@@ -5,6 +5,7 @@ package host
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -53,6 +54,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/updates"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
@@ -83,6 +85,12 @@ type Options struct {
 	// brand.DefaultOverlayAddr, falling back to a free port if that is
 	// taken; "off" serves none.
 	OverlayAddr string
+	// UpdatesURL replaces GitHub's API for update checks (D-120), for
+	// mockgithub. It must be a loopback http URL. UpdatesKey is the public
+	// key (base64) its releases are signed with, trusted instead of the
+	// app's own; UpdatesVersion is the version to check as, since
+	// development builds never check. Both need UpdatesURL.
+	UpdatesURL, UpdatesKey, UpdatesVersion string
 	// TestMinute shortens time in chat's minute, for tests against a
 	// stand-in Twitch only (0: a real minute).
 	TestMinute time.Duration
@@ -122,6 +130,8 @@ type Host struct {
 	plugins   *plugins.Manager
 	rounds    *rounds.Service
 	maint     *maintenance.Service
+	updates   *updates.Service
+	stopUpd   context.CancelFunc
 	hub       *overlays.Hub
 	ovSrv     *http.Server
 	thSrv     *http.Server // wheel looks' own origin (docs/adr/0036-packages-plugins-and-themes.md)
@@ -353,6 +363,12 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 	}
 	h.maint = maintenance.New(maintenance.Options{DB: h.db, Settings: set, DataDir: opts.DataDir, AppVersion: buildinfo.Version, Logger: log})
 	h.maint.Start(context.Background())
+	if h.updates, err = h.newUpdates(opts); err != nil {
+		return nil, err
+	}
+	var updCtx context.Context
+	updCtx, h.stopUpd = context.WithCancel(context.Background())
+	h.updates.Start(updCtx)
 
 	h.token, err = api.LoadOrCreateToken(datadir.TokenPath(opts.DataDir))
 	if err != nil {
@@ -406,6 +422,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 			return h.OverlayURL(), h.ovNote
 		},
 		Maintenance: h.maint,
+		Updates:     h.updates,
 		Logger:      log,
 	}))
 
@@ -541,6 +558,9 @@ func (h *Host) Close(ctx context.Context) error {
 }
 
 func (h *Host) cleanup() {
+	if h.stopUpd != nil {
+		h.stopUpd()
+	}
 	if h.songs != nil {
 		h.songs.Close()
 	}
@@ -659,4 +679,42 @@ func twitchAuthURL(raw string) (string, error) {
 		return "", fmt.Errorf("host: the Twitch test server must be on this computer: %w", err)
 	}
 	return strings.TrimRight(raw, "/"), nil
+}
+
+// Updates is the update check (D-120), for the desktop app's Install.
+func (h *Host) Updates() *updates.Service { return h.updates }
+
+func (h *Host) newUpdates(opts Options) (*updates.Service, error) {
+	o := updates.Options{
+		Settings: settings.NewStore(h.db), DataDir: opts.DataDir, Version: buildinfo.Version, Repo: brand.GitHubRepo,
+		// Live on Twitch or YouTube: an update waits for the stream to end.
+		Live: func() bool { return h.audience.TwitchLive() || h.youtube.ChatStatus().State == youtube.ChatConnected },
+		Backup: func(ctx context.Context) (string, error) {
+			info, err := backup.Create(ctx, h.db, opts.DataDir, backup.PreUpdate, buildinfo.Version, time.Now())
+			return info.Name, err
+		},
+		Logger: h.log.With("component", "updates"),
+	}
+	if opts.UpdatesURL == "" {
+		if opts.UpdatesKey != "" || opts.UpdatesVersion != "" {
+			return nil, errors.New("host: an updates key or version is only for an updates test server")
+		}
+		return updates.New(o), nil
+	}
+	base, err := testServerURL(opts.UpdatesURL, "", "updates")
+	if err != nil {
+		return nil, err
+	}
+	o.API, o.TestServer = base, true
+	if opts.UpdatesKey != "" {
+		k, err := updates.ParsePublicKey(opts.UpdatesKey)
+		if err != nil {
+			return nil, fmt.Errorf("host: the updates test key: %w", err)
+		}
+		o.Keys = []ed25519.PublicKey{k}
+	}
+	if opts.UpdatesVersion != "" {
+		o.Version = opts.UpdatesVersion
+	}
+	return updates.New(o), nil
 }

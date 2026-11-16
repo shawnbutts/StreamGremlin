@@ -218,6 +218,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 		Events: inbox, Twitch: tw, YouTube: yt, OBS: ob, Workflows: wf, Variables: vars, Timers: tm, Quotes: qs, Sounds: lib, Player: player,
 		Overlays: ovs, Hub: hub, OverlayTimers: clocks, Packages: pkgs, Themes: themes, FirstWords: fw, Ads: adsSvc, Giveaways: gw, Wheels: wh, Viewers: vs, Points: ledger, Earning: earn, Gives: gv, Lua: lr, Plugins: pm, Rounds: rs, Buttons: buttons.New(db, inbox, nil), Clients: cl, Moderation: mods, BanLists: bl, RaidGuard: rg, FollowBots: &followbots.Deps{Inbox: inbox, Users: tw.LookUpUsers, Chatted: followbots.ChattedFrom(vs)}, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
+		Updates:     newTestUpdates(t, set, dir),
 		Now:         func() time.Time { return started.Add(90 * time.Second) },
 	})), sec
 }

@@ -18,6 +18,7 @@ import (
 const (
 	ScreenConnections = "connections"
 	ScreenWorkflows   = "workflows"
+	ScreenSettings    = "settings"
 )
 
 // Step is one Get set up step.
@@ -65,6 +66,8 @@ type Input struct {
 	OBS       obs.Status
 	Workflows workflow.Stats
 	Commands  []commands.Entry
+	// Update is a newer version that's out (D-120), or "".
+	Update string
 }
 
 // signedIn: a saved sign-in, confirmed or not checkable right now.
@@ -178,6 +181,9 @@ func Build(in Input) Overview {
 		}
 		add(Problem, ScreenWorkflows, "%d workflow %s failed %s. Their traces say why.", wf.Failed24h, runs, when)
 		o.Attention[len(o.Attention)-1].Action = ActionMarkFailuresSeen
+	}
+	if in.Update != "" {
+		add(Tip, ScreenSettings, "StreamGremlin %s is out. See what's new and install it from Settings.", in.Update)
 	}
 	return o
 }

@@ -7,6 +7,10 @@
 ; %LocalAppData%\Programs\StreamGremlin. The streamer's data folder,
 ; %LocalAppData%\StreamGremlin, is never touched: the uninstaller removes
 ; exactly the files it installed. Unsigned during the beta (D-084).
+;
+; StreamGremlin installs its own updates (D-120) by running this with
+; /S /update: silently, it waits for the app to close, installs, keeps a
+; desktop shortcut only if there was one, and opens the app again.
 
 Unicode true
 ManifestDPIAware true
@@ -28,6 +32,7 @@ SetCompressor /SOLID lzma
 !include "LogicLib.nsh"
 !include "x64.nsh"
 !include "nsDialogs.nsh"
+!include "FileFunc.nsh"
 
 Name "${APP}"
 OutFile "${OUT}"
@@ -69,6 +74,8 @@ VIAddVersionKey "LegalCopyright" "Copyright 2026 the StreamGremlin authors. Apac
 !insertmacro MUI_LANGUAGE "English"
 
 Var DeckBox
+; 1 when StreamGremlin runs this to install an update of itself.
+Var Updating
 
 ; Modern UI's finish page has room for two boxes of its own; this one goes
 ; 20 units below the second (110u), as Modern UI spaces its own. Unticked:
@@ -101,16 +108,39 @@ Function .onInit
     MessageBox MB_OK|MB_ICONSTOP "${APP} needs 64-bit Windows 10 or 11."
     Abort
   ${EndIf}
+  StrCpy $Updating 0
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/update" $R1
+  ${IfNot} ${Errors}
+    StrCpy $Updating 1
+    Call UpdateMode
+  ${EndIf}
+FunctionEnd
+
+; Reopens StreamGremlin after an update it started.
+Function .onInstSuccess
+  ${If} $Updating == 1
+    Exec '"$INSTDIR\${EXE}"'
+  ${EndIf}
 FunctionEnd
 
 ; A running StreamGremlin (or a Lua script it started) holds its .exe open,
 ; so it can't be replaced or removed until it's closed.
 Function CloseApp
+  StrCpy $R2 0
   retry:
   ${If} ${FileExists} "$INSTDIR\${EXE}"
     ClearErrors
     FileOpen $0 "$INSTDIR\${EXE}" a
     ${If} ${Errors}
+      ; An update: the app is closing itself, so wait up to a minute.
+      ${If} $Updating == 1
+      ${AndIf} $R2 < 120
+        IntOp $R2 $R2 + 1
+        Sleep 500
+        Goto retry
+      ${EndIf}
       MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "${APP} is open. Close it, wait a few seconds, then choose Retry." IDRETRY retry
       Abort
     ${EndIf}
@@ -184,6 +214,14 @@ SectionEnd
 Section "Desktop shortcut" SecDesktop
   CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\${EXE}" "" "$INSTDIR\StreamGremlin.ico"
 SectionEnd
+
+; An update keeps the desktop shortcut only if there is one: the
+; streamer may have removed it.
+Function UpdateMode
+  ${IfNot} ${FileExists} "$DESKTOP\${APP}.lnk"
+    SectionSetFlags ${SecDesktop} 0
+  ${EndIf}
+FunctionEnd
 
 Section "Uninstall"
   Call un.CloseApp

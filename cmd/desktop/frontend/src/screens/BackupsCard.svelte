@@ -37,6 +37,7 @@
     scheduled: 'Automatic',
     'pre-restore': 'Before a restore',
     'pre-migration': 'Before an update (database only)',
+    'pre-update': 'Before installing an update',
   };
   const every = [
     { hours: 24, label: 'Every day' },

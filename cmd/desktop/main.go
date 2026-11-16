@@ -25,6 +25,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/logging"
 	"code.streamgremlin.com/streamgremlin/internal/lua"
 	"code.streamgremlin.com/streamgremlin/internal/storage"
+	"code.streamgremlin.com/streamgremlin/internal/updates"
 )
 
 //go:embed all:frontend/dist
@@ -96,6 +97,28 @@ func run() error {
 		}
 		return d.PromptForSingleSelection()
 	}
+	// Installing an update (D-120): the engine backs up and starts the
+	// installer, which waits for the app to quit, then reopens it.
+	install := func() error {
+		h := eng.host()
+		if h == nil {
+			return desktop.UpdateRefused{Err: errors.New("StreamGremlin is still starting")}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := h.Updates().Install(ctx); err != nil {
+			if errors.Is(err, updates.ErrLive) || errors.Is(err, updates.ErrNotReady) || errors.Is(err, updates.ErrDev) {
+				return desktop.UpdateRefused{Err: err}
+			}
+			return err
+		}
+		// After the answer reaches the window.
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			app.Quit()
+		}()
+		return nil
+	}
 	app = application.New(application.Options{
 		Name:        brand.Name,
 		Description: "Local-first stream automation",
@@ -103,7 +126,7 @@ func run() error {
 		Logger:      log,
 		Assets: application.AssetOptions{
 			Handler: desktop.Handler(assets, state, openURL, func() error { return eng.restart(dir, state) },
-				desktop.Dialogs{Save: saveFile, Choose: chooseFile}),
+				desktop.Dialogs{Save: saveFile, Choose: chooseFile, Install: install}),
 			DisableLogging: level != slog.LevelDebug,
 		},
 		Mac: application.MacOptions{ApplicationShouldTerminateAfterLastWindowClosed: true},
@@ -180,6 +203,9 @@ func (e *engine) start(dir string, state *desktop.State) {
 	h, err := host.Start(context.Background(), host.Options{
 		DataDir: dir, TwitchAuthURL: os.Getenv(brand.Env("TWITCH_AUTH_URL")),
 		YouTubeURL: os.Getenv(brand.Env("YOUTUBE_URL")), Logger: e.log,
+		// mockgithub, for trying updates (D-120).
+		UpdatesURL: os.Getenv(brand.Env("UPDATES_URL")), UpdatesKey: os.Getenv(brand.Env("UPDATES_KEY")),
+		UpdatesVersion: os.Getenv(brand.Env("UPDATES_VERSION")),
 	})
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -214,6 +240,13 @@ func (e *engine) restart(dir string, state *desktop.State) error {
 	e.log.Info("restarting the engine")
 	go e.start(dir, state)
 	return nil
+}
+
+// host is the running engine, or nil.
+func (e *engine) host() *host.Host {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.h
 }
 
 func (e *engine) stop() {

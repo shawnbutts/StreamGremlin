@@ -2052,3 +2052,20 @@ Decided 2026-11-16. The user: "for the release, should we put the streamdeck plu
 - **The installers keep it,** so a fresh install needs nothing more. `tests/release` checks that the plugin inside the Windows and macOS downloads is the same bytes as the one on its own.
 - **Its version matches the app's,** in Stream Deck's four parts, as on Windows: 0.1.0-beta.4 is 0.1.0.4. Stream Deck shows it, so a streamer can tell which plugin they have. The build packs a copy of the plugin with that version (Elgato's `pack --version` rewrites the manifest it packs); the manifest in the repository stays 0.1.0.0, which a `make streamdeck` without a release version still packs. `tests/release` checks the version. Use the plugin with the same version of StreamGremlin.
 - `make release-streamdeck` makes it; `make release` and the GitHub release workflow (D-118) run it. Download on streamgremlin.com lists it after the installers.
+
+## D-120. Updates: check GitHub, ask, then install a signed release (amends D-110, M9's "Left out")
+
+Decided 2026-11-16. Asked about M9 slice 3, the user said: "as part of slice 3, can we add an check for updates based on gh release with auto-updates?" Offered three ways, they chose "Ask, then install"; for checking, "On, with a switch"; and for the signing key, "On your Mac".
+
+- **Who it's for:** beta testers the user hasn't met (D-110), who otherwise stay on an old beta, and every streamer after them.
+- **Checking** is on by default: a minute after start and once a day, the engine lists the repository's releases through GitHub's REST API, unauthenticated, saying only `StreamGremlin/VERSION`. A full release only moves to full releases; a beta moves to betas and full releases. Development builds never check. A switch in Settings → Updates turns it off; **Check now** still works. The privacy page names GitHub.
+- **Nothing is downloaded until the streamer chooses Download, and nothing installs until they confirm Install and restart.** Home's Needs you says when a version is out.
+- **Only a signed release installs.** The user signs `SHA256SUMS.txt` with an Ed25519 key kept on their own Mac (`make release-sign`, after `make release-fetch` has checked every file); the signature, `SHA256SUMS.txt.sig`, goes on the release. The app trusts the public keys in `internal/updates/keys.go`. A download must match the signed list, by name and SHA-256. Someone who took over the GitHub account couldn't ship an update. Releases before beta.6 aren't signed: the app shows them with a link, and doesn't install them.
+- **Installing** backs up first ("Before installing an update"), refuses while you're live on Twitch or YouTube, and then:
+  - **Windows:** runs the downloaded installer with `/S /update`: it waits for the app to close, installs over it for the current user, keeps a desktop shortcut only if there was one, and opens StreamGremlin again.
+  - **macOS:** opens the downloaded disk image read-only, checks it holds `com.streamgremlin.desktop`, copies the app beside the installed one and swaps them, then reopens it once the old one has quit. It refuses to run from the disk image or a translocated copy, and says how to fix that.
+  - **Linux:** says a version is out and links to the release page. Packages need the package manager, usually as root.
+- **The OS's own warning isn't shown for an update.** The file is downloaded by the app, not a browser, so Windows SmartScreen and macOS Gatekeeper don't ask again. The streamer allowed the first install, and the signature stands in for the check they'd have made. This is why the key stays off GitHub.
+- **What it doesn't do:** no download in the background, no install at start without asking, no delta updates, no rollback beyond the backup and installing the older version by hand. Code signing and notarization stay later (D-110).
+- **Testing:** `mockgithub` stands in for GitHub's releases, in tests and standalone. The engine takes `-updates-url`, `-updates-key` and `-updates-version` (and `STREAMGREMLIN_UPDATES_*`) for a test server on this computer only.
+- Design and file formats: [ADR-0052](adr/0052-updates.md).

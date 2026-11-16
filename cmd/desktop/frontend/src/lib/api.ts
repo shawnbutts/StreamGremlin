@@ -743,7 +743,7 @@ export interface Template {
 
 export const getTemplates = () => api<{ templates: Template[]; categories: string[] }>('GET', '/v1/templates');
 
-export type BackupKind = 'manual' | 'scheduled' | 'pre-restore' | 'pre-migration';
+export type BackupKind = 'manual' | 'scheduled' | 'pre-restore' | 'pre-migration' | 'pre-update';
 
 export interface BackupInfo {
   name: string;
@@ -798,6 +798,56 @@ export const sweepNow = () => api<SweepResult>('POST', '/v1/maintenance/sweep');
 /** Restart the app's engine: a staged restore is applied as it starts. */
 export async function restartEngine(): Promise<void> {
   const resp = await fetch('/desktop/restart-engine', { method: 'POST' });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => undefined);
+    throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);
+  }
+}
+
+/** Updates (D-120): checking GitHub for a newer StreamGremlin, and installing it. */
+export type UpdateState = 'dev' | 'off' | 'not_checked' | 'checking' | 'up_to_date' | 'available' | 'failed';
+
+export interface UpdateRelease {
+  version: string;
+  prerelease: boolean;
+  /** The release's notes, Markdown: shown as plain text. */
+  notes: string;
+  url: string;
+  published_at?: string;
+  /** The app can download and install it itself; when not, why says so. */
+  installable: boolean;
+  why?: string;
+  file?: string;
+  size?: number;
+}
+
+export interface UpdateDownload {
+  state: 'none' | 'downloading' | 'ready' | 'failed' | 'installing';
+  version?: string;
+  done: number;
+  total: number;
+  error?: string;
+}
+
+export interface UpdateStatus {
+  version: string;
+  settings: { check: boolean };
+  state: UpdateState;
+  checked_at?: string;
+  error?: string;
+  latest?: UpdateRelease;
+  download: UpdateDownload;
+  test_server?: boolean;
+}
+
+export const getUpdates = () => api<UpdateStatus>('GET', '/v1/updates');
+export const checkForUpdates = () => api<UpdateStatus>('POST', '/v1/updates/check');
+export const downloadUpdate = () => api<UpdateStatus>('POST', '/v1/updates/download');
+export const putUpdateSettings = (check: boolean) => api<{ check: boolean }>('PUT', '/v1/settings/updates', { check });
+
+/** Install the downloaded update: StreamGremlin backs up, closes, installs it and opens again. */
+export async function installUpdate(): Promise<void> {
+  const resp = await fetch('/desktop/install-update', { method: 'POST' });
   if (!resp.ok) {
     const data = await resp.json().catch(() => undefined);
     throw new ApiError(resp.status, data?.error?.code ?? 'unknown', data?.error?.message ?? resp.statusText);

@@ -22,6 +22,7 @@ Only the newest beta gets fixes. Updating means installing the newest build; you
 - **Add-ons and Lua scripts are untrusted:** each runs in its own process with time and memory limits, can only do what you approved, and everything it does is recorded.
 - **Content packs and themes are data only.** They can't run code on your computer, and installing one can't write outside its own folder.
 - **Winners are drawn on your computer** with a cryptographically secure random source, and recorded.
+- **Updates install only if they're signed** with StreamGremlin's own release key, which never leaves the maintainer's computer, and every file must match the signed list ([ADR-0052](docs/adr/0052-updates.md)). The app downloads an update only when you ask, and installs it only after asking again.
 - **What comes from outside** (chat, Twitch and YouTube events, add-ons' messages, files you import) is checked by fuzz tests ([ADR-0050](docs/adr/0050-security-and-load-testing.md)).
 
 ## What's not covered

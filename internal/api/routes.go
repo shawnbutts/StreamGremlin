@@ -38,6 +38,7 @@ import (
 	"code.streamgremlin.com/streamgremlin/internal/storage"
 	"code.streamgremlin.com/streamgremlin/internal/timers"
 	"code.streamgremlin.com/streamgremlin/internal/twitch"
+	"code.streamgremlin.com/streamgremlin/internal/updates"
 	"code.streamgremlin.com/streamgremlin/internal/variables"
 	"code.streamgremlin.com/streamgremlin/internal/viewers"
 	"code.streamgremlin.com/streamgremlin/internal/wheels"
@@ -113,8 +114,11 @@ type Deps struct {
 	Filters *filters.Service
 	// Maintenance runs backups and sweeps; nil in tests that don't need it.
 	Maintenance *maintenance.Service
-	Now         func() time.Time
-	Logger      *slog.Logger
+	// Updates checks for a newer version (D-120); nil in tests that don't
+	// need it.
+	Updates *updates.Service
+	Now     func() time.Time
+	Logger  *slog.Logger
 }
 
 // Status is the body of GET /v1/status.
@@ -203,7 +207,7 @@ func Routes(d Deps) []Route {
 				writeJSON(w, http.StatusOK, ui)
 			},
 		},
-	}, append(append(append(append(secretRoutes(d), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(append(clientRoutes(d), filterRoutes(d)...), append(append(append(append(discordRoutes(d), youtubeRoutes(d)...), banListRoutes(d)...), raidGuardRoutes(d)...), followBotRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)...)
+	}, append(append(append(append(append(secretRoutes(d), updateRoutes(d)...), eventRoutes(d)...), connectionRoutes(d)...), obsRoutes(d)...), append(append(append(workflowRoutes(d), variableRoutes(d)...), overviewRoutes(d)...), append(append(append(backupRoutes(d), timerRoutes(d)...), quoteRoutes(d)...), append(append(append(soundRoutes(d), overlayRoutes(d)...), rewardRoutes(d)...), append(append(firstWordsRoutes(d), pollRoutes(d)...), append(append(adRoutes(d), giveawayRoutes(d)...), append(append(wheelRoutes(d), pointsRoutes(d)...), append(append(packageRoutes(d), pluginRoutes(d)...), append(append(luaRoutes(d), buttonRoutes(d)...), append(append(chatterRoutes(d), moderationRoutes(d)...), append(append(clientRoutes(d), filterRoutes(d)...), append(append(append(append(discordRoutes(d), youtubeRoutes(d)...), banListRoutes(d)...), raidGuardRoutes(d)...), followBotRoutes(d)...)...)...)...)...)...)...)...)...)...)...)...)...)
 }
 
 func internalError(w http.ResponseWriter, r *http.Request, log *slog.Logger, err error) {

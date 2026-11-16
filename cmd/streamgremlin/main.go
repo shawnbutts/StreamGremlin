@@ -110,6 +110,7 @@ Commands:
             events watch [-after SEQ] [-types ...] [-json] follow live
             events simulate TYPE [field=value ...]         send a test event
             events types                                   types and fields
+  updates   Whether a newer StreamGremlin is out: updates [check|on|off|download].
   version   Print this program's version.
   engine    Run the engine without a window. For development and tests only;
             it is not a supported server (D-008).
@@ -160,6 +161,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runsCmd(dir, rest, stdout, stderr)
 	case "backups":
 		return backupsCmd(dir, rest, stdout, stderr)
+	case "updates":
+		return updatesCmd(dir, rest, stdout, stderr)
 	case "templates":
 		return templatesCmd(dir, rest, stdout, stderr)
 	case "commands":
@@ -320,6 +323,12 @@ func engine(dir string, args []string, stderr io.Writer) int {
 		"a loopback stand-in for discord.com's webhooks, such as mockdiscord (default $"+brand.Env("DISCORD_API_URL")+")")
 	youtubeURL := fs.String("youtube-url", os.Getenv(brand.Env("YOUTUBE_URL")),
 		"a loopback stand-in for Google's sign-in and YouTube's API, such as mockyoutube (default $"+brand.Env("YOUTUBE_URL")+")")
+	updatesURL := fs.String("updates-url", os.Getenv(brand.Env("UPDATES_URL")),
+		"a loopback stand-in for GitHub's releases, such as mockgithub (default $"+brand.Env("UPDATES_URL")+")")
+	updatesKey := fs.String("updates-key", os.Getenv(brand.Env("UPDATES_KEY")),
+		"with -updates-url: the public key its releases are signed with (default $"+brand.Env("UPDATES_KEY")+")")
+	updatesVersion := fs.String("updates-version", os.Getenv(brand.Env("UPDATES_VERSION")),
+		"with -updates-url: the version to check as (default $"+brand.Env("UPDATES_VERSION")+")")
 	minute := fs.Duration("test-minute", 0, "for tests against a stand-in Twitch only: how long a minute of time in chat lasts")
 	store := fs.String("secret-store", os.Getenv(brand.Env("SECRET_STORE")),
 		"auto, keyring or file (default auto, or $"+brand.Env("SECRET_STORE")+")")
@@ -353,7 +362,7 @@ func engine(dir string, args []string, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	h, err := host.Start(ctx, host.Options{DataDir: dir, Addr: *addr, SecretStore: kind, TwitchAuthURL: *twitchURL, DiscordAPIURL: *discordURL, YouTubeURL: *youtubeURL, OverlayAddr: *overlayAddr,
-		TestMinute: *minute, Logger: log})
+		UpdatesURL: *updatesURL, UpdatesKey: *updatesKey, UpdatesVersion: *updatesVersion, TestMinute: *minute, Logger: log})
 	if err != nil {
 		log.Error("engine failed to start", "err", err)
 		fmt.Fprintln(stderr, err)

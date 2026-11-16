@@ -48,7 +48,7 @@ ifeq ($(shell uname -s),Darwin)
 DESKTOP_ENV := MACOSX_DEPLOYMENT_TARGET=13.0 CGO_CFLAGS="-mmacosx-version-min=13.0" CGO_LDFLAGS="-mmacosx-version-min=13.0"
 endif
 
-.PHONY: linux linux-smoke release-streamdeck release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockyoutube help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
+.PHONY: linux linux-smoke release-streamdeck release-linux release-sums release-fetch release-version site screenshots test-fuzz test-load vuln release release-check release-windows release-macos notices notices-check windows streamdeck mockobs mocktwitch mockdiscord mockgithub mockyoutube release-sign help bootstrap fmt lint vet test test-acceptance build node-check desktop-ui desktop-test desktop verify clean
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-16s %s\n", $$1, $$2}'
@@ -105,6 +105,20 @@ release-fetch: ## Download a release's files from GitHub into ./bin/release, for
 	gh release download v$(VERSION) --repo $(GITHUB_REPO) --dir $(RELEASE) --clobber
 	cd $(RELEASE) && shasum -a 256 -c SHA256SUMS.txt
 
+# Signs a release for updates (D-120), after release-fetch has downloaded it
+# and checked every file: SHA256SUMS.txt is signed with the key on this
+# computer (never on GitHub), the signature is checked with the app's own
+# keys, and SHA256SUMS.txt.sig is added to the release.
+SIGNING_KEY ?= $(HOME)/.config/streamgremlin-release/signing.key
+release-sign: ## Sign a fetched release's SHA256SUMS.txt and upload the signature (VERSION=...; after make release-fetch)
+	@test "$(VERSION)" != dev || { echo "Set the version: make release-sign VERSION=0.1.0-beta.6"; exit 1; }
+	@test -f $(RELEASE)/StreamGremlin-$(VERSION)-macos.dmg || { echo "Run make release-fetch VERSION=$(VERSION) first"; exit 1; }
+	cd $(RELEASE) && shasum -a 256 -c SHA256SUMS.txt
+	grep -q "StreamGremlin-$(VERSION)-" $(RELEASE)/SHA256SUMS.txt
+	$(GO) run ./cmd/release sign $(SIGNING_KEY) $(RELEASE)/SHA256SUMS.txt $(RELEASE)/SHA256SUMS.txt.sig
+	$(GO) run ./cmd/release verify $(RELEASE)/SHA256SUMS.txt $(RELEASE)/SHA256SUMS.txt.sig
+	gh release upload v$(VERSION) --repo $(GITHUB_REPO) --clobber $(RELEASE)/SHA256SUMS.txt.sig
+
 vuln: $(GOVULNCHECK) ## Known vulnerabilities in code that's called, and in npm packages (needs the network)
 	$(GOVULNCHECK) ./...
 	cd $(DESKTOP) && $(GOVULNCHECK) ./...
@@ -116,6 +130,9 @@ mockobs: ## Build the stand-in for OBS's WebSocket server into ./bin
 
 mocktwitch: ## Build the stand-in for Twitch's sign-in server into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mocktwitch ./cmd/mocktwitch
+
+mockgithub: ## Build the stand-in for GitHub's releases, for trying updates, into ./bin
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockgithub ./cmd/mockgithub
 
 mockdiscord: ## Build the stand-in for Discord's webhooks into ./bin
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN)/mockdiscord ./cmd/mockdiscord
@@ -342,4 +359,4 @@ notices-check:
 verify: notices-check lint vet test test-acceptance desktop-ui desktop-test desktop build streamdeck ## Everything, and builds the app, the CLI and the Stream Deck plugin; run before every push
 
 clean: ## Remove build output
-	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/linux $(BIN)/sbom $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html
+	rm -rf $(BIN)/streamgremlin $(BIN)/app $(BIN)/windows $(BIN)/linux $(BIN)/sbom $(BIN)/streamdeck $(BIN)/release $(BIN)/mocktwitch $(BIN)/mockdiscord $(BIN)/mockgithub $(BIN)/mockobs $(FRONTEND)/dist/assets $(FRONTEND)/dist/index.html

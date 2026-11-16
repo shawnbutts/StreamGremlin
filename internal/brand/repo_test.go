@@ -136,6 +136,11 @@ func TestReleaseWorkflow(t *testing.T) {
 		t.Errorf("only a pushed tag or a run by hand, with no inputs: %v", wf.On)
 	}
 	makefile := read(t, "Makefile")
+	// One repository: the update check (brand.GitHubRepo) looks where the
+	// Makefile's release-fetch and release-sign work.
+	if !strings.Contains(makefile, "\nGITHUB_REPO := "+GitHubRepo+"\n") {
+		t.Errorf("the Makefile's GITHUB_REPO isn't %s", GitHubRepo)
+	}
 	pinned := regexp.MustCompile(`^actions/[a-z-]+@[0-9a-f]{40}$`)
 	target := regexp.MustCompile(`\bmake ([a-z-]+(?: [a-z-]+)*)`)
 	for name, job := range wf.Jobs {

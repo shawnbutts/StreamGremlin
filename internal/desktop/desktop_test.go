@@ -2,6 +2,7 @@ package desktop
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -118,6 +119,8 @@ func TestAllowedURL(t *testing.T) {
 		"http://127.0.0.1:7700/o/oauth2/v2/auth?client_id=1",
 		"https://github.com/shawnbutts/StreamGremlin/issues/new/choose",
 		"https://github.com/shawnbutts/StreamGremlin/security/advisories/new",
+		"https://github.com/shawnbutts/StreamGremlin/releases/tag/v0.1.0-beta.6",
+		"https://github.com/shawnbutts/StreamGremlin/releases/tag/v1.0.0",
 	} {
 		if !AllowedURL(ok) {
 			t.Errorf("%s should be allowed", ok)
@@ -133,6 +136,8 @@ func TestAllowedURL(t *testing.T) {
 		"https://www.twitch.tv/moderator/x?redirect=y", "http://www.twitch.tv/moderator/x", "https://www.twitch.tv/moderator/",
 		"https://github.com/shawnbutts/StreamGremlin/issues/new/choose?template=x", "https://github.com/someone/else/issues/new/choose",
 		"http://github.com/shawnbutts/StreamGremlin/issues/new/choose", "https://github.com/shawnbutts/StreamGremlin",
+		"https://github.com/shawnbutts/StreamGremlin/releases/tag/nightly", "https://github.com/someone/else/releases/tag/v1.0.0",
+		"https://github.com/shawnbutts/StreamGremlin/releases/tag/v1.0.0?x=1", "https://github.com/shawnbutts/StreamGremlin/releases/tag/v1.0.0/../../x",
 	} {
 		if AllowedURL(bad) {
 			t.Errorf("%s should be refused", bad)
@@ -183,6 +188,39 @@ func TestRestartEngine(t *testing.T) {
 	}
 	none := httptest.NewRecorder()
 	Handler(fstest.MapFS{}, NewState(), nil, nil).ServeHTTP(none, httptest.NewRequest("POST", "/desktop/restart-engine", nil))
+	if none.Code != 503 {
+		t.Fatal(none.Code)
+	}
+}
+
+// Installing an update is the app's alone: POST only, 409 with the
+// engine's words when it's refused (live), 503 when it fails or there's
+// no app to quit.
+func TestInstallUpdate(t *testing.T) {
+	var answer error
+	installs := 0
+	h := Handler(fstest.MapFS{}, NewState(), nil, nil, Dialogs{Install: func() error { installs++; return answer }})
+	try := func(method string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(method, "/desktop/install-update", nil))
+		return w
+	}
+	if w := try("GET"); w.Code != 405 || installs != 0 {
+		t.Fatalf("GET: %d", w.Code)
+	}
+	if w := try("POST"); w.Code != 202 || installs != 1 {
+		t.Fatalf("POST: %d", w.Code)
+	}
+	answer = UpdateRefused{errors.New("you're live: install the update after your stream")}
+	if w := try("POST"); w.Code != 409 || !strings.Contains(w.Body.String(), "after your stream") {
+		t.Fatalf("live: %d %s", w.Code, w.Body)
+	}
+	answer = errors.New("couldn't open the disk image")
+	if w := try("POST"); w.Code != 503 || !strings.Contains(w.Body.String(), "disk image") {
+		t.Fatalf("failed: %d %s", w.Code, w.Body)
+	}
+	none := httptest.NewRecorder()
+	Handler(fstest.MapFS{}, NewState(), nil, nil).ServeHTTP(none, httptest.NewRequest("POST", "/desktop/install-update", nil))
 	if none.Code != 503 {
 		t.Fatal(none.Code)
 	}

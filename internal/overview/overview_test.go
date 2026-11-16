@@ -147,3 +147,18 @@ func TestMissingPermissionsNeedYou(t *testing.T) {
 		t.Fatal(messages(o))
 	}
 }
+
+// A newer version is a tip that opens Settings (D-120); none, no tip.
+func TestANewVersionIsATip(t *testing.T) {
+	in := Input{Twitch: twitch.Status{Streamer: acct(twitch.StateConnected, "s"), Bot: acct(twitch.StateNotConfigured, ""),
+		Chat: twitch.ChatStatus{State: twitch.ChatConnected}}, OBS: obs.Status{State: obs.StateOff}}
+	if m := messages(Build(in)); strings.Contains(m, "is out") {
+		t.Fatal(m)
+	}
+	in.Update = "0.1.0-beta.6"
+	o := Build(in)
+	last := o.Attention[len(o.Attention)-1]
+	if last.Level != Tip || last.Screen != ScreenSettings || last.Message != "StreamGremlin 0.1.0-beta.6 is out. See what's new and install it from Settings." {
+		t.Fatalf("%+v", last)
+	}
+}

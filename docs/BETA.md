@@ -95,10 +95,22 @@ Connections, Stream Deck, "Pair a Stream Deck".
 Updating
 --------
 
-Install the new version over the old one: on Windows run the new installer,
-on macOS drag the new app over the old one, and on Linux install the new
-package the same way as the first. Close StreamGremlin first. Your
-workflows, settings and sign-ins are kept.
+From 0.1.0-beta.6, StreamGremlin checks for a new version when it starts
+and once a day, and Home says when one is out. In Settings, under Updates,
+choose Download, then Install and restart: StreamGremlin backs up, closes,
+installs the new version and opens again. It installs only an update signed
+with StreamGremlin's own key, and never while you're live. Checking sends
+GitHub only StreamGremlin's name and version; you can turn it off there.
+
+On macOS, run StreamGremlin from Applications, not from the disk image.
+After an update, macOS may ask again whether StreamGremlin can use your
+keychain: choose Always Allow. On Linux, StreamGremlin tells you a new
+version is out; install it as below.
+
+To update by hand, install the new version over the old one: on Windows run
+the new installer, on macOS drag the new app over the old one, and on Linux
+install the new package the same way as the first. Close StreamGremlin
+first. Your workflows, settings and sign-ins are kept.
 
 One exception: when StreamGremlin's first public release comes out, beta
 data may need a fresh start. You'll be told before that happens.

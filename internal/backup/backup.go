@@ -42,6 +42,7 @@ const (
 	Scheduled    = "scheduled"     // made every day; the newest few are kept
 	PreRestore   = "pre-restore"   // the state a restore replaced
 	PreMigration = "pre-migration" // the database before a schema change (database only)
+	PreUpdate    = "pre-update"    // made just before installing an update (D-120)
 )
 
 // dbName is the database's name inside an archive.
@@ -90,7 +91,7 @@ func invalid(format string, a ...any) error {
 }
 
 var (
-	archiveName   = regexp.MustCompile(`^` + brand.Slug + `-(manual|scheduled|pre-restore)-(\d{8}T\d{6}\.\d{3}Z)\.zip$`)
+	archiveName   = regexp.MustCompile(`^` + brand.Slug + `-(manual|scheduled|pre-restore|pre-update)-(\d{8}T\d{6}\.\d{3}Z)\.zip$`)
 	migrationName = regexp.MustCompile(`^(\d{8}T\d{6}\.\d{3}Z)-before-migration-\d{4}\.db$`)
 	stamp         = "20060102T150405.000Z"
 )
@@ -113,7 +114,7 @@ func path(dataDir, name string) (string, error) {
 // Create writes a backup of db, made with VACUUM INTO so it's consistent
 // while the engine runs.
 func Create(ctx context.Context, db *storage.DB, dataDir, kind, appVersion string, now time.Time) (Info, error) {
-	if kind != Manual && kind != Scheduled && kind != PreRestore {
+	if kind != Manual && kind != Scheduled && kind != PreRestore && kind != PreUpdate {
 		return Info{}, fmt.Errorf("backup: unknown kind %q", kind)
 	}
 	dir := Dir(dataDir)

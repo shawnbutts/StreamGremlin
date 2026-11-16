@@ -54,7 +54,7 @@
   let live = $state<'starting' | 'live' | 'lost'>('starting');
   let hidden = $state(remembered());
 
-  const screens: Record<string, string> = { connections: 'Connections', workflows: 'Workflows' };
+  const screens: Record<string, string> = { connections: 'Connections', workflows: 'Workflows', settings: 'Settings' };
   const message = (e: unknown) => (e instanceof ApiError ? e.message : String(e));
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

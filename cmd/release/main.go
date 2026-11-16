@@ -8,6 +8,9 @@
 //	release stamp DIR UNIXTIME     # date everything under DIR, for packages
 //	release sbom OUT DOWNLOAD VERSION SYSTEM UNIXTIME PART...
 //	                               # a CycloneDX SBOM of DOWNLOAD (D-117)
+//	release keygen KEYFILE         # a new signing key for updates (D-120)
+//	release sign KEYFILE SUMS OUT  # sign SHA256SUMS.txt for updates
+//	release verify SUMS SIG        # check a signature with the app's keys
 //
 // Each PART of an SBOM is go:NAME=FILE (a Go program at NAME in the
 // download), file:NAME=FILE (any other file) or npm:NAME=LIST (npm
@@ -24,6 +27,7 @@ import (
 	"time"
 
 	"code.streamgremlin.com/streamgremlin/internal/release"
+	"code.streamgremlin.com/streamgremlin/internal/updates"
 )
 
 func main() {
@@ -77,10 +81,45 @@ func run(args []string) error {
 			return err
 		}
 		return release.WriteTarball(args[0], args[1], args[2], time.Unix(sec, 0))
+	case cmd == "keygen" && len(args) == 1:
+		priv, pub, err := updates.NewKey()
+		if err != nil {
+			return err
+		}
+		// O_EXCL: never overwrite a key; losing it means testers update by hand.
+		f, err := os.OpenFile(args[0], os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) //nolint:gosec // The path the user names.
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(priv); err != nil {
+			_ = f.Close()
+			return err
+		}
+		if err := f.Close(); err != nil {
+			return err
+		}
+		fmt.Println("Public key, for internal/updates/keys.go:", pub)
+		return nil
+	case cmd == "sign" && len(args) == 3:
+		return sign(args[0], args[1], args[2])
+	case cmd == "verify" && len(args) == 2:
+		sums, err := os.ReadFile(args[0]) //nolint:gosec // The path the user names.
+		if err != nil {
+			return err
+		}
+		sig, err := os.ReadFile(args[1]) //nolint:gosec // The path the user names.
+		if err != nil {
+			return err
+		}
+		if err := updates.Verify(updates.TrustedKeys(), sums, sig); err != nil {
+			return err
+		}
+		fmt.Println("signature OK")
+		return nil
 	case cmd == "sbom" && len(args) >= 6:
 		return sbom(args)
 	}
-	return errors.New("usage: release winversion VERSION | ico OUT PNG... | plist VERSION OUT | tarball OUT DIR PREFIX UNIXTIME | stamp DIR UNIXTIME | sbom OUT DOWNLOAD VERSION SYSTEM UNIXTIME PART [PART ...]")
+	return errors.New("usage: release winversion VERSION | ico OUT PNG... | plist VERSION OUT | tarball OUT DIR PREFIX UNIXTIME | stamp DIR UNIXTIME | sbom OUT DOWNLOAD VERSION SYSTEM UNIXTIME PART [PART ...] | keygen KEYFILE | sign KEYFILE SUMS OUT | verify SUMS SIG")
 }
 
 func sbom(args []string) error {
@@ -122,4 +161,36 @@ func sbom(args []string) error {
 		return err
 	}
 	return os.WriteFile(args[0], b, 0o644) //nolint:gosec // Published beside the download.
+}
+
+// sign signs sums with the key in keyFile, refusing a key file others can
+// read, and checks the signature with the app's own keys before writing.
+func sign(keyFile, sumsFile, out string) error {
+	st, err := os.Stat(keyFile) //nolint:gosec // The path the user names.
+	if err != nil {
+		return err
+	}
+	if st.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("%s can be read by others; chmod 600 it", keyFile)
+	}
+	text, err := os.ReadFile(keyFile) //nolint:gosec // The path the user names.
+	if err != nil {
+		return err
+	}
+	priv, err := updates.ParsePrivateKey(text)
+	if err != nil {
+		return err
+	}
+	sums, err := os.ReadFile(sumsFile) //nolint:gosec // The path the user names.
+	if err != nil {
+		return err
+	}
+	if _, err := updates.ParseSums(sums); err != nil {
+		return err
+	}
+	sig := updates.Sign(priv, sums)
+	if err := updates.Verify(updates.TrustedKeys(), sums, sig); err != nil {
+		return errors.New("that key isn't one the app trusts (internal/updates/keys.go)")
+	}
+	return os.WriteFile(out, sig, 0o644) //nolint:gosec // Published with the release.
 }

@@ -91,7 +91,19 @@ git tag v0.1.0-beta.5
 git push github v0.1.0-beta.5
 ```
 
-`.github/workflows/release.yml` runs `make verify`, then builds the Windows and macOS installers on macOS and the Linux packages on Ubuntu. It installs the Linux packages in fresh containers, runs `make release-sums` over everything, and makes a **draft** release with every file. Read the draft, then publish it. The repository needs the secret `TWITCH_CLIENT_ID`; it's never committed.
+`.github/workflows/release.yml` runs `make verify`, then builds the Windows and macOS installers on macOS and the Linux packages on Ubuntu. It installs the Linux packages in fresh containers, runs `make release-sums` over everything, and makes a **draft** release with every file. The repository needs the secret `TWITCH_CLIENT_ID`; it's never committed.
+
+Then sign the draft, so the app can install it as an update (D-120, [ADR-0052](docs/adr/0052-updates.md)), and publish it:
+
+```sh
+make release-fetch VERSION=0.1.0-beta.6   # download the draft and check every file
+make release-sign VERSION=0.1.0-beta.6    # sign SHA256SUMS.txt, upload SHA256SUMS.txt.sig
+gh release edit v0.1.0-beta.6 --repo shawnbutts/StreamGremlin --draft=false
+```
+
+The signing key is `~/.config/streamgremlin-release/signing.key` on the release Mac (`SIGNING_KEY=` for another place). It never goes on GitHub or into the repository. Keep a copy somewhere safe and offline: without it, no release can be installed as an update, and testers have to install by hand until a version trusting a new key is out. `release-sign` refuses a key file others can read, and checks the signature with the keys the app trusts (`internal/updates/keys.go`) before uploading. Sign last: if the workflow is re-run after signing, it replaces `SHA256SUMS.txt`, the signature no longer matches, and the app won't install that release until it's signed again.
+
+To try updates without publishing, `make mockgithub` and run `bin/mockgithub -dir bin/release -version VERSION`: it serves those files as a signed release and prints the `STREAMGREMLIN_UPDATES_*` settings to start the app or engine with.
 
 To test the build without a tag, run the workflow by hand: Actions → Release → Run workflow, or `gh workflow run release.yml --repo shawnbutts/StreamGremlin`. It builds and checks everything as version `0.0.0-ci.RUN` and stops before the release; the files are on the run's page for a week.
 

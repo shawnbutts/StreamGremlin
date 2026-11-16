@@ -36,9 +36,13 @@ func overviewRoutes(d Deps) []Route {
 					internalError(w, r, d.Logger, err)
 					return
 				}
-				writeJSON(w, http.StatusOK, overview.Build(overview.Input{
-					Twitch: d.Twitch.Status(r.Context()), OBS: d.OBS.Status(), Workflows: stats, Commands: cmds,
-				}))
+				in := overview.Input{Twitch: d.Twitch.Status(r.Context()), OBS: d.OBS.Status(), Workflows: stats, Commands: cmds}
+				if d.Updates != nil {
+					if l := d.Updates.Status(r.Context()).Latest; l != nil {
+						in.Update = l.Version
+					}
+				}
+				writeJSON(w, http.StatusOK, overview.Build(in))
 			},
 		},
 		{

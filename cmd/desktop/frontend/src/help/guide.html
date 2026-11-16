@@ -141,6 +141,17 @@
 <dd>For Affiliates and Partners, the Ads card on Home shows your next ad and your snoozes, and runs or snoozes one. A running break shows an estimate of the time left: Twitch doesn’t say when ads end.</dd>
 <dt id="help-backups">Backups</dt>
 <dd>Settings → Backups copies everything StreamGremlin keeps, every day and whenever you ask. Restoring one asks first and backs up what it replaces. Sign-ins aren’t in backups.</dd>
+<dt id="help-updates">Updates</dt>
+<dd>
+  StreamGremlin checks GitHub for a newer version when it starts and once a day, and Home says when one is out.
+  Settings → Updates shows what’s new. <strong>Download</strong> fetches it and checks it’s signed with StreamGremlin’s
+  own key; nothing is installed unless it is. <strong>Install and restart</strong> asks first, backs up, closes
+  StreamGremlin, installs the new version where it is and opens it again, in about a minute. It won’t install while
+  you’re live. On macOS, StreamGremlin needs to be in Applications (or another folder you put it in), not running from
+  the disk image; after an update, macOS may ask again for StreamGremlin to use your keychain: choose Always Allow. On
+  Linux, it says a new version is out, and you install the package from the release page. Checking sends GitHub only
+  StreamGremlin’s name and version; turn it off under Updates, and <strong>Check now</strong> still works.
+</dd>
 <dt id="help-ban-lists">Ban lists</dt>
 <dd>
   Your own lists of accounts to ban on Twitch, from a file: one Twitch name or user id a line, or a CSV with a login or id
