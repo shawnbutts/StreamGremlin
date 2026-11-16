@@ -413,3 +413,29 @@ func TestSignature(t *testing.T) {
 		}
 	}
 }
+
+// Every release says what changed: CHANGELOG.md has a section for its
+// version, "## VERSION (DATE)", with something in it. Builds run by hand
+// (0.0.0-ci.N) have none.
+func TestChangelog(t *testing.T) {
+	_, version := env(t)
+	if strings.HasPrefix(version, "0.0.0-ci.") {
+		t.Skip("a build run by hand, not a release")
+	}
+	b, err := os.ReadFile(filepath.Join("..", "..", "CHANGELOG.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	head := "\n## " + version + " ("
+	i := strings.Index(string(b), head)
+	if i < 0 {
+		t.Fatalf("CHANGELOG.md has no section for %s: move what's under Unreleased to \"## %s (YYYY-MM-DD)\" before tagging", version, version)
+	}
+	section := string(b[i+len(head):])
+	if j := strings.Index(section, "\n## "); j >= 0 {
+		section = section[:j]
+	}
+	if !strings.Contains(section, "\n- ") {
+		t.Fatalf("CHANGELOG.md's section for %s lists nothing", version)
+	}
+}

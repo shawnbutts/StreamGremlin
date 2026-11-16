@@ -4,6 +4,26 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 
 ## Unreleased
 
+### Fixed
+
+- The changelog, here and on the website, has a section for each release, newest first. Before, everything was under Unreleased, with the newest at the bottom. A release build now fails if its version has no section.
+
+## 0.1.0-beta.6 (2026-11-16)
+
+### Added
+
+- **Updates** (M9 slice 3, D-120): StreamGremlin checks GitHub for a newer version when it starts and once a day, and Home says when one is out. **Settings → Updates** shows what's new. **Download** checks that the release is signed with StreamGremlin's own key and matches it; **Install and restart** asks first, backs up, closes StreamGremlin, installs it and opens it again. It never installs while you're live. On Linux it points you to the release page. Checking sends GitHub only StreamGremlin's name and version, and can be turned off; **Check now** still works. `streamgremlin updates [check|on|off|download]` does the same from the command line, apart from installing. Backups made before an update are "Before installing an update". Releases are signed with `make release-sign`, and `mockgithub` stands in for GitHub to try it.
+
+## 0.1.0-beta.5 (2026-11-16)
+
+### Added
+
+- **The Stream Deck plugin is a download of its own** (D-119), for macOS and Windows, beside the installers on GitHub and on Download. It's the same file the installers include, with its own SBOM, so you can install or update it without reinstalling StreamGremlin. Stream Deck shows its version as the release's, such as 0.1.0.5 for 0.1.0-beta.5.
+
+## 0.1.0-beta.4 (2026-11-16)
+
+The first release built and published on GitHub. It has everything built until then, including what invited testers had in betas 1 to 3. Those were built by hand, and which changes each one had wasn't recorded.
+
 ### Added
 
 - M1 slice 1, the skeleton:
@@ -244,8 +264,6 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 - A flaky acceptance test is fixed: 72 waits in the acceptance tests took empty output as success (D-116).
 - **An SBOM for each download** (M9 slice 2, D-117): beside every installer, a CycloneDX file (`.cdx.json`) lists what's inside it. That covers each program with its SHA-256, the Go modules and npm packages built in, and what it needs from your system. They're in `SHA256SUMS.txt` too.
 - **Releases are built by GitHub** (D-118): pushing a version tag builds and checks every installer and its SBOM, and makes a draft release on GitHub to publish. Download on streamgremlin.com now links to the files on GitHub, with each one's SBOM and checksum.
-- **The Stream Deck plugin is a download of its own** (D-119), for macOS and Windows, beside the installers on GitHub and on Download. It's the same file the installers include, with its own SBOM, so you can install or update it without reinstalling StreamGremlin. Stream Deck shows its version as the release's, such as 0.1.0.5 for 0.1.0-beta.5.
-- **Updates** (M9 slice 3, D-120): StreamGremlin checks GitHub for a newer version when it starts and once a day, and Home says when one is out. **Settings → Updates** shows what's new. **Download** checks that the release is signed with StreamGremlin's own key and matches it; **Install and restart** asks first, backs up, closes StreamGremlin, installs it and opens it again. It never installs while you're live. On Linux it points you to the release page. Checking sends GitHub only StreamGremlin's name and version, and can be turned off; **Check now** still works. `streamgremlin updates [check|on|off|download]` does the same from the command line, apart from installing. Backups made before an update are "Before installing an update". Releases are signed with `make release-sign`, and `mockgithub` stands in for GitHub to try it.
 - Inner pages of streamgremlin.com lost their side margin above the text (a heading touched the screen's edge on a phone); fixed.
 - The website links to GitHub from its header, the home page and Download; the README starts with links to the website, Help, issues and security.
 - **Reports go to GitHub** (D-115): bugs and ideas as issues, with forms for each, and security problems as private security advisories. Help in the app has a button for each; the beta guide, the website and `SECURITY.md` say the same. The code is at github.com/shawnbutts/StreamGremlin, and the website's go-import pages point there.

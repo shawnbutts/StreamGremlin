@@ -25,6 +25,9 @@ func markdown(src string, shift int) string {
 	}
 	var lists []list
 	itemOpen := false
+	// A heading repeated (each release's "Added") gets -2, -3…, as ids
+	// must be unique on a page.
+	ids := map[string]int{}
 
 	flushPara := func() {
 		if len(para) > 0 {
@@ -58,6 +61,9 @@ func markdown(src string, shift int) string {
 			level = 6
 		}
 		id := slug(text)
+		if ids[id]++; ids[id] > 1 {
+			id += "-" + strconv.Itoa(ids[id])
+		}
 		tag := "h" + string(rune('0'+level))
 		out.WriteString("<" + tag + ` id="` + id + `">` + inline(text) + "</" + tag + ">\n")
 	}

@@ -32,6 +32,16 @@ func TestMarkdown(t *testing.T) {
 	}
 }
 
+// Each release's "Added" is its own heading, with its own id.
+func TestRepeatedHeadingsHaveTheirOwnIDs(t *testing.T) {
+	got := markdown("## 0.2.0 (2026-11-17)\n\n### Added\n\n- b\n\n## 0.1.0 (2026-11-16)\n\n### Added\n\n- a\n\n### Added\n", 0)
+	for _, want := range []string{`<h2 id="0-2-0-2026-11-17">`, `<h3 id="added">Added</h3>`, `<h3 id="added-2">Added</h3>`, `<h3 id="added-3">Added</h3>`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
 func TestVersionOrder(t *testing.T) {
 	for _, c := range [][2]string{{"0.1.0-beta.2", "0.1.0-beta.10"}, {"0.1.0-beta.9", "0.1.0"}, {"0.1.0", "0.2.0"}, {"0.9.0", "0.10.0"}} {
 		if !versionLess(c[0], c[1]) || versionLess(c[1], c[0]) {
