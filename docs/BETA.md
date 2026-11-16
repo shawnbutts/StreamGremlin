@@ -228,7 +228,7 @@ Settings, Backups makes copies of your data.
 What isn't there yet
 --------------------
 
-- Importing from Streamer.bot (after the first public release).
+- Importing from Streamer.bot (later).
 - Installers signed with Apple's and Microsoft's certificates.
 - Updating from inside the app on Linux.
 
