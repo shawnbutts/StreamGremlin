@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { counterView, keyView, statusView, switchView, titleLines } from './keys';
+import { adView, clockText, countdownView, counterView, keyView, runView, sceneView, statusView, switchView, titleLines } from './keys';
 import type { DeckButton, DeckView } from './engine';
 
 const brb: DeckButton = { id: 'brb', label: 'Be right back', color: 'blue', icon: '', hideLabel: false, starts: 1 };
@@ -114,5 +114,53 @@ describe('counter, status and switch keys', () => {
     expect(decode(switchView({ state: 'ok', sw: 'chat_lock:', deck }).image)).toContain('>?<');
     expect(switchView({ state: 'ok', sw: 'workflow:wf_gone', deck }).title).toBe('Switch\ngone');
     expect(switchView({ state: 'ok', sw: 'timer:other', deck }).title).toBe('Choose in\nStreamGremlin');
+  });
+});
+
+describe('run, scene, countdown and ad keys', () => {
+  const at = Date.parse('2026-11-16T12:00:00Z');
+  const more: DeckView = {
+    ...deck,
+    runs: [{ id: 'chat.hello', label: 'Say hello', on: true }, { id: 'wf_off', label: 'Off one', on: false }],
+    scenes: { known: true, current: 'Game', list: ['Game', 'BRB'] },
+    countdowns: [
+      { name: 'brb', label: 'Back soon', mode: 'countdown', running: true, ms: 300_000, at: '2026-11-16T12:00:00Z' },
+      { name: 'watch', label: 'Watch', mode: 'stopwatch', running: false, ms: 61_000, at: '2026-11-16T12:00:00Z' },
+    ],
+    ads: { known: true, next_ad_at: '2026-11-16T12:04:30Z', snoozes: 3, read_at: '2026-11-16T12:00:00Z' },
+  };
+
+  it('formats clocks', () => {
+    expect(clockText(0)).toBe('0:00');
+    expect(clockText(65_400)).toBe('1:05');
+    expect(clockText(3_725_000)).toBe('1:02:05');
+  });
+
+  it('dims a run key while its workflow is off', () => {
+    expect(decode(runView({ state: 'ok', id: 'chat.hello', deck: more }).image)).not.toContain('opacity');
+    expect(decode(runView({ state: 'ok', id: 'wf_off', deck: more }).image)).toContain('opacity="0.4"');
+    expect(runView({ state: 'ok', id: 'other', deck: more }).title).toBe('Choose in\nStreamGremlin');
+    expect(runView({ state: 'ok', id: 'chat.hello', deck }).title).toBe('Update\nStreamGremlin');
+  });
+
+  it('lights the scene on air, and says ? while OBS can’t say', () => {
+    expect(decode(sceneView({ state: 'ok', scene: 'Game', deck: more }).image)).toMatch(/fill="#d9534f".*ON AIR/s);
+    expect(decode(sceneView({ state: 'ok', scene: 'BRB', deck: more }).image)).toContain('opacity="0.4"');
+    expect(decode(sceneView({ state: 'ok', scene: 'Game', deck: { ...more, scenes: { known: false, current: '', list: [] } } }).image)).toContain('>?<');
+    expect(sceneView({ state: 'ok', scene: 'Gone', deck: more }).title).toBe('Scene\ngone');
+    expect(sceneView({ state: 'ok', scene: 'Game', deck: { ...more, scenes: null } }).title).toBe('Choose in\nStreamGremlin');
+  });
+
+  it('counts a running countdown from when StreamGremlin said', () => {
+    expect(decode(countdownView({ state: 'ok', name: 'brb', deck: more, now: at + 61_000 }).image)).toContain('>3:59<');
+    expect(decode(countdownView({ state: 'ok', name: 'brb', deck: more, now: at + 400_000 }).image)).toMatch(/fill="#d9534f".*>0:00</s);
+    expect(decode(countdownView({ state: 'ok', name: 'watch', deck: more, now: at + 999_000 }).image)).toContain('>1:01<');
+  });
+
+  it('counts down to the next ad, with snoozes left', () => {
+    expect(decode(adView({ state: 'ok', deck: more, now: at }).image)).toMatch(/3 snoozes.*>4:30</s);
+    expect(decode(adView({ state: 'ok', deck: more, now: at + 240_000 }).image)).toMatch(/fill="#e8892b".*>0:30</s);
+    expect(decode(adView({ state: 'ok', deck: { ...more, ads: { known: false, snoozes: 0, read_at: '' } }, now: at }).image)).toContain('>?<');
+    expect(adView({ state: 'ok', deck: { ...more, ads: null } }).title).toBe('Choose in\nStreamGremlin');
   });
 });

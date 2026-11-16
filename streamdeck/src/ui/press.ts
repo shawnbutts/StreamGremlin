@@ -3,8 +3,19 @@
 // to StreamGremlin. Stream Deck calls connectElgatoStreamDeckSocket.
 import { codeProblem, statusWords, type Status, type ToPlugin } from '../messages';
 
-type Settings = { buttonId?: string; name?: string; change?: string; what?: string; switch?: string };
-type Kind = 'press' | 'counter' | 'status' | 'switch';
+type Settings = {
+  buttonId?: string;
+  name?: string;
+  change?: string;
+  what?: string;
+  switch?: string;
+  run?: string;
+  scene?: string;
+  countdown?: string;
+  press?: string;
+};
+const KINDS = ['press', 'counter', 'status', 'switch', 'run', 'scene', 'countdown', 'ad'] as const;
+type Kind = (typeof KINDS)[number];
 
 let socket: WebSocket | undefined;
 let context = '';
@@ -30,7 +41,7 @@ function render(s: Status): void {
   $('problem').textContent = s.problem ?? '';
   $('notice').textContent = s.notice ?? '';
   if (s.address && !$<HTMLInputElement>('address').value) $<HTMLInputElement>('address').placeholder = s.address;
-  for (const k of ['press', 'counter', 'status', 'switch']) $(`for-${k}`).hidden = k !== kind;
+  for (const k of KINDS) $(`for-${k}`).hidden = k !== kind;
   $('old').hidden = s.deck || kind === 'press';
   const ok = s.state === 'ok';
   if (kind === 'press') {
@@ -42,9 +53,19 @@ function render(s: Status): void {
     $<HTMLSelectElement>('change').value = settings.change ?? 'add';
   } else if (kind === 'status') {
     $<HTMLSelectElement>('what').value = settings.what ?? 'live';
-  } else {
+  } else if (kind === 'switch') {
     fill($('switch'), s.switches.map((w) => [w.key, w.label]), settings.switch, ok,
       s.switches.length ? 'Pick a switch' : 'None chosen in StreamGremlin yet', 'No longer chosen in StreamGremlin');
+  } else if (kind === 'run') {
+    fill($('run'), s.runs.map((r) => [r.id, r.label]), settings.run, ok,
+      s.runs.length ? 'Pick a workflow' : 'None chosen in StreamGremlin yet', 'No longer chosen in StreamGremlin');
+  } else if (kind === 'scene') {
+    fill($('scene'), s.scenes.map((n) => [n, n]), settings.scene, ok,
+      s.scenes.length ? 'Pick a scene' : 'Not allowed in StreamGremlin, or OBS isn’t connected', 'Not in OBS now');
+  } else if (kind === 'countdown') {
+    fill($('countdown'), s.countdowns.map((c) => [c.name, c.label]), settings.countdown, ok,
+      s.countdowns.length ? 'Pick one' : 'None chosen in StreamGremlin yet', 'No longer chosen in StreamGremlin');
+    $<HTMLSelectElement>('press').value = settings.press ?? 'toggle';
   }
 }
 
@@ -80,6 +101,10 @@ function wire(): void {
   on('change', 'change');
   on('what', 'what');
   on('switch', 'switch');
+  on('run', 'run');
+  on('scene', 'scene');
+  on('countdown', 'countdown');
+  on('press', 'press');
 }
 
 (window as unknown as Record<string, unknown>).connectElgatoStreamDeckSocket = (
@@ -93,7 +118,7 @@ function wire(): void {
   context = uuid;
   actionUUID = ai.action;
   const k = ai.action.split('.').pop();
-  kind = k === 'counter' || k === 'status' || k === 'switch' ? k : 'press';
+  kind = (KINDS as readonly string[]).includes(k ?? '') ? (k as Kind) : 'press';
   settings = ai.payload?.settings ?? {};
   socket = new WebSocket(`ws://127.0.0.1:${port}`);
   socket.addEventListener('open', () => {

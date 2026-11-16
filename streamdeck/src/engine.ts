@@ -26,6 +26,11 @@ export interface DeckView {
   status: { live: boolean | null; chat: string; obs: string; chat_locked: boolean | null };
   counters: { name: string; value: unknown }[];
   switches: { kind: SwitchKind; id?: string; label: string; on: boolean | null; gone?: boolean }[];
+  /** D-124: absent from an older StreamGremlin. */
+  runs?: { id: string; label: string; on: boolean; gone?: boolean; needs_viewer?: boolean }[];
+  scenes?: { known: boolean; current: string; list: string[] } | null;
+  countdowns?: { name: string; label: string; mode: string; running: boolean; ms: number; at: string; ended?: boolean; gone?: boolean }[];
+  ads?: { known: boolean; next_ad_at?: string; snoozes: number; read_at: string; detail?: string } | null;
 }
 
 export type SwitchKind = 'workflow' | 'timer' | 'chat_lock';
@@ -214,5 +219,32 @@ export class Engine {
   turn(address: string, token: string, kind: SwitchKind, id: string | undefined, on: boolean): Promise<Result<{ on: boolean | null }>> {
     const path = `/v1/deck/switches/${encodeURIComponent(kind)}/${encodeURIComponent(id || '-')}`;
     return this.retrying(async () => (await this.call<{ on: boolean | null }>(address, 'PUT', path, token, { on }, 8000)).body, 'the switch');
+  }
+
+  /** Runs a workflow now, once: a retry carries the same request id (D-124). */
+  run(address: string, token: string, id: string): Promise<Result<{ on: boolean }>> {
+    const requestId = `sd-${randomUUID()}`;
+    const path = `/v1/deck/runs/${encodeURIComponent(id)}`;
+    return this.retrying(async () => {
+      const b = (await this.call<{ run: { on: boolean } }>(address, 'POST', path, token, { request_id: requestId })).body;
+      return { on: !!b.run?.on };
+    }, 'the run');
+  }
+
+  /** Switches OBS's scene; asking again is harmless. */
+  scene(address: string, token: string, scene: string): Promise<Result<{ current: string }>> {
+    return this.retrying(async () => (await this.call<{ current: string }>(address, 'POST', '/v1/deck/scene', token, { scene }, 8000)).body, 'the switch');
+  }
+
+  /** Starts, pauses or resets a countdown; each sets a state, so asking again is harmless. */
+  countdown(address: string, token: string, name: string, action: 'start' | 'pause' | 'reset'): Promise<Result<{ running: boolean }>> {
+    const path = `/v1/deck/countdowns/${encodeURIComponent(name)}`;
+    return this.retrying(async () => (await this.call<{ running: boolean }>(address, 'POST', path, token, { action })).body, 'the countdown');
+  }
+
+  /** Snoozes the next ad, once: a retry carries the same request id. */
+  snooze(address: string, token: string): Promise<Result<{ snoozes: number }>> {
+    const requestId = `sd-${randomUUID()}`;
+    return this.retrying(async () => (await this.call<{ snoozes: number }>(address, 'POST', '/v1/deck/ads/snooze', token, { request_id: requestId }, 8000)).body, 'the snooze');
   }
 }

@@ -16,11 +16,15 @@ afterEach(() => {
 
 /** A fake engine holding the choice, and what the deck sees from it. */
 function engine(opts: { fail?: boolean } = {}) {
-  let settings: DeckSettings = { counters: ['deaths'], switches: [{ kind: 'workflow', id: 'wf_gone' }] };
+  let settings: DeckSettings = { counters: ['deaths'], switches: [{ kind: 'workflow', id: 'wf_gone' }], runs: [], scenes: false, countdowns: [], ads: false };
   const view = (): DeckView => ({
     status: { live: null, chat: 'connected', obs: 'off', chat_locked: false },
     counters: settings.counters.map((name) => ({ name, value: name === 'deaths' ? 7 : null })),
     switches: settings.switches.map((s) => ({ ...s, label: s.id === 'wf_gone' ? 'Workflow gone' : 'x', on: s.id === 'wf_gone' ? null : true, gone: s.id === 'wf_gone' })),
+    runs: settings.runs.map((id) => ({ id, label: 'Say hello', on: true, needs_viewer: true })),
+    scenes: settings.scenes ? { known: false, current: '', list: [] } : null,
+    countdowns: [],
+    ads: null,
   });
   const calls = mockFetch({
     '/v1/settings/streamdeck': (method, body) => {
@@ -31,6 +35,10 @@ function engine(opts: { fail?: boolean } = {}) {
     '/v1/deck': () => ({ status: 200, body: view() }),
     '/v1/workflows': () => ({ status: 200, body: { workflows: [{ id: 'wf_hello', name: 'Say hello', enabled: true }] } }),
     '/v1/timers': () => ({ status: 200, body: { timers: [{ id: 'break', name: 'Take a break', enabled: false }] } }),
+    '/v1/overlays': () => ({
+      status: 200,
+      body: { overlays: [{ name: 'brb', kind: 'timer', look: { timer_mode: 'countdown', timer_label: 'Back soon' } }, { name: 'time', kind: 'timer', look: { timer_mode: 'clock' } }] },
+    }),
     '/v1/variables': () => ({ status: 200, body: { variables: [{ scope: 'global', owner: '', name: 'wins', value: 3, updated_at: '', updated_by: 'you' }] } }),
   });
   return { calls, settings: () => settings };
@@ -94,6 +102,25 @@ describe('StreamDeckKeysCard', () => {
     box('The chat lock').click();
     await settle();
     expect(e.settings().switches).not.toContainEqual({ kind: 'chat_lock' });
+  });
+
+  it('chooses workflows to run, warning when they need a viewer, and scenes, countdowns and ads', async () => {
+    const e = engine();
+    comp = mount(StreamDeckKeysCard, { target: document.body });
+    await settle();
+    expect(text()).not.toContain('(clock)'); // a plain clock isn't a countdown
+    (Array.from(document.querySelectorAll<HTMLLabelElement>('label.pick')).filter((l) => l.textContent?.includes('Say hello'))[1].querySelector('input') as HTMLInputElement).click();
+    await settle();
+    expect(e.settings().runs).toEqual(['wf_hello']);
+    expect(text()).toContain('starts from a viewer or their message');
+    box('Back soon').click();
+    await settle();
+    expect(e.settings().countdowns).toEqual(['brb']);
+    box('Scene keys').click();
+    await settle();
+    box('An ad key').click();
+    await settle();
+    expect(e.settings()).toMatchObject({ scenes: true, ads: true });
   });
 
   it('says unknown when the engine can’t say', async () => {

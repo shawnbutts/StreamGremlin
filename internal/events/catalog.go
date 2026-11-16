@@ -64,6 +64,11 @@ const TimerFired = "timers.timer.fired"
 // records (M7, D-075).
 const ButtonPressed = "buttons.button.pressed"
 
+// DeckRun is a Stream Deck key running one workflow now, whatever its
+// trigger (D-124). Only the workflow it names starts from it; it isn't a
+// trigger to choose.
+const DeckRun = "streamdeck.workflow.run"
+
 // ChatSent is StreamGremlin's own chat message, by the bot or a workflow,
 // as Twitch echoed it: for the Live screen, never viewer chat (D-087).
 const ChatSent = "chat.message.sent"
@@ -530,6 +535,15 @@ func Catalog() []Kind {
 			},
 			build: func(_ string, v map[string]string) (any, *Actor, error) {
 				return map[string]any{"button_id": v["button_id"], "label": v["label"], "from": "live"}, nil, nil
+			},
+		},
+		{
+			Type: DeckRun, Label: "Run from the Stream Deck",
+			Description: "A Stream Deck key ran one workflow now, whatever its trigger.",
+			Sources:     []string{"stream_deck"},
+			Fields:      []Field{{Name: "workflow_id", Label: "Workflow", Kind: "text", Default: "wf_example", Max: 64, Path: "workflow_id"}},
+			build: func(_ string, v map[string]string) (any, *Actor, error) {
+				return map[string]any{"workflow_id": v["workflow_id"], "client_id": "cl_test"}, nil, nil
 			},
 		},
 		obsKind("broadcast.stream.started", "Stream started", "OBS started streaming.", nil,

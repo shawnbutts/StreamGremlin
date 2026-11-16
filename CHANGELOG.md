@@ -7,6 +7,7 @@ All notable changes to StreamGremlin. Versions follow [Semantic Versioning](http
 ### Added
 
 - **Stream Deck: counter, status and switch keys** (M10 slice 1, D-123). **Counter** shows a variable, such as a death counter, and adds one, takes one (never below 0) or sets it to 0. **Status** shows whether you're live, Twitch chat's and OBS's connections, or whether chat is locked: on, off, or "?" when unknown. **Switch** turns a workflow, a timer or the chat lock on and off, lit when on. On **Connections → What your Stream Deck can use**, choose which variables can be counters and which workflows, timers and the chat lock can be switches: a paired Stream Deck can change nothing else, and un-ticking stops its keys at once. Changes are recorded as from the Stream Deck.
+- **Stream Deck: run a workflow, OBS scene, countdown and ad keys** (D-124). **Run a workflow** runs a chosen workflow now, whatever starts it otherwise (a workflow that starts from a viewer's message gets no viewer or message this way; the app says so). **OBS scene** is lit while its scene is on air and switches to it. **Countdown** shows a Clock and timers overlay's countdown or stopwatch, counting, and starts, pauses or resets it. **Ad** shows when Twitch's next ad is due and how many snoozes are left, and snoozes it. Each is chosen on the same card.
 
 ### Changed
 

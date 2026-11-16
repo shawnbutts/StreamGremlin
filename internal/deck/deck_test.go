@@ -29,7 +29,11 @@ func (f *fakeWorkflows) Get(_ context.Context, id string) (workflow.Summary, err
 	if !ok {
 		return workflow.Summary{}, workflow.ErrNotFound
 	}
-	return workflow.Summary{ID: id, Name: "Workflow " + id, Enabled: on}, nil
+	sum := workflow.Summary{ID: id, Name: "Workflow " + id, Enabled: on, Running: on}
+	if id == "wf_cmd" {
+		sum.Triggers = []workflow.Trigger{{Type: "chat.message.received"}}
+	}
+	return sum, nil
 }
 
 func (f *fakeWorkflows) SetEnabled(_ context.Context, id string, on bool) error {
@@ -85,6 +89,7 @@ func (f *fakeLock) Do(_ context.Context, r moderation.Request) (moderation.Recor
 }
 
 type world struct {
+	db       *storage.DB
 	s        *Service
 	vars     *variables.Store
 	wf       *fakeWorkflows
@@ -107,6 +112,7 @@ func newWorld(t *testing.T) *world {
 		t.Fatal(err)
 	}
 	w := &world{
+		db:       db,
 		vars:     variables.New(db),
 		wf:       &fakeWorkflows{on: map[string]bool{"wf_a": true}},
 		tm:       &fakeTimers{list: map[string]timers.Timer{"break": {ID: "break", Name: "Take a break", Enabled: false, EverySeconds: 1800}}},

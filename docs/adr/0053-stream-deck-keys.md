@@ -41,6 +41,17 @@ They reach only these routes:
 
 The admin token can call all three, so the app can show what the deck sees.
 
+### Run, scene, countdown and ad keys (D-124)
+
+The setting gains `runs` (up to 20 workflow ids), `scenes` (true or false), `countdowns` (up to 20 clock overlay names) and `ads` (true or false), and `GET /v1/deck` gains `runs`, `scenes`, `countdowns` and `ads` (null or empty unless chosen). Four routes, all `deck.use`:
+
+- `POST /v1/deck/runs/{id}` `{"request_id"}`: records a `streamdeck.workflow.run` event (source `stream_deck`, source id `<client>:<request id>`, payload `{workflow_id, client_id}`). The workflow engine starts exactly the workflow it names from it, whatever its triggers, if that workflow is on; no other workflow matches it, and it isn't offered as a trigger. The same request id is the same event, so a retry never runs twice, and a restart picks up a run not yet started as with any event. `needs_viewer` in the view says the workflow's trigger brings a viewer or their words (a catalog event with an actor, or a sensitive one), which a run from the deck doesn't.
+- `POST /v1/deck/scene` `{"scene"}`: switches OBS, recorded as set by `stream_deck`; a scene not set by a snapshot defeats automatic restoration (ADR-0019's ownership), as a manual change does.
+- `POST /v1/deck/countdowns/{name}` `{"action": "start" | "pause" | "reset"}`: only countdown and stopwatch overlays; starting a running one or pausing a paused one changes nothing, so the plugin sends the state it wants and a retry is harmless. The view gives `ms` at `at`, and the key counts from there.
+- `POST /v1/deck/ads/snooze` `{"request_id"}`: through the ads service with the op key `deck:<client>:<request id>`, so it's sent once. The schedule in the view is read from Twitch at most every 30 seconds (the plugin asks every 3), and again after a snooze.
+
+A copied token could, if chosen, also run the chosen workflows, switch scenes, run countdowns and snooze ads. It still can't start an ad.
+
 ### What the token still can't do
 
 Read or change any variable, workflow or timer that isn't chosen; list workflows, timers or variables; moderate anything but the chat lock (moderation itself refuses any other action recorded as from `stream_deck`); send chat; read events, viewers or chat. Status holds no names, messages or records.

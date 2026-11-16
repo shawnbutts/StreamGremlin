@@ -156,4 +156,23 @@ describe('Engine', () => {
     expect(seen[0]).toEqual({ method: 'PUT', url: '/v1/deck/switches/chat_lock/-', body: { on: true } });
     expect(await e.turn(url, 'tok', 'timer', 'break', false)).toMatchObject({ ok: false, why: 'refused' });
   });
+
+  it('runs and snoozes once: a lost answer is asked again with the same request id', async () => {
+    const e = new Engine({ readFile: noFiles, retryMs: 5 });
+    for (const [call, answer] of [
+      [(u: string) => e.run(u, 'tok', 'chat.hello'), { run: { id: 'chat.hello', on: true }, duplicate: false }],
+      [(u: string) => e.snooze(u, 'tok'), { known: true, snoozes: 2 }],
+    ] as const) {
+      const ids: string[] = [];
+      let drop = 1;
+      const url = await serve((_req, body, res) => {
+        ids.push(JSON.parse(body).request_id);
+        if (drop-- > 0) return res.destroy();
+        json(res, 200, answer);
+      });
+      expect(await call(url)).toMatchObject({ ok: true });
+      expect(ids).toHaveLength(2);
+      expect(ids[0]).toBe(ids[1]);
+    }
+  });
 });

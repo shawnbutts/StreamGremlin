@@ -287,7 +287,8 @@ func TestThePaletteMatchesTheEventCatalog(t *testing.T) {
 	for _, k := range events.Catalog() {
 		// StreamGremlin's own chat messages are never offered: a workflow
 		// answering them would answer itself (D-087).
-		if !inPalette[k.Type] && k.Type != events.ChatSent {
+		// A Stream Deck's run starts the workflow it names, not a trigger (D-124).
+		if !inPalette[k.Type] && k.Type != events.ChatSent && k.Type != events.DeckRun {
 			t.Errorf("%s has no palette entry: the editor can't offer it", k.Type)
 		}
 	}

@@ -23,6 +23,10 @@ export interface Status {
   /** The counters and switches chosen for the deck in StreamGremlin (D-123). */
   counters: string[];
   switches: { key: string; label: string }[];
+  /** D-124: what run, scene and countdown keys may pick. */
+  runs: { id: string; label: string }[];
+  scenes: string[];
+  countdowns: { name: string; label: string }[];
   /** False when StreamGremlin is too old for counters, status and switches. */
   deck: boolean;
 }

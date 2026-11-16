@@ -61,6 +61,35 @@
         </select>
         <p class="hint">Switches are the workflows, timers and chat lock you choose in StreamGremlin, on Connections, “What your Stream Deck can use”. Lit is on.</p>
       </div>
+      <div id="for-run" hidden>
+        <label for="run">Runs</label>
+        <select id="run" disabled>
+          <option value="">Pick a workflow</option>
+        </select>
+        <p class="hint">Runs it now, whatever starts it otherwise, if it’s on (a dim key’s workflow is off). A workflow that starts from a viewer’s message gets no viewer or message from here; a button on Live is usually better. Choose workflows in StreamGremlin, on Connections, “What your Stream Deck can use”.</p>
+      </div>
+      <div id="for-scene" hidden>
+        <label for="scene">Scene</label>
+        <select id="scene" disabled>
+          <option value="">Pick a scene</option>
+        </select>
+        <p class="hint">Lit while it’s on air; a press switches OBS to it. Allow scene keys in StreamGremlin, on Connections, “What your Stream Deck can use”.</p>
+      </div>
+      <div id="for-countdown" hidden>
+        <label for="countdown">Countdown or stopwatch</label>
+        <select id="countdown" disabled>
+          <option value="">Pick one</option>
+        </select>
+        <label for="press">A press</label>
+        <select id="press">
+          <option value="toggle">Starts it, or pauses it</option>
+          <option value="reset">Resets it</option>
+        </select>
+        <p class="hint">Countdowns are Clock and timers overlays you choose in StreamGremlin, on Connections, “What your Stream Deck can use”.</p>
+      </div>
+      <div id="for-ad" hidden>
+        <p class="hint">Shows when Twitch’s next ad is due and how many snoozes are left; a press snoozes it. Allow it in StreamGremlin, on Connections, “What your Stream Deck can use”.</p>
+      </div>
       <p id="old" class="hint" hidden>This StreamGremlin is too old for counter, status and switch keys. Update it from Settings.</p>
     </section>
     <script src="press.js"></script>

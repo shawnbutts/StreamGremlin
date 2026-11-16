@@ -178,6 +178,32 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     expect(timerOn()).toBe(!was);
     await until('the switch flipped', () => (image('key4').includes(was ? '>OFF<' : '>ON<') ? true : undefined));
 
+    // Run, countdown and ad keys (D-124).
+    cli('workflows', 'save', join(import.meta.dirname, '..', '..', 'examples', 'workflows', 'hello.json'));
+    cli('workflows', 'on', 'chat.hello');
+    cli('overlays', 'add', '-timer', 'brb');
+    cli('overlays', 'look', 'brb', '-mode', 'countdown', '-label', 'Back soon', '-length', '5m');
+    await choose({ counters: ['deaths'], switches: [{ kind: 'timer', id: 'break' }], runs: ['chat.hello'], countdowns: ['brb'], ads: true });
+    appearAs('run', 'key5', { run: 'chat.hello' });
+    await until('the run key', () => (image('key5').includes('▶') ? true : undefined));
+    n = got.length;
+    press('run', 'key5', { run: 'chat.hello' });
+    await until('the run', () => after(n, 'showOk', 'key5') ?? after(n, 'showAlert', 'key5'));
+    expect(after(n, 'showOk', 'key5')).toBeTruthy();
+    expect(cli('events', '-json')).toContain('streamdeck.workflow.run');
+
+    appearAs('countdown', 'key6', { countdown: 'brb' });
+    await until('the countdown at 5:00', () => (image('key6').includes('>5:00<') && image('key6').includes('Back soon') ? true : undefined));
+    n = got.length;
+    press('countdown', 'key6', { countdown: 'brb' });
+    await until('the countdown started', () => after(n, 'showOk', 'key6') ?? after(n, 'showAlert', 'key6'));
+    expect(after(n, 'showOk', 'key6')).toBeTruthy();
+    await until('it counting down', () => (/>4:5\d</.test(image('key6')) ? true : undefined));
+
+    // No Twitch sign-in: the next ad is unknown, never guessed.
+    appearAs('ad', 'key7', {});
+    await until('the ad key', () => (image('key7').includes('>?<') && image('key7').includes('Next ad') ? true : undefined));
+
     await choose({ counters: [], switches: [] });
     await until('the counter refused', () => (last('setTitle', 'key2')?.payload?.title === 'Choose in\nStreamGremlin' ? true : undefined));
     n = got.length;
@@ -193,5 +219,5 @@ describe.runIf(bin)('the plugin in a stand-in Stream Deck', () => {
     // StreamGremlin stops: the key never looks working.
     engine?.kill();
     await until('“Not running”', () => (last('setTitle')?.payload?.title === 'Not\nrunning' ? true : undefined));
-  }, 60_000);
+  }, 90_000);
 });

@@ -224,6 +224,7 @@ func newTestServerWithSecrets(t *testing.T) (*Server, *secrets.Store) {
 				a, ok := tw.Account(twitch.RoleStreamer)
 				return ok && a.Status().State == twitch.StateConnected
 			},
+			Inbox: inbox, Scener: ob, Overlays: ovs, Clocks: clocks, AdsSource: adsSvc,
 			NewID: events.NewID}), Moderation: mods, BanLists: bl, RaidGuard: rg, FollowBots: &followbots.Deps{Inbox: inbox, Users: tw.LookUpUsers, Chatted: followbots.ChattedFrom(vs)}, Filters: filt, OverlayServer: func() (string, string) { return testOverlays.URL, "" },
 		Maintenance: maintenance.New(maintenance.Options{DB: db, Settings: set, DataDir: dir}),
 		Updates:     newTestUpdates(t, set, dir),

@@ -2105,3 +2105,15 @@ Decided 2026-11-16. The user asked: "we haven't looked at the streamdeck plugin 
 - **Changes are recorded as from the Stream Deck:** a counter's "changed by", a lock in the moderation record, and the log.
 - **Keys refresh every 3 seconds,** and at once after a press. A push channel waits until that's too slow on a real stream.
 - **Left out:** Stream Deck + dials (later), changing a counter by more than one, viewer or workflow variables, and any key that sends chat.
+
+## D-124. Stream Deck: run a workflow, OBS scene, countdown and ad keys (M10 slice 1; amends D-081, D-123)
+
+Decided 2026-11-16. The user asked: "should we add an option to run any workflow or control other things that the streamdeck can't yet control?" Recommended: scene, countdown and ad keys, and not a run-any-workflow key, since a workflow run without its trigger has no viewer or message. Offered all four, the user chose all four.
+
+- **Who it's for:** streamers with a Stream Deck who want keys that show what's happening (the scene on air, a countdown's time, the next ad) and, from Streamer.bot, a key per action.
+- **Run a workflow:** runs one chosen workflow now, whatever its trigger, if it's on. It's an event of its own (`streamdeck.workflow.run`, from `stream_deck`), so it's in the event log, runs once per press even when asked again, and survives a restart like any event. Only that workflow starts from it; it isn't offered as a trigger. **Against the recommendation**, as the user chose: a workflow whose trigger brings a viewer or a message (a chat command, a follow, a raid) gets none from the Stream Deck, so steps that use them get nothing. The app warns beside each such workflow when it's chosen. D-081's "buttons run workflows" stays the recommended way.
+- **OBS scene:** lit while its scene is on air; a press switches to it. Recorded as from `stream_deck`, so it defeats automatic scene restoration, as a manual change does. Unknown while OBS isn't connected.
+- **Countdown:** a clock overlay's countdown or stopwatch: the key shows its time, counting each second; a press starts or pauses it, or resets it, as the key's settings say. Clock-only overlays aren't offered.
+- **Ad:** shows when Twitch's next automatic ad is due and how many snoozes are left; a press snoozes it. Read from Twitch at most every 30 seconds and counted down in between. Running an ad stays a button and workflow (it costs viewers).
+- **Chosen like the rest** on Connections → What your Stream Deck can use: which workflows can be run, whether scenes can be switched, which countdowns, and whether ads can be snoozed. Nothing until chosen.
+- **Still left out:** keys that send chat, moderate beyond the chat lock, or start giveaways or polls; Stream Deck + dials.

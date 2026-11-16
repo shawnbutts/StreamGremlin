@@ -99,6 +99,32 @@ func TestStreamDeckKeys(t *testing.T) {
 		t.Fatal("Shield Mode is still on")
 	}
 
+	// Run a workflow (D-124): only the one named starts, once per request
+	// id, whatever its trigger; a command workflow is said to need a viewer.
+	must("workflows", "save", filepath.Join("..", "..", "examples", "workflows", "lurk.json"))
+	lurk := workflowID(t, "lurk.json")
+	must("workflows", "on", lurk)
+	expect("PUT", "/v1/deck/switches/workflow/"+hello, deck, `{"on":true}`, 200, `"on":true`)
+	expect("PUT", "/v1/settings/streamdeck", e.token, `{"counters":["deaths"],"switches":[{"kind":"chat_lock"}],"runs":["`+hello+`"],"scenes":true}`, 200)
+	expect("GET", "/v1/deck", deck, "", 200, `"needs_viewer":true`, `"scenes":{"known":false`)
+	expect("POST", "/v1/deck/runs/"+hello, deck, `{"request_id":"run1"}`, 200, `"duplicate":false`)
+	expect("POST", "/v1/deck/runs/"+hello, deck, `{"request_id":"run1"}`, 200, `"duplicate":true`)
+	expect("POST", "/v1/deck/runs/"+lurk, deck, `{"request_id":"run2"}`, 403)
+	eventually(t, "the run", func() string {
+		_, body := call(t, e, "GET", "/v1/jobs?workflow="+hello, e.token, "", nil)
+		if strings.Count(body, `"workflow_id":"`+hello+`"`) != 1 {
+			return "not yet: " + body
+		}
+		return ""
+	})
+	if _, body := call(t, e, "GET", "/v1/jobs?workflow="+lurk, e.token, "", nil); strings.Contains(body, `"workflow_id"`) {
+		t.Errorf("lurk ran too: %s", body)
+	}
+	// OBS isn't connected: a scene switch is refused, not pretended.
+	if code, body := call(t, e, "POST", "/v1/deck/scene", deck, `{"scene":"BRB"}`, nil); code < 400 {
+		t.Errorf("scene with no OBS: %d %s", code, body)
+	}
+
 	// After a restart: the choice and the value are kept.
 	stopEngine(t, e)
 	e = startEngine(t, dir, "-twitch-auth-url", twURL)

@@ -2089,6 +2089,14 @@ export interface DeckSwitch {
 export interface DeckSettings {
   counters: string[];
   switches: DeckSwitch[];
+  /** Workflows a key may run now, whatever their trigger (D-124). */
+  runs: string[];
+  /** Keys may switch OBS's scene. */
+  scenes: boolean;
+  /** Clock overlays (countdowns, stopwatches) keys may start, pause and reset. */
+  countdowns: string[];
+  /** Keys may snooze Twitch's next ad. */
+  ads: boolean;
 }
 
 export interface DeckView {
@@ -2101,6 +2109,10 @@ export interface DeckView {
   };
   counters: { name: string; value: unknown }[];
   switches: (DeckSwitch & { label: string; on: boolean | null; gone?: boolean })[];
+  runs: { id: string; label: string; on: boolean; gone?: boolean; needs_viewer?: boolean }[];
+  scenes: { known: boolean; current: string; list: string[] } | null;
+  countdowns: { name: string; label: string; mode: string; running: boolean; ms: number; at: string; ended?: boolean; gone?: boolean }[];
+  ads: { known: boolean; next_ad_at?: string; snoozes: number; read_at: string; detail?: string } | null;
 }
 
 export const getDeckSettings = () => api<DeckSettings>('GET', '/v1/settings/streamdeck');

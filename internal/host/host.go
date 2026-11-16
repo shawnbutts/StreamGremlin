@@ -420,6 +420,7 @@ func Start(ctx context.Context, opts Options) (_ *Host, err error) {
 				a, ok := h.twitch.Account(twitch.RoleStreamer)
 				return ok && a.Status().State == twitch.StateConnected
 			},
+			Inbox: inbox, Scener: h.obs, Overlays: ovs, Clocks: h.clocks, AdsSource: h.ads,
 			NewID: events.NewID, Logger: log}),
 		Moderation:    mods,
 		BanLists:      h.banLists,

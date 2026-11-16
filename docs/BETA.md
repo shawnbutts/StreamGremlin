@@ -142,10 +142,11 @@ tick the box at the end of installing). The release on GitHub has the same
 plugin on its own too, StreamGremlin-VERSION-streamdeck.streamDeckPlugin,
 to install or update it without reinstalling. Drag "Press a
 button" onto a key, then in the key's settings type the pairing code from
-Connections, Stream Deck, "Pair a Stream Deck". "Counter", "Status" and
-"Switch" keys show a variable, whether you're live or connected, and turn
-workflows, timers or the chat lock on and off: choose what they may use on
-Connections, under "What your Stream Deck can use".
+Connections, Stream Deck, "Pair a Stream Deck". "Counter", "Status",
+"Switch", "Run a workflow", "OBS scene", "Countdown" and "Ad" keys count,
+show whether you're live or connected, turn things on and off, run a
+workflow, switch scenes, run countdowns and snooze ads: choose what they
+may use on Connections, under "What your Stream Deck can use".
 
 
 Updating

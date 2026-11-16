@@ -1,7 +1,7 @@
 // StreamGremlin's Stream Deck plugin (M7 slice 5, ADR-0042; M10 slice 1,
-// D-123, ADR-0053). Four actions: a key that presses a StreamGremlin
-// button, and counter, status and switch keys for what the streamer chose
-// for the deck. The plugin pairs once with the code StreamGremlin shows,
+// D-123, D-124, ADR-0053). A key that presses a StreamGremlin button, and
+// counter, status, switch, run, scene, countdown and ad keys for what the
+// streamer chose for the deck. The plugin pairs once with the code StreamGremlin shows,
 // keeps its own token in the plugin's global settings, reads StreamGremlin
 // every few seconds while keys are showing (and at once after a press),
 // and draws each key from it, or says why it can't.
@@ -19,15 +19,26 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { Engine, addressFile, loopback, switchKey, type Change, type DeckButton, type DeckView, type Result, type SwitchKind } from './engine';
-import { counterView, keyView, statusView, switchView, type DeckState, type KeyView, type StatusWhat } from './keys';
+import { adView, countdownView, counterView, keyView, runView, sceneView, statusView, switchView, type DeckState, type KeyView, type StatusWhat } from './keys';
 import { codeProblem, type Status, type ToPlugin } from './messages';
 import { loadNerd, type NerdLookup } from './nerd';
 
 type JsonValue = Parameters<typeof streamDeck.ui.sendToPropertyInspector>[0];
 type Global = { address?: string; token?: string; name?: string };
 /** Every action's settings; each uses its own. */
-type KeySettings = { buttonId?: string; name?: string; change?: Change; what?: StatusWhat; switch?: string };
-type Kind = 'press' | 'counter' | 'status' | 'switch';
+type KeySettings = {
+  buttonId?: string;
+  name?: string;
+  change?: Change;
+  what?: StatusWhat;
+  switch?: string;
+  run?: string;
+  scene?: string;
+  countdown?: string;
+  /** A countdown key: start and pause it, or reset it. */
+  press?: 'toggle' | 'reset';
+};
+type Kind = 'press' | 'counter' | 'status' | 'switch' | 'run' | 'scene' | 'countdown' | 'ad';
 
 const REFRESH_MS = 3000;
 
@@ -50,6 +61,8 @@ let problem = '';
 let nerd: NerdLookup | undefined;
 const keys = new Map<string, { kind: Kind; action: Action<KeySettings>; settings: KeySettings; drawn?: string }>();
 let timer: ReturnType<typeof setInterval> | undefined;
+// Countdown and ad keys count each second between reads.
+let ticker: ReturnType<typeof setInterval> | undefined;
 
 /** Reads StreamGremlin again and redraws the keys. */
 async function refresh(): Promise<void> {
@@ -85,6 +98,14 @@ function view(k: { kind: Kind; settings: KeySettings }): KeyView {
       return statusView({ state, what: s.what, deck });
     case 'switch':
       return switchView({ state, sw: s.switch, deck });
+    case 'run':
+      return runView({ state, id: s.run, deck });
+    case 'scene':
+      return sceneView({ state, scene: s.scene, deck });
+    case 'countdown':
+      return countdownView({ state, name: s.countdown, deck });
+    case 'ad':
+      return adView({ state, deck });
   }
 }
 
@@ -106,6 +127,12 @@ function watch(): void {
     clearInterval(timer);
     timer = undefined;
   }
+  const ticking = [...keys.values()].some((k) => k.kind === 'countdown' || k.kind === 'ad');
+  if (ticking && !ticker) ticker = setInterval(() => void draw(), 1000);
+  if (!ticking && ticker) {
+    clearInterval(ticker);
+    ticker = undefined;
+  }
 }
 
 function status(extra: Partial<Status> = {}): Status {
@@ -117,6 +144,9 @@ function status(extra: Partial<Status> = {}): Status {
     buttons: buttons.map((b) => ({ id: b.id, label: b.label })),
     counters: deck?.counters.map((c) => c.name) ?? [],
     switches: deck?.switches.filter((s) => !s.gone).map((s) => ({ key: switchKey(s.kind, s.id), label: s.label })) ?? [],
+    runs: deck?.runs?.filter((r) => !r.gone).map((r) => ({ id: r.id, label: r.label })) ?? [],
+    scenes: deck?.scenes?.list ?? [],
+    countdowns: deck?.countdowns?.filter((c) => !c.gone).map((c) => ({ name: c.name, label: c.label })) ?? [],
     deck: state !== 'ok' || !!deck,
     ...(problem ? { problem } : {}),
     ...extra,
@@ -253,7 +283,73 @@ class SwitchKey extends Key {
   }
 }
 
+@action({ UUID: 'com.streamgremlin.streamdeck.run' })
+class RunKey extends Key {
+  constructor() {
+    super('run');
+  }
+
+  override async onKeyDown(ev: KeyDownEvent<KeySettings>): Promise<void> {
+    const id = ev.payload.settings.run;
+    if (!id) return ev.action.showAlert();
+    const at = await ready();
+    if (!at) return ev.action.showAlert();
+    // Recorded, but the workflow is off: nothing ran, so say so.
+    await after(ev, `Run of ${id}`, await engine.run(at.address, at.token, id), (v) => v.on);
+  }
+}
+
+@action({ UUID: 'com.streamgremlin.streamdeck.scene' })
+class SceneKey extends Key {
+  constructor() {
+    super('scene');
+  }
+
+  override async onKeyDown(ev: KeyDownEvent<KeySettings>): Promise<void> {
+    const scene = ev.payload.settings.scene;
+    if (!scene) return ev.action.showAlert();
+    const at = await ready();
+    if (!at) return ev.action.showAlert();
+    await after(ev, `Scene ${scene}`, await engine.scene(at.address, at.token, scene), () => true);
+  }
+}
+
+@action({ UUID: 'com.streamgremlin.streamdeck.countdown' })
+class CountdownKey extends Key {
+  constructor() {
+    super('countdown');
+  }
+
+  override async onKeyDown(ev: KeyDownEvent<KeySettings>): Promise<void> {
+    const { countdown: name, press = 'toggle' } = ev.payload.settings;
+    if (!name) return ev.action.showAlert();
+    const at = await ready();
+    const now = deck?.countdowns?.find((c) => c.name === name);
+    if (!at || !now || now.gone) return ev.action.showAlert();
+    // A press says which way: asking again after a lost answer is harmless.
+    const action = press === 'reset' ? 'reset' : now.running ? 'pause' : 'start';
+    await after(ev, `Countdown ${name} ${action}`, await engine.countdown(at.address, at.token, name, action), () => true);
+  }
+}
+
+@action({ UUID: 'com.streamgremlin.streamdeck.ad' })
+class AdKey extends Key {
+  constructor() {
+    super('ad');
+  }
+
+  override async onKeyDown(ev: KeyDownEvent<KeySettings>): Promise<void> {
+    const at = await ready();
+    if (!at) return ev.action.showAlert();
+    await after(ev, 'Ad snooze', await engine.snooze(at.address, at.token), () => true);
+  }
+}
+
 streamDeck.actions.registerAction(new PressButton());
+streamDeck.actions.registerAction(new RunKey());
+streamDeck.actions.registerAction(new SceneKey());
+streamDeck.actions.registerAction(new CountdownKey());
+streamDeck.actions.registerAction(new AdKey());
 streamDeck.actions.registerAction(new CounterKey());
 streamDeck.actions.registerAction(new StatusKey());
 streamDeck.actions.registerAction(new SwitchKey());

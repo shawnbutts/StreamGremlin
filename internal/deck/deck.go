@@ -77,6 +77,31 @@ type Switch struct {
 type Settings struct {
 	Counters []string `json:"counters"`
 	Switches []Switch `json:"switches"`
+	// Runs are workflows a key may run now, whatever their trigger (D-124).
+	Runs []string `json:"runs"`
+	// Scenes: keys may switch OBS's scene.
+	Scenes bool `json:"scenes"`
+	// Countdowns are clock overlays (countdowns and stopwatches) keys may
+	// start, pause and reset.
+	Countdowns []string `json:"countdowns"`
+	// Ads: keys may snooze Twitch's next automatic ad.
+	Ads bool `json:"ads"`
+}
+
+// fill makes nil lists empty, as JSON shows them.
+func (s *Settings) fill() {
+	if s.Counters == nil {
+		s.Counters = []string{}
+	}
+	if s.Switches == nil {
+		s.Switches = []Switch{}
+	}
+	if s.Runs == nil {
+		s.Runs = []string{}
+	}
+	if s.Countdowns == nil {
+		s.Countdowns = []string{}
+	}
 }
 
 // Check reports whether the choice is well formed.
@@ -86,6 +111,24 @@ func (s Settings) Check() error {
 	}
 	if len(s.Switches) > MaxSwitches {
 		return invalid("up to %d switches", MaxSwitches)
+	}
+	if len(s.Runs) > MaxSwitches {
+		return invalid("up to %d workflows to run", MaxSwitches)
+	}
+	if len(s.Countdowns) > MaxSwitches {
+		return invalid("up to %d countdowns", MaxSwitches)
+	}
+	for _, list := range [][]string{s.Runs, s.Countdowns} {
+		seen := map[string]bool{}
+		for _, id := range list {
+			if id == "" || len(id) > maxID {
+				return invalid("a workflow or countdown needs its id")
+			}
+			if seen[id] {
+				return invalid("%s is listed twice", id)
+			}
+			seen[id] = true
+		}
 	}
 	seen := map[string]bool{}
 	for _, n := range s.Counters {
@@ -122,6 +165,15 @@ func (s Settings) Check() error {
 func (s Settings) hasCounter(name string) bool {
 	for _, n := range s.Counters {
 		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+func has(list []string, id string) bool {
+	for _, x := range list {
+		if x == id {
 			return true
 		}
 	}
@@ -167,9 +219,13 @@ type SwitchState struct {
 
 // View is everything a deck's keys show.
 type View struct {
-	Status   Status        `json:"status"`
-	Counters []Counter     `json:"counters"`
-	Switches []SwitchState `json:"switches"`
+	Status     Status           `json:"status"`
+	Counters   []Counter        `json:"counters"`
+	Switches   []SwitchState    `json:"switches"`
+	Runs       []RunState       `json:"runs"`
+	Scenes     *Scenes          `json:"scenes"`
+	Countdowns []CountdownState `json:"countdowns"`
+	Ads        *Ads             `json:"ads"`
 }
 
 // Workflows is what switches need of workflows.
@@ -206,6 +262,13 @@ type Options struct {
 	// SignedIn is whether the streamer's Twitch account is signed in: the
 	// chat lock is unknown otherwise.
 	SignedIn func() bool
+	// What run, scene, countdown and ad keys need (D-124); nil in tests
+	// that don't use them.
+	Inbox     Inbox
+	Scener    Scener
+	Overlays  OverlayStore
+	Clocks    Clocks
+	AdsSource AdsSource
 	// NewID makes a moderation request id.
 	NewID  func() string
 	Now    func() time.Time
@@ -218,6 +281,10 @@ type Service struct {
 
 	mu     sync.Mutex
 	recent map[string]recent
+
+	adMu     sync.Mutex
+	adCache  *Ads
+	adReadAt time.Time
 }
 
 type recent struct {
@@ -239,34 +306,25 @@ func New(o Options) *Service {
 
 // Settings returns the choice; empty when nothing was chosen.
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
-	out := Settings{Counters: []string{}, Switches: []Switch{}}
+	var out Settings
 	if _, err := s.o.Settings.Load(ctx, SettingsKey, &out); err != nil {
 		return Settings{}, err
 	}
-	if out.Counters == nil {
-		out.Counters = []string{}
-	}
-	if out.Switches == nil {
-		out.Switches = []Switch{}
-	}
+	out.fill()
 	return out, nil
 }
 
 // SetSettings saves the choice.
 func (s *Service) SetSettings(ctx context.Context, in Settings) (Settings, error) {
-	if in.Counters == nil {
-		in.Counters = []string{}
-	}
-	if in.Switches == nil {
-		in.Switches = []Switch{}
-	}
+	in.fill()
 	if err := in.Check(); err != nil {
 		return Settings{}, err
 	}
 	if err := s.o.Settings.Save(ctx, SettingsKey, in); err != nil {
 		return Settings{}, err
 	}
-	s.o.Logger.Info("stream deck choice saved", "counters", len(in.Counters), "switches", len(in.Switches))
+	s.o.Logger.Info("stream deck choice saved", "counters", len(in.Counters), "switches", len(in.Switches), "runs", len(in.Runs),
+		"scenes", in.Scenes, "countdowns", len(in.Countdowns), "ads", in.Ads)
 	return in, nil
 }
 
@@ -301,7 +359,7 @@ func (s *Service) View(ctx context.Context) (View, error) {
 	if err != nil {
 		return View{}, err
 	}
-	v := View{Status: s.status(ctx), Counters: []Counter{}, Switches: []SwitchState{}}
+	v := View{Status: s.status(ctx), Counters: []Counter{}, Switches: []SwitchState{}, Runs: []RunState{}, Countdowns: []CountdownState{}}
 	for _, n := range set.Counters {
 		c := Counter{Name: n}
 		got, err := s.o.Variables.Get(ctx, variables.Key{Scope: variables.Global, Name: n})
@@ -320,6 +378,9 @@ func (s *Service) View(ctx context.Context) (View, error) {
 			return View{}, err
 		}
 		v.Switches = append(v.Switches, st)
+	}
+	if err := s.more(ctx, set, &v); err != nil {
+		return View{}, err
 	}
 	return v, nil
 }

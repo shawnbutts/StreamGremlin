@@ -9,12 +9,14 @@
     ApiError,
     getDeck,
     getDeckSettings,
+    getOverlays,
     getTimers,
     getVariables,
     getWorkflows,
     putDeckSettings,
     type DeckSettings,
     type DeckView,
+    type Overlay,
     type TimerStatus,
     type WorkflowSummary,
   } from '../lib/api';
@@ -27,6 +29,7 @@
   let workflows = $state<WorkflowSummary[]>([]);
   let timers = $state<TimerStatus[]>([]);
   let globals = $state<string[]>([]);
+  let clocks = $state<Overlay[]>([]);
   let loadError = $state('');
   let newCounter = $state('');
   let counterProblem = $state('');
@@ -44,12 +47,20 @@
 
   async function load() {
     try {
-      const [s, v, w, t, vars] = await Promise.all([getDeckSettings(), getDeck(), getWorkflows(), getTimers(), getVariables({ scope: 'global' })]);
+      const [s, v, w, t, vars, ovs] = await Promise.all([
+        getDeckSettings(),
+        getDeck(),
+        getWorkflows(),
+        getTimers(),
+        getVariables({ scope: 'global' }),
+        getOverlays(),
+      ]);
       settings = s;
       view = v;
       workflows = w.workflows;
       timers = t.timers;
       globals = vars.variables.map((x) => x.name);
+      clocks = ovs.overlays.filter((o) => o.kind === 'timer' && (o.look.timer_mode === 'countdown' || o.look.timer_mode === 'stopwatch'));
       loadError = '';
     } catch (e) {
       loadError = message(e);
@@ -99,6 +110,19 @@
     const switches = on ? [...rest, id ? { kind, id } : { kind }] : rest;
     void save({ ...settings, switches }, on ? `${label} can be a switch key now.` : `${label} is no longer a switch: its keys stop working.`);
   }
+
+  function pick(list: 'runs' | 'countdowns', id: string, label: string, on: boolean, what: string) {
+    if (!settings) return;
+    const rest = settings[list].filter((x) => x !== id);
+    void save({ ...settings, [list]: on ? [...rest, id] : rest }, on ? `${label} can be ${what} key now.` : `${label} is no longer ${what} key: its keys stop working.`);
+  }
+
+  function allow(what: 'scenes' | 'ads', on: boolean, label: string) {
+    if (!settings) return;
+    void save({ ...settings, [what]: on }, on ? `${label}: allowed.` : `${label}: no longer allowed; those keys stop working.`);
+  }
+
+  const needsViewer = (id: string) => !!view?.runs.find((r) => r.id === id)?.needs_viewer;
 
   onMount(load);
 </script>
@@ -170,6 +194,52 @@
         </label>
       {/each}
     </fieldset>
+
+    <h3>Run a workflow</h3>
+    <p class="sg-muted">
+      A run key starts a workflow now, whatever starts it otherwise, if it’s on. A button on Live is usually better: its workflows start from the press.
+    </p>
+    <fieldset>
+      <legend>Workflows to run</legend>
+      {#if workflows.length === 0}<p class="sg-muted">No workflows yet.</p>{/if}
+      {#each workflows as w (w.id)}
+        <label class="pick">
+          <input type="checkbox" checked={!!settings?.runs.includes(w.id)} disabled={saving} onchange={(e) => pick('runs', w.id, w.name, e.currentTarget.checked, 'a run')} />
+          {w.name}
+        </label>
+        {#if settings?.runs.includes(w.id) && needsViewer(w.id)}
+          <p class="warn">
+            “{w.name}” starts from a viewer or their message. Run from the Stream Deck, it has neither, so steps that use them get nothing.
+          </p>
+        {/if}
+      {/each}
+    </fieldset>
+
+    <h3>OBS, countdowns and ads</h3>
+    <fieldset>
+      <legend>OBS</legend>
+      <label class="pick">
+        <input type="checkbox" checked={settings.scenes} disabled={saving} onchange={(e) => allow('scenes', e.currentTarget.checked, 'Switching OBS scenes')} />
+        Scene keys may switch OBS’s scene (lit while it’s on air)
+      </label>
+    </fieldset>
+    <fieldset>
+      <legend>Countdowns and stopwatches</legend>
+      {#if clocks.length === 0}<p class="sg-muted">No countdown or stopwatch overlays yet: make a Clock and timers overlay on Overlays.</p>{/if}
+      {#each clocks as o (o.name)}
+        <label class="pick">
+          <input type="checkbox" checked={!!settings?.countdowns.includes(o.name)} disabled={saving} onchange={(e) => pick('countdowns', o.name, o.look.timer_label || o.name, e.currentTarget.checked, 'a countdown')} />
+          {o.look.timer_label || o.name} <span class="sg-muted">({o.look.timer_mode})</span>
+        </label>
+      {/each}
+    </fieldset>
+    <fieldset>
+      <legend>Ads</legend>
+      <label class="pick">
+        <input type="checkbox" checked={settings.ads} disabled={saving} onchange={(e) => allow('ads', e.currentTarget.checked, 'Snoozing ads')} />
+        An ad key shows when Twitch’s next ad is due and may snooze it
+      </label>
+    </fieldset>
     {#each view.switches.filter((s) => s.gone) as g (g.kind + g.id)}
       <p class="state state-unknown">
         <span aria-hidden="true">?</span> A chosen {g.kind} was deleted.
@@ -220,6 +290,10 @@
     padding: 0.4rem 0.75rem;
     max-height: 16rem;
     overflow-y: auto;
+  }
+  .warn {
+    margin: 0 0 0.4rem 1.6rem;
+    font-size: 0.9em;
   }
   .pick {
     display: flex;

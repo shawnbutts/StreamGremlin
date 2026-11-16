@@ -229,3 +229,72 @@ export function switchView(o: { state: DeckState; sw?: string; deck?: DeckView }
   if (s.on === null) return { title: '', image: bigText('?', s.label) };
   return { title: '', image: s.on ? bigText('ON', s.label, { fill: COLORS.green }) : bigText('OFF', s.label, { dim: true }) };
 }
+
+// Run, scene, countdown and ad keys (D-124).
+
+/** mm:ss, or h:mm:ss from an hour. */
+export function clockText(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
+const tooOld = (part: unknown): KeyView | undefined =>
+  part === undefined ? { title: 'Update\nStreamGremlin', image: plain('?') } : undefined;
+
+/** A run key: the workflow's name, dim while it's off (a press starts nothing). */
+export function runView(o: { state: DeckState; id?: string; deck?: DeckView }): KeyView {
+  const wait = notReady(o.state, o.deck) ?? tooOld(o.deck?.runs);
+  if (wait) return wait;
+  if (!o.id) return { title: 'Pick a\nworkflow', image: plain('…') };
+  const r = o.deck!.runs!.find((x) => x.id === o.id);
+  if (!r) return notChosen('That workflow');
+  if (r.gone) return { title: 'Workflow\ngone', image: plain('?') };
+  return { title: '', image: bigText('▶', r.label, { fill: COLORS.purple, dim: !r.on }) };
+}
+
+/** A scene key: lit while its scene is on air; "?" while OBS can't say. */
+export function sceneView(o: { state: DeckState; scene?: string; deck?: DeckView }): KeyView {
+  const wait = notReady(o.state, o.deck) ?? tooOld(o.deck?.scenes);
+  if (wait) return wait;
+  if (!o.scene) return { title: 'Pick a\nscene', image: plain('…') };
+  const sc = o.deck!.scenes;
+  if (!sc) return notChosen('Switching scenes');
+  if (!sc.known) return { title: '', image: bigText('?', o.scene) };
+  if (!sc.list.includes(o.scene)) return { title: 'Scene\ngone', image: plain('?') };
+  return { title: '', image: sc.current === o.scene ? bigText('ON AIR', o.scene, { fill: COLORS.red }) : bigText('', o.scene, { dim: true }) };
+}
+
+/** A countdown key: its time now, counted from when StreamGremlin said. */
+export function countdownView(o: { state: DeckState; name?: string; deck?: DeckView; now?: number }): KeyView {
+  const wait = notReady(o.state, o.deck) ?? tooOld(o.deck?.countdowns);
+  if (wait) return wait;
+  if (!o.name) return { title: 'Pick a\ncountdown', image: plain('…') };
+  const c = o.deck!.countdowns!.find((x) => x.name === o.name);
+  if (!c) return notChosen('That countdown');
+  if (c.gone) return { title: 'Countdown\ngone', image: plain('?') };
+  let ms = c.ms;
+  if (c.running) {
+    const passed = Math.max(0, (o.now ?? Date.now()) - Date.parse(c.at));
+    ms = c.mode === 'countdown' ? Math.max(0, c.ms - passed) : c.ms + passed;
+  }
+  const done = c.mode === 'countdown' && (c.ended || (c.running && ms === 0));
+  const fill = done ? COLORS.red : c.running ? COLORS.green : undefined;
+  return { title: '', image: bigText(clockText(ms), c.label, { fill, top: c.running ? '▶' : '❚❚' }) };
+}
+
+/** An ad key: time until Twitch's next ad, and snoozes left. */
+export function adView(o: { state: DeckState; deck?: DeckView; now?: number }): KeyView {
+  const wait = notReady(o.state, o.deck) ?? tooOld(o.deck?.ads);
+  if (wait) return wait;
+  const a = o.deck!.ads;
+  if (!a) return notChosen('Snoozing ads');
+  if (!a.known) return { title: '', image: bigText('?', 'Next ad') };
+  const top = `${a.snoozes} snooze${a.snoozes === 1 ? '' : 's'}`;
+  if (!a.next_ad_at) return { title: '', image: bigText('—', 'Next ad', { top }) };
+  const left = Date.parse(a.next_ad_at) - (o.now ?? Date.now());
+  const soon = left < 60_000;
+  return { title: '', image: bigText(left > 0 ? clockText(left) : 'Now', 'Next ad', { top, fill: soon ? COLORS.orange : undefined }) };
+}

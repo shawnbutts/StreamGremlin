@@ -503,6 +503,12 @@ func (d *Definition) matches(r events.Record, payload map[string]any) bool {
 	if r.Type == events.ChatSent || events.Backlog(r) {
 		return false
 	}
+	// A Stream Deck's run starts the one workflow it names, whatever its
+	// triggers (D-124).
+	if r.Type == events.DeckRun {
+		id, _ := payload["workflow_id"].(string)
+		return id == d.ID
+	}
 	for _, t := range d.Triggers {
 		if t.matches(r, payload) {
 			return true
