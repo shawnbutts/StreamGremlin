@@ -2128,3 +2128,18 @@ Decided 2026-11-16. Told that 0.1.0's four-part version (0.1.0.0) would sort bef
 - **From 0.2.0, a version says what changed:** a fix is 0.2.1; new features are 0.3.0. A `-beta.N` version is only for trying something out before its release, and the app offers those only to someone already on a `-beta.N` version (a full release moves only to full releases, as before).
 - **The four-part version is fixed too,** not only stepped around: a full release's fourth number is 65535, so 0.2.0 is 0.2.0.65535, after every 0.2.0 beta, as 1.0.0 will be after 1.0.0's. A beta's fourth stays its number (0.2.1-beta.3 is 0.2.1.3), at most 65534. It's tested by version order.
 - **Unchanged:** beta data is kept (D-122); signing is required from 0.5.0 (D-122).
+
+## D-126. An MCP server for the streamer's own AI assistant (M11, 0.3.0; amends D-004's AI cut)
+
+Decided 2026-11-17. The user asked: "let's discuss adding an MCP server to streamgremlin". Offered who it's for, what it could do and how much, they said: "technical streamers, read-only plus workflow drafts. let aim it for 0.3.0".
+
+- **Who it's for:** technical streamers who already use an AI assistant that speaks the Model Context Protocol (MCP), such as Claude Desktop or Claude Code, to build workflows by describing them and to find out why something didn't run. It's documented in the help, not sold on the home page.
+- **StreamGremlin holds no AI.** The streamer's own assistant connects to StreamGremlin; StreamGremlin calls no AI provider, holds no AI keys and spends nothing. "AI providers, spending ledger, chat personality" stay Leave.
+- **`streamgremlin mcp`** is an MCP server on standard input and output, started by the assistant. It reaches the engine through the same authenticated API as the CLI, so nothing new listens on the network, and nothing is Wails-only.
+- **An assistant is a paired client,** a new kind beside the Stream Deck (ADR-0042), paired once on a new Connections card, **AI assistant**. The card also shows what it did lately and unpairs it.
+- **Read-only, then workflow drafts:** it reads workflows, what can start them and what they can do, the event log, workflow runs and their errors, and what's connected. It saves new or changed workflows **turned off**, as drafts; the streamer looks and turns them on in the app. It can't turn a workflow on, or delete one.
+- **Never:** secrets or sign-ins, sending chat, moderation, choosing winners, giving or spending points, running ads, OBS, or anything live.
+- **Viewers' words stay out by default:** chat, names and other text written by viewers can steer an assistant (prompt injection), so the event log reaches the assistant without them unless the streamer ticks a box on the card. Even then, the tools limit any harm to a draft that's off.
+- **Recorded as from the assistant,** like the Stream Deck's changes, in the log and on each draft.
+- **Before building,** the current MCP specification and its official Go SDK are checked and recorded in the ADR, as every outside protocol is. The plan is in [docs/milestones/M11.md](milestones/M11.md).
+- **Left out:** live control, an MCP server over HTTP, and AI built into StreamGremlin.
